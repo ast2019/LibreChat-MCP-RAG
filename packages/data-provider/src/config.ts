@@ -3845,6 +3845,12 @@ export const balanceSchema = z
     display: z.enum(BALANCE_DISPLAY_MODES).optional().default('credits'),
     /** Credit packs an admin can grant; omission keeps grants to raw credit amounts. */
     packs: z.array(balancePackSchema).optional(),
+    /** Where the low-balance notice's "Buy a pack" button links; omission shows no button. */
+    purchaseUrl: z
+      .string()
+      .url()
+      .refine((value) => /^https?:\/\//i.test(value), 'must be an http(s) URL')
+      .optional(),
   })
   .superRefine((balance, ctx) => {
     const packIds = new Set<string>();

@@ -67,8 +67,23 @@ services:
       # Accounts
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       ALLOW_EMAIL_LOGIN: 'true'
-      ALLOW_SOCIAL_LOGIN: 'false'
-      ALLOW_SOCIAL_REGISTRATION: 'false'
+      # Social login only renders providers that are configured, so with empty OPENID_*
+      # values users see the email form alone.
+      ALLOW_SOCIAL_LOGIN: 'true'
+      ALLOW_SOCIAL_REGISTRATION: ${ALLOW_SOCIAL_REGISTRATION:-true}
+      # OpenID Connect (optional): set issuer, client id and secret to show the button.
+      # Register the redirect URI <your domain>/oauth/openid/callback with the provider.
+      OPENID_ISSUER: ${OPENID_ISSUER:-}
+      OPENID_CLIENT_ID: ${OPENID_CLIENT_ID:-}
+      OPENID_CLIENT_SECRET: ${OPENID_CLIENT_SECRET:-}
+      OPENID_SESSION_SECRET: ${SERVICE_HEX_64_OPENIDSESSION}
+      OPENID_SCOPE: ${OPENID_SCOPE:-openid profile email}
+      OPENID_CALLBACK_URL: /oauth/openid/callback
+      OPENID_BUTTON_LABEL: ${OPENID_BUTTON_LABEL:-}
+      OPENID_IMAGE_URL: ${OPENID_IMAGE_URL:-}
+      OPENID_USE_PKCE: ${OPENID_USE_PKCE:-false}
+      OPENID_USERNAME_CLAIM: ${OPENID_USERNAME_CLAIM:-}
+      OPENID_NAME_CLAIM: ${OPENID_NAME_CLAIM:-}
       ALLOW_UNVERIFIED_EMAIL_LOGIN: ${ALLOW_UNVERIFIED_EMAIL_LOGIN:-true}
       ALLOW_PASSWORD_RESET: ${ALLOW_PASSWORD_RESET:-false}
       # Optional SMTP for verification / password reset mails

@@ -6,7 +6,9 @@ version: 1.3.18
 cache: true
 
 registration:
-  socialLogins: []
+  # Email + password stays on. The OpenID button appears only once the OPENID_* variables
+  # are set in Coolify (see docs/saas/DEPLOY_COOLIFY.md).
+  socialLogins: ['openid']
 
 interface:
   customWelcome: 'چطور می‌توانم کمکتان کنم؟'
@@ -66,6 +68,9 @@ balance:
       label: 'بسته حرفه‌ای'
       credits: 15000000
       description: '$15 of usage at marketed prices'
+  # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
+  # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
+  # purchaseUrl: 'https://example.com/buy'
 
 transactions:
   enabled: true
