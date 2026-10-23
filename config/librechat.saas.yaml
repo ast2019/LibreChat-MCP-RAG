@@ -1,0 +1,206 @@
+# SaaS configuration for this fork: OpenRouter only, credit packs, search-first UX.
+# Loaded in Docker through CONFIG_PATH=/app/config/librechat.saas.yaml (see docker-compose.yml).
+# Reference for every key: librechat.example.yaml and docs/saas/BILLING.md.
+version: 1.3.18
+
+cache: true
+
+registration:
+  socialLogins: []
+
+interface:
+  customWelcome: 'چطور می‌توانم کمکتان کنم؟'
+  # Users pick from the model specs below only (no raw endpoint/model lists).
+  modelSelect: false
+  # ChatGPT-style simplicity: no sampling parameters, presets or side-by-side chats.
+  parameters: false
+  presets: false
+  multiConvo: false
+  bookmarks: true
+  temporaryChat: true
+  webSearch: true
+  fileSearch: true
+  fileCitations: true
+  runCode: false
+  # The composer ring then shows the share of the user's pack spent, not the context window.
+  contextUsage: false
+  contextCost: false
+  prompts:
+    use: true
+    create: true
+    share: false
+    public: false
+  agents:
+    # Admins build agents (e.g. translator, summarizer); users can use them.
+    use: true
+    create: false
+    share: false
+    public: false
+  marketplace:
+    use: false
+  peoplePicker:
+    users: false
+    groups: false
+    roles: false
+  feedback: true
+
+# Credits are micro-dollars of marked-up usage: 1,000,000 credits = $1 billed to the user.
+# Each request deducts tokens x (OpenRouter USD price x priceMultiplier) in credits.
+balance:
+  enabled: true
+  # Free trial for every new account: $0.20 of usage.
+  startBalance: 200000
+  autoRefillEnabled: false
+  # Users see a progress bar and "% used", never raw credits or dollars.
+  display: percent
+  packs:
+    - id: starter
+      label: 'بسته پایه'
+      credits: 2000000
+      description: '$2 of usage at marketed prices'
+    - id: standard
+      label: 'بسته استاندارد'
+      credits: 5000000
+      description: '$5 of usage at marketed prices'
+    - id: pro
+      label: 'بسته حرفه‌ای'
+      credits: 15000000
+      description: '$15 of usage at marketed prices'
+
+transactions:
+  enabled: true
+
+webSearch:
+  # Self-hosted SearXNG for results, Keenable (keyless) to read pages, no reranker.
+  searchProvider: searxng
+  searxngInstanceUrl: '${SEARXNG_INSTANCE_URL}'
+  # Keenable works without a key; set KEENABLE_API_KEY to lift its public rate limit.
+  scraperProvider: keenable
+  rerankerType: none
+  searxngSearchOptions:
+    engines:
+      - google
+      - bing
+      - brave
+      - startpage
+      - wikipedia
+  # The internal SearXNG container is a private address; exempt exactly that host:port.
+  allowedAddresses:
+    - 'searxng:8080'
+
+endpoints:
+  agents:
+    capabilities:
+      - deferred_tools
+      - file_search
+      - web_search
+      - artifacts
+      - context
+      - tools
+  custom:
+    # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
+    - name: 'OpenRouter'
+      apiKey: '${OPENROUTER_KEY}'
+      baseURL: 'https://openrouter.ai/api/v1'
+      models:
+        default: ['~google/gemini-flash-latest']
+        # Required: fetching the model list is what loads OpenRouter's USD prices.
+        fetch: true
+      # Users pay OpenRouter's price x 1.3 (30% margin). Change and redeploy to reprice.
+      priceMultiplier: 1.3
+      titleConvo: true
+      titleModel: '~google/gemini-flash-latest'
+      # OpenRouter models use a variety of stop tokens.
+      dropParams: ['stop']
+      modelDisplayLabel: 'OpenRouter'
+      # Do not add `headers` here: they make the price cache per-user (one fetch per user).
+
+modelSpecs:
+  enforce: true
+  prioritize: true
+  list:
+    - name: 'fast'
+      label: 'سریع'
+      description: 'پاسخ سریع و کم‌هزینه برای کارهای روزمره؛ در صورت نیاز در وب جستجو می‌کند'
+      default: true
+      group: 'گفتگو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~google/gemini-flash-latest'
+        modelLabel: 'سریع'
+    - name: 'smart'
+      label: 'هوشمند'
+      description: 'دقیق‌تر برای نوشتن، تحلیل و کدنویسی'
+      group: 'گفتگو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~anthropic/claude-sonnet-latest'
+        modelLabel: 'هوشمند'
+    - name: 'gpt'
+      label: 'GPT'
+      description: 'مدل GPT از OpenAI'
+      group: 'گفتگو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~openai/gpt-mini-latest'
+        modelLabel: 'GPT'
+    - name: 'economy'
+      label: 'اقتصادی'
+      description: 'کم‌مصرف‌ترین گزینه برای سوال‌های ساده'
+      group: 'گفتگو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~deepseek/deepseek-flash-latest'
+        modelLabel: 'اقتصادی'
+    - name: 'pro'
+      label: 'قدرتمند'
+      description: 'قوی‌ترین مدل برای کارهای پیچیده؛ مصرف بیشتری دارد'
+      group: 'گفتگو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~anthropic/claude-opus-latest'
+        modelLabel: 'قدرتمند'
+    - name: 'research'
+      label: 'جستجو و پژوهش'
+      description: 'همیشه در وب جستجو می‌کند و با ذکر منبع پاسخ می‌دهد'
+      group: 'جستجو'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~google/gemini-flash-latest'
+        modelLabel: 'جستجو'
+        promptPrefix: |
+          You are a research assistant. For every question, first use the web search tool,
+          then answer concisely in the user's language and cite the sources you used.
+          If the user attached files, search them as well and say which file each fact came from.
+    - name: 'perplexity'
+      label: 'Perplexity'
+      description: 'جستجوی بومی Perplexity Sonar Pro'
+      group: 'جستجو'
+      preset:
+        endpoint: 'OpenRouter'
+        model: 'perplexity/sonar-pro'
+        modelLabel: 'Perplexity'
+    - name: 'documents'
+      label: 'پرسش از فایل‌ها'
+      description: 'فایل‌های خود را آپلود کنید و درباره‌شان بپرسید'
+      group: 'اسناد'
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~anthropic/claude-sonnet-latest'
+        modelLabel: 'اسناد'
+        promptPrefix: |
+          Answer using the user's uploaded files. Quote the relevant passage and name the file.
+          If the files do not contain the answer, say so before using general knowledge.
