@@ -21,6 +21,7 @@ import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
 import { settingsOpenAtom } from './Settings';
+import Balance from '~/components/Balance';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -146,6 +147,8 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
         <div className="text-text-secondary ms-3 me-2 py-2 text-sm" role="note">
           {user?.email ?? localize('com_nav_user')}
         </div>
+        {/* Renders nothing when the deployment does not meter credits */}
+        <Balance className="ms-3 me-2 pb-2" />
         <DropdownMenuSeparator />
         <HelpSubmenu
           helpAndFaqURL={startupConfig?.helpAndFaqURL}

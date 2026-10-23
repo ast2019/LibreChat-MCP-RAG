@@ -15,8 +15,11 @@ export type BalanceTone = 'normal' | 'warning' | 'danger';
 export interface BalanceSummary {
   display: BalanceDisplay;
   credits: number;
-  /** Credits one period grants: the refill amount under auto-refill, else the starting balance. */
+  /** Credits measured against: the last granted pack, else the refill amount under
+   *  auto-refill, else the starting balance. */
   allotment: number | null;
+  /** Display name of the last granted pack; null when none was granted or it has no name. */
+  packLabel: string | null;
   /** Whole percent of the allotment spent, 0–100; 100 once credits run out, else null without
    *  an allotment to measure against. */
   usedPercent: number | null;
@@ -70,7 +73,11 @@ export function summarizeBalance(
 ): BalanceSummary {
   const credits = Number.isFinite(balance.tokenCredits) ? balance.tokenCredits : 0;
   const refillAmount = balance.autoRefillEnabled ? positive(balance.refillAmount) : null;
-  const allotment = refillAmount ?? positive(startBalance);
+  const allotment = positive(balance.packAllotment) ?? refillAmount ?? positive(startBalance);
+  const packLabel =
+    typeof balance.packLabel === 'string' && balance.packLabel.trim() !== ''
+      ? balance.packLabel.trim()
+      : null;
   const usedPercent = getUsedPercent(credits, allotment);
 
   let tone: BalanceTone = 'normal';
@@ -84,6 +91,7 @@ export function summarizeBalance(
     display,
     credits,
     allotment,
+    packLabel,
     usedPercent,
     tone,
     refillAmount,
