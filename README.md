@@ -2,7 +2,7 @@
 > **This fork** (version in [`VERSION`](VERSION), changes in [`CHANGELOG.md`](CHANGELOG.md)) runs LibreChat as a
 > search-first SaaS on OpenRouter with credit packs. Persian docs:
 > [software map](docs/saas/SOFTWARE_MAP.md) · [billing & packs](docs/saas/BILLING.md) ·
-> [Coolify deployment](docs/saas/DEPLOY_COOLIFY.md) · [roadmap](docs/saas/ROADMAP.md).
+> [Coolify deployment](docs/saas/DEPLOY_COOLIFY.md) · [ideas & next steps](docs/saas/IDEAS.md).
 > Production config: [`config/librechat.saas.yaml`](config/librechat.saas.yaml); stack: [`docker-compose.yml`](docker-compose.yml).
 >
 > This fork has no CI. Before opening a PR, run locally (Node 24, see `.nvmrc`):

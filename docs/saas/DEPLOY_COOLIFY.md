@@ -20,6 +20,15 @@
 6. **حساب ادمین:** **اولین حسابی که ثبت‌نام کند ADMIN می‌شود.** فوراً خودتان ثبت‌نام کنید. اگر نمی‌خواهید هر کسی ثبت‌نام کند، بعد از آن `ALLOW_REGISTRATION=false` بگذارید.
 7. **دادن بسته به کاربران:** طبق [BILLING.md](./BILLING.md).
 
+## ورود کاربران
+
+- **ایمیل و رمز عبور:** همیشه فعال است. کاربر هنگام ثبت‌نام نام، نام کاربری، ایمیل و رمز وارد می‌کند و با ایمیل و رمز وارد می‌شود.
+- **OpenID Connect (اختیاری):** در Coolify این سه متغیر را بگذارید: `OPENID_ISSUER` (مثلاً `https://accounts.google.com` یا آدرس realm در Keycloak)، `OPENID_CLIENT_ID` و `OPENID_CLIENT_SECRET`. آدرس بازگشت `https://chat.example.com/oauth/openid/callback` را در سرویس OpenID ثبت کنید. بعد از redeploy، دکمه ورود زیر فرم ظاهر می‌شود.
+  - متن دکمه: `OPENID_BUTTON_LABEL`
+  - اگر نمی‌خواهید کاربر جدید از طریق OpenID ساخته شود: `ALLOW_SOCIAL_REGISTRATION=false`
+  - `OPENID_SESSION_SECRET` را Coolify خودش می‌سازد.
+  - تا این سه متغیر خالی باشند دکمه نمایش داده نمی‌شود. آدرس `/oauth/openid` در این حالت خطای 500 می‌دهد، که رفتار خود LibreChat است.
+
 ## سرویس‌ها
 
 | سرویس | نقش | Volume |

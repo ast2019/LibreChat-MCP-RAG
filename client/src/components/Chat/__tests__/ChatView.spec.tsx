@@ -9,6 +9,8 @@ const mockConversation = jest.fn();
 const mockChatFormProps = jest.fn();
 const mockAskHostSaveDrafts = jest.fn();
 
+jest.mock('~/components/Balance/Notice', () => ({ __esModule: true, default: () => null }));
+
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useParams: () => mockParams(),
