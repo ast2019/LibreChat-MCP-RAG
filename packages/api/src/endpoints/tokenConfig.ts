@@ -4,6 +4,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { EndpointTokenConfig } from '~/types';
 import { buildTokenConfigMap, type TokenomicsDeps } from '~/endpoints/pricing';
 import { getTokenConfigKey } from '~/endpoints/custom/initialize';
+import { applyPriceMultiplier } from '~/billing/markup';
 import { tokenConfigCache } from '~/cache';
 
 export interface ResolveTokenConfigParams {
@@ -36,8 +37,13 @@ export async function resolveTokenConfigMap(
     if (!name) {
       continue;
     }
+    /** Shown prices match billed prices: both apply the endpoint's multiplier */
+    const multiplier = endpointConfig.priceMultiplier;
     if (endpointConfig.tokenConfig != null) {
-      endpointTokenConfigs[name] = endpointConfig.tokenConfig as EndpointTokenConfig;
+      endpointTokenConfigs[name] = applyPriceMultiplier(
+        endpointConfig.tokenConfig as EndpointTokenConfig,
+        multiplier,
+      );
       continue;
     }
     /** Model fetches and chat initialization both store under this key —
@@ -45,7 +51,7 @@ export async function resolveTokenConfigMap(
     const tokenKey = getTokenConfigKey(endpointConfig, name, userId, tenantId);
     const cached = (await cache.get(tokenKey)) as EndpointTokenConfig | undefined;
     if (cached) {
-      endpointTokenConfigs[name] = cached;
+      endpointTokenConfigs[name] = applyPriceMultiplier(cached, multiplier);
     }
   }
 

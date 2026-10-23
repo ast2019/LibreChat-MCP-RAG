@@ -84,6 +84,7 @@ librechat.yml
 my.secrets
 !**/.env.example
 !**/.env.test.example
+!.env.coolify.example
 cache.json
 api/data/
 owner.yml

@@ -1,6 +1,6 @@
 import { EModelEndpoint } from 'librechat-data-provider';
 import type { EndpointTokenConfig } from '~/types';
-import { getModelMaxTokens, findMatchingPattern } from './tokens';
+import { getModelMaxTokens, findMatchingPattern, processModelData } from './tokens';
 
 describe('Bedrock OpenAI context windows', () => {
   const models = [
@@ -351,5 +351,69 @@ describe.each(['gpt-6-sol', 'gpt-6-luna'])('%s token limits', (model) => {
     for (const name of [model, `${model}-2026-09-22`, `openai/${model}`]) {
       expect(getModelMaxTokens(name, EModelEndpoint.openAI)).toBe(1050000);
     }
+  });
+});
+
+describe('processModelData (OpenRouter /models pricing)', () => {
+  it('converts USD-per-token prices, including cache prices, to per-million rates', () => {
+    const result = processModelData({
+      data: [
+        {
+          id: 'anthropic/claude-sonnet',
+          pricing: {
+            prompt: '0.000003',
+            completion: '0.000015',
+            input_cache_read: '0.0000003',
+            input_cache_write: '0.00000375',
+            input_cache_write_1h: '0.000006',
+            web_search: '0.01',
+          },
+          context_length: 200000,
+        },
+        {
+          id: 'openai/gpt-4o-mini',
+          pricing: { prompt: '0.00000015', completion: '0.0000006' },
+          context_length: 128000,
+        },
+      ],
+    } as Parameters<typeof processModelData>[0]);
+
+    expect(result['anthropic/claude-sonnet']).toEqual({
+      prompt: expect.closeTo(3),
+      completion: expect.closeTo(15),
+      context: 200000,
+      read: expect.closeTo(0.3),
+      write: expect.closeTo(3.75),
+      write1h: expect.closeTo(6),
+    });
+    expect(result['openai/gpt-4o-mini']).toEqual({
+      prompt: expect.closeTo(0.15),
+      completion: expect.closeTo(0.6),
+      context: 128000,
+    });
+  });
+
+  it('skips router models whose price is only known after routing (-1)', () => {
+    const result = processModelData({
+      data: [
+        { id: 'openrouter/fusion', pricing: { prompt: '-1', completion: '-1' }, context_length: 1 },
+        { id: 'free/model', pricing: { prompt: '0', completion: '0' }, context_length: 8000 },
+      ],
+    });
+    expect(result['openrouter/fusion']).toBeUndefined();
+    expect(result['free/model']).toEqual({ prompt: 0, completion: 0, context: 8000 });
+  });
+
+  it('keeps the fixed openrouter/auto estimate', () => {
+    const result = processModelData({
+      data: [
+        { id: 'openrouter/auto', pricing: { prompt: '-1', completion: '-1' }, context_length: 2 },
+      ],
+    });
+    expect(result['openrouter/auto']).toEqual({
+      prompt: expect.closeTo(10),
+      completion: expect.closeTo(30),
+      context: 2,
+    });
   });
 });

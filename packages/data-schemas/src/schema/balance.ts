@@ -46,6 +46,20 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
     type: String,
     index: true,
   },
+  /** Last credit pack granted; the usage bar measures spend against `packAllotment` */
+  packId: {
+    type: String,
+  },
+  packLabel: {
+    type: String,
+  },
+  /** Credits held right after the last pack grant */
+  packAllotment: {
+    type: Number,
+  },
+  packGrantedAt: {
+    type: Date,
+  },
   /** Credits held by in-flight requests; released when each request settles, or pruned once expired */
   reservations: {
     type: [

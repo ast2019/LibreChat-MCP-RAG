@@ -765,6 +765,25 @@ export const inputSchema: z.ZodObject<
  * @param {{ data: Array<z.infer<typeof modelSchema>> }} input The input object containing base URL and data fetched from the API.
  * @returns {EndpointTokenConfig} The processed model data.
  */
+/** USD-per-token price string → USD per million tokens; null when absent, non-numeric or negative. */
+function toPerMillion(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return null;
+  }
+  const parsed = typeof value === 'number' ? value : parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed * 1000000;
+}
+
+/** OpenRouter cache price fields → the `read`/`write`/`write1h` keys `getCacheMultiplier` reads. */
+const CACHE_PRICE_KEYS = [
+  ['input_cache_read', 'read'],
+  ['input_cache_write', 'write'],
+  ['input_cache_write_1h', 'write1h'],
+] as const;
+
 export function processModelData(input: z.infer<typeof inputSchema>): EndpointTokenConfig {
   const validationResult = inputSchema.safeParse(input);
   if (!validationResult.success) {
@@ -775,7 +794,7 @@ export function processModelData(input: z.infer<typeof inputSchema>): EndpointTo
   /** @type {EndpointTokenConfig} */
   const tokenConfig: EndpointTokenConfig = {};
 
-  for (const model of data) {
+  for (const [index, model] of data.entries()) {
     const modelKey = model.id;
     if (modelKey === 'openrouter/auto') {
       model.pricing = {
@@ -783,14 +802,31 @@ export function processModelData(input: z.infer<typeof inputSchema>): EndpointTo
         completion: '0.00003',
       };
     }
-    const prompt = parseFloat(model.pricing.prompt) * 1000000;
-    const completion = parseFloat(model.pricing.completion) * 1000000;
+    const prompt = toPerMillion(model.pricing.prompt);
+    const completion = toPerMillion(model.pricing.completion);
+    /** Routers advertise `-1` for a price only known after routing; an absolute-valued
+     *  `-1` would bill $1 per token, so leave those to the default rate resolution. */
+    if (prompt == null || completion == null) {
+      continue;
+    }
 
-    tokenConfig[modelKey] = {
+    const rates: EndpointTokenConfig[string] = {
       prompt,
       completion,
       context: model.context_length,
     };
+
+    /** The zod parse strips unknown keys, so cache prices are read from the raw entry. */
+    const rawPricing = (input.data[index] as { pricing?: Record<string, unknown> } | undefined)
+      ?.pricing;
+    for (const [sourceKey, targetKey] of CACHE_PRICE_KEYS) {
+      const rate = toPerMillion(rawPricing?.[sourceKey]);
+      if (rate != null) {
+        rates[targetKey] = rate;
+      }
+    }
+
+    tokenConfig[modelKey] = rates;
   }
 
   return tokenConfig;

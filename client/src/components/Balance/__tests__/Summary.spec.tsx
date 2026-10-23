@@ -59,6 +59,21 @@ describe('balance Summary', () => {
     expect(container).not.toHaveTextContent(/credits|5,000,000|3,100,000|\$/);
   });
 
+  it('names the current pack and measures against it when no refill is configured', () => {
+    render(
+      <Summary
+        state={success('percent', {
+          autoRefillEnabled: false,
+          tokenCredits: 500_000,
+          packAllotment: 2_000_000,
+          packLabel: 'Starter',
+        })}
+      />,
+    );
+    expect(screen.getByTestId('balance-value')).toHaveTextContent('75% used');
+    expect(screen.getByTestId('balance-refill')).toHaveTextContent('Current pack: Starter');
+  });
+
   it('says when a due refill will land rather than a past date', () => {
     render(<Summary state={success('percent', { lastRefill: '2026-06-01T00:00:00.000Z' })} />);
     expect(screen.getByTestId('balance-refill')).toHaveTextContent('Refills when you run out');

@@ -32,6 +32,25 @@ describe('summarizeBalance', () => {
     expect(summary.nextRefill).toBeNull();
   });
 
+  it('measures spend against the last granted pack before refill or starting balance', () => {
+    const summary = summarizeBalance(
+      refilling({ tokenCredits: 500_000, packAllotment: 2_000_000, packLabel: ' Starter ' }),
+      { display: 'percent', startBalance: 200_000 },
+    );
+    expect(summary.allotment).toBe(2_000_000);
+    expect(summary.usedPercent).toBe(75);
+    expect(summary.packLabel).toBe('Starter');
+  });
+
+  it('ignores an unusable pack allotment and a blank pack label', () => {
+    const summary = summarizeBalance(
+      { tokenCredits: 5_000, autoRefillEnabled: false, packAllotment: 0, packLabel: '  ' },
+      { display: 'percent', startBalance: 20_000 },
+    );
+    expect(summary.allotment).toBe(20_000);
+    expect(summary.packLabel).toBeNull();
+  });
+
   it('has no percent without an allotment to measure against', () => {
     const summary = summarizeBalance({ tokenCredits: 5_000, autoRefillEnabled: false });
     expect(summary.display).toBe('credits');

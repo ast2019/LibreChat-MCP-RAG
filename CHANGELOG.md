@@ -1,0 +1,87 @@
+# Changelog
+
+All notable changes to this fork are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the fork is versioned with
+[Semantic Versioning](https://semver.org/) (current version in `VERSION`). Upstream
+LibreChat versions are tracked separately in `package.json`.
+
+## [Unreleased]
+
+## [0.1.0] - 2026-10-23
+
+### Added
+- Credit packs: `balance.packs` in `librechat.yaml` (id, label, credits). An admin grants a
+  pack, or a raw credit amount, through `POST /api/admin/balance/grant` (needs `manage:users`)
+  or `npm run grant-pack`. The grant is recorded in the transaction ledger
+  (`context: pack` / `admin`) and stored on the balance as `packId`, `packLabel`,
+  `packAllotment` and `packGrantedAt`. Leftover credits carry over into the new allotment.
+- Admin lookups `GET /api/admin/balance/packs` and `GET /api/admin/balance/user?email=|userId=`
+  (needs `read:users`).
+- `endpoints.custom[].priceMultiplier`: scales every billed rate (prompt, completion, cache) of
+  an endpoint, so users pay the OpenRouter USD price times the deployment margin. The value is
+  never sent to clients.
+- OpenRouter cache prices (`input_cache_read`, `input_cache_write`, `input_cache_write_1h`) are
+  read from `/models` and used for cache-token billing.
+- The usage bar measures spend against the last granted pack and names it
+  ("Current pack: …"). The bar also appears in the account menu under the email.
+- `config/librechat.saas.yaml`: OpenRouter-only configuration. It includes eight Persian
+  model specs (fast, smart, GPT, economy, pro, research, Perplexity, documents), a
+  ChatGPT-style simplified interface, a percent-only balance display, a free trial, three
+  packs, and web search via self-hosted SearXNG with the Keenable reader.
+- `docker-compose.yml` for Coolify. It builds the multi-stage `Dockerfile.multi`
+  (`api-build` target) and runs MongoDB with auth, Meilisearch, pgvector, rag_api
+  (embeddings through OpenRouter) and SearXNG. Secrets come from Coolify magic variables.
+  Also added `.env.coolify.example` and `deploy/searxng/settings.yml`.
+- Persian documentation in `docs/saas/`: software map, billing, Coolify deployment and roadmap.
+- Persian translations for the balance surfaces.
+- `VERSION` file and this changelog.
+
+### Changed
+- `docker-compose.yml` is now the production/Coolify stack. The upstream development compose
+  was replaced.
+- Persian `com_nav_balance` now reads «موجودی». It previously read «تعادل», which means
+  equilibrium.
+
+### Fixed
+- OpenRouter router models that advertise a price of `-1` (dynamic, e.g. `openrouter/fusion`)
+  were billed at the absolute value, i.e. **$1 per token**. They are now left out of the
+  fetched price table and fall back to LibreChat's default rate resolution.
+  `openrouter/auto` keeps its fixed estimate.
+
+### Removed
+- All GitHub Actions workflows (`.github/workflows/*`). Builds, tests and linters run locally;
+  the commands are in `README.md`.
+
+### Not done / Known limitations
+- **Not deployed on Coolify, and the Docker images and compose stack were never built or
+  started**: the build sandbox has no working container runtime. Neither were the
+  `searxng` settings, the `rag_api` → OpenRouter embeddings path, the MongoDB auth URI or the
+  healthchecks. The compose file was only checked by reading it against the Coolify docs.
+- **No real chat completion ran** (no OpenRouter key was available). Deduction at marked-up
+  prices is covered by an integration test that calls `spendTokens` with a price table
+  produced by `processModelData` + `applyPriceMultiplier` against MongoDB. It was not
+  observed end to end through a streamed chat.
+- Verified locally against an in-memory MongoDB with the production client build:
+  - server boot with `config/librechat.saas.yaml`
+  - registration and login
+  - the startup config (packs, eight specs, model selector hidden, multiplier not exposed)
+  - the trial balance
+  - admin grant, lookup and 403 for non-admins
+  - the live OpenRouter model fetch (468 models)
+  - the `grant-pack` CLI
+
+  The CLI was **not** run inside the Docker image.
+- Per-request provider fees (OpenRouter `web_search` pricing, e.g. Perplexity Sonar) and
+  rag_api embedding costs are not charged to users.
+- Usage paths other than the custom-endpoint chat flow (e.g. automatic summarization) were not
+  checked for the multiplier.
+- The Perplexity spec relies on the model's own search. Whether LibreChat renders
+  OpenRouter's citation annotations for it was not checked.
+- Payment gateway, phone/OTP login, and an admin UI for packs are not implemented
+  (see `docs/saas/ROADMAP.md`).
+- Only the balance strings were translated to Persian. About 60% of the Persian UI is still
+  untranslated upstream.
+- The first commit on the branch was made with git hooks disabled because dependencies were
+  not installed yet. It only deletes workflow files.
+- `packages/api/src/middleware/__tests__/concurrency.cache_integration.spec.ts` needs a live
+  Redis and was not run.

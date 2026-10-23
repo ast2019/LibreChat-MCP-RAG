@@ -559,6 +559,59 @@ describe('initializeCustom – token-config fetch header forwarding', () => {
       read: 0.3,
     });
   });
+
+  it('bills a static tokenConfig at the endpoint priceMultiplier', async () => {
+    /** Built first: the helper installs its own endpoint config */
+    const params = createTokenConfigParams({});
+    mockGetCustomEndpointConfig.mockReturnValue({
+      apiKey: 'sk-test-key',
+      baseURL: 'https://openrouter.ai/api/v1',
+      models: { fetch: true },
+      tokenConfig: { 'gpt-4': { prompt: 1.5, completion: 4.5, context: 32000, cacheRead: 0.3 } },
+      priceMultiplier: 2,
+    });
+
+    const result = (await initializeCustom(params)) as {
+      endpointTokenConfig?: Record<string, Record<string, number>>;
+    };
+
+    expect(result.endpointTokenConfig?.['gpt-4']).toEqual({
+      prompt: 3,
+      completion: 9,
+      context: 32000,
+      cacheRead: 0.6,
+      read: 0.6,
+    });
+  });
+
+  it('bills cached OpenRouter prices at the multiplier without changing the cache entry', async () => {
+    const { tokenConfigCache } = jest.requireMock('~/cache');
+    const cached = { 'openai/gpt-4o-mini': { prompt: 0.15, completion: 0.6, context: 128000 } };
+    tokenConfigCache.mockReturnValueOnce({ get: jest.fn().mockResolvedValue(cached) });
+    const params = createTokenConfigParams({});
+    mockGetCustomEndpointConfig.mockReturnValue({
+      apiKey: 'sk-test-key',
+      baseURL: 'https://openrouter.ai/api/v1',
+      models: { fetch: true },
+      priceMultiplier: 1.5,
+    });
+
+    const result = (await initializeCustom(params)) as {
+      endpointTokenConfig?: Record<string, Record<string, number>>;
+    };
+
+    expect(fetchModels).not.toHaveBeenCalled();
+    expect(result.endpointTokenConfig?.['openai/gpt-4o-mini']).toEqual({
+      prompt: expect.closeTo(0.225),
+      completion: expect.closeTo(0.9),
+      context: 128000,
+    });
+    expect(cached['openai/gpt-4o-mini']).toEqual({
+      prompt: 0.15,
+      completion: 0.6,
+      context: 128000,
+    });
+  });
 });
 
 describe('getTokenConfigKey – tenant fallback', () => {

@@ -1,0 +1,29 @@
+# SearXNG settings for the internal search backend (reachable only inside the stack).
+# The secret key comes from the SEARXNG_SECRET environment variable.
+use_default_settings: true
+
+general:
+  instance_name: 'search'
+
+search:
+  safe_search: 1
+  # LibreChat queries the JSON API.
+  formats:
+    - html
+    - json
+
+server:
+  # Internal service: no public traffic, so the bot limiter (which needs Valkey) is off.
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+engines:
+  - name: bing
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: wikipedia
+    disabled: false
