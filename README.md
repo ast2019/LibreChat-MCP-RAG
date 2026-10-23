@@ -1,3 +1,26 @@
+> [!NOTE]
+> **This fork** (version in [`VERSION`](VERSION), changes in [`CHANGELOG.md`](CHANGELOG.md)) runs LibreChat as a
+> search-first SaaS on OpenRouter with credit packs. Persian docs:
+> [software map](docs/saas/SOFTWARE_MAP.md) · [billing & packs](docs/saas/BILLING.md) ·
+> [Coolify deployment](docs/saas/DEPLOY_COOLIFY.md) · [roadmap](docs/saas/ROADMAP.md).
+> Production config: [`config/librechat.saas.yaml`](config/librechat.saas.yaml); stack: [`docker-compose.yml`](docker-compose.yml).
+>
+> This fork has no CI. Before opening a PR, run locally (Node 24, see `.nvmrc`):
+>
+> ```bash
+> npm ci                                   # install
+> npm run frontend                         # build all packages + client
+> npm run lint                             # eslint
+> npm run static-checks -- --against origin/main
+> (cd packages/api && npx tsc --noEmit)    # typecheck each workspace you changed
+> npm run test:packages:api                # backend TS tests (billing, endpoints, ...)
+> npm run test:packages:data-provider
+> npm run test:packages:data-schemas
+> npm run test:api                         # legacy backend tests
+> npm run test:client                      # frontend tests
+> docker compose build                     # production image (Dockerfile.multi, api-build target)
+> ```
+
 <p align="center">
   <a href="https://librechat.ai">
     <img src="client/public/assets/logo.svg" height="256">
