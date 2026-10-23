@@ -17,6 +17,8 @@ export * from './pulls';
 export * from './auth';
 /* API Keys */
 export * from './apiKeys';
+/* Billing (credit packs, price multiplier) */
+export * from './billing';
 /* MCP */
 export * from './mcp/mcpConfig';
 export * from './mcp/capabilities';

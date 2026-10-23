@@ -913,6 +913,10 @@ async function validateSuppressions(context: CheckContext): Promise<CheckOutcome
  */
 function workflowSelectsWhatItFilters(): string[] {
   const path = '.github/workflows/static-checks.yml';
+  /** This fork ships no CI workflows (checks run locally), so there is no lane to compare. */
+  if (!existsSync(resolve(ROOT, path))) {
+    return [];
+  }
   let workflow: string;
   try {
     workflow = readFileSync(resolve(ROOT, path), 'utf8');

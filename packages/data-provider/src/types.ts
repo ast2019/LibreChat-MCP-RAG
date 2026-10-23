@@ -1266,6 +1266,13 @@ export type TBalanceResponse = {
   lastRefill?: Date | string;
   refillAmount?: number;
   refillMode?: BalanceRefillMode;
+  /** Id of the last credit pack granted to the user */
+  packId?: string;
+  /** Display name of the last credit pack granted to the user */
+  packLabel?: string;
+  /** Credits the user held right after the last pack grant; the usage bar measures against it */
+  packAllotment?: number;
+  packGrantedAt?: Date | string;
 };
 
 /* -------------------------------------------------------------------------- */

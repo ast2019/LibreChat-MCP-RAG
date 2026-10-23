@@ -26,6 +26,12 @@ export interface IBalance extends Document {
   refillAmount: number;
   refillMode?: BalanceRefillMode;
   tenantId?: string;
+  /** Last credit pack granted to the user */
+  packId?: string;
+  packLabel?: string;
+  /** Credits held right after the last pack grant */
+  packAllotment?: number;
+  packGrantedAt?: Date;
   /** Reservation state is excluded from reads unless explicitly selected */
   reservations?: IBalanceReservation[];
   /** Sum of `reservations` amounts, maintained by the same writes */
@@ -43,6 +49,10 @@ export interface IBalanceUpdate {
   refillAmount?: number;
   refillMode?: BalanceRefillMode;
   lastRefill?: Date;
+  packId?: string;
+  packLabel?: string;
+  packAllotment?: number;
+  packGrantedAt?: Date;
 }
 
 /** Holds credits against a user's balance for the lifetime of one in-flight request */

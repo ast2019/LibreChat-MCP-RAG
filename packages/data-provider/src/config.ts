@@ -2270,6 +2270,12 @@ export const endpointSchema = baseEndpointSchema.merge(
         }),
       )
       .optional(),
+    /**
+     * Multiplies every per-token rate this endpoint bills at (fetched or static
+     * `tokenConfig`), e.g. `1.3` charges users 30% above the provider's USD price.
+     * Context windows are untouched. Omission keeps provider prices (`1`).
+     */
+    priceMultiplier: z.number().positive().max(1000).optional(),
   }),
 );
 
@@ -3802,6 +3808,23 @@ export const ocrSchema = z.object({
   strategy: z.nativeEnum(OCRStrategy).default(OCRStrategy.MISTRAL_OCR),
 });
 
+/** A grantable bundle of credits (1,000,000 credits = $1 of marked-up usage). */
+export const balancePackSchema = z.object({
+  /** Stable identifier used by the admin API and CLI, e.g. `starter` */
+  id: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/, 'must be lowercase letters, digits, "-" or "_"'),
+  /** Name shown to the user beside their usage bar */
+  label: z.string().min(1).max(80),
+  credits: z.number().int().positive(),
+  /** Admin-facing note such as the sale price; never used for billing */
+  description: z.string().max(200).optional(),
+});
+
+export type TBalancePack = z.infer<typeof balancePackSchema>;
+
 export const balanceSchema = z
   .object({
     enabled: z.boolean().optional().default(false),
@@ -3820,8 +3843,21 @@ export const balanceSchema = z
       .default(DEFAULT_BALANCE_RESERVATION_TTL_MS),
     /** How the UI presents the balance; `credits` keeps the raw figure. */
     display: z.enum(BALANCE_DISPLAY_MODES).optional().default('credits'),
+    /** Credit packs an admin can grant; omission keeps grants to raw credit amounts. */
+    packs: z.array(balancePackSchema).optional(),
   })
   .superRefine((balance, ctx) => {
+    const packIds = new Set<string>();
+    for (const [index, pack] of (balance.packs ?? []).entries()) {
+      if (packIds.has(pack.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['packs', index, 'id'],
+          message: `Duplicate pack id "${pack.id}"`,
+        });
+      }
+      packIds.add(pack.id);
+    }
     if (
       balance.refillMode === 'reset' &&
       !(Number.isInteger(balance.refillIntervalValue) && balance.refillIntervalValue > 0)

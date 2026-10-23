@@ -22,6 +22,7 @@ import { withSupportedEffort } from '~/endpoints/reasoning';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
 import { getScopedTokenConfigKey } from '~/endpoints/keys';
 import { resolveCustomEndpointParameters } from './config';
+import { applyPriceMultiplier } from '~/billing/markup';
 import { getCustomEndpointConfig } from '~/app/config';
 import { resolveEndpointRuntime } from '~/types';
 import { fetchModels } from '~/endpoints/models';
@@ -327,6 +328,10 @@ export async function initializeCustom(
     });
     endpointTokenConfig = (await cache.get(tokenKey)) as EndpointTokenConfig | undefined;
   }
+
+  /** Scaled after the cache read so the cached provider prices stay unmodified and a
+   *  changed multiplier applies on the next config load without a cache flush. */
+  endpointTokenConfig = applyPriceMultiplier(endpointTokenConfig, endpointConfig.priceMultiplier);
 
   const customOptions = buildCustomOptions(
     endpointConfig,
