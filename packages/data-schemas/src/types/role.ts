@@ -5,6 +5,8 @@ import type { Document } from 'mongoose';
 export interface IRole extends Document {
   name: string;
   description?: string;
+  /** Fingerprints of the librechat.yaml permission values last applied (seed sync mode) */
+  configSync?: Record<string, string>;
   permissions: {
     [PermissionTypes.BOOKMARKS]?: {
       [Permissions.USE]?: boolean;

@@ -2,6 +2,7 @@ import { Feather } from 'lucide-react';
 import { EModelEndpoint, alternateName } from 'librechat-data-provider';
 import { pxToRem, Sparkles, ProviderIcon, getProviderIconDef } from '@librechat/client';
 import type { IconProps } from '~/common';
+import { getEndpointDisplayName } from '~/utils/endpoints';
 import { useProviderIcon } from '~/hooks/Endpoint';
 import { cn } from '~/utils';
 
@@ -57,11 +58,18 @@ const MinimalIcon: React.FC<IconProps> = (props) => {
   }
 
   const def = getProviderIconDef(provider, model);
-  const name = modelLabel ?? chatGptLabel ?? (provider != null ? def.label : endpoint || def.label);
+  const name =
+    modelLabel ??
+    chatGptLabel ??
+    (provider != null ? def.label : getEndpointDisplayName(endpointsConfig, endpoint) || def.label);
 
   if (imageURL != null) {
     return renderWrapper(
-      <img className={cn('icon-sm', iconClassName)} src={imageURL} alt={`${endpoint} Icon`} />,
+      <img
+        className={cn('icon-sm', iconClassName)}
+        src={imageURL}
+        alt={`${getEndpointDisplayName(endpointsConfig, endpoint)} Icon`}
+      />,
       name,
     );
   }

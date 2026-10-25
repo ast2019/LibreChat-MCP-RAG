@@ -93,6 +93,11 @@ const roleSchema: Schema<IRole> = new Schema({
   permissions: {
     type: rolePermissionsSchema,
   },
+  /** `interface.permissionSync: seed`: per permission type, the librechat.yaml values last
+   *  written to this role, so a value is applied once and again only when the yaml changes. */
+  configSync: {
+    type: Schema.Types.Mixed,
+  },
   tenantId: {
     type: String,
     index: true,

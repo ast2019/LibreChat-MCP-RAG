@@ -329,3 +329,21 @@ export const useUpdateRemoteAgentsPermissionsMutation = (
     },
   );
 };
+
+/** Updates any editable permission type of a role by its route key (admin page switches). */
+export const useUpdateRolePermissionsMutation = (): UseMutationResult<
+  t.UpdatePermResponse,
+  t.TError | undefined,
+  t.UpdateRolePermissionsVars,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (variables: t.UpdateRolePermissionsVars) => dataService.updateRolePermissions(variables),
+    {
+      onSuccess: (_data, variables) => {
+        queryClient.invalidateQueries([QueryKeys.roles, variables.roleName]);
+      },
+    },
+  );
+};

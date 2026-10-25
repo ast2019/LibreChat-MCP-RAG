@@ -21,11 +21,11 @@ import { useLocalize } from '~/hooks';
  */
 export default function ModelError({ json, message }: ErrorRendererProps) {
   const localize = useLocalize();
-  const { provider: conversationProvider } = useErrorEndpoint(message);
+  const { provider: conversationProvider, endpointsConfig } = useErrorEndpoint(message);
   const errorKey = readString(json, 'code') ?? readString(json, 'type');
   const info = readString(json, 'info');
   /** `info` is an endpoint id on these payloads; the conversation's own provider is the fallback. */
-  const provider = info != null ? getProviderName(info) : conversationProvider;
+  const provider = info != null ? getProviderName(info, endpointsConfig) : conversationProvider;
 
   if (errorKey === ErrorTypes.MISSING_MODEL) {
     return provider != null
@@ -42,7 +42,9 @@ export default function ModelError({ json, message }: ErrorRendererProps) {
   if (errorKey === ViolationTypes.ILLEGAL_MODEL_REQUEST) {
     const [endpoint, model] = info?.split('|') ?? [];
     const requestedProvider =
-      endpoint != null && endpoint !== '' ? getProviderName(endpoint) : conversationProvider;
+      endpoint != null && endpoint !== ''
+        ? getProviderName(endpoint, endpointsConfig)
+        : conversationProvider;
     if (model == null || model === '' || requestedProvider == null) {
       return localize('com_error_model_not_found');
     }

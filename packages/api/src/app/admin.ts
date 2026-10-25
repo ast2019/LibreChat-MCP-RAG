@@ -2,27 +2,21 @@ import { SystemRoles } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 
 /**
- * `interface.adminFullAccess`: an ADMIN reads the deployment with the model selector, the
- * parameters panel and presets on, and with `modelSpecs.enforce` lifted so the endpoints the
- * selector offers are accepted server-side. Users keep the config as resolved. Role permissions
- * are the other half and are synced at startup by `updateInterfacePermissions`.
+ * `interface.adminFullAccess`: an ADMIN chats on exactly the interface users get (same model
+ * list, no extra panels), but `modelSpecs.enforce` is lifted for them so the agents and tools
+ * they build in advanced mode run without a model spec. Role permissions are the other half
+ * and are synced at startup by `updateInterfacePermissions`; the client shows them only in
+ * the admin's advanced mode.
  */
 export function applyAdminFullAccess(config: AppConfig, role?: string): AppConfig {
-  if (role !== SystemRoles.ADMIN || config.interfaceConfig?.adminFullAccess !== true) {
+  if (
+    role !== SystemRoles.ADMIN ||
+    config.interfaceConfig?.adminFullAccess !== true ||
+    config.modelSpecs == null
+  ) {
     return config;
   }
-  return {
-    ...config,
-    interfaceConfig: {
-      ...config.interfaceConfig,
-      modelSelect: true,
-      parameters: true,
-      presets: true,
-    },
-    ...(config.modelSpecs != null && {
-      modelSpecs: { ...config.modelSpecs, enforce: false },
-    }),
-  };
+  return { ...config, modelSpecs: { ...config.modelSpecs, enforce: false } };
 }
 
 /**

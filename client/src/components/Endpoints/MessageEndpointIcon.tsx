@@ -3,6 +3,7 @@ import { Feather } from 'lucide-react';
 import { EModelEndpoint, isAssistantsEndpoint } from 'librechat-data-provider';
 import { pxToRem, AssistantIcon, TooltipAnchor, ProviderAvatar } from '@librechat/client';
 import type { IconProps } from '~/common';
+import { getEndpointDisplayName } from '~/utils/endpoints';
 import { useProviderIcon } from '~/hooks/Endpoint';
 import { cn } from '~/utils';
 
@@ -92,9 +93,10 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
   }
 
   if (imageURL != null) {
+    const displayName = getEndpointDisplayName(endpointsConfig, endpoint);
     return (
       <div
-        title={endpoint ?? ''}
+        title={displayName}
         style={{
           width: pxToRem(size),
           height: pxToRem(size),
@@ -106,7 +108,11 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
       >
         <div className="h-6 w-6">
           <div className="overflow-hidden rounded-full">
-            <img className="h-full w-full object-contain" src={imageURL} alt={`${endpoint} Icon`} />
+            <img
+              className="h-full w-full object-contain"
+              src={imageURL}
+              alt={`${displayName} Icon`}
+            />
           </div>
         </div>
         {errorBadge}

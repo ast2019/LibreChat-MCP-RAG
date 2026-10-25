@@ -46,6 +46,8 @@ jest.mock('@librechat/client', () => ({
 describe('PeoplePickerAdminSettings', () => {
   beforeEach(() => {
     mockMutate.mockReset();
+    /** The inline admin settings buttons render only in the admin's advanced mode */
+    localStorage.setItem('adminAdvancedMode', 'true');
   });
 
   it('uses the responsive dialog width and a native submit action', () => {

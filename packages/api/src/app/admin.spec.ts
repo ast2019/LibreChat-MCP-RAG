@@ -8,11 +8,9 @@ const base = {
 } as unknown as AppConfig;
 
 describe('applyAdminFullAccess', () => {
-  it('opens the selector, parameters and presets and lifts spec enforcement for ADMIN', () => {
+  it('keeps the user interface and lifts only spec enforcement for ADMIN', () => {
     const config = applyAdminFullAccess(base, SystemRoles.ADMIN);
-    expect(config.interfaceConfig).toEqual(
-      expect.objectContaining({ modelSelect: true, parameters: true, presets: true }),
-    );
+    expect(config.interfaceConfig).toBe(base.interfaceConfig);
     expect(config.modelSpecs).toEqual(
       expect.objectContaining({ enforce: false, prioritize: true, list: [{ name: 'fast' }] }),
     );
@@ -37,6 +35,7 @@ describe('applyAdminFullAccess', () => {
       SystemRoles.ADMIN,
     );
     expect(config.modelSpecs).toBeUndefined();
+    expect(config.interfaceConfig?.modelSelect).toBeUndefined();
   });
 });
 

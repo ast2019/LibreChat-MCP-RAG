@@ -7,9 +7,23 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
-## [0.11.0] - 2026-10-25
+## [0.11.0] - 2026-10-26
 
 ### Added
+- **One admin page instead of admin controls everywhere.** `/admin` is now a hub with four tabs:
+  - داشبورد: sales, spend, margin, the rate, top models.
+  - کاربران و اعتبار: user list and the grant dialog.
+  - دسترسی کاربران: switches for what the USER role may use. It has new role routes for
+    bookmarks, web search, file search, file citations and temporary chat, next to the
+    existing ones.
+  - حالت پیشرفته: a per-browser switch for the admin's own builder tools.
+- **Model list by AI brand, with brand icons:** Claude, ChatGPT, DeepSeek, Gemini, Grok,
+  GLM, Qwen and Perplexity, then «ابزارها», «محرمانه» and (admins only) «ادمین». There are
+  23 specs on `~…-latest` ids, and the older spec names are kept so old chats continue.
+- `interface.permissionSync: 'seed'`. The yaml's permission values are written once per
+  role, and again only when they change in the yaml. Each role stores a fingerprint of what
+  was applied (`configSync`), so switches flipped on the admin page survive restarts.
+- GLM gets its own provider icon id (`zhipu`, aliases `glm`, `zai`, `zhipuai`, `chatglm`).
 - **Admin-only uncensored local model.** Two new specs in an «ادمین» group run
   `huihui_ai/Qwen3.6-abliterated:35b` (Qwen 3.6, 35B MoE with 3B active; refusals removed
   by abliteration) on the `ollama` container as `hivegpt-uncensored`:
@@ -26,6 +40,15 @@ LibreChat versions are tracked separately in `package.json`.
   (16384).
 
 ### Changed
+- **The admin chats on exactly the users' interface.** `adminFullAccess` no longer turns on
+  the model selector, parameters or presets for admins; it only keeps the ADMIN role's
+  permissions and lifts `modelSpecs.enforce` for them.
+  - Outside advanced mode, `useHasAccess` reads the USER role for an admin.
+  - The inline admin-settings buttons inside panels show only in advanced mode.
+- **Users never see the host's name.**
+  - The OpenRouter endpoints show as «HiveGPT» (`modelDisplayLabel`). Errors, icon titles
+    and alt text use that label instead of the endpoint id.
+  - Icons follow each model's maker.
 - `LOCAL_MODEL_MEMORY` default 32g (was 8g): the 35B model holds about 22 GB while loaded.
 
 ### Not done / Known limitations
@@ -43,6 +66,19 @@ LibreChat versions are tracked separately in `package.json`.
   "model not found".
 - Switching between «داخلی» and the admin model reloads (one model in memory at a time).
 - User-facing replacement of `gemma3:4b` is not part of this release (next step).
+- The UX was checked in headless Chromium against the production server build:
+  - the admin and the user get the same chat controls;
+  - brand order, icons, and no host name anywhere in the picker or in a failed reply;
+  - an access switch reaches the user, and is kept after a server restart;
+  - advanced mode adds the admin tools.
+
+  Real model replies were not tested (the test key was fake).
+- The «ادمین» group is the one thing in the admin's picker that users do not have.
+- Advanced mode is stored per browser, not per account.
+- A spec like «پرسش از فایل‌ها» uses Claude. If the admin turns off file search for users,
+  the spec stays in the list but cannot search files.
+- `MermaidBlockIds.test.tsx` fails here (1 test). It fails the same way with this release's
+  changes reverted, so it is not caused by them.
 
 ## [0.10.0] - 2026-10-25
 
