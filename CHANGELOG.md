@@ -7,6 +7,22 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-25
+
+### Fixed
+- SearXNG crash loop on Coolify: `"/etc/searxng/settings.yml" is not a valid file`. Coolify
+  copies only the compose file to the server, so the bind-mount source
+  `./deploy/searxng/settings.yml` did not exist there and Docker mounted an empty directory in
+  its place. The settings are now baked into a small image built from
+  `deploy/searxng/Dockerfile`, and the compose has no bind mounts left.
+- `SCHEDULES_SINGLE_PROCESS=true` (the stack runs one `api` replica) removes the
+  `[schedules] scheduler NOT started` error from the api log.
+
+### Not done / Known limitations
+- The SearXNG image build was not run here (no container runtime). The fix follows the image's
+  entrypoint, which requires `/etc/searxng/settings.yml` to be a regular file.
+- Web search itself has not been tested on the deployed stack yet.
+
 ## [0.4.1] - 2026-10-25
 
 ### Fixed
