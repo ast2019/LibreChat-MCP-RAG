@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { SystemRoles } from 'librechat-data-provider';
 import { Button, Input, Progress, Skeleton } from '@librechat/client';
 import type { TAdminBillingUser } from 'librechat-data-provider';
+import type { CurrencyConfig } from '~/utils';
 import {
   useAdminBillingUsersQuery,
   useAdminBillingPacksQuery,
@@ -10,14 +11,27 @@ import {
 } from '~/data-provider';
 import { useAuthContext, useDocumentTitle, useLocalize } from '~/hooks';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
+import { useGetStartupConfig } from '~/data-provider';
+import { formatLocal, formatUsd } from './format';
 import GrantDialog from './GrantDialog';
-import { formatUsd } from './format';
 
 const WINDOWS = [7, 30, 90] as const;
 const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
 
-function Kpi({ label, value, hint }: { label: string; value?: string; hint?: string }) {
+function Kpi({
+  label,
+  value,
+  local,
+  hint,
+}: {
+  label: string;
+  value?: string;
+  /** The same amount in the display currency */
+  local?: string | null;
+  hint?: string;
+}) {
   return (
     <div className="border-border-light bg-surface-secondary rounded-xl border p-4">
       <div className="text-text-secondary text-xs">{label}</div>
@@ -26,8 +40,49 @@ function Kpi({ label, value, hint }: { label: string; value?: string; hint?: str
       ) : (
         <div className="text-text-primary mt-1 text-xl font-semibold">{value}</div>
       )}
+      {value != null && local != null && (
+        <div className="text-text-primary mt-0.5 text-sm">{local}</div>
+      )}
       {hint != null && <div className="text-text-secondary mt-1 text-xs">{hint}</div>}
     </div>
+  );
+}
+
+/** A dollar amount with its display-currency value beneath, when one is configured. */
+function Money({ credits, currency }: { credits: number; currency?: CurrencyConfig }) {
+  const local = formatLocal(credits, currency);
+  return (
+    <>
+      <span>{formatUsd(credits)}</span>
+      {local != null && <span className="text-text-secondary block text-xs">{local}</span>}
+    </>
+  );
+}
+
+/** The exchange rate the Toman/Rial figures use, and where it came from. */
+function RateNote({ currency }: { currency?: CurrencyConfig }) {
+  const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
+  const perDollar = formatLocal(1_000_000, currency);
+  if (perDollar == null) {
+    return null;
+  }
+  const info = startupConfig?.currencyRate;
+  const updated = info?.updatedAt != null ? new Date(info.updatedAt) : null;
+  const source =
+    info?.source != null && info.source !== 'config'
+      ? localize('com_admin_rate_live', {
+          0: info.source,
+          1:
+            updated != null && !Number.isNaN(updated.getTime())
+              ? updated.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' })
+              : '—',
+        })
+      : localize('com_admin_rate_fixed');
+  return (
+    <p className="text-text-secondary text-xs" data-testid="admin-rate">
+      {localize('com_admin_rate', { 0: perDollar })} · {source}
+    </p>
   );
 }
 
@@ -76,6 +131,7 @@ export default function AdminView() {
     { enabled: isAdmin },
   );
   const packs = useAdminBillingPacksQuery({ enabled: isAdmin });
+  const { currency } = useBalanceDisplay();
 
   if (user != null && !isAdmin) {
     return <Navigate to="/c/new" replace={true} />;
@@ -107,6 +163,7 @@ export default function AdminView() {
             ))}
           </div>
         </header>
+        <RateNote currency={currency} />
 
         {summary.isError ? (
           <p role="alert" className="text-text-destructive text-sm">
@@ -127,6 +184,7 @@ export default function AdminView() {
             <Kpi
               label={localize('com_admin_granted')}
               value={data ? formatUsd(data.creditsGrantedInWindow) : undefined}
+              local={data ? formatLocal(data.creditsGrantedInWindow, currency) : undefined}
               hint={
                 data
                   ? localize('com_admin_packs_count', { 0: String(data.packGrantsInWindow) })
@@ -136,19 +194,23 @@ export default function AdminView() {
             <Kpi
               label={localize('com_admin_spent')}
               value={data ? formatUsd(data.creditsSpentInWindow) : undefined}
+              local={data ? formatLocal(data.creditsSpentInWindow, currency) : undefined}
             />
             <Kpi
               label={localize('com_admin_provider_cost')}
               value={data ? formatUsd(data.estimatedProviderCredits) : undefined}
+              local={data ? formatLocal(data.estimatedProviderCredits, currency) : undefined}
               hint={data ? `×${data.priceMultiplier}` : undefined}
             />
             <Kpi
               label={localize('com_admin_margin')}
               value={margin != null ? formatUsd(margin) : undefined}
+              local={margin != null ? formatLocal(margin, currency) : undefined}
             />
             <Kpi
               label={localize('com_admin_outstanding')}
               value={data ? formatUsd(data.creditsOutstanding) : undefined}
+              local={data ? formatLocal(data.creditsOutstanding, currency) : undefined}
             />
           </section>
         )}
@@ -162,7 +224,9 @@ export default function AdminView() {
               {data.topModels.map((row) => (
                 <li key={row.model} className="flex items-center justify-between px-4 py-2 text-sm">
                   <span className="text-text-primary truncate font-mono text-xs">{row.model}</span>
-                  <span className="text-text-secondary">{formatUsd(row.credits)}</span>
+                  <span className="text-text-secondary text-end">
+                    <Money credits={row.credits} currency={currency} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -249,7 +313,7 @@ export default function AdminView() {
                       <UsageCell user={row} />
                     </td>
                     <td className="text-text-primary px-4 py-2 text-end">
-                      {formatUsd(row.balance?.tokenCredits ?? 0)}
+                      <Money credits={row.balance?.tokenCredits ?? 0} currency={currency} />
                     </td>
                     <td className="px-4 py-2 text-end">
                       <Button size="compact" variant="outline" onClick={() => setGranting(row)}>
@@ -295,6 +359,7 @@ export default function AdminView() {
         <GrantDialog
           user={granting}
           packs={packs.data?.packs ?? []}
+          currency={currency}
           onClose={() => setGranting(null)}
         />
       )}

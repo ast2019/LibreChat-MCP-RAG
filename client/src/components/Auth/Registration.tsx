@@ -117,7 +117,7 @@ const Registration: React.FC = () => {
           )}
         </div>
         {errors[id] && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {String(errors[id]?.message) ?? ''}
           </span>
         )}
@@ -134,7 +134,7 @@ const Registration: React.FC = () => {
       )}
       {registerUser.isSuccess && countdown > 0 && (
         <div
-          className="border-status-success-border bg-status-success-subtle text-text-secondary rounded-md border px-3 py-2 text-sm"
+          className="border-status-success-border bg-status-success-subtle text-text-secondary rounded-md border px-3 py-2 text-center text-sm"
           role="alert"
         >
           {localize(

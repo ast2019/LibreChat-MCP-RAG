@@ -3747,5 +3747,9 @@
   "com_admin_grant_custom_usd": "مبلغ مصرف به دلار آمریکا",
   "com_admin_grant_submit": "افزودن",
   "com_admin_grant_success": "اعتبار افزوده شد",
-  "com_admin_grant_error": "افزودن اعتبار ممکن نشد"
+  "com_admin_grant_error": "افزودن اعتبار ممکن نشد",
+  "com_ui_balance_prices": "قیمت بسته‌ها",
+  "com_admin_rate": "نرخ دلار: {{0}}",
+  "com_admin_rate_live": "به‌روز از {{0}}، {{1}}",
+  "com_admin_rate_fixed": "نرخ ثابت تنظیمات (منبع زنده تنظیم نشده یا در دسترس نیست)"
 }

@@ -52,7 +52,9 @@ export default function BalanceError({ json }: ErrorRendererProps) {
       summary = localize('com_error_token_balance_hidden');
     } else {
       summary = localize(
-        display === 'currency' ? 'com_error_token_balance_currency' : 'com_error_token_balance',
+        display === 'currency' || display === 'pack'
+          ? 'com_error_token_balance_currency'
+          : 'com_error_token_balance',
         {
           0: formatBalanceAmount(tokenCost, display, currency),
           1: formatBalanceAmount(balance, display, currency),

@@ -7,6 +7,86 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-25
+
+### Added
+- **Admins see the full interface** (`interface.adminFullAccess: true` in the SaaS config).
+  Users keep the simplified one.
+  - Admins get the model selector with every endpoint (OpenRouter, OpenRouterPrivate, Local),
+    parameters and presets. `modelSpecs.enforce` is lifted for them only.
+  - The ADMIN role is put back to its defaults on every start: prompts, bookmarks, MCP,
+    Skills, agent builder, marketplace and so on. Before, the yaml values meant for users were
+    written onto ADMIN too.
+- **Prices in Toman.** `interface.currency` takes `code: IRT` and an optional
+  `live: { source: tgju }`. The server reads the free-market dollar (`price_dollar_rl`) from
+  tgju.org every 30 minutes, with no extra fee on top.
+  - The yaml `rate` is the fallback until the first reading arrives.
+  - A failed read keeps the last good rate and is retried once a minute.
+  - The startup config reports which rate is in use (`currencyRate`).
+- **New balance display `pack`.**
+  - Before a pack is granted, users see the share of the trial used and the pack prices in
+    Toman (rounded up to 1,000 Toman).
+  - After a pack is granted, they see the remaining credit in Toman.
+  - The prices come back once the pack is spent.
+- **The admin page shows Toman next to every dollar figure,** plus the rate, its source and
+  its time. The grant dialog shows each pack's Toman price.
+- **HiveGPT logo, favicon and app icons** (honeycomb hexagon with a chat bubble).
+  `node scripts/brand-icons.mjs` renders the PNGs from `client/public/assets/logo.svg`.
+- **Passkeys are on** (`ALLOW_PASSKEY_LOGIN=true`, `PASSKEY_RP_NAME=HiveGPT`). The passkey
+  code was already upstream and was off.
+
+### Changed
+- **Local model speed.** The `ollama` service builds `hivegpt-local` from `gemma3:4b` with
+  `num_thread` = `LOCAL_MODEL_THREADS` (12) and `num_ctx` 8192. The CPU limit is 12 (was 2).
+  - Ollama started one thread per visible vCPU (24) inside a 2-CPU limit. That gave the
+    0.2 tokens/s in the production log.
+  - Reproduced here: 8 threads pinned to 2 CPUs ran at 0.03 tokens/s; 2 threads on the same
+    CPUs ran at 6.7 tokens/s.
+- Login, register and password-reset fields: the value and the label are centered, and so
+  are the error and notice texts. Social and passkey buttons use `gap` so RTL spacing is right.
+- The PWA theme colour is honey (`#F59E0B`). Favicon links carry `?v=hive1`, so browsers drop
+  the cached LibreChat icon.
+- Docs (`DEPLOY_COOLIFY.md`, `BILLING.md`, `IDEAS.md`): HTTPS, passkeys, admin view, ESXi VM
+  tuning and Toman pricing.
+
+### Fixed
+- **Signed out on every reload or typed URL (e.g. `/admin`) over plain HTTP.** Production
+  cookies were always `Secure`, and browsers drop those on `http://`. An explicit `http://`
+  `DOMAIN_SERVER` now gets non-Secure cookies, and `https://` stays Secure.
+  `SESSION_COOKIE_SECURE` still forces either way and is now passed through the compose file.
+- **Passkey button no longer shows where it cannot work.** It is hidden unless an origin is
+  HTTPS or localhost, since browsers expose WebAuthn only there.
+- **No lone «یا» divider under the login form.** The divider counted providers listed in
+  `socialLogins` (OpenID) even when they were not configured.
+
+### Not done / Known limitations
+- Verified against a real production server build (in-memory MongoDB, the SaaS yaml, the
+  production client bundle) in headless Chromium.
+  - On an `http://` domain: no Secure cookie; the session survives typing `/admin` and a
+    reload; centered login fields; no divider; new logo and favicon.
+  - Admin config and permissions vs. user; admin selector lists raw endpoints, user sees
+    only the spec groups.
+  - Live tgju rate (269,500 Toman at test time); Toman prices before a pack, remaining Toman
+    after a grant.
+  - On `localhost`: a passkey registered with a virtual authenticator, then a sign-in with
+    the passkey alone.
+- Unit tests pass: client (12,832), packages/api, data-provider and data-schemas.
+- **Not deployed.** The Docker image was not built and the stack was not run on Coolify.
+- **Passkeys need HTTPS.** The production domain is served over `http://` today, so the
+  passkey button stays hidden there until the domain is switched to `https://`.
+- `num_thread` was confirmed in Ollama's log (`n_threads = 2` from the Modelfile) on a native
+  Ollama 0.40.11 here. Speed on the production VM was not measured. If the VM does not expose
+  AVX2, it stays slow; see the ESXi section in `DEPLOY_COOLIFY.md`.
+- Whether the production server (Hetzner) can reach `call1.tgju.org` was not checked. If it
+  cannot, the yaml rate (270,000 Toman) is used and the admin page says so.
+- The Toman price follows the live rate, so it moves with the market; there is no price lock
+  between showing a price and granting the pack (there is no payment gateway yet).
+- The logo is an original design made here, not a professional brand asset.
+- Admin role permissions are reset to the ADMIN defaults on every start while
+  `adminFullAccess` is on; per-permission edits for ADMIN do not persist.
+- Users get repeated `403 /api/tags` in the server log because bookmarks are off for them.
+  This is upstream behaviour and was not changed.
+
 ## [0.9.0] - 2026-10-25
 
 ### Added

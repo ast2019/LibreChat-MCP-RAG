@@ -12,6 +12,20 @@ registration:
 
 interface:
   customWelcome: 'چطور می‌توانم کمکتان کنم؟'
+  # The values below describe what users see. Admins keep everything (model selector with every
+  # OpenRouter model, parameters, presets, prompts, MCP, Skills, agent builder, marketplace,
+  # bookmarks); their role permissions are restored to the ADMIN defaults on every start.
+  adminFullAccess: true
+  # Money is shown in Toman. `rate` (Toman per US dollar) is the fallback; the live rate is the
+  # free-market dollar on tgju.org, read every 30 minutes, without any extra fee. Pack prices
+  # are rounded up to the next 1,000 Toman.
+  currency:
+    code: 'IRT'
+    rate: 270000
+    live:
+      source: 'tgju'
+      refreshMinutes: 30
+    priceStep: 1000
   # Users pick from the model specs below only (no raw endpoint/model lists).
   modelSelect: false
   # ChatGPT-style simplicity: no sampling parameters, presets or side-by-side chats.
@@ -77,8 +91,9 @@ balance:
   # Free trial for every new account: $0.20 of usage.
   startBalance: 200000
   autoRefillEnabled: false
-  # Users see a progress bar and "% used", never raw credits or dollars.
-  display: percent
+  # Before a pack is bought: the share of the free trial used, plus the pack prices in Toman.
+  # Once a pack is granted: the remaining credit in Toman. Users never see raw credits.
+  display: pack
   packs:
     - id: starter
       label: 'بسته پایه'
@@ -205,10 +220,12 @@ endpoints:
       apiKey: 'ollama'
       baseURL: 'http://ollama:11434/v1'
       models:
-        default: ['gemma3:4b']
+        # Built by the ollama container from LOCAL_MODEL (gemma3:4b) with the thread count
+        # and context set; see docker-compose.yml.
+        default: ['hivegpt-local']
         fetch: false
       tokenConfig:
-        'gemma3:4b':
+        'hivegpt-local':
           prompt: 0
           completion: 0
           context: 8192
@@ -327,7 +344,7 @@ modelSpecs:
       hideBadgeRow: true
       preset:
         endpoint: 'Local'
-        model: 'gemma3:4b'
+        model: 'hivegpt-local'
         modelLabel: 'داخلی'
     - name: 'documents'
       label: 'پرسش از فایل‌ها'

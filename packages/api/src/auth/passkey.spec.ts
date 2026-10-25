@@ -205,6 +205,20 @@ describe('getPasskeyConfig', () => {
   it('reports disabled when no origin can be resolved', () => {
     expect(isPasskeyEnabled({ ...config, origins: [] })).toBe(false);
   });
+
+  it('reports disabled when every origin is plain HTTP on a public host', () => {
+    expect(isPasskeyEnabled({ ...config, origins: ['http://chat.example.com'] })).toBe(false);
+  });
+
+  it('accepts HTTPS and localhost origins', () => {
+    expect(isPasskeyEnabled({ ...config, origins: ['http://localhost:3080'] })).toBe(true);
+    expect(
+      isPasskeyEnabled({
+        ...config,
+        origins: ['http://chat.example.com', 'https://chat.example.com'],
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('consumeChallenge', () => {

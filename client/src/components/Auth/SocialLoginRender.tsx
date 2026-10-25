@@ -120,8 +120,15 @@ function SocialLoginRender({
   };
 
   const passkeyEnabled = showPasskey && startupConfig.passkeyLoginEnabled === true;
-  const socialEnabled =
-    startupConfig.socialLoginEnabled === true && (startupConfig.socialLogins?.length ?? 0) > 0;
+  /** A listed provider renders only once it is configured, so count the buttons themselves:
+   *  otherwise an unconfigured provider leaves the "or" divider above nothing */
+  const socialButtons =
+    startupConfig.socialLoginEnabled === true
+      ? (startupConfig.socialLogins ?? [])
+          .map((provider) => providerComponents[provider] || null)
+          .filter((button) => button != null && button !== false)
+      : [];
+  const socialEnabled = socialButtons.length > 0;
 
   if (!passkeyEnabled && !socialEnabled) {
     return null;
@@ -141,8 +148,7 @@ function SocialLoginRender({
       )}
       <div className="mt-2">
         <PasskeySignIn enabled={passkeyEnabled} />
-        {socialEnabled &&
-          startupConfig.socialLogins?.map((provider) => providerComponents[provider] || null)}
+        {socialButtons}
       </div>
     </>
   );

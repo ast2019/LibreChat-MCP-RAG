@@ -2923,6 +2923,10 @@ export function normalizeAgentSelectorLimit(value: unknown): number {
     : DEFAULT_AGENT_SELECTOR_LIMIT;
 }
 
+/** Market sources `interface.currency.live` can read the USD rate from. */
+export const LIVE_CURRENCY_SOURCES = ['tgju'] as const;
+export type LiveCurrencySource = (typeof LIVE_CURRENCY_SOURCES)[number];
+
 /** Retention modes that apply expiration deadlines to all data, not just user-marked temporary chats. */
 export const isAllDataRetention = (mode?: RetentionMode | null): boolean =>
   mode === RetentionMode.ALL || mode === RetentionMode.EPHEMERAL;
@@ -3015,7 +3019,28 @@ export const interfaceSchema = z
     currency: z
       .object({
         code: z.string(),
+        /** Units of `code` per US dollar. With `live`, the fallback used until (and whenever)
+         *  the live source cannot be read. */
         rate: z.number().positive(),
+        /** Reads `rate` from a market source instead, refreshed in the background. `tgju` is
+         *  the free-market USD price on tgju.org and supports `IRR` and `IRT` (Toman). */
+        live: z
+          .object({
+            source: z.enum(LIVE_CURRENCY_SOURCES),
+            refreshMinutes: z.number().int().min(1).max(1440).optional(),
+          })
+          .optional(),
+        /** Pack prices are rounded up to a multiple of this amount of `code`, e.g. 1000. */
+        priceStep: z.number().positive().optional(),
+      })
+      .superRefine((currency, ctx) => {
+        if (currency.live?.source === 'tgju' && !['IRR', 'IRT'].includes(currency.code)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['code'],
+            message: 'The tgju source supports only IRR and IRT',
+          });
+        }
       })
       .optional(),
     peoplePicker: z
@@ -3040,6 +3065,10 @@ export const interfaceSchema = z
     /** Tool keys (and `'mcp'` or an MCP server name) pinned to the prompt bar by default */
     defaultPinnedTools: z.array(z.string()).optional(),
     buildInfo: z.boolean().optional(),
+    /** Lets the ADMIN role see the full interface whatever this block hides from users: every
+     *  ADMIN permission is kept at its role default (all on), and admins get the model selector,
+     *  parameters and presets with `modelSpecs.enforce` lifted. Omission keeps one interface. */
+    adminFullAccess: z.boolean().optional(),
     /** Allows Lia, the welcome screen mascot. Users still opt in from Settings. */
     mascot: z.boolean().optional(),
     remoteAgents: z
@@ -3472,6 +3501,12 @@ export function supportsConversationTitleOwnership(config?: {
   );
 }
 
+export type TCurrencyRateInfo = {
+  source: LiveCurrencySource | 'config';
+  /** ISO time the live rate was published by its source; absent for the yaml rate. */
+  updatedAt?: string;
+};
+
 export type TStartupConfig = {
   conversationTitleOwnershipVersion?: typeof CONVERSATION_TITLE_OWNERSHIP_VERSION;
   appTitle: string;
@@ -3510,6 +3545,8 @@ export type TStartupConfig = {
   interface?: TInterfaceConfig;
   turnstile?: TTurnstileConfig;
   balance?: TBalanceConfig;
+  /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
+  currencyRate?: TCurrencyRateInfo;
   transactions?: TTransactionsConfig;
   discordLoginEnabled: boolean;
   facebookLoginEnabled: boolean;

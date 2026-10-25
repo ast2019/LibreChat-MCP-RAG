@@ -3747,5 +3747,9 @@
   "com_admin_grant_custom_usd": "Amount in US dollars of usage",
   "com_admin_grant_submit": "Add",
   "com_admin_grant_success": "Credit added",
-  "com_admin_grant_error": "Couldn't add credit"
+  "com_admin_grant_error": "Couldn't add credit",
+  "com_ui_balance_prices": "Pack prices",
+  "com_admin_rate": "Dollar rate: {{0}}",
+  "com_admin_rate_live": "live from {{0}}, {{1}}",
+  "com_admin_rate_fixed": "fixed rate from the config (live source not set or unavailable)"
 }

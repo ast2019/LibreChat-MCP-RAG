@@ -166,10 +166,22 @@ describe('shouldUseSecureCookie', () => {
       expect(shouldUseSecureCookie()).toBe(false);
     });
 
-    it('should return true for http://[::1]:3080 (IPv6 loopback — not detected due to URL bracket parsing)', () => {
-      // Known limitation: new URL('http://[::1]:3080').hostname returns '[::1]' (with brackets)
+    it('should return true for https://[::1]:3080 (IPv6 loopback — not detected due to URL bracket parsing)', () => {
+      // Known limitation: new URL('https://[::1]:3080').hostname returns '[::1]' (with brackets)
       // but the check compares against '::1' (without brackets). IPv6 localhost is rare in practice.
-      process.env.DOMAIN_SERVER = 'http://[::1]:3080';
+      process.env.DOMAIN_SERVER = 'https://[::1]:3080';
+      expect(shouldUseSecureCookie()).toBe(true);
+    });
+
+    it('should return false for an explicit http:// public domain', () => {
+      // Browsers drop Secure cookies set over plain HTTP, so the session would not survive a reload
+      process.env.DOMAIN_SERVER = 'http://chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(false);
+    });
+
+    it('should return true for an http:// domain when SESSION_COOKIE_SECURE=true', () => {
+      process.env.DOMAIN_SERVER = 'http://chat.example.com';
+      process.env.SESSION_COOKIE_SECURE = 'true';
       expect(shouldUseSecureCookie()).toBe(true);
     });
 

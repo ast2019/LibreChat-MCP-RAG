@@ -65,7 +65,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
   const renderError = (fieldName: string) => {
     const errorMessage = errors[fieldName]?.message;
     return errorMessage ? (
-      <span role="alert" className="text-text-destructive mt-1 text-sm">
+      <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
         {String(errorMessage)}
       </span>
     ) : null;
@@ -82,7 +82,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
   return (
     <>
       {showResendLink && (
-        <div className="border-status-success-border bg-status-success-subtle text-text-secondary mt-2 rounded-md border px-3 py-2 text-sm">
+        <div className="border-status-success-border bg-status-success-subtle text-text-secondary mt-2 rounded-md border px-3 py-2 text-center text-sm">
           {localize('com_auth_email_verification_resend_prompt')}
           <button
             type="button"

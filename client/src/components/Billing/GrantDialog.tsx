@@ -9,7 +9,9 @@ import {
   useToastContext,
 } from '@librechat/client';
 import type { TAdminBillingPack, TAdminBillingUser } from 'librechat-data-provider';
+import type { CurrencyConfig } from '~/utils';
 import { useAdminBillingGrantMutation } from '~/data-provider';
+import { formatPackPrice } from '~/utils/balance';
 import { useLocalize } from '~/hooks';
 import { formatUsd } from './format';
 import { cn } from '~/utils';
@@ -19,10 +21,13 @@ const CUSTOM = 'custom';
 export default function GrantDialog({
   user,
   packs,
+  currency,
   onClose,
 }: {
   user: TAdminBillingUser | null;
   packs: TAdminBillingPack[];
+  /** Display currency; pack sale prices are shown in it beside the dollar value */
+  currency?: CurrencyConfig;
   onClose: () => void;
 }) {
   const localize = useLocalize();
@@ -87,7 +92,12 @@ export default function GrantDialog({
                     {pack ? pack.label : localize('com_admin_grant_custom')}
                   </span>
                   {pack && (
-                    <span className="text-text-secondary text-xs">{formatUsd(pack.credits)}</span>
+                    <span className="text-text-secondary text-end text-xs">
+                      {formatUsd(pack.credits)}
+                      {currency != null && currency.code.toUpperCase() !== 'USD' && (
+                        <span className="block">{formatPackPrice(pack.credits, currency)}</span>
+                      )}
+                    </span>
                   )}
                 </label>
               );

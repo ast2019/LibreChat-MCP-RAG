@@ -5,12 +5,14 @@
  * Its height and corner are the `authFieldHeight` and `authControlRadius` roles; the value
  * sits 1px below the middle of that height, where the content-sized field always set it.
  * `webkit-dark-styles` keeps a browser's autofill from repainting the field.
+ * HiveGPT centers the value and the label (resting and lifted), so the sign-in and register
+ * forms read the same in right-to-left and left-to-right.
  */
 export const floatingField: string =
-  'webkit-dark-styles peer h-theme-auth-field w-full rounded-theme-auth-control border px-3.5 pb-0 pt-0.5 text-text-primary duration-200 motion-reduce:transition-none focus:border-accent-primary focus-visible:border-accent-primary';
+  'webkit-dark-styles peer h-theme-auth-field w-full rounded-theme-auth-control border px-3.5 pb-0 pt-0.5 text-center text-text-primary duration-200 motion-reduce:transition-none focus:border-accent-primary focus-visible:border-accent-primary';
 
 export const floatingLabel: string =
-  'absolute start-3 top-1.5 z-10 origin-[0] dir-rtl:origin-right -translate-y-4 scale-75 transform bg-surface-primary px-2 theme-field-fill:bg-field-fill text-sm text-text-secondary-alt duration-200 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-1.5 peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:px-2 peer-focus:text-accent-primary motion-reduce:transition-none';
+  'pointer-events-none absolute inset-x-0 mx-auto w-fit top-1.5 z-10 origin-center -translate-y-4 scale-75 transform bg-surface-primary px-2 theme-field-fill:bg-field-fill text-sm text-text-secondary-alt duration-200 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-1.5 peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:px-2 peer-focus:text-accent-primary motion-reduce:transition-none';
 
 export const floatingSecretButton: string =
   'size-theme-auth-field-action rounded-xl text-text-secondary-alt hover:bg-transparent hover:text-text-primary';
