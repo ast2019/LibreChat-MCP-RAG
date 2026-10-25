@@ -2,8 +2,9 @@
 # Also runs locally: `docker compose up -d --build` with the variables from .env.coolify.example.
 #
 # Coolify generates every SERVICE_* value below (secrets, passwords, the public URL), so
-# the only variable you must enter is OPENROUTER_KEY. Assign your domain to the `api`
-# service with port 3080 (e.g. https://chat.example.com:3080). See docs/saas/DEPLOY_COOLIFY.md.
+# the only variable you must enter is OPENROUTER_KEY. Give a domain to the `api` service
+# only (e.g. https://chat.example.com, no port) and leave the other services' domain
+# fields empty: they are internal. See docs/saas/DEPLOY_COOLIFY.md.
 #
 # The upstream development compose this replaces is still available upstream; local
 # development uses `npm run backend:dev` / `npm run frontend:dev` (see README).
@@ -29,14 +30,15 @@ services:
       ollama:
         condition: service_started
     environment:
-      # Coolify routes the assigned domain to this container port.
-      SERVICE_URL_API_3080: /
+      # Coolify's proxy routes a domain without a port to container port 80, so the app
+      # listens there and the domain needs no `:port` (the image runs as root).
+      SERVICE_URL_API: /
       HOST: 0.0.0.0
-      PORT: 3080
+      PORT: 80
       NODE_ENV: production
       CONFIG_PATH: /app/config/librechat.saas.yaml
-      DOMAIN_CLIENT: ${SERVICE_URL_API_3080}
-      DOMAIN_SERVER: ${SERVICE_URL_API_3080}
+      DOMAIN_CLIENT: ${SERVICE_URL_API}
+      DOMAIN_SERVER: ${SERVICE_URL_API}
       TRUST_PROXY: 1
       NO_INDEX: ${NO_INDEX:-true}
       APP_TITLE: ${APP_TITLE:-LibreChat}
@@ -105,7 +107,7 @@ services:
       - logs:/app/api/logs
       - librechat-data:/app/data
     healthcheck:
-      test: ['CMD', 'curl', '--fail', '--silent', 'http://localhost:3080/health']
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://localhost:80/health']
       interval: 30s
       timeout: 5s
       retries: 5
