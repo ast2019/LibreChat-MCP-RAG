@@ -3890,6 +3890,12 @@ export const memorySchema = z.object({
   maxInputTokens: z.number().int().positive().optional().default(DEFAULT_MEMORY_MAX_INPUT_TOKENS),
   personalize: z.boolean().default(true),
   messageWindowSize: z.number().optional().default(5),
+  /**
+   * Endpoints whose chats never touch memory: saved memories are not read into the prompt
+   * and the memory agent never receives the conversation (e.g. a local-only model).
+   * Matched case-insensitively against the endpoint name. Omission keeps memory everywhere.
+   */
+  excludeEndpoints: z.array(z.string().min(1)).optional(),
   agent: z
     .union([
       z.object({

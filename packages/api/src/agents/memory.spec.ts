@@ -1378,3 +1378,66 @@ it('forwards generation cancellation into the automatic memory SDK run', async (
     expect.objectContaining({ signal: controller.signal }),
   );
 });
+
+describe('processMemory usage billing', () => {
+  const baseParams = () => ({
+    res: { headersSent: false, write: jest.fn() } as unknown as Response,
+    userId: 'user-123',
+    setMemory: jest.fn(),
+    deleteMemory: jest.fn(),
+    messages: [],
+    memory: '',
+    messageId: 'msg-1',
+    conversationId: 'conv-1',
+    instructions: 'test',
+    llmConfig: { provider: Providers.OPENAI, model: 'google/gemini-3.8-flash' },
+  });
+
+  /** A run that reports one model call the way LangChain's `handleLLMEnd` does. */
+  const runReportingUsage = (fail = false) =>
+    jest.fn(
+      async (_inputs: unknown, config: { callbacks: { handleLLMEnd: (o: unknown) => void }[] }) => {
+        config.callbacks[0].handleLLMEnd({
+          generations: [
+            [
+              {
+                message: {
+                  response_metadata: { usage: { prompt_tokens: 200, completion_tokens: 20 } },
+                },
+              },
+            ],
+          ],
+        });
+        if (fail) {
+          throw new Error('provider failed after the call');
+        }
+        return 'done';
+      },
+    );
+
+  it('reports the memory model usage to the sink', async () => {
+    (Run.create as jest.Mock).mockReturnValueOnce({ processStream: runReportingUsage() });
+    const onUsage = jest.fn().mockResolvedValue(undefined);
+
+    await processMemory({ ...baseParams(), onUsage });
+
+    expect(onUsage).toHaveBeenCalledWith([{ input_tokens: 200, output_tokens: 20 }]);
+  });
+
+  it('still bills a model call when the run fails afterwards', async () => {
+    (Run.create as jest.Mock).mockReturnValueOnce({ processStream: runReportingUsage(true) });
+    const onUsage = jest.fn().mockResolvedValue(undefined);
+
+    await processMemory({ ...baseParams(), onUsage });
+
+    expect(onUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call the sink when no model call happened', async () => {
+    const onUsage = jest.fn();
+
+    await processMemory({ ...baseParams(), onUsage });
+
+    expect(onUsage).not.toHaveBeenCalled();
+  });
+});

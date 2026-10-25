@@ -560,6 +560,34 @@ describe('initializeCustom – token-config fetch header forwarding', () => {
     });
   });
 
+  it('fetches live prices for a second OpenRouter endpoint identified by its base URL', async () => {
+    const params = { ...createTokenConfigParams({}), endpoint: 'OpenRouterPrivate' };
+    mockGetCustomEndpointConfig.mockReturnValue({
+      apiKey: 'sk-test-key',
+      baseURL: 'https://openrouter.ai/api/v1',
+      models: { fetch: true },
+    });
+
+    await initializeCustom(params);
+
+    expect(fetchModels).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'OpenRouterPrivate', tokenKey: 'OpenRouterPrivate' }),
+    );
+  });
+
+  it('does not fetch prices for a non-OpenRouter endpoint', async () => {
+    const params = { ...createTokenConfigParams({}), endpoint: 'Ollama' };
+    mockGetCustomEndpointConfig.mockReturnValue({
+      apiKey: 'ollama',
+      baseURL: 'http://ollama:11434/v1',
+      models: { fetch: true },
+    });
+
+    await initializeCustom(params);
+
+    expect(fetchModels).not.toHaveBeenCalled();
+  });
+
   it('bills a static tokenConfig at the endpoint priceMultiplier', async () => {
     /** Built first: the helper installs its own endpoint config */
     const params = createTokenConfigParams({});

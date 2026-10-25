@@ -23,6 +23,7 @@ const {
   createCachedTokenCounter,
   applyContextToAgent,
   isMemoryAgentEnabled,
+  isMemoryExcludedForEndpoint,
   recordCollectedUsage,
   resolveRunUsageContext,
   getScheduleMCPExecution,
@@ -3325,6 +3326,14 @@ class AgentClient extends BaseClient {
     if (!memoryConfig || memoryConfig.disabled === true) {
       return;
     }
+    if (
+      isMemoryExcludedForEndpoint(
+        memoryConfig,
+        this.options.agent?.endpoint ?? this.options.agent?.provider ?? this.options.endpoint,
+      )
+    ) {
+      return;
+    }
 
     const userId = this.options.req.user.id + '';
     /** Memory partition of the primary agent; undefined = shared personal pool */
@@ -3486,6 +3495,19 @@ class AgentClient extends BaseClient {
       res: this.options.res,
       user: createSafeUser(this.options.req.user),
       tenantId: resolveRequestTenantId(this.options.req),
+      /** The memory model runs on its own endpoint, so it is billed at that endpoint's rates
+       *  and kept out of the primary response's stream usage. */
+      onUsage: (collectedUsage) =>
+        this.recordCollectedUsage({
+          collectedUsage,
+          context: 'memory',
+          model: llmConfig.model,
+          balance: getBalanceConfig(appConfig),
+          transactions: getTransactionsConfig(appConfig),
+          endpointTokenConfig: agent.endpointTokenConfig,
+          crossEndpoint: true,
+          updateStreamUsage: false,
+        }),
     });
 
     this.processMemory = processMemory;

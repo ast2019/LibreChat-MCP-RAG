@@ -38,3 +38,17 @@ export function isMemoryAgentEnabled(config: TMemoryConfig | undefined): boolean
   if (!isMemoryEnabled(config)) return false;
   return config?.agent?.enabled === true && hasValidAgent(config.agent);
 }
+
+/** Whether chats on `endpoint` are kept out of memory by `memory.excludeEndpoints`. */
+export function isMemoryExcludedForEndpoint(
+  config: TMemoryConfig | undefined,
+  endpoint: string | null | undefined,
+): boolean {
+  if (typeof endpoint !== 'string' || endpoint === '') {
+    return false;
+  }
+  const normalized = endpoint.toLowerCase();
+  return (config?.excludeEndpoints ?? []).some(
+    (excluded) => typeof excluded === 'string' && excluded.toLowerCase() === normalized,
+  );
+}

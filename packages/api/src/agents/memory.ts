@@ -2,8 +2,8 @@
 import { z } from 'zod';
 import { logger } from '@librechat/data-schemas';
 import { tool } from '@librechat/agents/langchain/tools';
-import { Run, Providers, GraphEvents } from '@librechat/agents';
 import { HumanMessage } from '@librechat/agents/langchain/messages';
+import { Run, Providers, GraphEvents, createMetadataAggregator } from '@librechat/agents';
 import {
   Tools,
   MemoryScope,
@@ -35,12 +35,14 @@ import type { TAttachment, FiltersConfig, MemoryArtifact } from 'librechat-data-
 import type { BaseMessage, ToolMessage } from '@librechat/agents/langchain/messages';
 import type { DynamicStructuredTool } from '@librechat/agents/langchain/tools';
 import type { Response as ServerResponse } from 'express';
+import type { ActivityLabelUsage } from '~/agents/metadata';
 import type { ServerRequest, RunLLMConfig } from '~/types';
 import { resolveConfigHeaders, createSafeUser, getSafeErrorMetadata } from '~/utils';
 import { contentFilterModelBoundBlockResponse } from '~/middleware/contentFilter';
 import { extractMemoryContent } from '~/protection/adapters/submissions';
 import { assertModelBoundContent } from '~/middleware/modelBoundContent';
 import { GenerationJobManager } from '~/stream/GenerationJobManager';
+import { mapCollectedMetadataToUsage } from '~/agents/metadata';
 import { inspectContent } from '~/protection/runtime';
 import { checkAccess } from '~/middleware/access';
 import { isMemoryEnabled } from '~/memory';
@@ -778,6 +780,7 @@ export async function processMemory({
   jobCreatedAt,
   user,
   tenantId,
+  onUsage,
 }: {
   res: ServerResponse;
   setMemory: MemoryMethods['setMemory'];
@@ -809,7 +812,10 @@ export async function processMemory({
   jobCreatedAt?: number;
   user?: IUser;
   tenantId?: string;
+  /** Receives the memory model's token usage once the run settles, so it can be billed. */
+  onUsage?: MemoryUsageSink;
 }): Promise<(TAttachment | null)[] | undefined> {
+  const { handleLLMEnd, collected } = createMetadataAggregator();
   try {
     signal?.throwIfAborted();
     const submittedMessages = (inspectionMessages ?? messages).filter(
@@ -1001,9 +1007,12 @@ ${memory ?? 'No existing memories'}`;
     });
 
     signal?.throwIfAborted();
+    /** Declared outside the `as const` literal, which would make the array readonly. */
+    const callbacks = [{ handleLLMEnd }];
     const config = {
       ...(signal != null && { signal }),
       runName: 'MemoryRun',
+      callbacks,
       configurable: {
         user_id: userId,
         thread_id: conversationId,
@@ -1034,8 +1043,18 @@ ${memory ?? 'No existing memories'}`;
       `[MemoryAgent] Failed to process memory | userId: ${userId} | conversationId: ${conversationId} | messageId: ${messageId}`,
       getSafeErrorMetadata(error),
     );
+  } finally {
+    /** Billed even when the run failed after a model call: the provider charged for it. */
+    if (onUsage != null && collected.length > 0) {
+      await onUsage(mapCollectedMetadataToUsage(collected)).catch((error) => {
+        logger.error('[MemoryAgent] Failed to record memory usage', getSafeErrorMetadata(error));
+      });
+    }
   }
 }
+
+/** Bills the memory model's usage; the caller supplies the ledger and the model's rates. */
+export type MemoryUsageSink = (usage: ActivityLabelUsage[]) => Promise<void>;
 
 export async function createMemoryProcessor({
   res,
@@ -1051,6 +1070,7 @@ export async function createMemoryProcessor({
   jobCreatedAt,
   user,
   tenantId,
+  onUsage,
 }: {
   res: ServerResponse;
   messageId: string;
@@ -1067,6 +1087,8 @@ export async function createMemoryProcessor({
   jobCreatedAt?: number;
   user?: IUser;
   tenantId?: string;
+  /** Bills each memory run's token usage; omission leaves memory runs unbilled. */
+  onUsage?: MemoryUsageSink;
 }): Promise<
   | [undefined, undefined]
   | [
@@ -1140,6 +1162,7 @@ export async function createMemoryProcessor({
           deleteMemory: memoryMethods.deleteMemory,
           user,
           tenantId,
+          onUsage,
         });
       } catch (error) {
         logger.error('Memory Agent failed to process memory', getSafeErrorMetadata(error));
