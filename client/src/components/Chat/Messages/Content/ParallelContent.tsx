@@ -342,7 +342,7 @@ export const ParallelContentRenderer = memo(function ParallelContentRenderer({
 
   return (
     <SearchContext.Provider value={{ searchResults }}>
-      {showDecorations && <MemoryArtifacts attachments={attachments} />}
+      {showDecorations && <MemoryArtifacts attachments={attachments} content={content} />}
 
       {/* Each section preceded by the sequential content that runs up to it */}
       {blocks.map(({ leading, section: { groupId, columns } }) => (

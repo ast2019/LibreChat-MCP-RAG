@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
-import { Tools } from 'librechat-data-provider';
-import type { TAttachment, MemoryArtifact } from 'librechat-data-provider';
-import MemoryArtifacts from '../MemoryArtifacts';
+import { Tools, ContentTypes } from 'librechat-data-provider';
+import type { TAttachment, MemoryArtifact, TMessageContentParts } from 'librechat-data-provider';
+import MemoryArtifacts, { hasMemoryArtifacts } from '../MemoryArtifacts';
 
 // Mock the localize hook
 jest.mock('~/hooks', () => ({
@@ -129,18 +129,42 @@ describe('MemoryArtifacts', () => {
       expect(screen.getByText('Memory Error')).toBeInTheDocument();
     });
 
-    test('ignores attachments already rendered as an inline memory tool card', () => {
-      /** A `set_memory`/`delete_memory` call routes to `MemoryCall`, which
-       *  shows the same key, value and outcome. Counting its attachment here
-       *  too rendered one mutation twice. `toolCallId` is the discriminator. */
+    test('renders a background memory save whose tool call is not in the message', () => {
+      /** The memory agent runs its own `set_memory` call after the reply; that call is
+       *  never a content part of the message, so this row is its only surface. */
+      const background = {
+        ...createMemoryAttachment('update', 'memory1'),
+        toolCallId: 'call_memory_agent',
+      } as TAttachment;
+      const content = [
+        {
+          type: ContentTypes.TOOL_CALL,
+          [ContentTypes.TOOL_CALL]: { id: 'call_web_search', name: 'web_search', args: '' },
+        },
+      ] as TMessageContentParts[];
+
+      render(<MemoryArtifacts attachments={[background]} content={content} />);
+
+      expect(screen.getByText('Updated saved memory')).toBeInTheDocument();
+      expect(hasMemoryArtifacts([background], content)).toBe(true);
+    });
+
+    test('ignores a memory attachment whose call the message renders inline', () => {
       const linked = {
         ...createMemoryAttachment('update', 'memory1'),
         toolCallId: 'call_abc123',
       } as TAttachment;
+      const content = [
+        {
+          type: ContentTypes.TOOL_CALL,
+          [ContentTypes.TOOL_CALL]: { id: 'call_abc123', name: 'set_memory', args: '' },
+        },
+      ] as TMessageContentParts[];
 
-      const { container } = render(<MemoryArtifacts attachments={[linked]} />);
+      const { container } = render(<MemoryArtifacts attachments={[linked]} content={content} />);
 
       expect(container).toBeEmptyDOMElement();
+      expect(hasMemoryArtifacts([linked], content)).toBe(false);
     });
 
     test('still renders a memory attachment carrying no tool call id', () => {
