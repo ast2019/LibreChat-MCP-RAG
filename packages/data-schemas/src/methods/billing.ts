@@ -1,0 +1,191 @@
+import type { Model } from 'mongoose';
+import type { ITransaction } from '~/schema/transaction';
+import type { IBalance } from '~/types/balance';
+import type { IUser } from '~/types';
+import { buildUserSearchFilter } from '~/utils/search';
+
+/** A user row for the billing admin page; plain data, no storage types. */
+export interface BillingUserRow {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+  balance: {
+    tokenCredits: number;
+    packId?: string;
+    packLabel?: string;
+    packAllotment?: number;
+    packGrantedAt?: string;
+  } | null;
+}
+
+export interface BillingModelSpend {
+  model: string;
+  credits: number;
+}
+
+export interface BillingSummary {
+  totalUsers: number;
+  /** Users with any chat spend in the window */
+  activeUsers: number;
+  /** Credits added by admins (packs and manual grants), all time and in the window */
+  creditsGranted: number;
+  creditsGrantedInWindow: number;
+  packGrantsInWindow: number;
+  /** Credits users spent on models in the window (positive number) */
+  creditsSpentInWindow: number;
+  /** Credits currently held across all balances */
+  creditsOutstanding: number;
+  topModels: BillingModelSpend[];
+}
+
+const MAX_PAGE_SIZE = 100;
+const GRANT_CONTEXTS = ['pack', 'admin'];
+const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
+
+export function createBillingMethods(mongoose: typeof import('mongoose')): {
+  listUsersWithBalances: (params: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => Promise<{ users: BillingUserRow[]; total: number }>;
+  getBillingSummary: (params: { since: Date; topModels?: number }) => Promise<BillingSummary>;
+} {
+  const users = () => mongoose.models.User as Model<IUser>;
+  const balances = () => mongoose.models.Balance as Model<IBalance>;
+  const transactions = () => mongoose.models.Transaction as Model<ITransaction>;
+
+  async function listUsersWithBalances({
+    search,
+    limit = 25,
+    offset = 0,
+  }: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ users: BillingUserRow[]; total: number }> {
+    const trimmed = typeof search === 'string' ? search.trim().slice(0, 200) : '';
+    const filter = trimmed ? (buildUserSearchFilter(trimmed, { legacyPrefix: true }) ?? {}) : {};
+    const pageSize = Math.min(Math.max(Math.trunc(limit) || 25, 1), MAX_PAGE_SIZE);
+    const skip = Math.max(Math.trunc(offset) || 0, 0);
+
+    const [docs, total] = await Promise.all([
+      users()
+        .find(filter, '_id name username email role createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      users().countDocuments(filter),
+    ]);
+    const ids = docs.map((doc) => doc._id);
+    const balanceDocs = ids.length
+      ? await balances()
+          .find(
+            { user: { $in: ids } },
+            'user tokenCredits packId packLabel packAllotment packGrantedAt',
+          )
+          .lean()
+      : [];
+    const byUser = new Map(balanceDocs.map((doc) => [String(doc.user), doc]));
+
+    return {
+      total,
+      users: docs.map((doc) => {
+        const balance = byUser.get(String(doc._id));
+        return {
+          id: String(doc._id),
+          name: doc.name ?? '',
+          username: doc.username ?? '',
+          email: doc.email ?? '',
+          role: doc.role ?? 'USER',
+          createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : undefined,
+          balance: balance
+            ? {
+                tokenCredits: balance.tokenCredits ?? 0,
+                packId: balance.packId,
+                packLabel: balance.packLabel,
+                packAllotment: balance.packAllotment,
+                packGrantedAt: balance.packGrantedAt
+                  ? new Date(balance.packGrantedAt).toISOString()
+                  : undefined,
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  async function getBillingSummary({
+    since,
+    topModels = 10,
+  }: {
+    since: Date;
+    topModels?: number;
+  }): Promise<BillingSummary> {
+    const [totalUsers, grants, spend, outstanding, models] = await Promise.all([
+      users().countDocuments({}),
+      transactions().aggregate<{ _id: null; all: number; inWindow: number; countInWindow: number }>(
+        [
+          {
+            $match: {
+              tokenType: 'credits',
+              context: { $in: GRANT_CONTEXTS },
+              rawAmount: { $gt: 0 },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              all: { $sum: '$tokenValue' },
+              inWindow: { $sum: { $cond: [{ $gte: ['$createdAt', since] }, '$tokenValue', 0] } },
+              countInWindow: {
+                $sum: {
+                  $cond: [
+                    { $and: [{ $gte: ['$createdAt', since] }, { $eq: ['$context', 'pack'] }] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      ),
+      transactions().aggregate<{ _id: null; credits: number; users: string[] }>([
+        { $match: { tokenType: { $in: SPEND_TOKEN_TYPES }, createdAt: { $gte: since } } },
+        { $group: { _id: null, credits: { $sum: '$tokenValue' }, users: { $addToSet: '$user' } } },
+      ]),
+      balances().aggregate<{ _id: null; credits: number }>([
+        { $group: { _id: null, credits: { $sum: '$tokenCredits' } } },
+      ]),
+      transactions().aggregate<{ _id: string; credits: number }>([
+        { $match: { tokenType: { $in: SPEND_TOKEN_TYPES }, createdAt: { $gte: since } } },
+        { $group: { _id: '$model', credits: { $sum: '$tokenValue' } } },
+        { $sort: { credits: 1 } },
+        { $limit: Math.min(Math.max(topModels, 1), 50) },
+      ]),
+    ]);
+
+    return {
+      totalUsers,
+      activeUsers: spend[0]?.users.length ?? 0,
+      creditsGranted: grants[0]?.all ?? 0,
+      creditsGrantedInWindow: grants[0]?.inWindow ?? 0,
+      packGrantsInWindow: grants[0]?.countInWindow ?? 0,
+      /** Spend is stored as negative token values */
+      creditsSpentInWindow: Math.abs(spend[0]?.credits ?? 0),
+      creditsOutstanding: outstanding[0]?.credits ?? 0,
+      topModels: models.map((row) => ({
+        model: row._id ?? 'unknown',
+        credits: Math.abs(row.credits ?? 0),
+      })),
+    };
+  }
+
+  return { listUsersWithBalances, getBillingSummary };
+}
+
+export type BillingMethods = ReturnType<typeof createBillingMethods>;

@@ -1,4 +1,5 @@
 import { RecoilRoot } from 'recoil';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
 import AccountSettings from '../AccountSettings';
@@ -24,9 +25,11 @@ jest.mock('~/components/Balance', () => ({
 describe('AccountSettings', () => {
   it('shows the usage bar under the email when the menu opens', async () => {
     render(
-      <RecoilRoot>
-        <AccountSettings />
-      </RecoilRoot>,
+      <MemoryRouter>
+        <RecoilRoot>
+          <AccountSettings />
+        </RecoilRoot>
+      </MemoryRouter>,
     );
 
     await userEvent.click(screen.getByTestId('nav-user'));

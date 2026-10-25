@@ -28,6 +28,31 @@ function createDeps(over: Partial<AdminBalanceDeps> = {}): AdminBalanceDeps {
     findBalanceByUser: jest.fn().mockResolvedValue({ tokenCredits: 500_000, packAllotment: 2e6 }),
     createTransaction: jest.fn().mockResolvedValue({ balance: 2_000_000 }),
     upsertBalanceFields: jest.fn().mockResolvedValue({}),
+    listUsersWithBalances: jest.fn().mockResolvedValue({
+      total: 1,
+      users: [
+        {
+          id: USER_ID,
+          name: 'A',
+          username: 'a',
+          email: 'a@b.co',
+          role: 'USER',
+          balance: { tokenCredits: 250, packAllotment: 1000 },
+        },
+      ],
+    }),
+    getBillingSummary: jest.fn().mockResolvedValue({
+      totalUsers: 3,
+      activeUsers: 1,
+      creditsGranted: 9e6,
+      creditsGrantedInWindow: 2e6,
+      packGrantsInWindow: 1,
+      creditsSpentInWindow: 1.3e6,
+      creditsOutstanding: 7e6,
+      topModels: [],
+    }),
+    getPriceMultiplier: jest.fn().mockResolvedValue(1.3),
+    now: () => new Date('2026-10-25T00:00:00.000Z'),
     ...over,
   };
 }
@@ -130,5 +155,38 @@ describe('getAllotmentUsedPercent', () => {
     expect(getAllotmentUsedPercent({ tokenCredits: 10 })).toBeNull();
     expect(getAllotmentUsedPercent({ tokenCredits: 1, packAllotment: 1000 })).toBe(99);
     expect(getAllotmentUsedPercent({ tokenCredits: 5000, packAllotment: 1000 })).toBe(0);
+  });
+});
+
+describe('createAdminBalanceHandlers.listUsers / summary', () => {
+  it('pages users with the share of their pack used', async () => {
+    const deps = createDeps();
+    const res = mockRes();
+    await createAdminBalanceHandlers(deps).listUsers(
+      req({}, { search: 'a', limit: '500', offset: '-3' }),
+      res,
+    );
+    expect(deps.listUsersWithBalances).toHaveBeenCalledWith({ search: 'a', limit: 100, offset: 0 });
+    expect(res.body).toMatchObject({ total: 1, users: [{ id: USER_ID, usedPercent: 75 }] });
+  });
+
+  it('summarizes a supported window and estimates provider cost from the multiplier', async () => {
+    const deps = createDeps();
+    const res = mockRes();
+    await createAdminBalanceHandlers(deps).summary(req({}, { days: '7' }), res);
+    expect(deps.getBillingSummary).toHaveBeenCalledWith({
+      since: new Date('2026-10-18T00:00:00.000Z'),
+    });
+    expect(res.body).toMatchObject({
+      days: 7,
+      priceMultiplier: 1.3,
+      estimatedProviderCredits: 1e6,
+    });
+  });
+
+  it('falls back to 30 days for an unsupported window', async () => {
+    const res = mockRes();
+    await createAdminBalanceHandlers(createDeps()).summary(req({}, { days: '365' }), res);
+    expect(res.body).toMatchObject({ days: 30 });
   });
 });

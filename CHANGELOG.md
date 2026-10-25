@@ -7,6 +7,34 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-25
+
+### Added
+- **In-app admin page at `/admin`**, visible only to users with the ADMIN role. An «Admin»
+  item appears in the account menu for admins; other users get a 403 from its APIs.
+  - Summary cards: users, credit sold, credit spent, estimated provider cost, margin and
+    unused credit, plus the top models by spend.
+  - A user table with search, a usage bar per user and an «Add credit» dialog (pick a pack
+    or enter a USD amount). Grants go through the same `createTransaction` path as before.
+- New admin APIs: `GET /api/admin/balance/users` (search, paging) and
+  `GET /api/admin/balance/summary`, backed by `listUsersWithBalances` and
+  `getBillingSummary` in data-schemas.
+
+### Changed
+- `config/librechat.saas.yaml` hides builder/operator features from end users: MCP servers,
+  Skills, Agent API keys (`remoteAgents`) and the build-info panel. Langfuse tracing was
+  already server-side only.
+
+### Not done / Known limitations
+- Not checked in a real browser: the browser tool could not reach the local test server.
+  Verified with unit tests (client 392, packages/api billing 43, data-schemas billing) and a
+  live API smoke run against the real server (9/9: 403 for non-admins, user list, grant,
+  summary, interface flags, `/admin` page shell).
+- No per-user usage history or charts over time yet.
+- Admin page strings are English only (Persian translation deferred).
+- "Estimated provider cost" divides spend by the primary `priceMultiplier`, so it is
+  approximate when endpoints use different multipliers.
+
 ## [0.7.0] - 2026-10-25
 
 ### Added

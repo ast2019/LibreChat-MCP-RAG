@@ -140,6 +140,7 @@ import {
   defaultRate,
 } from './tx';
 import { createTransactionMethods, type TransactionMethods } from './transaction';
+import { createBillingMethods, type BillingMethods } from './billing';
 import { createSpendTokensMethods, type SpendTokensMethods } from './spendTokens';
 import {
   createPromptMethods,
@@ -274,6 +275,7 @@ export {
 };
 
 export type AllMethods = SubagentContentMethods &
+  BillingMethods &
   ToolApprovalGrantStorage &
   UserMethods &
   SessionMethods &
@@ -562,6 +564,7 @@ export function createMethods(
     /* Tier 3 */
     ...txMethods,
     ...transactionMethods,
+    ...createBillingMethods(mongoose),
     ...spendTokensMethods,
     ...promptMethods,
     ...skillMethods,
@@ -645,6 +648,7 @@ export type {
   ChatProjectMethods,
   TxMethods,
   TransactionMethods,
+  BillingMethods,
   SpendTokensMethods,
   PromptMethods,
   SkillMethods,
@@ -684,3 +688,4 @@ export type {
 };
 
 export { recordAgentEventActorReceiptMetric, setAgentEventActorReceiptMetricObserver };
+export type { BillingUserRow, BillingSummary, BillingModelSpend } from './billing';

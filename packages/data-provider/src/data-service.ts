@@ -1,5 +1,13 @@
 import type { AxiosResponse } from 'axios';
 import type {
+  TAdminBillingSummary,
+  TAdminBillingUsersParams,
+  TAdminBillingGrantRequest,
+  TAdminBillingGrantResponse,
+  TAdminBillingPacksResponse,
+  TAdminBillingUsersResponse,
+} from './types/billing';
+import type {
   TTracePage,
   TTracePageParams,
   TTraceAvailability,
@@ -42,6 +50,26 @@ export function getInsights(params: TInsightsParams = {}): Promise<TInsightsResp
   }
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return request.get(`${endpoints.insights()}${suffix}`);
+}
+
+export function getAdminBillingUsers(
+  params: TAdminBillingUsersParams = {},
+): Promise<TAdminBillingUsersResponse> {
+  return request.get(endpoints.adminBillingUsers(params));
+}
+
+export function getAdminBillingSummary(days: number): Promise<TAdminBillingSummary> {
+  return request.get(endpoints.adminBillingSummary(days));
+}
+
+export function getAdminBillingPacks(): Promise<TAdminBillingPacksResponse> {
+  return request.get(endpoints.adminBillingPacks());
+}
+
+export function grantAdminBilling(
+  payload: TAdminBillingGrantRequest,
+): Promise<TAdminBillingGrantResponse> {
+  return request.post(endpoints.adminBillingGrant(), payload);
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {
