@@ -122,7 +122,7 @@ memory:
   messageWindowSize: 5
   tokenLimit: 2000
   validKeys: ['profile', 'preferences', 'work', 'goals', 'context']
-  excludeEndpoints: ['Local']
+  excludeEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink']
   agent:
     enabled: true
     provider: 'OpenRouterPrivate'
@@ -232,6 +232,39 @@ endpoints:
       # A title would be a second slow local call; chats keep the default title.
       titleConvo: false
       modelDisplayLabel: 'داخلی'
+
+    # Admin-only: Qwen 3.6 35B (3B active) with its refusals removed (abliterated), also on the
+    # `ollama` container. Two endpoints so one spec answers at once and the other thinks first:
+    # Ollama turns thinking off for `reasoning_effort: none`. Only the admin-only specs below
+    # use them; users' requests must name a spec they have, so they cannot reach these.
+    - name: 'LocalUncensored'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['hivegpt-uncensored']
+        fetch: false
+      addParams:
+        reasoning_effort: 'none'
+      tokenConfig:
+        'hivegpt-uncensored':
+          prompt: 0
+          completion: 0
+          context: 16384
+      titleConvo: false
+      modelDisplayLabel: 'بدون سانسور'
+    - name: 'LocalUncensoredThink'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['hivegpt-uncensored']
+        fetch: false
+      tokenConfig:
+        'hivegpt-uncensored':
+          prompt: 0
+          completion: 0
+          context: 16384
+      titleConvo: false
+      modelDisplayLabel: 'بدون سانسور — فکر عمیق'
 
 modelSpecs:
   enforce: true
@@ -346,6 +379,27 @@ modelSpecs:
         endpoint: 'Local'
         model: 'hivegpt-local'
         modelLabel: 'داخلی'
+    # Admin only (`adminOnly`): never sent to other roles, and refused for them server-side.
+    - name: 'local-uncensored'
+      label: 'بدون سانسور — سریع'
+      description: 'Qwen 3.6 بدون سانسور روی سرور خودمان؛ جواب مستقیم، بدون مرحلهٔ فکر'
+      group: 'ادمین'
+      adminOnly: true
+      hideBadgeRow: true
+      preset:
+        endpoint: 'LocalUncensored'
+        model: 'hivegpt-uncensored'
+        modelLabel: 'بدون سانسور'
+    - name: 'local-uncensored-think'
+      label: 'بدون سانسور — برنامه‌نویسی (فکر عمیق)'
+      description: 'همان مدل، اول فکر می‌کند بعد جواب می‌دهد؛ برای کد و مسئله‌های سخت، کندتر'
+      group: 'ادمین'
+      adminOnly: true
+      hideBadgeRow: true
+      preset:
+        endpoint: 'LocalUncensoredThink'
+        model: 'hivegpt-uncensored'
+        modelLabel: 'بدون سانسور'
     - name: 'documents'
       label: 'پرسش از فایل‌ها'
       description: 'فایل‌های خود را بارگذاری کنید و درباره‌شان بپرسید'

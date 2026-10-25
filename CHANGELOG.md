@@ -7,6 +7,43 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-25
+
+### Added
+- **Admin-only uncensored local model.** Two new specs in an «ادمین» group run
+  `huihui_ai/Qwen3.6-abliterated:35b` (Qwen 3.6, 35B MoE with 3B active; refusals removed
+  by abliteration) on the `ollama` container as `hivegpt-uncensored`:
+  - «بدون سانسور — سریع» answers directly. Its endpoint `LocalUncensored` sends
+    `reasoning_effort: none`, which Ollama maps to thinking off.
+  - «بدون سانسور — برنامه‌نویسی (فکر عمیق)» thinks first. The thought streams into the
+    collapsible thinking row.
+  - Both are free and excluded from memory, and nothing leaves the server.
+- **`adminOnly` on model specs.** The spec is removed from the app config of every role
+  except ADMIN, including a caller that names no role. Other roles therefore neither see it
+  nor pass `modelSpecs.enforce` with it.
+- `ollama` entrypoint builds every local model through one `build` step. New variables:
+  `LOCAL_MODEL_UNCENSORED` (`none` skips the download) and `LOCAL_MODEL_UNCENSORED_CONTEXT`
+  (16384).
+
+### Changed
+- `LOCAL_MODEL_MEMORY` default 32g (was 8g): the 35B model holds about 22 GB while loaded.
+
+### Not done / Known limitations
+- **The 35B model itself was not run here.** It downloaded, but loading it was killed by the
+  sandbox's memory limit (~22 GB resident). The production VM has 64 GB.
+  - The full chat flow was verified with a small thinking model (`qwen3:0.6b`) standing in
+    as `hivegpt-uncensored` on a real Ollama, against the production server build.
+  - Verified: admin sees both specs and users do not. A user request rewritten to the admin
+    spec is refused ("Invalid model spec"). «سریع» answers with no thinking step; «فکر عمیق»
+    streams its thinking.
+- Speed and answer quality of the real model on the ESXi VM are not measured.
+- "Uncensored" means fewer refusals, not none. Abliteration can lower quality a little, and
+  the political bias in Qwen's training data is not removed.
+- The first start downloads about 23 GB. Until that finishes, the admin specs answer
+  "model not found".
+- Switching between «داخلی» and the admin model reloads (one model in memory at a time).
+- User-facing replacement of `gemma3:4b` is not part of this release (next step).
+
 ## [0.10.0] - 2026-10-25
 
 ### Added
