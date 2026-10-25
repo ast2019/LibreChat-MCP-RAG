@@ -15,13 +15,13 @@ import type {
   ProviderInitializeParams,
 } from '~/types';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
+import { resolveCustomEndpointParameters, isOpenRouterEndpoint } from './config';
 import { resolveModelTransportTimeouts } from '~/agents/config';
 import { extractDefaultParams } from '~/endpoints/openai/llm';
 import { isUserProvided, checkUserKeyExpiry } from '~/utils';
 import { withSupportedEffort } from '~/endpoints/reasoning';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
 import { getScopedTokenConfigKey } from '~/endpoints/keys';
-import { resolveCustomEndpointParameters } from './config';
 import { applyPriceMultiplier } from '~/billing/markup';
 import { getCustomEndpointConfig } from '~/app/config';
 import { resolveEndpointRuntime } from '~/types';
@@ -283,6 +283,12 @@ export async function initializeCustom(
 
   const cache = tokenConfigCache();
   const hasTokenConfig = endpointConfig.tokenConfig != null;
+  /** Prices come from `/models` for the named providers and for any endpoint that is
+   *  OpenRouter by its base URL, so a second OpenRouter endpoint (e.g. one that adds
+   *  privacy routing params) is billed at live prices rather than fallback rates. */
+  const fetchesTokenConfig =
+    FetchTokenConfig[endpoint.toLowerCase() as keyof typeof FetchTokenConfig] != null ||
+    isOpenRouterEndpoint(endpointConfig, CUSTOM_BASE_URL);
   const tokenKey = getTokenConfigKey(endpointConfig, endpoint, userId, tenantId);
 
   if (hasTokenConfig) {
@@ -294,14 +300,12 @@ export async function initializeCustom(
       endpointConfig.tokenConfig as Record<string, Record<string, number>>,
     );
   } else {
-    const cachedConfig =
-      FetchTokenConfig[endpoint.toLowerCase() as keyof typeof FetchTokenConfig] &&
-      (await cache.get(tokenKey));
+    const cachedConfig = fetchesTokenConfig && (await cache.get(tokenKey));
     endpointTokenConfig = (cachedConfig as EndpointTokenConfig) || undefined;
   }
 
   if (
-    FetchTokenConfig[endpoint.toLowerCase() as keyof typeof FetchTokenConfig] &&
+    fetchesTokenConfig &&
     endpointConfig &&
     endpointConfig.models?.fetch &&
     !endpointTokenConfig

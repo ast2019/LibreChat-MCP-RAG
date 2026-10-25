@@ -7,6 +7,63 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-25
+
+### Added
+- **Long-term memory.** `memory` is configured in the SaaS config, the agents `memory`
+  capability is enabled, and the Personalization settings are shown. A memory agent
+  (`google/gemini-3.8-flash`, "active but careful" instructions, five keys, 2000-token limit)
+  runs after each turn. Saved memories reach the chat as the existing "Updated saved memory"
+  row, which can be expanded to show the saved value.
+- **Memory usage is billed.** The memory agent's token usage is charged to the user at its
+  endpoint's marked-up rates as `context: memory` transactions. Upstream never billed it. A model
+  call is still billed when the run fails after it.
+- `memory.excludeEndpoints`: chats on the listed endpoints neither read nor write memory.
+- **Confidential chats.** The `OpenRouterPrivate` endpoint sends
+  `provider: { zdr: true, data_collection: 'deny' }` with every request, its title calls, and
+  the memory agent. Three "محرمانه" specs (Gemini Flash, Claude Sonnet, GPT, with concrete ZDR
+  model ids) hide the tool badges.
+- **Local model.** An `ollama` service (`gemma3:4b`, CPU and memory limits, idle unload) and a
+  `Local` endpoint, free for users, with no title calls and excluded from memory. It is offered
+  as the "داخلی (کاملاً محرمانه)" spec.
+- `docs/saas/IDEAS.md`: search roadmap (Serper + Jina, Firecrawl, local reranker) and a
+  "better than ChatGPT and Claude" list.
+
+### Fixed
+- **Pricing for a second OpenRouter endpoint.** Live `/models` prices were loaded only for an
+  endpoint literally named "OpenRouter". Any other endpoint on OpenRouter's base URL was billed
+  at fallback table rates without the price multiplier. Prices now load for any endpoint that
+  `isOpenRouterEndpoint` identifies.
+- **Background memory saves were invisible in the chat.** The UI hid every memory attachment
+  that carried a `toolCallId`, and the memory agent's attachments always carry one, although
+  that call is never part of the message. The row is now hidden only when the message itself
+  renders that tool call.
+
+### Changed
+- `mapCollectedMetadataToUsage` and its types moved to `packages/api/src/agents/metadata.ts`
+  (re-exported from `activityLabels/host`), so the memory module does not import the whole
+  endpoint stack.
+
+### Not done / Known limitations
+- **No real OpenRouter request.** A mock OpenRouter server stood in front of the real LibreChat
+  server (in-memory MongoDB, production config with only the base URL swapped) and recorded
+  every request. It verified:
+  - the ZDR params on every private chat, title and memory request, and none on regular chats
+  - billing at 1.3× the live prices, for the second endpoint too
+  - the memory save and the memory charge
+  - the memory attachment event in the chat stream
+
+  Whether OpenRouter honours ZDR for each listed model was not checked live. Its
+  `/endpoints/zdr` list did show Google, Azure and Bedrock endpoints for the three models.
+- **The local model ran through the real chat flow,** on a native Ollama with `gemma3:4b`. It
+  answered correctly in Persian, cost 0, and sent no memory or title requests. The `ollama`
+  container itself and its pull-on-start entrypoint were not run (no container runtime).
+- Uploading a file in a confidential chat still embeds it through the regular, non-ZDR
+  OpenRouter path. Web and file search are only hidden there, not enforced off.
+- The memory notice was verified with component tests and the stream event, not in a browser.
+- `qwen3:1.7b` (wrong answer in Persian) and `qwen3:4b` (long English reasoning, 2–7 min) were
+  tried and rejected for the local model.
+
 ## [0.3.0] - 2026-10-23
 
 ### Added

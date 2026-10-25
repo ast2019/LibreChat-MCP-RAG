@@ -45,6 +45,8 @@ interface:
     groups: false
     roles: false
   feedback: true
+  # Users see and edit their memories under Settings → Personalization.
+  memories: true
 
 # Credits are micro-dollars of marked-up usage: 1,000,000 credits = $1 billed to the user.
 # Each request deducts tokens x (OpenRouter USD price x priceMultiplier) in credits.
@@ -74,6 +76,35 @@ balance:
 
 transactions:
   enabled: true
+
+# Long-term memory. A small, cheap model reads the last messages after each turn and saves
+# stable facts. It runs on the ZDR endpoint, so memory processing never goes to a provider
+# that keeps data. Chats on the local model are excluded entirely (nothing leaves the server).
+memory:
+  personalize: true
+  messageWindowSize: 5
+  tokenLimit: 2000
+  validKeys: ['profile', 'preferences', 'work', 'goals', 'context']
+  excludeEndpoints: ['Local']
+  agent:
+    enabled: true
+    provider: 'OpenRouterPrivate'
+    model: 'google/gemini-3.8-flash'
+    model_parameters:
+      temperature: 0.1
+    instructions: |
+      You maintain long-term memory about the user for future conversations.
+      Save only stable, useful facts the user stated about themselves: name, language and tone
+      they prefer, job and field, ongoing projects and goals, recurring constraints.
+      Also save anything the user explicitly asks you to remember, and delete what they ask
+      you to forget.
+      Never save: one-off questions, content of documents, passwords, keys, health, financial or
+      other sensitive data, or guesses about the user.
+      Update an existing key instead of adding a duplicate. Keep each value short.
+      Write values in the language the user uses.
+      VALID KEYS: profile, preferences, work, goals, context
+      TOKEN LIMIT: Maximum 2000 tokens across all memory values.
+      If nothing in the latest messages is worth remembering, end the turn without any tool call.
 
 webSearch:
   # Self-hosted SearXNG for results, Keenable (keyless) to read pages, no reranker.
@@ -106,6 +137,7 @@ endpoints:
       - artifacts
       - context
       - tools
+      - memory
   custom:
     # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
     - name: 'OpenRouter'
@@ -123,6 +155,44 @@ endpoints:
       dropParams: ['stop']
       modelDisplayLabel: 'OpenRouter'
       # Do not add `headers` here: they make the price cache per-user (one fetch per user).
+
+    # Confidential chats: same OpenRouter account, but every request asks OpenRouter to route
+    # only to Zero-Data-Retention endpoints of providers that do not collect data. Requests fail
+    # rather than fall back when no such endpoint is available. Prices are fetched live (the
+    # base URL identifies OpenRouter) and marked up like the main endpoint.
+    - name: 'OpenRouterPrivate'
+      apiKey: '${OPENROUTER_KEY}'
+      baseURL: 'https://openrouter.ai/api/v1'
+      models:
+        # Concrete ids: the ~…-latest aliases have no ZDR endpoints.
+        default: ['google/gemini-3.8-flash']
+        fetch: true
+      addParams:
+        provider:
+          zdr: true
+          data_collection: 'deny'
+      priceMultiplier: 1.3
+      titleConvo: true
+      titleModel: 'google/gemini-3.8-flash'
+      dropParams: ['stop']
+      modelDisplayLabel: 'محرمانه'
+
+    # Internal model served by the `ollama` container: nothing leaves the server.
+    # Slow on CPU and much weaker than cloud models. Free for users (CPU only).
+    - name: 'Local'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['gemma3:4b']
+        fetch: false
+      tokenConfig:
+        'gemma3:4b':
+          prompt: 0
+          completion: 0
+          context: 8192
+      # A title would be a second slow local call; chats keep the default title.
+      titleConvo: false
+      modelDisplayLabel: 'داخلی'
 
 modelSpecs:
   enforce: true
@@ -201,6 +271,42 @@ modelSpecs:
         endpoint: 'OpenRouter'
         model: 'perplexity/sonar-pro'
         modelLabel: 'Perplexity'
+    - name: 'private-fast'
+      label: 'محرمانه — سریع'
+      description: 'فقط سرویس‌هایی که هیچ داده‌ای نگه نمی‌دارند (ZDR)؛ بدون جستجوی وب و فایل'
+      group: 'محرمانه'
+      hideBadgeRow: true
+      preset:
+        endpoint: 'OpenRouterPrivate'
+        model: 'google/gemini-3.8-flash'
+        modelLabel: 'محرمانه'
+    - name: 'private-smart'
+      label: 'محرمانه — هوشمند'
+      description: 'Claude Sonnet روی سرورهای ZDR؛ بدون جستجوی وب و فایل'
+      group: 'محرمانه'
+      hideBadgeRow: true
+      preset:
+        endpoint: 'OpenRouterPrivate'
+        model: 'anthropic/claude-sonnet-5.5'
+        modelLabel: 'محرمانه'
+    - name: 'private-gpt'
+      label: 'محرمانه — GPT'
+      description: 'GPT روی سرورهای ZDR (Azure)؛ بدون جستجوی وب و فایل'
+      group: 'محرمانه'
+      hideBadgeRow: true
+      preset:
+        endpoint: 'OpenRouterPrivate'
+        model: 'openai/gpt-5.6-sol'
+        modelLabel: 'محرمانه'
+    - name: 'local'
+      label: 'داخلی (کاملاً محرمانه)'
+      description: 'روی سرور خودمان اجرا می‌شود و هیچ داده‌ای بیرون نمی‌رود؛ کندتر و ضعیف‌تر'
+      group: 'محرمانه'
+      hideBadgeRow: true
+      preset:
+        endpoint: 'Local'
+        model: 'gemma3:4b'
+        modelLabel: 'داخلی'
     - name: 'documents'
       label: 'پرسش از فایل‌ها'
       description: 'فایل‌های خود را آپلود کنید و درباره‌شان بپرسید'

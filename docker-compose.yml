@@ -26,6 +26,8 @@ services:
         condition: service_started
       searxng:
         condition: service_started
+      ollama:
+        condition: service_started
     environment:
       # Coolify routes the assigned domain to this container port.
       SERVICE_URL_API_3080: /
@@ -192,7 +194,33 @@ services:
         target: /etc/searxng/settings.yml
         read_only: true
 
+  # Local model for the "داخلی" (fully internal) chat. CPU-only; gemma3:4b needs about
+  # 4 GB RAM while loaded and is unloaded after LOCAL_MODEL_KEEP_ALIVE of inactivity.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        ollama serve &
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        ollama pull "$${LOCAL_MODEL}"
+        wait
+    environment:
+      LOCAL_MODEL: ${LOCAL_MODEL:-gemma3:4b}
+      OLLAMA_KEEP_ALIVE: ${LOCAL_MODEL_KEEP_ALIVE:-10m}
+      OLLAMA_NUM_PARALLEL: ${LOCAL_MODEL_PARALLEL:-1}
+      OLLAMA_MAX_LOADED_MODELS: 1
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: ${LOCAL_MODEL_CPUS:-2}
+          memory: ${LOCAL_MODEL_MEMORY:-6g}
+
 volumes:
+  ollama-models:
   uploads:
   images:
   logs:

@@ -925,7 +925,7 @@ const ContentPartsBody = memo(function ContentPartsBody({
     return (
       <ApprovalProvider>
         <SearchContext.Provider value={{ searchResults }}>
-          <MemoryArtifacts attachments={attachments} />
+          <MemoryArtifacts attachments={attachments} content={content} />
           <EditContentParts
             content={content ?? []}
             contentIndexOffset={contentIndexOffset}
@@ -1327,7 +1327,9 @@ const ContentPartsBody = memo(function ContentPartsBody({
   // Sequential content: render parts in order (90% of cases)
   const sequentialContent = (
     <SearchContext.Provider value={{ searchResults }}>
-      {!nestedActivityPhase && !continuation && <MemoryArtifacts attachments={attachments} />}
+      {!nestedActivityPhase && !continuation && (
+        <MemoryArtifacts attachments={attachments} content={content} />
+      )}
       {!nestedActivityPhase && !continuation && renderPendingSkills()}
       {showEmptyCursor && (
         <Container>
@@ -1335,7 +1337,7 @@ const ContentPartsBody = memo(function ContentPartsBody({
            * memory/skill rows and nested phases keep it flush. */}
           <EmptyText
             underHeaderIcon={
-              !nestedActivityPhase && !hasPendingSkills && !hasMemoryArtifacts(attachments)
+              !nestedActivityPhase && !hasPendingSkills && !hasMemoryArtifacts(attachments, content)
             }
           />
         </Container>

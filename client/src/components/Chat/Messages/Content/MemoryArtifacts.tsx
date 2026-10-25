@@ -1,33 +1,69 @@
 import { useId, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Tools } from 'librechat-data-provider';
+import { Tools, ContentTypes } from 'librechat-data-provider';
 import { Button, disclosureChevronVariants } from '@librechat/client';
-import type { MemoryArtifact, TAttachment } from 'librechat-data-provider';
+import type {
+  Agents,
+  TAttachment,
+  MemoryArtifact,
+  TMessageContentParts,
+} from 'librechat-data-provider';
 import { toolPanelSpacingClassName } from './disclosure';
 import { useExpandCollapse, useLocalize } from '~/hooks';
 import MemoryInfo from './MemoryInfo';
 import { cn } from '~/utils';
 
-/** True for a memory attachment with no originating tool call. A call rendered
- *  inline as a `MemoryCall` card already shows the same key, value and outcome,
- *  so counting its attachment here too rendered one mutation twice ("Saved
- *  memory" beside "Updated saved memory"), on reload as well as live. Legacy
- *  attachments carry no `toolCallId` and keep this decoration as their only
- *  surface. */
+type ContentParts = ReadonlyArray<TMessageContentParts | undefined> | undefined;
+
+/** Ids of the tool calls this message renders inline (each as its own card). */
+const getRenderedToolCallIds = (content: ContentParts): Set<string> => {
+  const ids = new Set<string>();
+  for (const part of content ?? []) {
+    const id = (part?.[ContentTypes.TOOL_CALL] as Agents.ToolCall | undefined)?.id;
+    if (typeof id === 'string' && id !== '') {
+      ids.add(id);
+    }
+  }
+  return ids;
+};
+
+/** True for a memory attachment this message does not already show. A call rendered
+ *  inline as a `MemoryCall` card shows the same key, value and outcome, so counting its
+ *  attachment here too rendered one mutation twice ("Saved memory" beside "Updated saved
+ *  memory"), on reload as well as live. Attachments whose call is NOT in the message —
+ *  the background memory agent's, and legacy ones without a `toolCallId` — keep this
+ *  decoration as their only surface. */
 const isUnlinkedMemoryArtifact = (
-  attachment?: TAttachment,
+  attachment: TAttachment | undefined,
+  renderedToolCallIds: ReadonlySet<string>,
 ): attachment is TAttachment & { [Tools.memory]: MemoryArtifact } =>
-  attachment?.[Tools.memory] != null && !attachment.toolCallId;
+  attachment?.[Tools.memory] != null &&
+  (!attachment.toolCallId || !renderedToolCallIds.has(attachment.toolCallId));
 
 /** Layout-gate predicate for callers that arrange around this component
  * (e.g. the thinking-dot nudge). Must stay in agreement with the memo's
  * collection condition inside the component: both key on
  * `isUnlinkedMemoryArtifact`. The component itself guards on its memoized
  * list instead, avoiding a second pass per render. */
-export const hasMemoryArtifacts = (attachments?: TAttachment[]): boolean =>
-  attachments?.some(isUnlinkedMemoryArtifact) ?? false;
+export const hasMemoryArtifacts = (
+  attachments?: TAttachment[],
+  content?: ContentParts,
+): boolean => {
+  if (!attachments?.length) {
+    return false;
+  }
+  const rendered = getRenderedToolCallIds(content);
+  return attachments.some((attachment) => isUnlinkedMemoryArtifact(attachment, rendered));
+};
 
-export default function MemoryArtifacts({ attachments }: { attachments?: TAttachment[] }) {
+export default function MemoryArtifacts({
+  attachments,
+  content,
+}: {
+  attachments?: TAttachment[];
+  /** The message's content parts, to skip memory calls it already renders inline */
+  content?: ContentParts;
+}) {
   const contentId = useId();
   const localize = useLocalize();
   const [showInfo, setShowInfo] = useState(false);
@@ -41,8 +77,9 @@ export default function MemoryArtifacts({ attachments }: { attachments?: TAttach
       return { hasErrors, memoryArtifacts: result };
     }
 
+    const rendered = getRenderedToolCallIds(content);
     for (const attachment of attachments) {
-      if (isUnlinkedMemoryArtifact(attachment)) {
+      if (isUnlinkedMemoryArtifact(attachment, rendered)) {
         result.push(attachment[Tools.memory]);
 
         if (!hasErrors && attachment[Tools.memory].type === 'error') {
@@ -52,7 +89,7 @@ export default function MemoryArtifacts({ attachments }: { attachments?: TAttach
     }
 
     return { hasErrors, memoryArtifacts: result };
-  }, [attachments]);
+  }, [attachments, content]);
 
   if (memoryArtifacts.length === 0) {
     return null;
