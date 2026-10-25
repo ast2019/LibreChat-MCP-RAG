@@ -7,6 +7,25 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-25
+
+### Fixed
+- Coolify domain: the `api` container now listens on port 80 and uses `SERVICE_URL_API`, so the
+  domain is entered without a port. Previously the domain needed `:3080`, and Coolify's
+  `SERVICE_URL_API_3080` value carried `:3080` into `DOMAIN_CLIENT`/`DOMAIN_SERVER`, which put
+  the port into links and auth redirects.
+
+### Changed
+- `DEPLOY_COOLIFY.md`: leave the domain fields of internal services empty; table of what
+  each service is for.
+
+### Not done / Known limitations
+- Port 80 was verified by booting the server natively (`/health` → 200). It was not verified
+  inside the Docker image or on Coolify. The image runs as root, so binding port 80 is expected
+  to work there.
+- Existing Coolify deployments keep their old `SERVICE_URL_API_3080` variable. Remove the `:3080`
+  domain and set the plain domain again on the `api` service.
+
 ## [0.4.0] - 2026-10-25
 
 ### Added
