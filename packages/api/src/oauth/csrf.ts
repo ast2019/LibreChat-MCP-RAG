@@ -15,9 +15,11 @@ export const OAUTH_SESSION_COOKIE_PATH = '/api';
 /**
  * Determines if secure cookies should be used.
  * SESSION_COOKIE_SECURE=true/false explicitly overrides the environment heuristic.
- * Returns `true` in production unless DOMAIN_SERVER uses a localhost-style hostname.
- * This allows cookies to work on localhost during local development
- * even when `NODE_ENV=production` (common in Docker Compose setups).
+ * Returns `true` in production unless DOMAIN_SERVER uses a localhost-style hostname
+ * or an explicit `http://` URL. This allows cookies to work on localhost during local
+ * development even when `NODE_ENV=production` (common in Docker Compose setups).
+ * Browsers drop `Secure` cookies set over plain HTTP, so a deployment served at an
+ * `http://` domain would otherwise lose its session on every page load.
  */
 export function shouldUseSecureCookie(): boolean {
   const secureOverride = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase();
@@ -27,6 +29,10 @@ export function shouldUseSecureCookie(): boolean {
 
   const isProduction = process.env.NODE_ENV === 'production';
   const domainServer = process.env.DOMAIN_SERVER || '';
+
+  if (/^http:\/\//i.test(domainServer.trim())) {
+    return false;
+  }
 
   let hostname = '';
   if (domainServer) {

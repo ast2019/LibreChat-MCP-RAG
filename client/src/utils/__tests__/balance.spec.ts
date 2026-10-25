@@ -1,5 +1,10 @@
 import type { TBalanceResponse } from 'librechat-data-provider';
-import { summarizeBalance, formatBalanceAmount, formatTimeUntil } from '../balance';
+import {
+  summarizeBalance,
+  formatPackPrice,
+  formatTimeUntil,
+  formatBalanceAmount,
+} from '../balance';
 
 const refilling = (over: Partial<TBalanceResponse> = {}): TBalanceResponse => ({
   tokenCredits: 12_400,
@@ -115,5 +120,68 @@ describe('formatTimeUntil', () => {
   it('is null once the moment has passed', () => {
     expect(formatTimeUntil(at(0), now, 'en')).toBeNull();
     expect(formatTimeUntil(at(-1), now, 'en')).toBeNull();
+  });
+});
+
+describe('pack display', () => {
+  const toman = { code: 'IRT', rate: 269_500, priceStep: 1000 };
+
+  it('reads as the share of the trial used, with prices, before a pack is granted', () => {
+    const summary = summarizeBalance(
+      { tokenCredits: 150_000, autoRefillEnabled: false },
+      { display: 'pack', startBalance: 200_000 },
+    );
+    expect(summary.display).toBe('percent');
+    expect(summary.usedPercent).toBe(25);
+    expect(summary.showPrices).toBe(true);
+  });
+
+  it('reads as the remaining money once a pack is granted, without prices', () => {
+    const summary = summarizeBalance(
+      {
+        tokenCredits: 1_500_000,
+        autoRefillEnabled: false,
+        packAllotment: 2_000_000,
+        packLabel: 'Starter',
+      },
+      { display: 'pack', startBalance: 200_000 },
+    );
+    expect(summary.display).toBe('currency');
+    expect(summary.usedPercent).toBe(25);
+    expect(summary.showPrices).toBe(false);
+    expect(formatBalanceAmount(summary.credits, summary.display, toman)).toBe('۴۰۴٬۲۵۰ تومان');
+  });
+
+  it('offers the prices again once the pack is spent', () => {
+    const summary = summarizeBalance(
+      { tokenCredits: 0, autoRefillEnabled: false, packAllotment: 2_000_000 },
+      { display: 'pack' },
+    );
+    expect(summary.showPrices).toBe(true);
+    expect(summary.tone).toBe('danger');
+  });
+
+  it('formats the pack mode as money', () => {
+    expect(formatBalanceAmount(1_000_000, 'pack', toman)).toBe('۲۶۹٬۵۰۰ تومان');
+  });
+});
+
+describe('formatPackPrice', () => {
+  it('rounds the Toman price up to the price step', () => {
+    expect(formatPackPrice(2_000_000, { code: 'IRT', rate: 269_525, priceStep: 1000 })).toBe(
+      '۵۴۰٬۰۰۰ تومان',
+    );
+  });
+
+  it('keeps an exact multiple instead of rounding it up a step', () => {
+    expect(formatPackPrice(2_000_000, { code: 'IRT', rate: 270_000, priceStep: 1000 })).toBe(
+      '۵۴۰٬۰۰۰ تومان',
+    );
+  });
+
+  it('formats ISO currencies and shows nothing without a usable rate', () => {
+    expect(formatPackPrice(5_000_000, { code: 'EUR', rate: 0.5 })).toBe('€2.50');
+    expect(formatPackPrice(5_000_000, undefined)).toBeNull();
+    expect(formatPackPrice(5_000_000, { code: 'IRT', rate: 0 })).toBeNull();
   });
 });

@@ -98,7 +98,7 @@ function ResetPassword() {
         </div>
 
         {errors.password && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.password.message}
           </span>
         )}
@@ -119,17 +119,17 @@ function ResetPassword() {
           />
         </div>
         {errors.confirm_password && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.confirm_password.message}
           </span>
         )}
         {errors.token && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.token.message}
           </span>
         )}
         {errors.userId && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.userId.message}
           </span>
         )}

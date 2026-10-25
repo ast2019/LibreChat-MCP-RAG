@@ -7,6 +7,7 @@ let mockRole = 'ADMIN';
 const mockMutate = jest.fn();
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
+let mockCurrency: { code: string; rate: number; priceStep?: number } | undefined;
 
 jest.mock('~/hooks', () => ({
   useLocalize: jest.requireActual('~/hooks/useLocalize').default,
@@ -28,6 +29,12 @@ jest.mock('~/data-provider', () => ({
     data: { enabled: true, packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }] },
   }),
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
+  useGetStartupConfig: () => ({
+    data: {
+      interface: { currency: mockCurrency },
+      currencyRate: { source: 'tgju', updatedAt: '2026-10-25T16:29:59.000Z' },
+    },
+  }),
 }));
 
 const summaryData = {
@@ -78,6 +85,7 @@ describe('AdminView', () => {
     mockMutate.mockReset();
     mockSummary = { data: summaryData, isError: false };
     mockUsers = { data: usersData, isLoading: false, isError: false };
+    mockCurrency = undefined;
   });
 
   it('shows the money summary and the user list', () => {
@@ -87,6 +95,21 @@ describe('AdminView', () => {
     expect(screen.getByText('$0.30')).toBeInTheDocument();
     expect(screen.getByText('sara@example.com')).toBeInTheDocument();
     expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-rate')).not.toBeInTheDocument();
+  });
+
+  it('shows every amount in Toman too, with the rate and its source', async () => {
+    mockCurrency = { code: 'IRT', rate: 269_500, priceStep: 1000 };
+    renderView();
+    expect(screen.getByTestId('admin-rate')).toHaveTextContent('۲۶۹٬۵۰۰ تومان');
+    expect(screen.getByTestId('admin-rate')).toHaveTextContent('tgju');
+    /** granted $2.00 */
+    expect(screen.getByText('۵۳۹٬۰۰۰ تومان')).toBeInTheDocument();
+    /** Sara's balance $0.50 */
+    expect(screen.getByText('۱۳۴٬۷۵۰ تومان')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add credit' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('۵۳۹٬۰۰۰ تومان');
   });
 
   it('shows loading and error states', () => {

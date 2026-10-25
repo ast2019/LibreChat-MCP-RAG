@@ -139,12 +139,31 @@ export function getPasskeyConfig(env: NodeJS.ProcessEnv = process.env): PasskeyC
   };
 }
 
+/** Browsers expose WebAuthn only in secure contexts: HTTPS, or a localhost origin. */
+function isSecureOrigin(origin: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (protocol === 'https:') {
+      return true;
+    }
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.localhost')
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
- * True when passkeys are switched on and the deployment has at least one origin
- * to validate ceremonies against.
+ * True when passkeys are switched on and the deployment has at least one secure origin
+ * to validate ceremonies against. A deployment served over plain HTTP keeps the passkey
+ * button hidden, since no browser can run a ceremony there.
  */
 export function isPasskeyEnabled(config: PasskeyConfig = getPasskeyConfig()): boolean {
-  return config.enabled && config.origins.length > 0;
+  return config.enabled && config.origins.some(isSecureOrigin);
 }
 
 /** The schema's bounds for `passkeys.perUserMax`, applied to every source of the cap. */

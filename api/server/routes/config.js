@@ -26,6 +26,8 @@ const {
   resolvePullRequestCapabilities,
   resolvePreLoginAppConfig,
   withSafePolicyLinks,
+  createCurrencyRates,
+  createTgjuFetcher,
 } = require('@librechat/api');
 const {
   DEFAULT_MCP_APP_CSP_LIMITS,
@@ -49,6 +51,9 @@ const sharedLinksEnabled =
 
 const publicSharedLinksEnabled =
   sharedLinksEnabled && isEnabled(process.env.ALLOW_SHARED_LINKS_PUBLIC);
+
+/** Live exchange rates for `interface.currency.live`; one cache for the process. */
+const currencyRates = createCurrencyRates({ fetchers: { tgju: createTgjuFetcher() } });
 
 const sharePointFilePickerEnabled = isEnabled(process.env.ENABLE_SHAREPOINT_FILEPICKER);
 const openidReuseTokens = isEnabled(process.env.OPENID_REUSE_TOKENS);
@@ -273,6 +278,7 @@ router.get('/', async function (req, res) {
     const endpointsDropParamsMap = getEndpointsDropParamsMap(appConfig?.endpoints);
 
     const balanceConfig = getBalanceConfig(appConfig);
+    const currencyRead = currencyRates.resolve(appConfig?.interfaceConfig?.currency);
     const cloudFront = buildCloudFrontStartupConfig();
     const langfuseFanoutEnabled = isLangfuseFanoutEnabled();
     const langfuseConnectionAvailable = isLangfuseConnectionAvailable();
@@ -301,6 +307,9 @@ router.get('/', async function (req, res) {
       }
     }
 
+    const { currency, info: currencyRate } = await currencyRead;
+    const interfacePayload = withSafePolicyLinks(appConfig?.interfaceConfig);
+
     /** @type {TStartupConfig} */
     const payload = {
       ...preLoginPayload,
@@ -311,7 +320,9 @@ router.get('/', async function (req, res) {
       sharedLinksSnapshotFilesEnabled: sharedLinksEnabled && isFileSnapshotEnabled(appConfig),
       socialLogins: appConfig?.registration?.socialLogins ?? defaultSocialLogins,
       projects: appConfig?.projects,
-      interface: withSafePolicyLinks(appConfig?.interfaceConfig),
+      interface:
+        interfacePayload && currency ? { ...interfacePayload, currency } : interfacePayload,
+      ...(currencyRate ? { currencyRate } : {}),
       titleGenerationTiming: resolveTitleTiming({
         appConfig,
         endpoint: EModelEndpoint.agents,

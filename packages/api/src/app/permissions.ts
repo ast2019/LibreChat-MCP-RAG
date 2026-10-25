@@ -101,6 +101,43 @@ function warnNativeWebSearchDenied(
   );
 }
 
+/**
+ * `interface.adminFullAccess`: the yaml's interface values describe what users see, so ADMIN is
+ * held at its role defaults instead. Every field that differs from the stored or already-queued
+ * value is queued, which also restores a role the yaml previously synced down. Memories stay off
+ * when `memory.disabled` is set, since that is a feature switch rather than an interface choice.
+ */
+function applyAdminFullAccess({
+  permissionsToUpdate,
+  existingPermissions,
+  defaultPerms,
+  keepMemoriesOff,
+}: {
+  permissionsToUpdate: RolePermissions;
+  existingPermissions: RolePermissions | undefined;
+  defaultPerms: RolePermissions;
+  keepMemoriesOff: boolean;
+}): void {
+  for (const [type, fields] of Object.entries(defaultPerms) as [
+    PermissionTypes,
+    Record<string, boolean | undefined> | undefined,
+  ][]) {
+    if (fields == null || (type === PermissionTypes.MEMORIES && keepMemoriesOff)) {
+      continue;
+    }
+    const current = { ...existingPermissions?.[type], ...permissionsToUpdate[type] };
+    const changed: Record<string, boolean> = {};
+    for (const [field, value] of Object.entries(fields)) {
+      if (typeof value === 'boolean' && current[field] !== value) {
+        changed[field] = value;
+      }
+    }
+    if (Object.keys(changed).length > 0) {
+      permissionsToUpdate[type] = { ...permissionsToUpdate[type], ...changed };
+    }
+  }
+}
+
 export async function updateInterfacePermissions({
   appConfig,
   getRoleByName,
@@ -844,6 +881,15 @@ export async function updateInterfacePermissions({
           };
         }
       }
+    }
+
+    if (roleName === SystemRoles.ADMIN && loadedInterface.adminFullAccess === true) {
+      applyAdminFullAccess({
+        permissionsToUpdate,
+        existingPermissions,
+        defaultPerms,
+        keepMemoriesOff: isMemoryExplicitlyDisabled,
+      });
     }
 
     const webSearchUse =

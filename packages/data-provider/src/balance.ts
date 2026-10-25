@@ -15,9 +15,10 @@ export type BalanceRefillMode = (typeof BALANCE_REFILL_MODES)[number];
 
 export type RefillIntervalUnit = (typeof REFILL_INTERVAL_UNITS)[number];
 
-/** How the UI presents a balance: raw credits, their currency value, or the share of the
- *  period's allotment already spent. */
-export const BALANCE_DISPLAY_MODES = ['credits', 'currency', 'percent'] as const;
+/** How the UI presents a balance: raw credits, their currency value, the share of the
+ *  period's allotment already spent, or `pack`: the share spent and the pack prices until a
+ *  pack is granted, then the remaining currency value. */
+export const BALANCE_DISPLAY_MODES = ['credits', 'currency', 'percent', 'pack'] as const;
 
 export type BalanceDisplay = (typeof BALANCE_DISPLAY_MODES)[number];
 

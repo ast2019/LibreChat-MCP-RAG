@@ -29,6 +29,9 @@ export interface BalanceSummary {
   refillMode: BalanceRefillMode;
   /** When the next auto-refill becomes eligible; null without auto-refill. */
   nextRefill: Date | null;
+  /** `pack` display: no pack granted yet, or the granted one is spent, so the pack prices
+   *  are offered beside the reading. */
+  showPrices: boolean;
 }
 
 interface SummaryOptions {
@@ -79,6 +82,11 @@ export function summarizeBalance(
       ? balance.packLabel.trim()
       : null;
   const usedPercent = getUsedPercent(credits, allotment);
+  /** `pack` reads as a money balance once a pack was granted, and as a share of the free
+   *  allowance before that, so the trial never shows a figure the user did not buy */
+  const hasPack = positive(balance.packAllotment) != null;
+  const packDisplay: BalanceDisplay = hasPack ? 'currency' : 'percent';
+  const shownDisplay = display === 'pack' ? packDisplay : display;
 
   let tone: BalanceTone = 'normal';
   if (credits <= 0) {
@@ -88,7 +96,7 @@ export function summarizeBalance(
   }
 
   return {
-    display,
+    display: shownDisplay,
     credits,
     allotment,
     packLabel,
@@ -97,21 +105,39 @@ export function summarizeBalance(
     refillAmount,
     refillMode: balance.refillMode ?? 'add',
     nextRefill: balance.autoRefillEnabled ? getNextRefill(balance) : null,
+    showPrices: display === 'pack' && (!hasPack || credits <= 0),
   };
 }
 
-/** A credit amount in the configured display: money for `currency`, whole credits otherwise. */
+/** A credit amount in the configured display: money for `currency` and `pack`, whole
+ *  credits otherwise. */
 export function formatBalanceAmount(
   credits: number,
   display: BalanceDisplay,
   currency?: CurrencyConfig,
 ): string {
-  if (display === 'currency') {
+  if (display === 'currency' || display === 'pack') {
     return formatCost(credits / CREDITS_PER_USD, currency);
   }
   /** Credits are fractional when pricing multipliers are; two places keep a shortfall like
    *  100.4 against 100.3 visible, and whole amounts still print without decimals */
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(credits);
+}
+
+/**
+ * A pack's sale price: its credits' dollar value in the display currency, rounded up to the
+ * currency's `priceStep`, so the user pays at least what the pack is worth. Null without a
+ * usable rate, so no price is ever shown under the wrong unit.
+ */
+export function formatPackPrice(credits: number, currency?: CurrencyConfig): string | null {
+  if (currency == null || !Number.isFinite(currency.rate) || currency.rate <= 0) {
+    return null;
+  }
+  const amount = (credits / CREDITS_PER_USD) * currency.rate;
+  const step = currency.priceStep;
+  /** The epsilon keeps float noise (540000.0000001) from rounding an exact price up a step */
+  const price = step != null && step > 0 ? Math.ceil(amount / step - 1e-9) * step : amount;
+  return formatCost(price, { code: currency.code, rate: 1 });
 }
 
 const MINUTE_MS = 60_000;

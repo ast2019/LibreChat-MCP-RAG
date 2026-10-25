@@ -93,6 +93,17 @@ services:
       OPENID_USE_PKCE: ${OPENID_USE_PKCE:-false}
       OPENID_USERNAME_CLAIM: ${OPENID_USERNAME_CLAIM:-}
       OPENID_NAME_CLAIM: ${OPENID_NAME_CLAIM:-}
+      # Passkeys (sign in with fingerprint / face / device PIN). Browsers allow them only over
+      # HTTPS, so the button appears once the domain is https://. A passkey is bound to the
+      # domain: after moving to another domain, set PASSKEY_RP_ID to the old hostname or users
+      # must add their passkeys again.
+      ALLOW_PASSKEY_LOGIN: ${ALLOW_PASSKEY_LOGIN:-true}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-HiveGPT}
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}
+      # Session cookies are `Secure` on an https:// domain and plain on an http:// one (browsers
+      # drop Secure cookies over HTTP, which logged users out on every reload). Set true/false
+      # only to force one or the other.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-}
       ALLOW_UNVERIFIED_EMAIL_LOGIN: ${ALLOW_UNVERIFIED_EMAIL_LOGIN:-true}
       ALLOW_PASSWORD_RESET: ${ALLOW_PASSWORD_RESET:-false}
       # Optional SMTP for verification / password reset mails
@@ -197,6 +208,13 @@ services:
 
   # Local model for the "داخلی" (fully internal) chat. CPU-only; gemma3:4b needs about
   # 4 GB RAM while loaded and is unloaded after LOCAL_MODEL_KEEP_ALIVE of inactivity.
+  #
+  # Speed depends on the thread count matching the CPU limit. Ollama starts one thread per
+  # visible vCPU (24 on the production VM) even when the container may only use a few of
+  # them, and those threads then starve each other (0.2 tokens/s with a 2-CPU limit).
+  # The entrypoint therefore builds `hivegpt-local` from LOCAL_MODEL with num_thread set to
+  # LOCAL_MODEL_THREADS and num_ctx matching the 8192-token context in librechat.saas.yaml.
+  # Keep LOCAL_MODEL_THREADS <= LOCAL_MODEL_CPUS, ideally the number of physical cores.
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -206,19 +224,25 @@ services:
         ollama serve &
         until ollama list >/dev/null 2>&1; do sleep 1; done
         ollama pull "$${LOCAL_MODEL}"
+        printf 'FROM %s\nPARAMETER num_thread %s\nPARAMETER num_ctx %s\n' \
+          "$${LOCAL_MODEL}" "$${LOCAL_MODEL_THREADS}" "$${LOCAL_MODEL_CONTEXT}" > /tmp/Modelfile
+        ollama create hivegpt-local -f /tmp/Modelfile
         wait
     environment:
       LOCAL_MODEL: ${LOCAL_MODEL:-gemma3:4b}
-      OLLAMA_KEEP_ALIVE: ${LOCAL_MODEL_KEEP_ALIVE:-10m}
+      LOCAL_MODEL_THREADS: ${LOCAL_MODEL_THREADS:-12}
+      LOCAL_MODEL_CONTEXT: ${LOCAL_MODEL_CONTEXT:-8192}
+      OLLAMA_KEEP_ALIVE: ${LOCAL_MODEL_KEEP_ALIVE:-30m}
       OLLAMA_NUM_PARALLEL: ${LOCAL_MODEL_PARALLEL:-1}
       OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_FLASH_ATTENTION: '1'
     volumes:
       - ollama-models:/root/.ollama
     deploy:
       resources:
         limits:
-          cpus: ${LOCAL_MODEL_CPUS:-2}
-          memory: ${LOCAL_MODEL_MEMORY:-6g}
+          cpus: ${LOCAL_MODEL_CPUS:-12}
+          memory: ${LOCAL_MODEL_MEMORY:-8g}
 
 volumes:
   ollama-models:

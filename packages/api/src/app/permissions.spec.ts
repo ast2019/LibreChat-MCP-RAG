@@ -3306,3 +3306,113 @@ describe('updateInterfacePermissions - role.synced audit', () => {
     expect(recordAuditEntry).toHaveBeenCalled();
   });
 });
+
+describe('updateInterfacePermissions - interface.adminFullAccess', () => {
+  /** The SaaS shape: builder features off for users, permissions explicitly configured */
+  const restricted = {
+    prompts: { use: false, create: false, share: false, public: false },
+    bookmarks: false,
+    multiConvo: false,
+    agents: { use: true, create: false, share: false, public: false },
+    marketplace: { use: false },
+    mcpServers: { use: false, create: false, share: false, public: false },
+    skills: { use: false, create: false, share: false, public: false },
+    remoteAgents: { use: false, create: false, share: false, public: false },
+  };
+
+  /** Previously synced role docs: ADMIN carries the user-facing `false` values */
+  const syncedDown = {
+    [PermissionTypes.PROMPTS]: {
+      [Permissions.USE]: false,
+      [Permissions.CREATE]: false,
+      [Permissions.SHARE]: false,
+      [Permissions.SHARE_PUBLIC]: false,
+    },
+    [PermissionTypes.BOOKMARKS]: { [Permissions.USE]: false },
+    [PermissionTypes.AGENTS]: {
+      [Permissions.USE]: true,
+      [Permissions.CREATE]: false,
+      [Permissions.SHARE]: false,
+      [Permissions.SHARE_PUBLIC]: false,
+    },
+  };
+
+  async function run(adminFullAccess: boolean | undefined) {
+    const config = {
+      interface: { ...restricted, ...(adminFullAccess != null && { adminFullAccess }) },
+    } as unknown as TCustomConfig;
+    const configDefaults = { interface: {} } as TConfigDefaults;
+    const interfaceConfig = await loadDefaultInterface({ config, configDefaults });
+    const appConfig = { config, interfaceConfig } as unknown as AppConfig;
+    await updateInterfacePermissions({
+      appConfig,
+      getRoleByName: mockGetRoleByName,
+      updateAccessPermissions: mockUpdateAccessPermissions,
+    });
+  }
+
+  const writesFor = (roleName: string) =>
+    mockUpdateAccessPermissions.mock.calls.find(([name]) => name === roleName)?.[1];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetRoleByName.mockImplementation(async (roleName: string) => ({
+      name: roleName,
+      permissions: syncedDown,
+    }));
+  });
+
+  it('restores every ADMIN default the yaml turned off, and leaves USER restricted', async () => {
+    await run(true);
+
+    const admin = writesFor(SystemRoles.ADMIN);
+    const adminDefaults = roleDefaults[SystemRoles.ADMIN].permissions;
+    for (const type of [
+      PermissionTypes.PROMPTS,
+      PermissionTypes.BOOKMARKS,
+      PermissionTypes.AGENTS,
+      PermissionTypes.MARKETPLACE,
+      PermissionTypes.MCP_SERVERS,
+      PermissionTypes.SKILLS,
+      PermissionTypes.REMOTE_AGENTS,
+      PermissionTypes.MULTI_CONVO,
+    ]) {
+      expect(admin?.[type]).toEqual(expect.objectContaining(adminDefaults[type]));
+    }
+
+    const user = writesFor(SystemRoles.USER);
+    expect(user?.[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+    expect(user?.[PermissionTypes.AGENTS]?.[Permissions.CREATE]).toBe(false);
+    expect(user?.[PermissionTypes.MCP_SERVERS]?.[Permissions.USE]).toBe(false);
+  });
+
+  it('applies the yaml to ADMIN as before when the flag is off', async () => {
+    await run(undefined);
+
+    const admin = writesFor(SystemRoles.ADMIN);
+    expect(admin?.[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+    expect(admin?.[PermissionTypes.AGENTS]?.[Permissions.CREATE]).toBe(false);
+  });
+
+  it('never queues a yaml restriction for an ADMIN already at its defaults', async () => {
+    mockGetRoleByName.mockImplementation(async (roleName: string) => ({
+      name: roleName,
+      permissions:
+        roleName === SystemRoles.ADMIN
+          ? roleDefaults[SystemRoles.ADMIN].permissions
+          : roleDefaults[SystemRoles.USER].permissions,
+    }));
+    await run(true);
+
+    const admin = writesFor(SystemRoles.ADMIN) ?? {};
+    for (const [type, fields] of Object.entries(admin)) {
+      const defaults: Record<string, boolean | undefined> =
+        roleDefaults[SystemRoles.ADMIN].permissions[type as PermissionTypes] ?? {};
+      for (const [field, value] of Object.entries(fields as Record<string, boolean>)) {
+        if (field in defaults) {
+          expect({ type, field, value }).toEqual({ type, field, value: defaults[field] });
+        }
+      }
+    }
+  });
+});
