@@ -8,6 +8,8 @@
 - [x] استقرار روی Coolify (v0.1.0)
 - [x] ورود با ایمیل و رمز عبور، به‌علاوه OpenID Connect اختیاری (v0.2.0)
 - [x] هشدار در ۹۰٪ مصرف و هنگام اتمام اعتبار، با دکمه «خرید بسته» که به `balance.purchaseUrl` لینک می‌شود (v0.2.0)
+- [x] Reranker خودکار برای جستجوی وب (Jina/Cohere در صورت وجود کلید) (v0.3.0)
+- [x] مدل embedding قوی‌تر برای فارسی: `text-embedding-3-large` (v0.3.0)
 
 ## ورود و حساب کاربری
 
@@ -31,9 +33,26 @@
 
 ## جستجو و فایل‌ها
 
-- [ ] reranker Jina (`rerankerType: jina` + `JINA_API_KEY`) برای منابع دقیق‌تر
 - [ ] Firecrawl self-hosted برای صفحات سنگین JavaScript
 - [ ] کسر هزینه درخواست‌های جستجوی OpenRouter (`web_search`) و embedding فایل‌ها از اعتبار کاربر
+
+## حافظه کاربر
+
+- [ ] **روشن کردن حافظه** (`memory` در `librechat.yaml` و capability `memory`). نمایش «حافظه به‌روز شد» داخل پیام از قبل در LibreChat وجود دارد (`MemoryArtifacts`).
+- [ ] **حافظه با همان مدلی که کاربر انتخاب کرده:** LibreChat الان فقط یک مدل ثابت برای حافظه می‌پذیرد، پس این گزینه نیاز به تغییر کد دارد.
+- [ ] دستورالعمل حافظه «فعال ولی محتاط»: ترجیحات پایدار کاربر ذخیره شوند، بدون اینکه کاربر بگوید «یادت بماند».
+- [ ] بررسی اینکه هزینه مدل حافظه از اعتبار کاربر کسر می‌شود
+
+## حریم خصوصی
+
+- [ ] **ارسال `provider.data_collection: deny` به OpenRouter** از طریق `addParams`: فقط providerهایی استفاده شوند که داده را ذخیره یا برای آموزش استفاده نمی‌کنند. همین را در تنظیمات حساب OpenRouter هم فعال کنید.
+- [ ] **حالت «چت محرمانه»** با `provider.zdr: true` (فقط providerهای Zero Data Retention)، همراه با temporary chat که در سرور ما هم ذخیره نمی‌شود
+- [ ] صفحه حریم خصوصی و شرایط استفاده (`interface.privacyPolicy` و `interface.termsOfService`)
+
+## جستجوی وب
+
+- [ ] API جستجوی پولی برای نتایج واقعی Google (Serper یا Tavily)، چون SearXNG از IP دیتاسنتر گاهی از Google CAPTCHA می‌گیرد
+- [ ] مدل‌های جستجوی بومی دیگر (مثل `perplexity/sonar-reasoning-pro`) به‌عنوان model spec
 
 ## دقت مالی
 

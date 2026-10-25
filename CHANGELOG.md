@@ -7,6 +7,32 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-23
+
+### Added
+- Web-search reranking. The SaaS config no longer pins `rerankerType: none`. Jina is used when
+  `JINA_API_KEY` is set, otherwise Cohere when `COHERE_API_KEY` is set, otherwise no
+  reranking. Both keys are passed through `docker-compose.yml`. Pinning a reranker without a
+  key is avoided on purpose, because it turns web search off (verified: `authenticated: false`).
+
+### Changed
+- File-search embeddings default to `openai/text-embedding-3-large` at 1536 dimensions
+  (`EMBEDDINGS_MODEL` / `EMBEDDINGS_DIMENSIONS`), which gives stronger multilingual and Persian
+  retrieval than `-3-small`. Files embedded with another model must be re-uploaded.
+- rag_api sends raw text to the embeddings API (`RAG_CHECK_EMBEDDING_CTX_LENGTH=False`) instead
+  of tiktoken token ids, which non-OpenAI models routed through OpenRouter may not accept.
+
+### Not done / Known limitations
+- **The new embedding model was not called.** There was no OpenRouter key and no container
+  runtime here. OpenRouter documents the `dimensions` parameter, and rag_api forwards it for the
+  `openai` provider, but no file was actually embedded. This also leaves open whether the
+  previous token-id default ever worked against OpenRouter.
+- The reranker choice was verified with the real `loadWebSearchAuth` for no key, Jina, Cohere
+  and both. No live search or rerank request was sent.
+- Reranking applies to web search only. rag_api has no reranker, so file-search ranking is
+  pure vector similarity with 5 chunks per file.
+- Reranker and embedding costs are not charged to users.
+
 ## [0.2.0] - 2026-10-23
 
 ### Added

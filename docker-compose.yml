@@ -63,6 +63,9 @@ services:
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
       KEENABLE_API_KEY: ${KEENABLE_API_KEY:-}
+      # Reranking of web results (optional; Jina preferred when both are set).
+      JINA_API_KEY: ${JINA_API_KEY:-}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
 
       # Accounts
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
@@ -163,7 +166,14 @@ services:
       # Same secret as the API, so only LibreChat-signed requests are served.
       JWT_SECRET: ${SERVICE_HEX_64_JWTSECRET}
       EMBEDDINGS_PROVIDER: openai
-      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-openai/text-embedding-3-small}
+      # Stronger multilingual (Persian) retrieval than -3-small. Changing the model or the
+      # dimensions after files were embedded requires re-uploading them: vectors of
+      # different models are not comparable.
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-openai/text-embedding-3-large}
+      EMBEDDINGS_DIMENSIONS: ${EMBEDDINGS_DIMENSIONS:-1536}
+      # Send raw text, not tiktoken token ids: OpenRouter routes to non-OpenAI embedding
+      # models too, and chunks (1500 chars) stay far below the 8k-token input limit.
+      RAG_CHECK_EMBEDDING_CTX_LENGTH: 'False'
       RAG_OPENAI_API_KEY: ${OPENROUTER_KEY:?}
       RAG_OPENAI_BASEURL: https://openrouter.ai/api/v1
     volumes:

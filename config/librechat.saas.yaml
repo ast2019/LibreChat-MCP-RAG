@@ -81,7 +81,11 @@ webSearch:
   searxngInstanceUrl: '${SEARXNG_INSTANCE_URL}'
   # Keenable works without a key; set KEENABLE_API_KEY to lift its public rate limit.
   scraperProvider: keenable
-  rerankerType: none
+  # Reranker left unpinned on purpose: Jina is used when JINA_API_KEY is set, else Cohere
+  # when COHERE_API_KEY is set, else no reranking. Pinning `rerankerType: jina` without a
+  # key would disable web search entirely.
+  jinaApiKey: '${JINA_API_KEY}'
+  cohereApiKey: '${COHERE_API_KEY}'
   searxngSearchOptions:
     engines:
       - google
