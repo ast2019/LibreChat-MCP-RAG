@@ -39,10 +39,15 @@ describe('index.html direction boot', () => {
     expect(document.documentElement.dir).toBe('rtl');
   });
 
-  it('leaves a left-to-right language alone', () => {
+  it('marks a saved left-to-right language left-to-right over the shell default', () => {
     document.cookie = 'lang=en-US';
     localStorage.setItem('lang', JSON.stringify('ar'));
     runBoot();
-    expect(document.documentElement.dir).toBe('');
+    expect(document.documentElement.dir).toBe('ltr');
+  });
+
+  it('defaults a visitor with no saved language to Persian, right-to-left', () => {
+    runBoot();
+    expect(document.documentElement.dir).toBe('rtl');
   });
 });

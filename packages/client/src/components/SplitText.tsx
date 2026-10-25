@@ -77,6 +77,17 @@ const splitGraphemes = (text: string): string[] => {
   return [...text];
 };
 
+/**
+ * Scripts whose letters join (Arabic, Persian, Urdu, Syriac, N'Ko and their presentation forms).
+ * Shaping does not cross inline-block boxes, so splitting such a word into letters would show
+ * every letter in its isolated form; these words animate as one unit instead.
+ */
+const JOINING_SCRIPT = /[\u0600-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+/** The animated units of one word: the whole word for joining scripts, else its graphemes. */
+export const splitWord = (word: string): string[] =>
+  JOINING_SCRIPT.test(word) ? [word] : splitGraphemes(word);
+
 const SplitText: React.FC<SplitTextProps> = ({
   text = '',
   className = '',
@@ -91,7 +102,7 @@ const SplitText: React.FC<SplitTextProps> = ({
   onLineCountChange,
 }) => {
   const { words, letterCount, offsets } = useMemo(() => {
-    const split = text.split(' ').map(splitGraphemes);
+    const split = text.split(' ').map(splitWord);
     const starts: number[] = [];
     let total = 0;
     for (const w of split) {
@@ -164,14 +175,15 @@ const SplitText: React.FC<SplitTextProps> = ({
         dir="auto"
         className={`split-parent inline overflow-hidden break-words whitespace-normal ${TEXT_ALIGN[textAlign]} ${className}`}
       >
-        {/* The paragraph's auto direction ignores word boxes with their own dir. */}
+        {/* The paragraph's auto direction ignores word boxes with their own dir. The visible
+            copy is not selectable, so copying the heading yields this text once. */}
         <span className="sr-only">{text}</span>
         {words.map((word, wordIndex) => (
           <span
             key={wordIndex}
             dir="auto"
             aria-hidden="true"
-            className="inline-block whitespace-nowrap"
+            className="inline-block whitespace-nowrap select-none"
           >
             {word.map((letter, letterIndex) => {
               const index = offsets[wordIndex] + letterIndex;

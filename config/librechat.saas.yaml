@@ -18,7 +18,9 @@ interface:
   parameters: false
   presets: false
   multiConvo: false
-  bookmarks: true
+  # Bookmarks and the prompt library are power-user tools that crowd the sidebar rail;
+  # HiveGPT keeps the rail to chats, files and memory. Set to true to bring them back.
+  bookmarks: false
   temporaryChat: true
   webSearch: true
   fileSearch: true
@@ -28,8 +30,8 @@ interface:
   contextUsage: false
   contextCost: false
   prompts:
-    use: true
-    create: true
+    use: false
+    create: false
     share: false
     public: false
   agents:
@@ -45,6 +47,8 @@ interface:
     groups: false
     roles: false
   feedback: true
+  # Lia is LibreChat's welcome-screen mascot; it does not belong to the HiveGPT brand.
+  mascot: false
   # Builder / operator features stay off for end users: connecting MCP servers (external tools),
   # authoring Skills, the build-info panel. Agent API keys are already off (remoteAgents).
   mcpServers:
@@ -300,7 +304,7 @@ modelSpecs:
         modelLabel: 'محرمانه'
     - name: 'private-smart'
       label: 'محرمانه — هوشمند'
-      description: 'Claude Sonnet روی سرورهای ZDR؛ بدون جستجوی وب و فایل'
+      description: 'Claude Sonnet روی سرور‌های ZDR؛ بدون جستجوی وب و فایل'
       group: 'محرمانه'
       hideBadgeRow: true
       preset:
@@ -309,7 +313,7 @@ modelSpecs:
         modelLabel: 'محرمانه'
     - name: 'private-gpt'
       label: 'محرمانه — GPT'
-      description: 'GPT روی سرورهای ZDR (Azure)؛ بدون جستجوی وب و فایل'
+      description: 'GPT روی سرور‌های ZDR (Azure)؛ بدون جستجوی وب و فایل'
       group: 'محرمانه'
       hideBadgeRow: true
       preset:
@@ -327,7 +331,7 @@ modelSpecs:
         modelLabel: 'داخلی'
     - name: 'documents'
       label: 'پرسش از فایل‌ها'
-      description: 'فایل‌های خود را آپلود کنید و درباره‌شان بپرسید'
+      description: 'فایل‌های خود را بارگذاری کنید و درباره‌شان بپرسید'
       group: 'اسناد'
       fileSearch: true
       preset:

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-US">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
     <base href="/" />
@@ -57,13 +57,16 @@
             lang = localStorage.getItem('lang') || '';
             lang = JSON.parse(lang);
           } catch (e) {
-            /* Stored unquoted, or Web Storage denied: the raw value or the browser language. */
+            /* Stored unquoted, or Web Storage denied: the raw value. */
           }
         }
-        lang = String(lang || navigator.language || '').toLowerCase();
-        if (['ar', 'he', 'fa', 'ug'].indexOf(lang.split(/[-_]/)[0]) !== -1) {
-          document.documentElement.dir = 'rtl';
+        /* No saved choice means the default language, Persian (DEFAULT_LANGUAGE in i18n.ts). */
+        lang = String(lang || 'fa-IR').toLowerCase();
+        if (lang === 'auto') {
+          lang = String(navigator.language || '').toLowerCase();
         }
+        const rtl = ['ar', 'he', 'fa', 'ug'].indexOf(lang.split(/[-_]/)[0]) !== -1;
+        document.documentElement.dir = rtl ? 'rtl' : 'ltr';
 
         let theme = null;
         try {

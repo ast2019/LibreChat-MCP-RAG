@@ -235,7 +235,9 @@ export default function AdminView() {
                       <div className="text-text-primary font-medium">
                         {row.name || row.username}
                         {row.role === SystemRoles.ADMIN && (
-                          <span className="text-text-secondary ms-2 text-xs">ADMIN</span>
+                          <span className="text-text-secondary border-border-light ms-2 rounded-md border px-1.5 py-0.5 text-xs font-normal">
+                            {localize('com_ui_admin')}
+                          </span>
                         )}
                       </div>
                       <div className="text-text-secondary text-xs">{row.email}</div>

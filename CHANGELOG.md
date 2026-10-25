@@ -7,6 +7,41 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-25
+
+### Added
+- **Full Persian translation.** All 3749 UI strings now have Persian text; before, 2337 fell
+  back to English. The strings follow one glossary, use the half-space (ZWNJ) correctly,
+  and button labels are short ("حذف", not "حذف کنید"). Every placeholder and tag was checked
+  against the English source by a script.
+
+### Changed
+- **Persian and right-to-left by default.** A visitor with no saved language gets Persian,
+  right-to-left from the first frame (`<html lang="fa" dir="rtl">`), whatever the browser
+  language. This includes the login and register pages. A language picked in Settings still
+  wins, and "Auto detect" still follows the browser.
+- **The welcome greeting keeps Persian letters joined.** The letter-by-letter animation put
+  each letter in its own box, so «چطور» showed as «چ ط و ر». Persian/Arabic words now animate
+  as whole words. Copying the greeting gives the text once instead of twice.
+- **Less clutter for users** (`config/librechat.saas.yaml`): the prompt library, bookmarks
+  and the LibreChat mascot (Lia) are off.
+- **The footer no longer advertises LibreChat.** `docker-compose.yml` sets a default
+  `CUSTOM_FOOTER`: «HiveGPT ممکن است اشتباه کند. اطلاعات مهم را بررسی کنید.»
+- The admin page shows a translated role badge instead of the raw `ADMIN`.
+
+### Fixed
+- `THEME_CACHE_EPOCH` is bumped, so browsers that cached the theme before v0.7.0 pick up the
+  Vazirmatn font. v0.7.0 changed the default fonts without bumping it.
+
+### Not done / Known limitations
+- Checked in headless Chromium against the real server (login, welcome screen, account menu,
+  settings, admin page; desktop and mobile). Not checked on a real phone or in Safari.
+- The translation was written by AI with one glossary and checked by script plus spot
+  checks. A native-speaker review of long help texts is still worth doing.
+- The logo and icons are still LibreChat's.
+- To bring back the prompt library or bookmarks, set `prompts`/`bookmarks` to `true` in the
+  yaml.
+
 ## [0.8.0] - 2026-10-25
 
 ### Added

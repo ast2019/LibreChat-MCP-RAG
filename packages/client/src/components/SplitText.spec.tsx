@@ -64,6 +64,19 @@ describe('SplitText', () => {
     }
   });
 
+  it('keeps each Persian word in one box so its letters stay joined', () => {
+    const text = 'چطور می‌توانم کمکتان کنم؟';
+    const { container } = render(<SplitText text={text} />);
+    const units = Array.from(
+      container.querySelectorAll('span.inline-block.will-change-transform'),
+    ).map((span) => span.textContent);
+
+    expect(units).toEqual(['چطور', 'می‌توانم', 'کمکتان', 'کنم؟']);
+    for (const box of Array.from(container.querySelectorAll('p > span[aria-hidden="true"]'))) {
+      expect(box).toHaveClass('select-none');
+    }
+  });
+
   it('reports new wrapping after scale changes without changing the text', () => {
     jest.useFakeTimers();
     const observerSpy = jest
