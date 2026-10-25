@@ -52,3 +52,15 @@ export function applyPriceMultiplier(
   }
   return result;
 }
+
+/**
+ * The markup of the deployment's main OpenRouter endpoint (the first custom endpoint that sets
+ * one), used to estimate provider cost from billed credits. Undefined means no markup.
+ */
+export function getPrimaryPriceMultiplier(appConfig?: {
+  endpoints?: { custom?: ReadonlyArray<{ priceMultiplier?: number } | undefined> };
+}): number | undefined {
+  const custom = appConfig?.endpoints?.custom ?? [];
+  const found = custom.find((endpoint) => isEffectivePriceMultiplier(endpoint?.priceMultiplier));
+  return found?.priceMultiplier;
+}

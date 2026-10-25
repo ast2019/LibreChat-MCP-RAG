@@ -2,6 +2,8 @@ import { useState, memo, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
+import { useNavigate } from 'react-router-dom';
+import { SystemRoles } from 'librechat-data-provider';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
@@ -12,6 +14,7 @@ import {
   LifeBuoy,
   LogOut,
   Scale,
+  Shield,
   ShieldCheck,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
@@ -100,6 +103,7 @@ function HelpSubmenu({
 function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const localize = useLocalize();
   const { user, logout } = useAuthContext();
+  const navigate = useNavigate();
   const { data: startupConfig } = useGetStartupConfig();
   const { privacyPolicyUrl, termsOfServiceUrl } = policyUrls(startupConfig);
   const setShowSettings = useSetAtom(settingsOpenAtom);
@@ -175,6 +179,16 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <Files className="icon-md" aria-hidden="true" />
           {localize('com_nav_my_files')}
         </Menu.MenuItem>
+        {user?.role === SystemRoles.ADMIN && (
+          <Menu.MenuItem
+            onClick={() => navigate('/admin')}
+            className="select-item text-sm"
+            data-testid="nav-admin"
+          >
+            <Shield className="icon-md" aria-hidden="true" />
+            {localize('com_admin_title')}
+          </Menu.MenuItem>
+        )}
         <Menu.MenuItem
           onClick={() => setShowSettings(true)}
           className="select-item text-sm"

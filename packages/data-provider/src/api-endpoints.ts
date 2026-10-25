@@ -543,6 +543,15 @@ export const skillFile = (id: string, relativePath: string) =>
 export const insights = () => `${BASE_URL}/api/insights`;
 export const insightsAccess = () => `${insights()}/access`;
 
+/* Admin billing */
+export const adminBilling = () => `${BASE_URL}/api/admin/balance`;
+export const adminBillingUsers = (params: Record<string, unknown> = {}) =>
+  `${adminBilling()}/users${buildQuery(params)}`;
+export const adminBillingSummary = (days: number) =>
+  `${adminBilling()}/summary${buildQuery({ days })}`;
+export const adminBillingPacks = () => `${adminBilling()}/packs`;
+export const adminBillingGrant = () => `${adminBilling()}/grant`;
+
 /* Conversation traces */
 export const conversationTrace = (conversationId: string) =>
   `${BASE_URL}/api/traces/${encodeURIComponent(conversationId)}`;

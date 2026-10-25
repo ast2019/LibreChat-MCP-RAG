@@ -1,5 +1,9 @@
 const express = require('express');
-const { createAdminBalanceHandlers, getBalanceConfig } = require('@librechat/api');
+const {
+  getBalanceConfig,
+  getPrimaryPriceMultiplier,
+  createAdminBalanceHandlers,
+} = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { getAppConfig } = require('~/server/services/Config');
@@ -28,6 +32,16 @@ const handlers = createAdminBalanceHandlers({
   findBalanceByUser: (userId) => db.findBalanceByUser(userId),
   createTransaction: db.createTransaction,
   upsertBalanceFields: db.upsertBalanceFields,
+  listUsersWithBalances: db.listUsersWithBalances,
+  getBillingSummary: db.getBillingSummary,
+  getPriceMultiplier: async (req) =>
+    getPrimaryPriceMultiplier(
+      await getAppConfig({
+        role: req.user?.role,
+        userId: req.user?.id,
+        tenantId: req.user?.tenantId,
+      }),
+    ),
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -35,5 +49,7 @@ router.use(requireJwtAuth, requireAdminAccess);
 router.get('/packs', requireReadUsers, handlers.listPacks);
 router.get('/user', requireReadUsers, handlers.getUserBalance);
 router.post('/grant', requireManageUsers, handlers.grant);
+router.get('/users', requireReadUsers, handlers.listUsers);
+router.get('/summary', requireReadUsers, handlers.summary);
 
 module.exports = router;

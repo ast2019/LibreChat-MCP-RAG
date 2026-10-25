@@ -45,6 +45,24 @@ interface:
     groups: false
     roles: false
   feedback: true
+  # Builder / operator features stay off for end users: connecting MCP servers (external tools),
+  # authoring Skills, the build-info panel. Agent API keys are already off (remoteAgents).
+  mcpServers:
+    use: false
+    create: false
+    share: false
+    public: false
+  skills:
+    use: false
+    create: false
+    share: false
+    public: false
+  remoteAgents:
+    use: false
+    create: false
+    share: false
+    public: false
+  buildInfo: false
   # Users see and edit their memories under Settings → Personalization.
   memories: true
 

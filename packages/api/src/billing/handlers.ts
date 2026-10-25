@@ -1,6 +1,6 @@
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
+import type { IUser, BillingSummary, BillingUserRow } from '@librechat/data-schemas';
 import type { TBalancePack, TBalanceConfig } from 'librechat-data-provider';
-import type { IUser } from '@librechat/data-schemas';
 import type { Request, Response } from 'express';
 import type { GrantBalanceDeps } from './packs';
 import { grantBalance, resolveBalanceGrant } from './packs';
@@ -28,6 +28,23 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
   findUserByEmail: (email: string) => Promise<BillingUser | null>;
   findUserById: (id: string) => Promise<BillingUser | null>;
   findBalanceByUser: (userId: string) => Promise<BillingBalance | null>;
+  listUsersWithBalances: (params: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => Promise<{ users: BillingUserRow[]; total: number }>;
+  getBillingSummary: (params: { since: Date }) => Promise<BillingSummary>;
+  /** Markup applied to provider prices; the summary divides spend by it to estimate cost. */
+  getPriceMultiplier: (req: BillingRequest) => Promise<number | undefined>;
+  now?: () => Date;
+}
+
+/** Summary windows the admin page offers, in days. */
+export const BILLING_SUMMARY_WINDOWS = [7, 30, 90] as const;
+
+function readInt(value: unknown, fallback: number): number {
+  const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 const MAX_EMAIL_LENGTH = 320;
@@ -90,6 +107,8 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
   listPacks: (req: BillingRequest, res: Response) => Promise<Response>;
   getUserBalance: (req: BillingRequest, res: Response) => Promise<Response>;
   grant: (req: BillingRequest, res: Response) => Promise<Response>;
+  listUsers: (req: BillingRequest, res: Response) => Promise<Response>;
+  summary: (req: BillingRequest, res: Response) => Promise<Response>;
 } {
   async function listPacks(req: BillingRequest, res: Response) {
     try {
@@ -163,5 +182,54 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     }
   }
 
-  return { listPacks, getUserBalance, grant };
+  async function listUsers(req: BillingRequest, res: Response) {
+    try {
+      const query = (req.query ?? {}) as Record<string, unknown>;
+      const search = typeof query.search === 'string' ? query.search : undefined;
+      const limit = Math.min(Math.max(readInt(query.limit, 25), 1), 100);
+      const offset = Math.max(readInt(query.offset, 0), 0);
+      const { users, total } = await deps.listUsersWithBalances({ search, limit, offset });
+      return res.status(200).json({
+        total,
+        limit,
+        offset,
+        users: users.map((user) => ({
+          ...user,
+          usedPercent: getAllotmentUsedPercent(user.balance),
+        })),
+      });
+    } catch (error) {
+      logger.error('[adminBalance] listUsers error:', error);
+      return res.status(500).json({ error: 'Failed to list users' });
+    }
+  }
+
+  async function summary(req: BillingRequest, res: Response) {
+    try {
+      const requested = readInt((req.query as Record<string, unknown> | undefined)?.days, 30);
+      const days = (BILLING_SUMMARY_WINDOWS as readonly number[]).includes(requested)
+        ? requested
+        : 30;
+      const now = (deps.now ?? (() => new Date()))();
+      const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const [result, multiplier] = await Promise.all([
+        deps.getBillingSummary({ since }),
+        deps.getPriceMultiplier(req),
+      ]);
+      const effective = typeof multiplier === 'number' && multiplier > 0 ? multiplier : 1;
+      return res.status(200).json({
+        days,
+        since: since.toISOString(),
+        priceMultiplier: effective,
+        ...result,
+        /** What the window's spend cost at provider prices, before the markup */
+        estimatedProviderCredits: result.creditsSpentInWindow / effective,
+      });
+    } catch (error) {
+      logger.error('[adminBalance] summary error:', error);
+      return res.status(500).json({ error: 'Failed to build summary' });
+    }
+  }
+
+  return { listPacks, getUserBalance, grant, listUsers, summary };
 }
