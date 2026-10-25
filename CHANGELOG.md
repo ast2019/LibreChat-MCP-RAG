@@ -7,6 +7,21 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-25
+
+### Added
+- **Vazirmatn font for Persian.** The variable Vazirmatn font (weights 100–900, SIL OFL 1.1,
+  licence beside the file) is bundled as `@librechat/client/fonts/Vazirmatn-Variable.woff2`.
+  - The default UI, display and dialog-title stacks are now `Vazirmatn, Inter, sans-serif`,
+    in `defaults.css`, the Tailwind preset and the theme registry.
+  - The face's `unicode-range` covers only Arabic-script ranges plus ZWNJ/ZWJ, so Persian
+    renders in Vazirmatn and Latin text, numbers in English and code keep Inter/Roboto Mono.
+
+### Not done / Known limitations
+- Not checked in a browser. Verified that the file ships in `packages/client/dist/fonts`,
+  and the theme tests (client 1148, data-provider 2981) pass with the new defaults.
+- Bundled themes that name their own font (e.g. ClickHouse) do not get Vazirmatn.
+
 ## [0.6.0] - 2026-10-25
 
 ### Changed

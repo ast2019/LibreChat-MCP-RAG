@@ -3,7 +3,7 @@
  *
  * `tokens.css` imports this file, so the app and a consumer of `@librechat/client/theme.css` load
  * the same files: Inter for `font-sans` and `font-theme-ui`, Roboto Mono for `font-mono`, and
- * Inconsolata, which the ClickHouse theme opts into. Each `url()` names the file by its package
+ * Inconsolata, which the ClickHouse theme opts into, and Vazirmatn for Persian/Arabic script. Each `url()` names the file by its package
  * export (`@librechat/client/fonts/*`) rather than by a relative path, and the host's bundler
  * resolves and emits it. A relative path would be read against the wrong file: Vite inlines this
  * stylesheet before Tailwind runs, and Tailwind reports every declaration it emits as coming from
@@ -11,6 +11,17 @@
  * renders in it, so a family no theme names costs nothing. Every family is under the SIL Open Font License 1.1, whose text ships beside the
  * files (`fonts/*-OFL.txt`), as the licence requires of any redistribution.
  */
+/* Vazirmatn (variable 100-900) for Persian/Arabic script only: the unicode-range keeps Latin
+   text in Inter, so English UI and code look unchanged. U+200C/D are the ZWNJ/ZWJ joiners. */
+@font-face {
+  font-display: swap;
+  font-family: Vazirmatn;
+  font-style: normal;
+  font-weight: 100 900;
+  src: url('@librechat/client/fonts/Vazirmatn-Variable.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200D;
+}
+
 @font-face {
   font-display: swap;
   font-family: Inter;
