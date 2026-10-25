@@ -7,6 +7,22 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-25
+
+### Added
+- `npm run make-admin -- <email> <password> [name]`: a non-interactive way to create an
+  administrator from the container terminal, or to turn an existing account into one with a
+  new password.
+  - New accounts are created through the normal registration path with `emailVerified: true`.
+  - Existing accounts are updated through `updateUser` with the same password-reset stamp as
+    `reset-password`. Their sessions are revoked and the cached auth document is evicted.
+
+### Not done / Known limitations
+- Verified against an in-memory MongoDB: create, promote with password reset, rejection of
+  passwords under 8 characters, and the stored role, verification flag and bcrypt hash.
+- Not run inside the deployed container. A login through the web UI after the script was not
+  tested.
+
 ## [0.4.2] - 2026-10-25
 
 ### Fixed
