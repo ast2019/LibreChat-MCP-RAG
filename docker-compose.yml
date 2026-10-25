@@ -41,7 +41,7 @@ services:
       DOMAIN_SERVER: ${SERVICE_URL_API}
       TRUST_PROXY: 1
       NO_INDEX: ${NO_INDEX:-true}
-      APP_TITLE: ${APP_TITLE:-LibreChat}
+      APP_TITLE: ${APP_TITLE:-HiveGPT}
       CUSTOM_FOOTER: ${CUSTOM_FOOTER:-}
       HELP_AND_FAQ_URL: ${HELP_AND_FAQ_URL:-/}
 

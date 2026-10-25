@@ -7,6 +7,24 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-25
+
+### Changed
+- The product is named **HiveGPT**:
+  - the browser tab title and meta description (`client/index.html`)
+  - the installable-app (PWA) name
+  - the `APP_TITLE` default in `docker-compose.yml` and `.env.coolify.example`
+  - the user-facing English and Persian strings that named LibreChat
+
+  Internal identifiers stay unchanged so stored data keeps working: the MongoDB database name,
+  package names and code comments.
+
+### Not done / Known limitations
+- The logo, favicon and PWA icons are still LibreChat's (no HiveGPT artwork provided yet).
+- Coolify keeps an existing `APP_TITLE=LibreChat` variable; it must be changed to `HiveGPT`
+  by hand in the Coolify UI.
+- Not checked in a browser; the client build was not re-run for this change.
+
 ## [0.5.0] - 2026-10-25
 
 ### Added
