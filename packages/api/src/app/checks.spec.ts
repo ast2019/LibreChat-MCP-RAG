@@ -12,7 +12,7 @@ jest.mock('@librechat/data-schemas', () => ({
 }));
 
 import { handleRateLimits } from './limits';
-import { checkWebSearchConfig } from './checks';
+import { checkWebSearchConfig, checkSessionCookies } from './checks';
 import { logger } from '@librechat/data-schemas';
 import { extractVariableName as extract } from 'librechat-data-provider';
 
@@ -388,5 +388,43 @@ describe('handleRateLimits', () => {
 
     expect(process.env.AGENT_EVENT_USER_MAX).toEqual('80');
     expect(process.env.AGENT_EVENT_USER_WINDOW).toEqual('2');
+  });
+});
+
+describe('checkSessionCookies', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv, NODE_ENV: 'production' };
+    delete process.env.SESSION_COOKIE_SECURE;
+    delete process.env.DOMAIN_CLIENT;
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('warns that an http:// deployment uses non-Secure cookies and cannot use passkeys', () => {
+    process.env.DOMAIN_SERVER = 'http://app.1.2.3.4.sslip.io';
+    checkSessionCookies();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const [message] = (logger.warn as jest.Mock).mock.calls[0];
+    expect(message).toContain('served over HTTP');
+    expect(message).toContain('Passkeys require HTTPS');
+    expect(message).toContain('Coolify');
+  });
+
+  it.each([
+    ['an https:// deployment', { DOMAIN_SERVER: 'https://chat.example.com' }],
+    ['localhost', { DOMAIN_SERVER: 'http://localhost:3080' }],
+    [
+      'an explicit SESSION_COOKIE_SECURE',
+      { DOMAIN_SERVER: 'http://chat.example.com', SESSION_COOKIE_SECURE: 'false' },
+    ],
+  ])('stays quiet for %s', (_label, env) => {
+    Object.assign(process.env, env);
+    checkSessionCookies();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

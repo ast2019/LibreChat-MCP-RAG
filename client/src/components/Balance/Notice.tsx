@@ -1,20 +1,26 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { Alert, Button } from '@librechat/client';
 import useBalanceSummary from '~/hooks/useBalanceSummary';
+import useBalancePacks from '~/hooks/useBalancePacks';
 import { useGetStartupConfig } from '~/data-provider';
 import useLocalize from '~/hooks/useLocalize';
+import Packs from './Packs';
 
 /**
  * Warns above the composer once the user has spent 90% of their allotment, and again when
- * credits run out. Links to the deployment's `balance.purchaseUrl` when one is configured.
+ * credits run out. "Buy a pack" opens the priced pack list when packs exist; otherwise it links
+ * to the deployment's `balance.purchaseUrl` when one is configured.
  * Dismissing hides the current warning until the tone changes (e.g. low → empty).
  */
 function Notice() {
   const localize = useLocalize();
   const { data: startupConfig } = useGetStartupConfig();
   const { enabled, state } = useBalanceSummary();
+  const { available: packsAvailable } = useBalancePacks();
   const [dismissedTone, setDismissedTone] = useState<string | null>(null);
+  const [showPacks, setShowPacks] = useState(false);
+  const buyButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!enabled || state.status !== 'success') {
     return null;
@@ -39,7 +45,17 @@ function Notice() {
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="min-w-0 flex-1">{message}</span>
-          {purchaseUrl != null && purchaseUrl !== '' && (
+          {packsAvailable && (
+            <Button
+              ref={buyButtonRef}
+              size="compact"
+              variant="outline"
+              onClick={() => setShowPacks(true)}
+            >
+              {localize('com_ui_balance_buy_pack')}
+            </Button>
+          )}
+          {!packsAvailable && purchaseUrl != null && purchaseUrl !== '' && (
             <Button asChild size="compact" variant="outline">
               <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">
                 {localize('com_ui_balance_buy_pack')}
@@ -56,6 +72,9 @@ function Notice() {
           </Button>
         </div>
       </Alert>
+      {packsAvailable && (
+        <Packs open={showPacks} onOpenChange={setShowPacks} triggerRef={buyButtonRef} />
+      )}
     </div>
   );
 }

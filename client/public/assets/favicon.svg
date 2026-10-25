@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>HiveGPT</title>
+  <defs>
+    <linearGradient id="hg" x1="96" y1="32" x2="416" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset=".45" stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#hg)" d="M214.4 24.0Q256.0 0.0 297.6 24.0L436.1 104.0Q477.7 128.0 477.7 176.0L477.7 336.0Q477.7 384.0 436.1 408.0L297.6 488.0Q256.0 512.0 214.4 488.0L75.9 408.0Q34.3 384.0 34.3 336.0L34.3 176.0Q34.3 128.0 75.9 104.0Z"/>
+  <path fill="#FFFFFF" d="M256.0 92.0Q296.0 222.0 426.0 262.0Q296.0 302.0 256.0 432.0Q216.0 302.0 86.0 262.0Q216.0 222.0 256.0 92.0Z"/>
+</svg>

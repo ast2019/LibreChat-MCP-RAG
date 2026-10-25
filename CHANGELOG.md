@@ -7,6 +7,52 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-25
+
+### Added
+- **Admins see everything.** `interface.adminFullAccess: true` (on in the SaaS yaml) applies
+  the interface restrictions to the USER role only.
+  - ADMIN keeps its full default permissions: prompts, agent builder, MCP, skills, bookmarks,
+    side-by-side chats and the rest.
+  - ADMIN also gets the raw model selector, parameters, presets, context usage and build
+    info, and model specs are not enforced for it.
+  - Users keep the simplified interface.
+- **Prices in rial.** `balance.rial` prices packs at the pack's USD value × the tgju.org
+  free-market dollar + a fee (20%), rounded up to 10,000 rial.
+  - The rate is fetched once an hour. If tgju is down, the last rate is kept and marked stale.
+  - Users get a «خرید بسته» dialog (account menu and the low-balance notice) with rial prices
+    only.
+  - The admin page shows USD and rial for every amount, plus the rate, its source and when it
+    was updated.
+  - New `GET /api/balance/packs`.
+- **Passkey sign-in** is on by default (`ALLOW_PASSKEY_LOGIN`). The passkey button and the
+  Settings panel only show where the browser supports passkeys, which means HTTPS.
+- **New HiveGPT logo and favicons**: an amber honeycomb hexagon with a white spark. Also
+  added an SVG favicon and the amber PWA theme colour.
+
+### Changed
+- The login, register and password pages centre their labels, typed text and messages.
+  The register heading fits on one line.
+- The «یا» divider on the login page only appears when a sign-in button follows it.
+- Pack descriptions are in Persian and no longer mention dollars.
+
+### Fixed
+- **Logged out on every page load over HTTP.** On an `http://` domain the session cookie was
+  marked Secure, so the browser never stored it. Opening `/admin` or refreshing the page asked
+  for the password again. Cookies are now non-Secure when the domain is `http://`, and startup
+  logs a warning to switch to HTTPS.
+
+### Not done / Known limitations
+- **The live site still runs on HTTP.** Passkeys cannot work until the Coolify domain is
+  `https://`, and the HTTP session (including passwords) is unencrypted in transit.
+- The local model (`gemma3:4b` on the CPU) is not faster from code. The VM measured
+  0.2 tokens/s; the fix is on the host (see `docs/saas/DEPLOY_COOLIFY.md`).
+- With `adminFullAccess`, ADMIN permissions edited in a role editor are reset on restart.
+- Passkeys were checked end to end on localhost with a virtual authenticator (enrol in
+  Settings, then sign in on a fresh browser). They were not tried on a real phone or with
+  a security key.
+- The theme's green buttons do not match the new amber logo yet.
+
 ## [0.9.0] - 2026-10-25
 
 ### Added

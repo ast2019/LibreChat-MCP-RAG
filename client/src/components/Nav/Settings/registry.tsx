@@ -51,6 +51,7 @@ import { RevokeKeys } from '../SettingsTabs/Data/RevokeKeys';
 import { ClearChats } from '../SettingsTabs/Data/ClearChats';
 import { TokenCredits, AutoRefill } from './BillingControls';
 import AdminPanel from '../SettingsTabs/General/AdminPanel';
+import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import SharedLinks from '../SettingsTabs/Data/SharedLinks';
 import ImageResize from '../SettingsTabs/Chat/ImageResize';
 import Passkeys from '../SettingsTabs/Account/Passkeys';
@@ -827,7 +828,8 @@ export const registry: SettingEntry[] = [
     section: 'security',
     labelKey: 'com_ui_passkeys',
     keywords: ['passkey', 'webauthn', 'fido', 'security key', 'passwordless'],
-    show: (ctx) => ctx.passkeyLoginEnabled,
+    /** WebAuthn exists only on HTTPS (or localhost), so an HTTP deployment hides the panel. */
+    show: (ctx) => ctx.passkeyLoginEnabled && passkeysSupported(),
     Component: Passkeys,
   },
   // Account · Connected accounts

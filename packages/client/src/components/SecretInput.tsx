@@ -1,17 +1,18 @@
 import * as React from 'react';
 import { useState, useCallback } from 'react';
 import { Eye, EyeOff, Copy, Check } from 'lucide';
-import { floatingLabel, floatingSecretButton } from './floating';
+import { floatingLabel, floatingLabelCenter, floatingSecretButton } from './floating';
 import { cn, disabledInkClasses } from '~/utils';
 import { MorphIcon } from './MorphIcon';
 import './Field.css';
+import { INPUT_VARIANTS, isFloatingVariant } from './Input';
 import { fieldControl, fieldInvalid } from './Field';
-import { INPUT_VARIANTS } from './Input';
 
 export interface SecretInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   colorTransition?: boolean;
-  /** Follows the `Input` variants; `floating` is the sign-in form field whose label rests inside it. */
+  /** Follows the `Input` variants; `floating` is the sign-in form field whose label rests inside it,
+   *  and `floating-center` centers the value and label, padding both sides past the controls. */
   variant?: keyof typeof INPUT_VARIANTS;
   /** Show the built-in copy button */
   showCopy?: boolean;
@@ -54,7 +55,9 @@ const SecretInput: React.ForwardRefExoticComponent<
     },
     ref,
   ) => {
-    const isFloating = variant === 'floating';
+    const isFloating = isFloatingVariant(variant);
+    const isCentered = variant === 'floating-center';
+    const hasCopy = copyButton != null || showCopy;
     const [isVisible, setIsVisible] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
 
@@ -96,7 +99,8 @@ const SecretInput: React.ForwardRefExoticComponent<
             fieldInvalid,
             INPUT_VARIANTS[variant],
             className ?? '',
-            copyButton != null || showCopy ? 'pe-20' : 'pe-11',
+            hasCopy ? 'pe-20' : 'pe-11',
+            isCentered && (hasCopy ? 'ps-20' : 'ps-11'),
           )}
           ref={ref}
           disabled={disabled}
@@ -107,7 +111,13 @@ const SecretInput: React.ForwardRefExoticComponent<
           {...props}
         />
         {label != null && (
-          <label htmlFor={id} className={cn(isFloating && floatingLabel, labelClassName)}>
+          <label
+            htmlFor={id}
+            className={cn(
+              isFloating && (isCentered ? floatingLabelCenter : floatingLabel),
+              labelClassName,
+            )}
+          >
             {label}
           </label>
         )}

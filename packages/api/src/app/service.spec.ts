@@ -1942,6 +1942,76 @@ describe('createAppConfigService', () => {
     });
   });
 
+  describe('interface.adminFullAccess', () => {
+    const restrictedBase = (adminFullAccess?: boolean) => ({
+      config: { interface: { modelSelect: false, adminFullAccess } },
+      interfaceConfig: { modelSelect: false, parameters: false, presets: false, mascot: false },
+      modelSpecs: { enforce: true, prioritize: true, list: [{ name: 'fast', label: 'Fast' }] },
+      endpoints: ['openAI'],
+    });
+    const adminOptions = { role: 'ADMIN', userId: 'admin1' };
+
+    it('opens the interface for ADMIN on the uncached and the cached path', async () => {
+      const deps = createDeps({
+        loadBaseConfig: jest.fn().mockResolvedValue(restrictedBase(true)),
+      });
+      const { getAppConfig } = createAppConfigService(deps);
+
+      const fresh = await getAppConfig(adminOptions);
+      const cached = await getAppConfig(adminOptions);
+
+      expect(deps.getApplicableConfigs).toHaveBeenCalledTimes(1);
+      for (const config of [fresh, cached]) {
+        expect(config.interfaceConfig).toMatchObject({
+          modelSelect: true,
+          parameters: true,
+          presets: true,
+          mascot: false,
+        });
+        expect(config.modelSpecs).toMatchObject({ enforce: false, prioritize: true });
+        expect(config.modelSpecs?.list).toHaveLength(1);
+      }
+      const stored = [...deps._cache._store.entries()]
+        .filter(([key]) => String(key).includes('_OVERRIDE_'))
+        .map(([, value]) => value) as AppConfig[];
+      expect(stored).toHaveLength(1);
+      expect(stored[0].interfaceConfig?.modelSelect).toBe(false);
+      expect(stored[0].modelSpecs?.enforce).toBe(true);
+    });
+
+    it('opens the interface for ADMIN when the config falls back to the base', async () => {
+      const deps = createDeps({
+        loadBaseConfig: jest.fn().mockResolvedValue(restrictedBase(true)),
+        getApplicableConfigs: jest.fn().mockRejectedValue(new Error('db down')),
+      });
+      const { getAppConfig } = createAppConfigService(deps);
+
+      const config = await getAppConfig(adminOptions);
+
+      expect(config.interfaceConfig?.modelSelect).toBe(true);
+      expect(config.modelSpecs?.enforce).toBe(false);
+    });
+
+    it('keeps the restrictions for USER, baseOnly reads, and ADMIN without the flag', async () => {
+      const flagged = createDeps({
+        loadBaseConfig: jest.fn().mockResolvedValue(restrictedBase(true)),
+      });
+      const service = createAppConfigService(flagged);
+      const user = await service.getAppConfig({ role: 'USER', userId: 'uid1' });
+      const baseOnly = await service.getAppConfig({ ...adminOptions, baseOnly: true });
+
+      const unflagged = createDeps({
+        loadBaseConfig: jest.fn().mockResolvedValue(restrictedBase()),
+      });
+      const admin = await createAppConfigService(unflagged).getAppConfig(adminOptions);
+
+      for (const config of [user, baseOnly, admin]) {
+        expect(config.interfaceConfig?.modelSelect).toBe(false);
+        expect(config.modelSpecs?.enforce).toBe(true);
+      }
+    });
+  });
+
   describe('overrideCacheTtl', () => {
     const overrideDeps = (overrides = {}) =>
       createDeps({

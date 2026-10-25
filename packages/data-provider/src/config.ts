@@ -3042,6 +3042,12 @@ export const interfaceSchema = z
     buildInfo: z.boolean().optional(),
     /** Allows Lia, the welcome screen mascot. Users still opt in from Settings. */
     mascot: z.boolean().optional(),
+    /**
+     * When true, the restrictions in this block bind the USER role only: the ADMIN role keeps
+     * its full default permissions and gets the model selector, parameters, presets, context
+     * usage and build info, with model specs not enforced. Off keeps one interface for both.
+     */
+    adminFullAccess: z.boolean().optional(),
     remoteAgents: z
       .object({
         use: z.boolean().optional(),
@@ -3825,6 +3831,29 @@ export const balancePackSchema = z.object({
 
 export type TBalancePack = z.infer<typeof balancePackSchema>;
 
+/** Where the USD to Iranian rial rate comes from. */
+export const RIAL_RATE_SOURCES = ['tgju', 'fixed'] as const;
+
+/**
+ * Shows pack prices in Iranian rial: the pack's USD value times the market USD rate plus a fee.
+ * Users see rial only; admins see USD and rial.
+ */
+export const balanceRialSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  /** `tgju` reads the free-market dollar from tgju.org; `fixed` uses `fixedRate` only. */
+  source: z.enum(RIAL_RATE_SOURCES).optional().default('tgju'),
+  /** Rial per USD used for `fixed`, and as the fallback before the first successful fetch. */
+  fixedRate: z.number().positive().optional(),
+  /** Percent added to the market rate (exchange fee and margin), e.g. 20. */
+  feePercent: z.number().min(0).max(1000).optional().default(20),
+  /** How long a fetched rate is reused before fetching again. */
+  refreshMinutes: z.number().int().min(1).max(1440).optional().default(60),
+  /** Prices round up to a multiple of this many rial. */
+  roundTo: z.number().int().min(1).optional().default(10000),
+});
+
+export type TBalanceRialConfig = z.infer<typeof balanceRialSchema>;
+
 export const balanceSchema = z
   .object({
     enabled: z.boolean().optional().default(false),
@@ -3845,6 +3874,8 @@ export const balanceSchema = z
     display: z.enum(BALANCE_DISPLAY_MODES).optional().default('credits'),
     /** Credit packs an admin can grant; omission keeps grants to raw credit amounts. */
     packs: z.array(balancePackSchema).optional(),
+    /** Pack prices in Iranian rial; omission shows no prices. */
+    rial: balanceRialSchema.optional(),
     /** Where the low-balance notice's "Buy a pack" button links; omission shows no button. */
     purchaseUrl: z
       .string()

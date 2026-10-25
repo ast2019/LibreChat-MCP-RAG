@@ -1,8 +1,34 @@
 import type { Response } from 'express';
 import type { AdminBalanceDeps } from './handlers';
-import { createAdminBalanceHandlers, getAllotmentUsedPercent } from './handlers';
+import type { RialRateRegistry } from './rial';
+import {
+  getAllotmentUsedPercent,
+  createBalancePacksHandler,
+  createAdminBalanceHandlers,
+} from './handlers';
 
 const USER_ID = '507f1f77bcf86cd799439011';
+
+const RIAL_RATE = {
+  marketRate: 2_695_000,
+  feePercent: 20,
+  rate: 3_234_000,
+  source: 'tgju' as const,
+  updatedAt: '2026-10-25T15:57:58.000Z',
+  stale: false,
+};
+
+const rialRates = (
+  result: Awaited<ReturnType<RialRateRegistry['getRate']>> = { ok: true, value: RIAL_RATE },
+): RialRateRegistry => ({ getRate: jest.fn().mockResolvedValue(result) });
+
+const RIAL_CONFIG = {
+  enabled: true,
+  source: 'tgju',
+  feePercent: 20,
+  refreshMinutes: 60,
+  roundTo: 10_000,
+};
 
 function mockRes() {
   const res = {} as Response & { statusCode?: number; body?: unknown };
@@ -125,13 +151,53 @@ describe('createAdminBalanceHandlers.grant', () => {
 });
 
 describe('createAdminBalanceHandlers.listPacks / getUserBalance', () => {
-  it('lists configured packs', async () => {
+  it('lists configured packs with USD and a null rial price when rial pricing is off', async () => {
     const res = mockRes();
-    await createAdminBalanceHandlers(createDeps()).listPacks(req(), res);
+    await createAdminBalanceHandlers(createDeps({ rialRates: rialRates() })).listPacks(req(), res);
     expect(res.body).toEqual({
       enabled: true,
-      packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }],
+      packs: [
+        { id: 'starter', label: 'Starter', credits: 2_000_000, priceUsd: 2, priceRial: null },
+      ],
+      rial: null,
     });
+  });
+
+  it('prices packs in rial with the rate used', async () => {
+    const res = mockRes();
+    const registry = rialRates();
+    const deps = createDeps({
+      rialRates: registry,
+      getBalanceConfig: jest.fn().mockResolvedValue({
+        enabled: true,
+        rial: RIAL_CONFIG,
+        packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }],
+      }),
+    });
+    await createAdminBalanceHandlers(deps).listPacks(req(), res);
+    expect(registry.getRate).toHaveBeenCalledWith(RIAL_CONFIG);
+    expect(res.body).toEqual({
+      enabled: true,
+      packs: [
+        { id: 'starter', label: 'Starter', credits: 2_000_000, priceUsd: 2, priceRial: 6_470_000 },
+      ],
+      rial: { enabled: true, ...RIAL_RATE },
+    });
+  });
+
+  it('keeps listing packs without rial prices when no rate is available', async () => {
+    const res = mockRes();
+    const deps = createDeps({
+      rialRates: rialRates({ ok: false, error: { code: 'rial_rate_unavailable' } }),
+      getBalanceConfig: jest.fn().mockResolvedValue({
+        enabled: true,
+        rial: RIAL_CONFIG,
+        packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }],
+      }),
+    });
+    await createAdminBalanceHandlers(deps).listPacks(req(), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ packs: [{ priceUsd: 2, priceRial: null }], rial: null });
   });
 
   it('reports a user balance with the share of the pack used', async () => {
@@ -181,12 +247,89 @@ describe('createAdminBalanceHandlers.listUsers / summary', () => {
       days: 7,
       priceMultiplier: 1.3,
       estimatedProviderCredits: 1e6,
+      rialPerUsd: null,
     });
+  });
+
+  it('reports the rial per USD rate (with fee) when rial pricing is on', async () => {
+    const deps = createDeps({
+      rialRates: rialRates(),
+      getBalanceConfig: jest.fn().mockResolvedValue({ enabled: true, rial: RIAL_CONFIG }),
+    });
+    const res = mockRes();
+    await createAdminBalanceHandlers(deps).summary(req({}, { days: '7' }), res);
+    expect(res.body).toMatchObject({ rialPerUsd: 3_234_000 });
   });
 
   it('falls back to 30 days for an unsupported window', async () => {
     const res = mockRes();
     await createAdminBalanceHandlers(createDeps()).summary(req({}, { days: '365' }), res);
     expect(res.body).toMatchObject({ days: 30 });
+  });
+});
+
+describe('createBalancePacksHandler', () => {
+  const packs = [
+    { id: 'starter', label: 'Starter', credits: 2_000_000, description: 'For a week' },
+    { id: 'pro', label: 'Pro', credits: 10_000_000 },
+  ];
+
+  it('returns rial prices only, never USD or the rate', async () => {
+    const res = mockRes();
+    const handler = createBalancePacksHandler({
+      rialRates: rialRates(),
+      getBalanceConfig: jest.fn().mockResolvedValue({
+        enabled: true,
+        rial: RIAL_CONFIG,
+        packs,
+        purchaseUrl: 'https://shop.example.com',
+      }),
+    });
+    await handler(req(), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      enabled: true,
+      packs: [
+        { id: 'starter', label: 'Starter', description: 'For a week', priceRial: 6_470_000 },
+        { id: 'pro', label: 'Pro', priceRial: 32_340_000 },
+      ],
+      purchaseUrl: 'https://shop.example.com',
+    });
+    const text = JSON.stringify(res.body);
+    expect(text).not.toMatch(/"(credits|priceUsd|rate|marketRate|feePercent|rial)"/);
+    expect(text).not.toMatch(/\b(3234000|2695000)\b/);
+  });
+
+  it('lists packs with null prices when rial pricing is off or unavailable', async () => {
+    const res = mockRes();
+    const handler = createBalancePacksHandler({
+      rialRates: rialRates({ ok: false, error: { code: 'rial_rate_unavailable' } }),
+      getBalanceConfig: jest.fn().mockResolvedValue({ enabled: true, rial: RIAL_CONFIG, packs }),
+    });
+    await handler(req(), res);
+    expect(res.body).toMatchObject({
+      enabled: true,
+      packs: [{ priceRial: null }, { priceRial: null }],
+    });
+    expect(res.body).not.toHaveProperty('purchaseUrl');
+  });
+
+  it('reports disabled with no packs while balance metering is off', async () => {
+    const res = mockRes();
+    const handler = createBalancePacksHandler({
+      getBalanceConfig: jest.fn().mockResolvedValue({ enabled: false, packs }),
+    });
+    await handler(req(), res);
+    expect(res.body).toEqual({ enabled: false, packs: [] });
+  });
+
+  it('hides internal failure details behind a generic 500', async () => {
+    const res = mockRes();
+    const handler = createBalancePacksHandler({
+      getBalanceConfig: jest.fn().mockRejectedValue(new Error('config: secret detail')),
+    });
+    await handler(req(), res);
+    expect(res.statusCode).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('secret detail');
   });
 });

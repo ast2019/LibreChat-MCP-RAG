@@ -12,19 +12,17 @@ export const OAUTH_SESSION_COOKIE = 'oauth_session';
 export const OAUTH_SESSION_MAX_AGE: number = 24 * 60 * 60 * 1000;
 export const OAUTH_SESSION_COOKIE_PATH = '/api';
 
-/**
- * Determines if secure cookies should be used.
- * SESSION_COOKIE_SECURE=true/false explicitly overrides the environment heuristic.
- * Returns `true` in production unless DOMAIN_SERVER uses a localhost-style hostname.
- * This allows cookies to work on localhost during local development
- * even when `NODE_ENV=production` (common in Docker Compose setups).
- */
-export function shouldUseSecureCookie(): boolean {
+/** Reads `SESSION_COOKIE_SECURE` when it is an explicit `true`/`false`; otherwise `undefined`. */
+function getSecureCookieOverride(): boolean | undefined {
   const secureOverride = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase();
   if (secureOverride === 'true' || secureOverride === 'false') {
     return isEnabled(secureOverride);
   }
+  return undefined;
+}
 
+/** `true` in production unless DOMAIN_SERVER uses a localhost-style hostname. */
+function secureByEnvironment(): boolean {
   const isProduction = process.env.NODE_ENV === 'production';
   const domainServer = process.env.DOMAIN_SERVER || '';
 
@@ -48,6 +46,44 @@ export function shouldUseSecureCookie(): boolean {
     hostname.endsWith('.localhost');
 
   return isProduction && !isLocalhost;
+}
+
+/** Whether DOMAIN_SERVER or DOMAIN_CLIENT explicitly names a plain `http://` origin. */
+export function isPlainHttpDeployment(): boolean {
+  return [process.env.DOMAIN_SERVER, process.env.DOMAIN_CLIENT].some((domain) =>
+    /^http:\/\//i.test(domain?.trim() ?? ''),
+  );
+}
+
+/**
+ * Whether cookies fall back to non-Secure because the deployment is served over plain HTTP
+ * in production with no `SESSION_COOKIE_SECURE` override (localhost excluded), so startup
+ * can warn that sessions are unprotected in transit and passkeys cannot work.
+ */
+export function usesInsecureHttpCookies(): boolean {
+  return (
+    getSecureCookieOverride() === undefined && isPlainHttpDeployment() && secureByEnvironment()
+  );
+}
+
+/**
+ * Determines if secure cookies should be used.
+ * SESSION_COOKIE_SECURE=true/false explicitly overrides the environment heuristic.
+ * Returns `false` when DOMAIN_SERVER or DOMAIN_CLIENT starts with `http://`: a browser never
+ * stores a Secure cookie for an http origin, so the session would be dropped on every load.
+ * Otherwise returns `true` in production unless DOMAIN_SERVER uses a localhost-style hostname.
+ * This allows cookies to work on localhost during local development
+ * even when `NODE_ENV=production` (common in Docker Compose setups).
+ */
+export function shouldUseSecureCookie(): boolean {
+  const secureOverride = getSecureCookieOverride();
+  if (secureOverride !== undefined) {
+    return secureOverride;
+  }
+  if (isPlainHttpDeployment()) {
+    return false;
+  }
+  return secureByEnvironment();
 }
 
 export const REFRESH_TOKEN_COOKIE = 'refreshToken';

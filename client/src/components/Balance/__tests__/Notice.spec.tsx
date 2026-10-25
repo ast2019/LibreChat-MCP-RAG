@@ -6,6 +6,7 @@ import Notice from '../Notice';
 
 let mockView: BalanceView;
 let mockPurchaseUrl: string | undefined;
+let mockPacksAvailable = false;
 
 jest.mock('~/hooks/useBalanceSummary', () => ({
   __esModule: true,
@@ -14,6 +15,17 @@ jest.mock('~/hooks/useBalanceSummary', () => ({
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: { balance: { purchaseUrl: mockPurchaseUrl } } }),
+}));
+
+jest.mock('~/hooks/useBalancePacks', () => ({
+  __esModule: true,
+  default: () => ({ available: mockPacksAvailable, query: {} }),
+}));
+
+jest.mock('../Packs', () => ({
+  __esModule: true,
+  default: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Packs" /> : null,
 }));
 
 const viewFor = (tokenCredits: number): BalanceView => ({
@@ -30,6 +42,17 @@ const viewFor = (tokenCredits: number): BalanceView => ({
 describe('balance Notice', () => {
   beforeEach(() => {
     mockPurchaseUrl = 'https://shop.example.com/packs';
+    mockPacksAvailable = false;
+  });
+
+  it('opens the pack list when packs exist, even without a purchase URL', async () => {
+    mockPurchaseUrl = undefined;
+    mockPacksAvailable = true;
+    mockView = viewFor(0);
+    render(<Notice />);
+    expect(screen.queryByRole('link', { name: 'Buy a pack' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Buy a pack' }));
+    expect(screen.getByRole('dialog', { name: 'Packs' })).toBeInTheDocument();
   });
 
   it('renders nothing below 90% used', () => {

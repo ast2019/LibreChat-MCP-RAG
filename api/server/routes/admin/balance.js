@@ -8,6 +8,7 @@ const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { getAppConfig } = require('~/server/services/Config');
 const { requireJwtAuth } = require('~/server/middleware');
+const rialRates = require('~/server/services/rial');
 const db = require('~/models');
 
 const router = express.Router();
@@ -34,6 +35,7 @@ const handlers = createAdminBalanceHandlers({
   upsertBalanceFields: db.upsertBalanceFields,
   listUsersWithBalances: db.listUsersWithBalances,
   getBillingSummary: db.getBillingSummary,
+  rialRates,
   getPriceMultiplier: async (req) =>
     getPrimaryPriceMultiplier(
       await getAppConfig({

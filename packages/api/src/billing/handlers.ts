@@ -2,8 +2,10 @@ import { logger, isValidObjectIdString } from '@librechat/data-schemas';
 import type { IUser, BillingSummary, BillingUserRow } from '@librechat/data-schemas';
 import type { TBalancePack, TBalanceConfig } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
+import type { RialRate, RialRateRegistry } from './rial';
 import type { GrantBalanceDeps } from './packs';
 import { grantBalance, resolveBalanceGrant } from './packs';
+import { creditsToUsd, priceInRial } from './rial';
 
 type BillingRequest = Request & { user?: IUser };
 
@@ -36,7 +38,37 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
   getBillingSummary: (params: { since: Date }) => Promise<BillingSummary>;
   /** Markup applied to provider prices; the summary divides spend by it to estimate cost. */
   getPriceMultiplier: (req: BillingRequest) => Promise<number | undefined>;
+  /** Prices packs in rial; omission leaves every rial figure null. */
+  rialRates?: RialRateRegistry;
   now?: () => Date;
+}
+
+export interface BalancePacksDeps {
+  /** Balance settings that apply to the requesting user's deployment/tenant. */
+  getBalanceConfig: (req: BillingRequest) => Promise<Partial<TBalanceConfig> | null>;
+  rialRates?: RialRateRegistry;
+}
+
+/** The rate packs are priced at; null when rial pricing is off or no rate is available. */
+async function resolveRialRate(
+  rialRates: RialRateRegistry | undefined,
+  config: Partial<TBalanceConfig> | null,
+): Promise<{ rate: RialRate; roundTo: number } | null> {
+  if (rialRates == null || config?.rial?.enabled !== true) {
+    return null;
+  }
+  const result = await rialRates.getRate(config.rial);
+  if (result == null || !result.ok) {
+    return null;
+  }
+  return { rate: result.value, roundTo: config.rial.roundTo ?? 1 };
+}
+
+function packPriceRial(
+  pack: TBalancePack,
+  rial: { rate: RialRate; roundTo: number } | null,
+): number | null {
+  return rial ? priceInRial(pack.credits, rial.rate.rate, rial.roundTo) : null;
 }
 
 /** Summary windows the admin page offers, in days. */
@@ -113,8 +145,17 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
   async function listPacks(req: BillingRequest, res: Response) {
     try {
       const config = await deps.getBalanceConfig(req);
-      const packs: TBalancePack[] = config?.packs ?? [];
-      return res.status(200).json({ enabled: config?.enabled === true, packs });
+      const rial = await resolveRialRate(deps.rialRates, config);
+      const packs = (config?.packs ?? []).map((pack) => ({
+        ...pack,
+        priceUsd: creditsToUsd(pack.credits),
+        priceRial: packPriceRial(pack, rial),
+      }));
+      return res.status(200).json({
+        enabled: config?.enabled === true,
+        packs,
+        rial: rial ? { enabled: true, ...rial.rate } : null,
+      });
     } catch (error) {
       logger.error('[adminBalance] listPacks error:', error);
       return res.status(500).json({ error: 'Failed to list packs' });
@@ -212,9 +253,10 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         : 30;
       const now = (deps.now ?? (() => new Date()))();
       const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-      const [result, multiplier] = await Promise.all([
+      const [result, multiplier, rial] = await Promise.all([
         deps.getBillingSummary({ since }),
         deps.getPriceMultiplier(req),
+        deps.getBalanceConfig(req).then((config) => resolveRialRate(deps.rialRates, config)),
       ]);
       const effective = typeof multiplier === 'number' && multiplier > 0 ? multiplier : 1;
       return res.status(200).json({
@@ -224,6 +266,7 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         ...result,
         /** What the window's spend cost at provider prices, before the markup */
         estimatedProviderCredits: result.creditsSpentInWindow / effective,
+        rialPerUsd: rial?.rate.rate ?? null,
       });
     } catch (error) {
       logger.error('[adminBalance] summary error:', error);
@@ -232,4 +275,37 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
   }
 
   return { listPacks, getUserBalance, grant, listUsers, summary };
+}
+
+/**
+ * `GET /api/balance/packs`: the packs a signed-in user can buy, priced in rial only. USD
+ * values and the exchange rate stay server-side. Callers mount it behind authentication.
+ */
+export function createBalancePacksHandler(
+  deps: BalancePacksDeps,
+): (req: BillingRequest, res: Response) => Promise<Response> {
+  return async function listUserPacks(req, res) {
+    try {
+      const config = await deps.getBalanceConfig(req);
+      if (config?.enabled !== true) {
+        return res.status(200).json({ enabled: false, packs: [] });
+      }
+      const rial = await resolveRialRate(deps.rialRates, config);
+      const packs = (config.packs ?? []).map((pack) => ({
+        id: pack.id,
+        label: pack.label,
+        ...(pack.description != null ? { description: pack.description } : {}),
+        priceRial: packPriceRial(pack, rial),
+      }));
+      const purchaseUrl = config.purchaseUrl;
+      return res.status(200).json({
+        enabled: true,
+        packs,
+        ...(typeof purchaseUrl === 'string' && purchaseUrl !== '' ? { purchaseUrl } : {}),
+      });
+    } catch (error) {
+      logger.error('[balance] listUserPacks error:', error);
+      return res.status(500).json({ error: 'Failed to list packs' });
+    }
+  };
 }

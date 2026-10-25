@@ -2,8 +2,8 @@ import { useState, ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { useOutletContext } from 'react-router-dom';
 import { loginPage } from 'librechat-data-provider';
-import { Spinner, Button, Alert, Input } from '@librechat/client';
 import { useRequestPasswordResetMutation } from 'librechat-data-provider/react-query';
+import { Spinner, Button, Alert, Input, floatingLabelCenter } from '@librechat/client';
 import type { TRequestPasswordReset, TRequestPasswordResetResponse } from 'librechat-data-provider';
 import type { FC } from 'react';
 import type { TLoginLayoutContext } from '~/common';
@@ -106,18 +106,15 @@ function RequestPasswordReset() {
               },
             })}
             aria-invalid={!!errors.email}
-            variant="floating"
+            variant="floating-center"
             placeholder=" "
           />
-          <label
-            htmlFor="email"
-            className="bg-surface-primary text-text-secondary peer-placeholder-shown:text-text-tertiary peer-focus:text-accent-primary peer-placeholder-shown:top-theme-auth-label-rest absolute inset-s-2 -top-2 z-10 px-2 text-sm transition-all peer-placeholder-shown:text-base peer-focus:-top-2 peer-focus:text-sm"
-          >
+          <label htmlFor="email" className={floatingLabelCenter}>
             {localize('com_auth_email_address')}
           </label>
         </div>
         {errors.email && (
-          <p role="alert" className="text-text-destructive text-sm font-medium">
+          <p role="alert" className="text-text-destructive text-center text-sm font-medium">
             {errors.email.message}
           </p>
         )}

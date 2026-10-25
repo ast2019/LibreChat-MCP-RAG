@@ -4,6 +4,8 @@ import { SESSION_HINT_COOKIE } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import {
   shouldUseSecureCookie,
+  isPlainHttpDeployment,
+  usesInsecureHttpCookies,
   setRefreshTokenCookie,
   setOpenIDMarkerCookies,
   setSessionHintCookie,
@@ -89,6 +91,7 @@ describe('shouldUseSecureCookie', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.SESSION_COOKIE_SECURE;
+    delete process.env.DOMAIN_CLIENT;
   });
 
   afterAll(() => {
@@ -166,10 +169,10 @@ describe('shouldUseSecureCookie', () => {
       expect(shouldUseSecureCookie()).toBe(false);
     });
 
-    it('should return true for http://[::1]:3080 (IPv6 loopback — not detected due to URL bracket parsing)', () => {
-      // Known limitation: new URL('http://[::1]:3080').hostname returns '[::1]' (with brackets)
+    it('should return true for https://[::1]:3080 (IPv6 loopback — not detected due to URL bracket parsing)', () => {
+      // Known limitation: new URL('https://[::1]:3080').hostname returns '[::1]' (with brackets)
       // but the check compares against '::1' (without brackets). IPv6 localhost is rare in practice.
-      process.env.DOMAIN_SERVER = 'http://[::1]:3080';
+      process.env.DOMAIN_SERVER = 'https://[::1]:3080';
       expect(shouldUseSecureCookie()).toBe(true);
     });
 
@@ -208,6 +211,65 @@ describe('shouldUseSecureCookie', () => {
       expect(shouldUseSecureCookie()).toBe(false);
     });
   });
+
+  describe('plain-HTTP deployments in production', () => {
+    beforeEach(() => {
+      process.env.NODE_ENV = 'production';
+    });
+
+    it('returns false when DOMAIN_SERVER is an http:// public host', () => {
+      process.env.DOMAIN_SERVER = 'http://app.1.2.3.4.sslip.io';
+      expect(shouldUseSecureCookie()).toBe(false);
+      expect(isPlainHttpDeployment()).toBe(true);
+      expect(usesInsecureHttpCookies()).toBe(true);
+    });
+
+    it('matches the scheme case-insensitively', () => {
+      process.env.DOMAIN_SERVER = 'HTTP://chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(false);
+    });
+
+    it('returns false when only DOMAIN_CLIENT is http://', () => {
+      process.env.DOMAIN_SERVER = 'https://api.example.com';
+      process.env.DOMAIN_CLIENT = 'http://chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(false);
+    });
+
+    it('keeps Secure cookies when both domains are https://', () => {
+      process.env.DOMAIN_SERVER = 'https://chat.example.com';
+      process.env.DOMAIN_CLIENT = 'https://chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(true);
+      expect(usesInsecureHttpCookies()).toBe(false);
+    });
+
+    it('keeps Secure cookies for a domain without a scheme', () => {
+      process.env.DOMAIN_SERVER = 'chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(true);
+    });
+
+    it('lets SESSION_COOKIE_SECURE=true override an http:// domain', () => {
+      process.env.DOMAIN_SERVER = 'http://chat.example.com';
+      process.env.SESSION_COOKIE_SECURE = 'true';
+      expect(shouldUseSecureCookie()).toBe(true);
+      expect(usesInsecureHttpCookies()).toBe(false);
+    });
+
+    it('does not report insecure HTTP cookies for an explicit false override or localhost', () => {
+      process.env.DOMAIN_SERVER = 'http://chat.example.com';
+      process.env.SESSION_COOKIE_SECURE = 'false';
+      expect(usesInsecureHttpCookies()).toBe(false);
+      delete process.env.SESSION_COOKIE_SECURE;
+      process.env.DOMAIN_SERVER = 'http://localhost:3080';
+      expect(usesInsecureHttpCookies()).toBe(false);
+    });
+
+    it('does not report insecure HTTP cookies outside production', () => {
+      process.env.NODE_ENV = 'development';
+      process.env.DOMAIN_SERVER = 'http://chat.example.com';
+      expect(shouldUseSecureCookie()).toBe(false);
+      expect(usesInsecureHttpCookies()).toBe(false);
+    });
+  });
 });
 
 describe('setRefreshTokenCookie', () => {
@@ -216,6 +278,7 @@ describe('setRefreshTokenCookie', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.SESSION_COOKIE_SECURE;
+    delete process.env.DOMAIN_CLIENT;
   });
 
   afterAll(() => {

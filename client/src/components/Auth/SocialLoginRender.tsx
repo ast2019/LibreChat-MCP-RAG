@@ -9,6 +9,7 @@ import {
   SamlIcon,
 } from '@librechat/client';
 
+import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import PasskeySignIn from './PasskeySignIn';
 import SocialButton from './SocialButton';
 import { useLocalize } from '~/hooks';
@@ -119,11 +120,20 @@ function SocialLoginRender({
     ),
   };
 
-  const passkeyEnabled = showPasskey && startupConfig.passkeyLoginEnabled === true;
-  const socialEnabled =
-    startupConfig.socialLoginEnabled === true && (startupConfig.socialLogins?.length ?? 0) > 0;
+  /** Browsers expose WebAuthn only on HTTPS (or localhost); elsewhere the button could only fail. */
+  const passkeyEnabled =
+    showPasskey && startupConfig.passkeyLoginEnabled === true && passkeysSupported();
+  /** `socialLogins` lists every provider a deployment may offer, enabled or not, so the
+   *  providers that actually render decide whether anything follows the divider. */
+  const socialButtons =
+    startupConfig.socialLoginEnabled === true
+      ? (startupConfig.socialLogins ?? []).flatMap((provider) => {
+          const button = providerComponents[provider];
+          return button ? [button] : [];
+        })
+      : [];
 
-  if (!passkeyEnabled && !socialEnabled) {
+  if (!passkeyEnabled && socialButtons.length === 0) {
     return null;
   }
 
@@ -141,8 +151,7 @@ function SocialLoginRender({
       )}
       <div className="mt-2">
         <PasskeySignIn enabled={passkeyEnabled} />
-        {socialEnabled &&
-          startupConfig.socialLogins?.map((provider) => providerComponents[provider] || null)}
+        {socialButtons}
       </div>
     </>
   );

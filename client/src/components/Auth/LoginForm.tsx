@@ -8,7 +8,7 @@ import {
   Button,
   Input,
   isDark,
-  floatingLabel,
+  floatingLabelCenter,
 } from '@librechat/client';
 import type { TLoginUser, TStartupConfig } from 'librechat-data-provider';
 import type { TAuthContext } from '~/common';
@@ -65,7 +65,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
   const renderError = (fieldName: string) => {
     const errorMessage = errors[fieldName]?.message;
     return errorMessage ? (
-      <span role="alert" className="text-text-destructive mt-1 text-sm">
+      <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
         {String(errorMessage)}
       </span>
     ) : null;
@@ -116,10 +116,10 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
                   : (value) => validateEmail(value, localize('com_auth_email_pattern')),
               })}
               aria-invalid={!!errors.email}
-              variant="floating"
+              variant="floating-center"
               placeholder=" "
             />
-            <label htmlFor="email" className={floatingLabel}>
+            <label htmlFor="email" className={floatingLabelCenter}>
               {useUsernameLogin
                 ? localize('com_auth_username').replace(/ \(.*$/, '')
                 : localize('com_auth_email_address')}
@@ -143,7 +143,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
                 maxLength: { value: 128, message: localize('com_auth_password_max_length') },
               })}
               aria-invalid={!!errors.password}
-              variant="floating"
+              variant="floating-center"
               placeholder=" "
               label={localize('com_auth_password')}
             />
@@ -151,12 +151,14 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
           {renderError('password')}
         </div>
         {startupConfig.passwordResetEnabled && (
-          <a
-            href="/forgot-password"
-            className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover inline-flex p-1 text-sm font-medium underline decoration-transparent transition-all duration-200"
-          >
-            {localize('com_auth_password_forgot')}
-          </a>
+          <div className="text-center">
+            <a
+              href="/forgot-password"
+              className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover inline-flex p-1 text-sm font-medium underline decoration-transparent transition-all duration-200"
+            >
+              {localize('com_auth_password_forgot')}
+            </a>
+          </div>
         )}
 
         {requireCaptcha && (

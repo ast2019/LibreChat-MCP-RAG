@@ -11,7 +11,7 @@ import {
   Button,
   Input,
   isDark,
-  floatingLabel,
+  floatingLabelCenter,
 } from '@librechat/client';
 import type { TRegisterUser, TError } from 'librechat-data-provider';
 import type { TLoginLayoutContext } from '~/common';
@@ -91,7 +91,7 @@ const Registration: React.FC = () => {
               aria-label={fieldLabel}
               {...field}
               aria-invalid={!!errors[id]}
-              variant="floating"
+              variant="floating-center"
               placeholder=" "
               data-testid={id}
               label={fieldLabel}
@@ -106,18 +106,18 @@ const Registration: React.FC = () => {
                 aria-label={fieldLabel}
                 {...field}
                 aria-invalid={!!errors[id]}
-                variant="floating"
+                variant="floating-center"
                 placeholder=" "
                 data-testid={id}
               />
-              <label htmlFor={id} className={floatingLabel}>
+              <label htmlFor={id} className={floatingLabelCenter}>
                 {fieldLabel}
               </label>
             </>
           )}
         </div>
         {errors[id] && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {String(errors[id]?.message) ?? ''}
           </span>
         )}

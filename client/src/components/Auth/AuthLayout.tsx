@@ -112,7 +112,9 @@ function AuthLayout({
           )}
         >
           {!hasStartupConfigError && !isFetching && header && (
-            <h1 className="text-text-primary mb-4 text-center text-3xl font-semibold select-none">
+            /* The heading takes the card's own side padding back, so a heading a few pixels
+               wider than the form (fa «حساب کاربری خود را بسازید») stays on one line. */
+            <h1 className="text-text-primary -mx-6 mb-4 px-2 text-center text-3xl font-semibold select-none">
               {header}
             </h1>
           )}

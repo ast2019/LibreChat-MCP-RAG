@@ -91,14 +91,14 @@ function ResetPassword() {
               },
             })}
             aria-invalid={!!errors.password}
-            variant="floating"
+            variant="floating-center"
             placeholder=" "
             label={localize('com_auth_password')}
           />
         </div>
 
         {errors.password && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.password.message}
           </span>
         )}
@@ -113,23 +113,23 @@ function ResetPassword() {
               validate: (value) => value === password || localize('com_auth_password_not_match'),
             })}
             aria-invalid={!!errors.confirm_password}
-            variant="floating"
+            variant="floating-center"
             placeholder=" "
             label={localize('com_auth_password_confirm')}
           />
         </div>
         {errors.confirm_password && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.confirm_password.message}
           </span>
         )}
         {errors.token && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.token.message}
           </span>
         )}
         {errors.userId && (
-          <span role="alert" className="text-text-destructive mt-1 text-sm">
+          <span role="alert" className="text-text-destructive mt-1 block text-center text-sm">
             {errors.userId.message}
           </span>
         )}

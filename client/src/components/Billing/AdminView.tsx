@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { SystemRoles } from 'librechat-data-provider';
 import { Button, Input, Progress, Skeleton } from '@librechat/client';
-import type { TAdminBillingUser } from 'librechat-data-provider';
+import type { TAdminBillingRial, TAdminBillingUser } from 'librechat-data-provider';
 import {
   useAdminBillingUsersQuery,
   useAdminBillingPacksQuery,
@@ -10,14 +10,26 @@ import {
 } from '~/data-provider';
 import { useAuthContext, useDocumentTitle, useLocalize } from '~/hooks';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import { formatUsd, creditsToRial } from './format';
+import { formatRialDigits } from '~/utils';
 import GrantDialog from './GrantDialog';
-import { formatUsd } from './format';
 
 const WINDOWS = [7, 30, 90] as const;
 const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
 
-function Kpi({ label, value, hint }: { label: string; value?: string; hint?: string }) {
+function Kpi({
+  label,
+  value,
+  secondary,
+  hint,
+}: {
+  label: string;
+  value?: string;
+  /** A second reading of the value, e.g. the rial equivalent of a USD figure */
+  secondary?: string;
+  hint?: string;
+}) {
   return (
     <div className="border-border-light bg-surface-secondary rounded-xl border p-4">
       <div className="text-text-secondary text-xs">{label}</div>
@@ -26,8 +38,57 @@ function Kpi({ label, value, hint }: { label: string; value?: string; hint?: str
       ) : (
         <div className="text-text-primary mt-1 text-xl font-semibold">{value}</div>
       )}
+      {secondary != null && <div className="text-text-secondary text-xs">{secondary}</div>}
       {hint != null && <div className="text-text-secondary mt-1 text-xs">{hint}</div>}
     </div>
+  );
+}
+
+/** Formats credits in rial at the summary's rate; undefined while no rate is available. */
+function useRialAmount(rialPerUsd: number | null | undefined) {
+  const localize = useLocalize();
+  return (credits: number | undefined): string | undefined => {
+    if (credits == null) {
+      return undefined;
+    }
+    const rial = creditsToRial(credits, rialPerUsd);
+    return rial != null
+      ? localize('com_ui_balance_rial', { 0: formatRialDigits(rial) })
+      : undefined;
+  };
+}
+
+const updatedFormat = new Intl.DateTimeFormat('fa-IR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: 'Asia/Tehran',
+});
+
+/** The USD to rial rate every rial figure on the page was computed with. */
+function RialRate({ rial }: { rial: TAdminBillingRial }) {
+  const localize = useLocalize();
+  const updated = new Date(rial.updatedAt);
+  return (
+    <p
+      className="text-text-secondary flex flex-wrap items-center gap-2 text-xs"
+      data-testid="admin-rial-rate"
+    >
+      <span>
+        {localize('com_admin_rial_rate', {
+          0: formatRialDigits(rial.marketRate),
+          1: formatRialDigits(rial.feePercent),
+          2: localize(
+            rial.source === 'fixed' ? 'com_admin_rial_source_fixed' : 'com_admin_rial_source_tgju',
+          ),
+          3: Number.isNaN(updated.getTime()) ? '—' : updatedFormat.format(updated),
+        })}
+      </span>
+      {rial.stale && (
+        <span className="text-text-warning border-border-light rounded-md border px-1.5 py-0.5">
+          {localize('com_admin_rial_stale')}
+        </span>
+      )}
+    </p>
   );
 }
 
@@ -77,11 +138,14 @@ export default function AdminView() {
   );
   const packs = useAdminBillingPacksQuery({ enabled: isAdmin });
 
+  const data = summary.data;
+  const rialAmount = useRialAmount(data?.rialPerUsd);
+  const rial = packs.data?.rial ?? null;
+
   if (user != null && !isAdmin) {
     return <Navigate to="/c/new" replace={true} />;
   }
 
-  const data = summary.data;
   const margin = data ? data.creditsSpentInWindow - data.estimatedProviderCredits : undefined;
   const total = users.data?.total ?? 0;
 
@@ -127,6 +191,7 @@ export default function AdminView() {
             <Kpi
               label={localize('com_admin_granted')}
               value={data ? formatUsd(data.creditsGrantedInWindow) : undefined}
+              secondary={rialAmount(data?.creditsGrantedInWindow)}
               hint={
                 data
                   ? localize('com_admin_packs_count', { 0: String(data.packGrantsInWindow) })
@@ -136,22 +201,27 @@ export default function AdminView() {
             <Kpi
               label={localize('com_admin_spent')}
               value={data ? formatUsd(data.creditsSpentInWindow) : undefined}
+              secondary={rialAmount(data?.creditsSpentInWindow)}
             />
             <Kpi
               label={localize('com_admin_provider_cost')}
               value={data ? formatUsd(data.estimatedProviderCredits) : undefined}
+              secondary={rialAmount(data?.estimatedProviderCredits)}
               hint={data ? `×${data.priceMultiplier}` : undefined}
             />
             <Kpi
               label={localize('com_admin_margin')}
               value={margin != null ? formatUsd(margin) : undefined}
+              secondary={rialAmount(margin)}
             />
             <Kpi
               label={localize('com_admin_outstanding')}
               value={data ? formatUsd(data.creditsOutstanding) : undefined}
+              secondary={rialAmount(data?.creditsOutstanding)}
             />
           </section>
         )}
+        {rial != null && <RialRate rial={rial} />}
 
         {data && data.topModels.length > 0 && (
           <section aria-labelledby="admin-models" className="space-y-2">
@@ -162,7 +232,12 @@ export default function AdminView() {
               {data.topModels.map((row) => (
                 <li key={row.model} className="flex items-center justify-between px-4 py-2 text-sm">
                   <span className="text-text-primary truncate font-mono text-xs">{row.model}</span>
-                  <span className="text-text-secondary">{formatUsd(row.credits)}</span>
+                  <span className="text-text-secondary text-end">
+                    {formatUsd(row.credits)}
+                    {data.rialPerUsd != null && (
+                      <span className="block text-xs">{rialAmount(row.credits)}</span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -250,6 +325,11 @@ export default function AdminView() {
                     </td>
                     <td className="text-text-primary px-4 py-2 text-end">
                       {formatUsd(row.balance?.tokenCredits ?? 0)}
+                      {data?.rialPerUsd != null && (
+                        <div className="text-text-secondary text-xs whitespace-nowrap">
+                          {rialAmount(row.balance?.tokenCredits ?? 0)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-end">
                       <Button size="compact" variant="outline" onClick={() => setGranting(row)}>
@@ -295,6 +375,7 @@ export default function AdminView() {
         <GrantDialog
           user={granting}
           packs={packs.data?.packs ?? []}
+          rialPerUsd={data?.rialPerUsd}
           onClose={() => setGranting(null)}
         />
       )}

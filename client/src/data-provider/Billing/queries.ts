@@ -7,6 +7,7 @@ import type {
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
+  TUserBalancePacksResponse,
 } from 'librechat-data-provider';
 import type {
   UseQueryOptions,
@@ -41,6 +42,16 @@ export const useAdminBillingPacksQuery = (
     [QueryKeys.adminBillingPacks],
     () => dataService.getAdminBillingPacks(),
     { staleTime: 60_000, refetchOnWindowFocus: false, retry: false, ...config },
+  );
+
+/** Packs the signed-in user can buy, with rial prices only. */
+export const useBalancePacksQuery = (
+  config?: UseQueryOptions<TUserBalancePacksResponse>,
+): QueryObserverResult<TUserBalancePacksResponse> =>
+  useQuery<TUserBalancePacksResponse>(
+    [QueryKeys.balancePacks],
+    () => dataService.getBalancePacks(),
+    { staleTime: 5 * 60_000, refetchOnWindowFocus: false, retry: false, ...config },
   );
 
 /** Grants a pack or raw credits, then refreshes the user list and the summary. */

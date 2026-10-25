@@ -10,19 +10,22 @@ import {
 } from '@librechat/client';
 import type { TAdminBillingPack, TAdminBillingUser } from 'librechat-data-provider';
 import { useAdminBillingGrantMutation } from '~/data-provider';
+import { formatUsd, creditsToRial } from './format';
+import { cn, formatRialDigits } from '~/utils';
 import { useLocalize } from '~/hooks';
-import { formatUsd } from './format';
-import { cn } from '~/utils';
 
 const CUSTOM = 'custom';
 
 export default function GrantDialog({
   user,
   packs,
+  rialPerUsd,
   onClose,
 }: {
   user: TAdminBillingUser | null;
   packs: TAdminBillingPack[];
+  /** Rial per USD with the fee, to show what a custom amount is worth; null when unknown */
+  rialPerUsd?: number | null;
   onClose: () => void;
 }) {
   const localize = useLocalize();
@@ -33,6 +36,7 @@ export default function GrantDialog({
 
   const customCredits = Math.round(Number.parseFloat(usd) * 1_000_000);
   const customValid = Number.isFinite(customCredits) && customCredits > 0;
+  const customRial = customValid ? creditsToRial(customCredits, rialPerUsd) : null;
   const canSubmit = user != null && !grant.isLoading && (choice !== CUSTOM || customValid);
 
   const submit = () => {
@@ -87,7 +91,14 @@ export default function GrantDialog({
                     {pack ? pack.label : localize('com_admin_grant_custom')}
                   </span>
                   {pack && (
-                    <span className="text-text-secondary text-xs">{formatUsd(pack.credits)}</span>
+                    <span className="text-text-secondary text-end text-xs">
+                      {formatUsd(pack.credits)}
+                      {pack.priceRial != null && (
+                        <span className="block">
+                          {localize('com_ui_balance_rial', { 0: formatRialDigits(pack.priceRial) })}
+                        </span>
+                      )}
+                    </span>
                   )}
                 </label>
               );
@@ -101,7 +112,13 @@ export default function GrantDialog({
                   value={usd}
                   onChange={(event) => setUsd(event.target.value)}
                   placeholder="2.5"
+                  aria-describedby={customRial != null ? 'grant-rial' : undefined}
                 />
+                {customRial != null && (
+                  <p id="grant-rial" className="text-text-secondary text-xs">
+                    {localize('com_ui_balance_rial', { 0: formatRialDigits(customRial) })}
+                  </p>
+                )}
               </div>
             )}
           </fieldset>

@@ -76,6 +76,12 @@ services:
       # Accounts
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       ALLOW_EMAIL_LOGIN: 'true'
+      # Passkeys (fingerprint / Face ID / security key). Browsers allow them only over HTTPS,
+      # so set the Coolify domain to https://. The relying party is the domain of
+      # SERVICE_URL_API; set PASSKEY_RP_ID before changing the domain, or saved passkeys stop working.
+      ALLOW_PASSKEY_LOGIN: ${ALLOW_PASSKEY_LOGIN:-true}
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}
+      PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-HiveGPT}
       # Social login only renders providers that are configured, so with empty OPENID_*
       # values users see the email form alone.
       ALLOW_SOCIAL_LOGIN: 'true'

@@ -129,7 +129,10 @@ jest.mock('react-router-dom', () => ({
 test('renders registration form', () => {
   const { getByText, getByTestId, getByRole } = setup();
   expect(getByText(/Create your account/i)).toBeInTheDocument();
-  expect(getByRole('textbox', { name: /Full name/i })).toHaveClass('h-theme-auth-field');
+  expect(getByRole('textbox', { name: /Full name/i })).toHaveClass(
+    'h-theme-auth-field',
+    'text-center',
+  );
   expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
   expect(getByRole('textbox', { name: /Username/i })).toBeInTheDocument();
   expect(getByRole('textbox', { name: /Email/i })).toBeInTheDocument();

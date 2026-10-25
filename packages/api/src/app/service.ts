@@ -23,6 +23,7 @@ import { createEnvReferencePolicy, parseEnvAllowlist } from './allowlist';
 import { resolveRuntimeConfigSecrets } from '~/admin/secrets';
 import { normalizeEndpointReferences } from './references';
 import { mergeOverrideLayers } from './overrides';
+import { applyAdminFullAccess } from './access';
 import { checkAppConfigTheme } from './theme';
 
 const BASE_CONFIG_KEY = '_BASE_';
@@ -652,6 +653,16 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
    * read the `__base__` override through `resolvePreAuthAppConfig`.
    */
   async function getAppConfig(options: GetAppConfigOptions = {}): Promise<AppConfig> {
+    const appConfig = await resolveAppConfig(options);
+    return options.baseOnly === true ? appConfig : applyAdminFullAccess(appConfig, options.role);
+  }
+
+  /**
+   * Resolves the merged config for `getAppConfig`, which then applies the role's interface
+   * access on every path (cached, freshly merged and fallback alike), so the cache keeps
+   * the role-neutral merge.
+   */
+  async function resolveAppConfig(options: GetAppConfigOptions): Promise<AppConfig> {
     const {
       role,
       userId,
@@ -671,7 +682,7 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
       ambientTenantId && ambientTenantId !== SYSTEM_TENANT_ID ? ambientTenantId : requestedTenantId;
     if (effectiveTenantId && effectiveTenantId !== ambientTenantId) {
       return tenantStorage.run({ ...tenantStorage.getStore(), tenantId: effectiveTenantId }, () =>
-        getAppConfig(options),
+        resolveAppConfig(options),
       );
     }
 

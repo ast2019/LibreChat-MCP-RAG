@@ -80,4 +80,38 @@ describe('SecretInput', () => {
     );
     expect(screen.getByRole('button', { name: 'Show secret' })).not.toHaveClass('size-7');
   });
+
+  /** A centered value pads both sides past the show control, so centered text never runs
+   *  under it, and the label centers over the field while keeping the floating motion. */
+  it('centers the floating-center variant symmetrically around its controls', () => {
+    render(<SecretInput id="pw" variant="floating-center" label="Password" />);
+    const field = document.getElementById('pw');
+    const label = screen.getByText('Password');
+
+    expect(field).toHaveClass('peer', 'text-center', 'ps-11', 'pe-11');
+    expect(field).toHaveAttribute('placeholder', ' ');
+    expect(label).toHaveClass(
+      'pointer-events-none',
+      'mx-auto',
+      'w-fit',
+      'origin-center',
+      'peer-focus:scale-75',
+    );
+    expect(label).not.toHaveClass('start-3');
+    expect(screen.getByRole('button', { name: 'Show secret' })).toHaveClass(
+      'size-theme-auth-field-action',
+    );
+  });
+
+  it('pads both sides past the copy control when a centered field shows one', () => {
+    render(<SecretInput id="pw" variant="floating-center" showCopy label="Key" />);
+
+    expect(document.getElementById('pw')).toHaveClass('ps-20', 'pe-20');
+  });
+
+  it('keeps the start-aligned floating field padded on its control side only', () => {
+    render(<SecretInput id="pw" variant="floating" label="Password" />);
+
+    expect(document.getElementById('pw')).not.toHaveClass('ps-11', 'text-center');
+  });
 });

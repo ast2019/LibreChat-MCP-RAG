@@ -3306,3 +3306,137 @@ describe('updateInterfacePermissions - role.synced audit', () => {
     expect(recordAuditEntry).toHaveBeenCalled();
   });
 });
+
+describe('updateInterfacePermissions - adminFullAccess', () => {
+  type StoredPermissions = Partial<Record<PermissionTypes, Record<string, boolean | undefined>>>;
+
+  /** The HiveGPT-style restricted interface: everything a power user would want is off. */
+  const restrictedInterface = {
+    multiConvo: false,
+    bookmarks: false,
+    runCode: false,
+    prompts: { use: false, create: false, share: false, public: false },
+    agents: { use: true, create: false, share: false, public: false },
+    marketplace: { use: false },
+    peoplePicker: { users: false, groups: false, roles: false },
+    mcpServers: { use: false, create: false, share: false, public: false },
+    skills: { use: false, create: false, share: false, public: false },
+    remoteAgents: { use: false, create: false, share: false, public: false },
+    memories: true,
+  };
+
+  const sync = async (
+    interfaceBlock: Record<string, unknown>,
+    stored: Partial<Record<string, StoredPermissions>> = {},
+  ) => {
+    const config = { interface: interfaceBlock } as unknown as Partial<TCustomConfig>;
+    const configDefaults = { interface: {} } as TConfigDefaults;
+    const interfaceConfig = await loadDefaultInterface({ config, configDefaults });
+    const appConfig = { config, interfaceConfig } as unknown as AppConfig;
+    const getRoleByName = jest.fn(async (name: string) =>
+      stored[name] ? ({ name, permissions: stored[name] } as unknown as IRole) : null,
+    );
+    const updateAccessPermissions = jest.fn();
+    await updateInterfacePermissions({ appConfig, getRoleByName, updateAccessPermissions });
+    const written = (role: string): StoredPermissions | undefined =>
+      updateAccessPermissions.mock.calls.find(([name]) => name === role)?.[1];
+    return { written };
+  };
+
+  /** The ADMIN permissions with no yaml at all: the role defaults. */
+  const adminDefaults = roleDefaults[SystemRoles.ADMIN].permissions as StoredPermissions;
+
+  it('gives ADMIN its full role defaults while USER keeps the yaml restrictions', async () => {
+    const { written } = await sync({ ...restrictedInterface, adminFullAccess: true });
+
+    const admin = written(SystemRoles.ADMIN);
+    for (const permType of [
+      PermissionTypes.PROMPTS,
+      PermissionTypes.BOOKMARKS,
+      PermissionTypes.MULTI_CONVO,
+      PermissionTypes.AGENTS,
+      PermissionTypes.RUN_CODE,
+      PermissionTypes.PEOPLE_PICKER,
+      PermissionTypes.MARKETPLACE,
+      PermissionTypes.MCP_SERVERS,
+      PermissionTypes.SKILLS,
+      PermissionTypes.REMOTE_AGENTS,
+    ]) {
+      expect(admin?.[permType]).toEqual(adminDefaults[permType]);
+    }
+    expect(admin?.[PermissionTypes.MCP_SERVERS]?.[Permissions.CREATE]).toBe(true);
+    expect(admin?.[PermissionTypes.AGENTS]?.[Permissions.CREATE]).toBe(true);
+
+    const user = written(SystemRoles.USER);
+    expect(user?.[PermissionTypes.BOOKMARKS]).toEqual({ [Permissions.USE]: false });
+    expect(user?.[PermissionTypes.MULTI_CONVO]).toEqual({ [Permissions.USE]: false });
+    expect(user?.[PermissionTypes.RUN_CODE]).toEqual({ [Permissions.USE]: false });
+    expect(user?.[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+    expect(user?.[PermissionTypes.AGENTS]?.[Permissions.CREATE]).toBe(false);
+    expect(user?.[PermissionTypes.MCP_SERVERS]?.[Permissions.USE]).toBe(false);
+    expect(user?.[PermissionTypes.SKILLS]?.[Permissions.USE]).toBe(false);
+  });
+
+  it('applies the yaml restrictions to ADMIN as well when the flag is off', async () => {
+    for (const interfaceBlock of [
+      restrictedInterface,
+      { ...restrictedInterface, adminFullAccess: false },
+    ]) {
+      const { written } = await sync(interfaceBlock);
+      const admin = written(SystemRoles.ADMIN);
+      expect(admin?.[PermissionTypes.BOOKMARKS]).toEqual({ [Permissions.USE]: false });
+      expect(admin?.[PermissionTypes.MULTI_CONVO]).toEqual({ [Permissions.USE]: false });
+      expect(admin?.[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+      expect(admin?.[PermissionTypes.MCP_SERVERS]?.[Permissions.CREATE]).toBe(false);
+      expect(written(SystemRoles.USER)?.[PermissionTypes.BOOKMARKS]).toEqual({
+        [Permissions.USE]: false,
+      });
+    }
+  });
+
+  it('upgrades an ADMIN role doc stored while the yaml restricted it', async () => {
+    const restrictedAdmin: StoredPermissions = {};
+    for (const [permType, perms] of Object.entries(adminDefaults)) {
+      restrictedAdmin[permType as PermissionTypes] = Object.fromEntries(
+        Object.keys(perms ?? {}).map((key) => [key, false]),
+      );
+    }
+
+    const { written } = await sync(
+      { ...restrictedInterface, adminFullAccess: true },
+      { [SystemRoles.ADMIN]: restrictedAdmin },
+    );
+
+    const admin = written(SystemRoles.ADMIN);
+    expect(admin?.[PermissionTypes.BOOKMARKS]).toEqual({ [Permissions.USE]: true });
+    expect(admin?.[PermissionTypes.MULTI_CONVO]).toEqual({ [Permissions.USE]: true });
+    expect(admin?.[PermissionTypes.RUN_CODE]).toEqual({ [Permissions.USE]: true });
+    expect(admin?.[PermissionTypes.PROMPTS]).toEqual(adminDefaults[PermissionTypes.PROMPTS]);
+    expect(admin?.[PermissionTypes.MCP_SERVERS]).toEqual(
+      adminDefaults[PermissionTypes.MCP_SERVERS],
+    );
+    expect(admin?.[PermissionTypes.SKILLS]).toEqual(adminDefaults[PermissionTypes.SKILLS]);
+    expect(admin?.[PermissionTypes.SCHEDULES]).toEqual(adminDefaults[PermissionTypes.SCHEDULES]);
+  });
+
+  it('keeps memory.disabled authoritative for ADMIN', async () => {
+    const config = {
+      interface: { ...restrictedInterface, adminFullAccess: true },
+      memory: { disabled: true },
+    } as unknown as Partial<TCustomConfig>;
+    const configDefaults = { interface: {} } as TConfigDefaults;
+    const interfaceConfig = await loadDefaultInterface({ config, configDefaults });
+    const updateAccessPermissions = jest.fn();
+    await updateInterfacePermissions({
+      appConfig: { config, interfaceConfig } as unknown as AppConfig,
+      getRoleByName: jest.fn().mockResolvedValue(null),
+      updateAccessPermissions,
+    });
+
+    const admin = updateAccessPermissions.mock.calls.find(
+      ([name]) => name === SystemRoles.ADMIN,
+    )?.[1];
+    expect(admin?.[PermissionTypes.MEMORIES]?.[Permissions.USE]).toBe(false);
+    expect(admin?.[PermissionTypes.MEMORIES]?.[Permissions.CREATE]).toBe(false);
+  });
+});

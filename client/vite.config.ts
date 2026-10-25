@@ -105,7 +105,7 @@ export default defineConfig(({ command }) => ({
       workbox: {
         globPatterns: [
           '**/*.{js,css,html}',
-          'assets/favicon*.png',
+          'assets/favicon*.{png,svg}',
           'assets/icon-*.png',
           'assets/apple-touch-icon*.png',
           /** `manifest.webmanifest` is not listed: vite-plugin-pwa always appends it as an
@@ -159,7 +159,7 @@ export default defineConfig(({ command }) => ({
         short_name: 'HiveGPT',
         display: 'standalone',
         background_color: '#000000',
-        theme_color: '#009688',
+        theme_color: '#D97706',
         icons: [
           {
             src: 'assets/favicon-32x32.png',

@@ -6,6 +6,7 @@ import type {
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
+  TUserBalancePacksResponse,
 } from './types/billing';
 import type {
   TTracePage,
@@ -357,6 +358,11 @@ export function updateUserPreferences(
 
 export function getUserBalance(): Promise<t.TBalanceResponse> {
   return request.get(endpoints.balance());
+}
+
+/** Packs the signed-in user can buy, priced in rial; no USD figures or rates. */
+export function getBalancePacks(): Promise<TUserBalancePacksResponse> {
+  return request.get(endpoints.balancePacks());
 }
 
 export const login = (payload: t.TLoginUser): Promise<t.TLoginResponse> => {

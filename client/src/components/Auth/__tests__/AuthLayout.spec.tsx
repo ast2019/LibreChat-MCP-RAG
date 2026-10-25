@@ -36,6 +36,8 @@ type Options = {
    *  set: a button needs both, not just the global switch. */
   providers?: string[];
   googleLoginEnabled?: boolean;
+  /** The «or» divider separates the email form from what follows it. */
+  emailLoginEnabled?: boolean;
   /** Partial on purpose: a fixture sets the policies under test, and the field
    *  names are still checked against the real interface config. */
   interfaceConfig?: Partial<NonNullable<TStartupConfig['interface']>>;
@@ -48,6 +50,7 @@ function setup({
   socialLoginEnabled = false,
   providers,
   googleLoginEnabled,
+  emailLoginEnabled,
   interfaceConfig,
 }: Options) {
   const startupConfig = {
@@ -55,6 +58,7 @@ function setup({
     socialLoginEnabled,
     socialLogins: providers ?? (socialLoginEnabled ? ['google'] : []),
     googleLoginEnabled: googleLoginEnabled ?? socialLoginEnabled,
+    emailLoginEnabled,
     serverDomain: 'mock-server',
     interface: interfaceConfig,
   } as unknown as TStartupConfig;
@@ -203,5 +207,30 @@ describe('AuthLayout legal placement', () => {
 
     expect(consent()).not.toBeInTheDocument();
     expect(footerBar()).not.toBeNull();
+  });
+});
+
+describe('AuthLayout or-divider', () => {
+  const divider = () => screen.queryByText(/^or$/i);
+
+  /** The default `socialLogins` lists providers whose own flag is off; none of them renders a
+   *  button, so a divider there would separate the form from nothing. */
+  test('drops the divider when every listed provider is disabled', () => {
+    setup({
+      pathname: 'login',
+      emailLoginEnabled: true,
+      socialLoginEnabled: true,
+      providers: ['google', 'github'],
+      googleLoginEnabled: false,
+    });
+
+    expect(divider()).not.toBeInTheDocument();
+  });
+
+  test('keeps the divider above an enabled provider button', () => {
+    setup({ pathname: 'login', emailLoginEnabled: true, socialLoginEnabled: true });
+
+    expect(divider()).toBeInTheDocument();
+    expect(screen.getByTestId('google')).toBeInTheDocument();
   });
 });

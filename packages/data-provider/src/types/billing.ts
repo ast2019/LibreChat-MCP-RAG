@@ -41,6 +41,8 @@ export type TAdminBillingSummary = {
   creditsOutstanding: number;
   estimatedProviderCredits: number;
   topModels: { model: string; credits: number }[];
+  /** Rial per USD including the fee, to convert any USD figure; null when rial pricing is off or unavailable */
+  rialPerUsd: number | null;
 };
 
 export type TAdminBillingPack = {
@@ -48,9 +50,46 @@ export type TAdminBillingPack = {
   label: string;
   credits: number;
   description?: string;
+  /** The pack's value in US dollars of marked-up usage */
+  priceUsd: number;
+  /** What a user pays in rial; null when rial pricing is off or no rate is available */
+  priceRial: number | null;
 };
 
-export type TAdminBillingPacksResponse = { enabled: boolean; packs: TAdminBillingPack[] };
+/** The USD to rial rate the admin prices were computed with. */
+export type TAdminBillingRial = {
+  enabled: boolean;
+  /** Market rial per USD before the fee */
+  marketRate: number;
+  feePercent: number;
+  /** Rial per USD including the fee */
+  rate: number;
+  source: 'tgju' | 'fixed';
+  /** ISO time the market rate was published or fetched */
+  updatedAt: string;
+  /** True when the latest refresh failed and an older rate is being served */
+  stale: boolean;
+};
+
+export type TAdminBillingPacksResponse = {
+  enabled: boolean;
+  packs: TAdminBillingPack[];
+  rial: TAdminBillingRial | null;
+};
+
+/** User-facing pack wire types (`/api/balance/packs`): rial prices only. */
+export type TUserBalancePack = {
+  id: string;
+  label: string;
+  description?: string;
+  priceRial: number | null;
+};
+
+export type TUserBalancePacksResponse = {
+  enabled: boolean;
+  packs: TUserBalancePack[];
+  purchaseUrl?: string;
+};
 
 export type TAdminBillingGrantRequest =
   | { userId: string; packId: string }

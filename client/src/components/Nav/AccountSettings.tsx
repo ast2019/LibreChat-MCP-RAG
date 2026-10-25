@@ -16,13 +16,16 @@ import {
   Scale,
   Shield,
   ShieldCheck,
+  ShoppingBag,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
+import useBalancePacks from '~/hooks/useBalancePacks';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
+import Packs from '~/components/Balance/Packs';
 import { settingsOpenAtom } from './Settings';
 import Balance from '~/components/Balance';
 import { useLocalize } from '~/hooks';
@@ -111,6 +114,8 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const setFilesDialogTrigger = useSetAtom(filesDialogTriggerAtom);
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
+  const [showPacks, setShowPacks] = useState(false);
+  const { available: packsAvailable } = useBalancePacks();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
@@ -153,6 +158,16 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
         </div>
         {/* Renders nothing when the deployment does not meter credits */}
         <Balance className="ms-3 me-2 pb-2" />
+        {packsAvailable && (
+          <Menu.MenuItem
+            onClick={() => setShowPacks(true)}
+            className="select-item text-sm"
+            data-testid="nav-buy-pack"
+          >
+            <ShoppingBag className="icon-md" aria-hidden="true" />
+            {localize('com_ui_balance_buy_pack')}
+          </Menu.MenuItem>
+        )}
         <DropdownMenuSeparator />
         <HelpSubmenu
           helpAndFaqURL={startupConfig?.helpAndFaqURL}
@@ -209,6 +224,9 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           onOpenChange={setShowArchived}
           triggerRef={accountSettingsButtonRef}
         />
+      )}
+      {packsAvailable && (
+        <Packs open={showPacks} onOpenChange={setShowPacks} triggerRef={accountSettingsButtonRef} />
       )}
     </Menu.MenuProvider>
   );

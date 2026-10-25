@@ -18,6 +18,7 @@ import {
   getCredentialRuntimeState,
   getLegacyCredentialNames,
 } from '~/credentials';
+import { usesInsecureHttpCookies } from '~/oauth/csrf';
 import { isEnabled, checkEmailConfig } from '~/utils';
 import { configureHashPool } from '~/auth/hashing';
 import { handleRateLimits } from './limits';
@@ -88,6 +89,23 @@ export const conflictingAzureVariables: {
     key: 'DEPLOYMENT_NAME',
   },
 ];
+
+/**
+ * Warns when sessions fall back to non-Secure cookies because the deployment is served over
+ * plain HTTP (see `shouldUseSecureCookie`).
+ */
+export function checkSessionCookies(): void {
+  if (!usesInsecureHttpCookies()) {
+    return;
+  }
+  logger.warn(
+    'This deployment is served over HTTP (DOMAIN_SERVER/DOMAIN_CLIENT start with `http://`), ' +
+      'so session cookies are issued without the Secure flag and travel unencrypted. ' +
+      'Passkeys require HTTPS and will not work. Serve the app over HTTPS: in Coolify, set ' +
+      'the domain to `https://...` and update DOMAIN_SERVER and DOMAIN_CLIENT to match. ' +
+      'Set SESSION_COOKIE_SECURE=false to keep HTTP sessions and silence this warning.',
+  );
+}
 
 /**
  * Checks the password reset configuration for security issues.
@@ -171,6 +189,7 @@ export function checkVariables(): void {
   });
 
   checkPasswordReset();
+  checkSessionCookies();
 }
 
 /**

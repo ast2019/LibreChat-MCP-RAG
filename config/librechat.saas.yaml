@@ -12,6 +12,9 @@ registration:
 
 interface:
   customWelcome: 'چطور می‌توانم کمکتان کنم؟'
+  # The restrictions below bind the USER role only: admins keep every permission, the raw
+  # model selector, parameters, presets, context usage and build info, without spec enforcement.
+  adminFullAccess: true
   # Users pick from the model specs below only (no raw endpoint/model lists).
   modelSelect: false
   # ChatGPT-style simplicity: no sampling parameters, presets or side-by-side chats.
@@ -83,15 +86,22 @@ balance:
     - id: starter
       label: 'بسته پایه'
       credits: 2000000
-      description: '$2 of usage at marketed prices'
+      description: 'برای شروع و استفاده سبک روزانه'
     - id: standard
       label: 'بسته استاندارد'
       credits: 5000000
-      description: '$5 of usage at marketed prices'
+      description: 'برای استفاده منظم: نوشتن، جستجو و کار با فایل'
     - id: pro
       label: 'بسته حرفه‌ای'
       credits: 15000000
-      description: '$15 of usage at marketed prices'
+      description: 'برای استفاده سنگین و مدل‌های قوی'
+  # Pack prices in rial: USD value x the tgju free-market dollar + 20% fee, rounded up.
+  rial:
+    enabled: true
+    source: tgju
+    feePercent: 20
+    refreshMinutes: 60
+    roundTo: 10000
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'

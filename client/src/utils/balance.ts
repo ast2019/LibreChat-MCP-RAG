@@ -114,6 +114,13 @@ export function formatBalanceAmount(
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(credits);
 }
 
+const rialFormat = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 });
+
+/** A rial amount in Persian digits with grouping, e.g. ۶٬۴۷۰٬۰۰۰; callers add the unit. */
+export function formatRialDigits(value: number): string {
+  return rialFormat.format(Number.isFinite(value) ? Math.round(value) : 0);
+}
+
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
