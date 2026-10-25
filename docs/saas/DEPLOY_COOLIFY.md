@@ -29,6 +29,11 @@
   - `OPENID_SESSION_SECRET` را Coolify خودش می‌سازد.
   - تا این سه متغیر خالی باشند دکمه نمایش داده نمی‌شود. آدرس `/oauth/openid` در این حالت خطای 500 می‌دهد، که رفتار خود LibreChat است.
 
+## کیفیت جستجو
+
+- **Reranker برای جستجوی وب (اختیاری، پیشنهادی):** `JINA_API_KEY` (از https://jina.ai/reranker) یا `COHERE_API_KEY` را در Coolify بگذارید. اگر هر دو باشند، Jina استفاده می‌شود. بدون کلید، جستجو بدون reranker کار می‌کند.
+- **مدل embedding فایل‌ها:** پیش‌فرض `openai/text-embedding-3-large` با ۱۵۳۶ بُعد است. **قبل از اینکه کاربرها فایل آپلود کنند انتخاب نهایی را بکنید.** بعد از تغییر `EMBEDDINGS_MODEL` یا `EMBEDDINGS_DIMENSIONS`، فایل‌های قبلی باید دوباره آپلود شوند، چون بردارهای دو مدل با هم قابل مقایسه نیستند.
+
 ## سرویس‌ها
 
 | سرویس | نقش | Volume |
@@ -36,7 +41,7 @@
 | `api` | اپ اصلی (بیلد از `Dockerfile.multi` با target `api-build`) | `uploads`، `images`، `logs`، `librechat-data` |
 | `mongodb` | پایگاه داده اصلی (با احراز هویت) | `mongodb-data` |
 | `meilisearch` | جستجو در گفتگوها | `meili-data` |
-| `vectordb` + `rag_api` | پرسش از فایل‌ها (RAG). embedding از OpenRouter با `openai/text-embedding-3-small` | `pgvector-data`، `rag-uploads` |
+| `vectordb` + `rag_api` | پرسش از فایل‌ها (RAG). embedding از OpenRouter با `openai/text-embedding-3-large` (۱۵۳۶ بُعد) | `pgvector-data`، `rag-uploads` |
 | `searxng` | موتور جستجوی وب خصوصی، فقط داخلی | — |
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
