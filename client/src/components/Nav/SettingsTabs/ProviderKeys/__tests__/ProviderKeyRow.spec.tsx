@@ -20,6 +20,7 @@ jest.mock('~/components/Input/SetKeyDialog', () => ({ SetKeyDialog: () => null }
 describe('ProviderKeyRow', () => {
   beforeAll(async () => {
     await initializeI18n();
+    await changeLanguageSafely('en');
   });
 
   afterEach(async () => {

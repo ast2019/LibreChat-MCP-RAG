@@ -42,7 +42,7 @@ services:
       TRUST_PROXY: 1
       NO_INDEX: ${NO_INDEX:-true}
       APP_TITLE: ${APP_TITLE:-HiveGPT}
-      CUSTOM_FOOTER: ${CUSTOM_FOOTER:-}
+      CUSTOM_FOOTER: ${CUSTOM_FOOTER:-HiveGPT ممکن است اشتباه کند. اطلاعات مهم را بررسی کنید.}
       HELP_AND_FAQ_URL: ${HELP_AND_FAQ_URL:-/}
 
       # Model provider: the only required value.
