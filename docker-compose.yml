@@ -63,6 +63,8 @@ services:
       MEILI_NO_ANALYTICS: 'true'
       RAG_API_URL: http://rag_api:8000
       LIBRECHAT_TEMP_CREDENTIALS_PATH: /app/data/.env.temp
+      # One api replica in this stack; lets the (unused) scheduler arm instead of logging an error.
+      SCHEDULES_SINGLE_PROCESS: 'true'
 
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
@@ -185,16 +187,13 @@ services:
 
   # Private metasearch engine used by the web search tool; not exposed publicly.
   searxng:
-    image: searxng/searxng:latest
+    # Built (not bind-mounted) so the settings file reaches the server; see the Dockerfile.
+    build:
+      context: ./deploy/searxng
     restart: unless-stopped
     environment:
       SEARXNG_SECRET: ${SERVICE_HEX_64_SEARXNG}
       SEARXNG_BASE_URL: http://searxng:8080/
-    volumes:
-      - type: bind
-        source: ./deploy/searxng/settings.yml
-        target: /etc/searxng/settings.yml
-        read_only: true
 
   # Local model for the "داخلی" (fully internal) chat. CPU-only; gemma3:4b needs about
   # 4 GB RAM while loaded and is unloaded after LOCAL_MODEL_KEEP_ALIVE of inactivity.
