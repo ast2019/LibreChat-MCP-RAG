@@ -3069,6 +3069,10 @@ export const interfaceSchema = z
      *  ADMIN permission is kept at its role default (all on), and admins get the model selector,
      *  parameters and presets with `modelSpecs.enforce` lifted. Omission keeps one interface. */
     adminFullAccess: z.boolean().optional(),
+    /** How this block's permission values reach the stored USER and ADMIN roles. `always`
+     *  (default) re-applies them on every start; `seed` writes a permission type only while a
+     *  role lacks it, so later changes made in the admin page survive restarts. */
+    permissionSync: z.enum(['always', 'seed']).optional(),
     /** Allows Lia, the welcome screen mascot. Users still opt in from Settings. */
     mascot: z.boolean().optional(),
     remoteAgents: z

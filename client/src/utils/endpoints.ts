@@ -693,3 +693,18 @@ export const getEntity = ({
   }
   return { entity: null, isAgent, isAssistant };
 };
+
+/**
+ * The name readers see for an endpoint: the deployment's `modelDisplayLabel` when it set one,
+ * so a host's id (e.g. OpenRouter) never reaches icon titles or alt text, else the id itself.
+ */
+export function getEndpointDisplayName(
+  endpointsConfig: t.TEndpointsConfig | null | undefined,
+  endpoint: string | null | undefined,
+): string {
+  if (endpoint == null || endpoint === '') {
+    return '';
+  }
+  const label = getEndpointField(endpointsConfig, endpoint, 'modelDisplayLabel');
+  return typeof label === 'string' && label !== '' ? label : endpoint;
+}

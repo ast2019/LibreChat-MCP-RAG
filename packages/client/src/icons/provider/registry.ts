@@ -111,6 +111,7 @@ export const providerIcons: Record<ProviderId, ProviderIconDef> = {
   [ProviderId.mlx]: { art: mark('mlx'), label: 'MLX', mono: true },
   [ProviderId.shuttleai]: { art: mark('shuttleai'), label: 'ShuttleAI', mono: true },
   [ProviderId.unify]: { art: mark('unify'), label: 'Unify', mono: true },
+  [ProviderId.zhipu]: { art: mark('zhipu'), label: 'Z.ai', mono: true },
 };
 
 /**
@@ -135,7 +136,7 @@ const modelMakers: [RegExp, ProviderId | ProviderIconDef][] = [
   [/nemotron/, { art: mark('nvidia'), label: 'NVIDIA', mono: true }],
   [/minimax|abab/, { art: mark('minimax'), label: 'MiniMax', mono: true }],
   [/(^|[^a-z])phi(-?[0-9]|:|$)/, { art: mark('microsoft'), label: 'Microsoft', mono: true }],
-  [/(^|[^a-z])(chat)?glm|codegeex/, { art: mark('zhipu'), label: 'Z.ai', mono: true }],
+  [/(^|[^a-z])(chat)?glm|codegeex/, ProviderId.zhipu],
   [/granite/, { art: mark('ibm'), label: 'IBM', mono: true }],
   [/(^|[^a-z])nova-/, { art: mark('amazon'), label: 'Amazon Nova', mono: true }],
   [/(?<!o)llama/, { art: mark('meta'), label: 'Meta', mono: true }],

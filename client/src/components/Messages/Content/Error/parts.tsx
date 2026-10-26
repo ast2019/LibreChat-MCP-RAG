@@ -76,9 +76,14 @@ export function readObject(json: ErrorPayload | undefined, key: string): ErrorPa
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
 }
 
-/** The name a reader recognizes for an endpoint id. */
-export const getProviderName = (endpoint: string): string =>
-  (alternateName[endpoint] as string | undefined) ?? endpoint;
+/**
+ * The name a reader recognizes for an endpoint id: the deployment's `modelDisplayLabel` when it
+ * set one (so a host such as OpenRouter stays internal), else the built-in name, else the id.
+ */
+export const getProviderName = (endpoint: string, endpointsConfig?: TEndpointsConfig): string =>
+  (getEndpointField(endpointsConfig, endpoint, 'modelDisplayLabel') as string | undefined) ??
+  (alternateName[endpoint] as string | undefined) ??
+  endpoint;
 
 export type ErrorEndpoint = {
   /** The endpoint the failed request ran against, when it is knowable. */
@@ -220,7 +225,7 @@ export function useErrorEndpoint(source?: ErrorSource, payloadEndpoint?: string)
     return {
       endpoint,
       endpointType,
-      provider: endpoint ? getProviderName(endpoint) : undefined,
+      provider: endpoint ? getProviderName(endpoint, endpointsConfig) : undefined,
       model: agentRow ? agentIdentity?.model : rowModel,
       agent: agentIdentity?.agent,
       userProvidesCredentials: resolveCredentialOwnership(endpointsConfig, endpoint),

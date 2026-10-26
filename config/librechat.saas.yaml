@@ -12,10 +12,13 @@ registration:
 
 interface:
   customWelcome: 'چطور می‌توانم کمکتان کنم؟'
-  # The values below describe what users see. Admins keep everything (model selector with every
-  # OpenRouter model, parameters, presets, prompts, MCP, Skills, agent builder, marketplace,
-  # bookmarks); their role permissions are restored to the ADMIN defaults on every start.
+  # Admins chat on exactly the users' interface. Their own tools (agent builder, prompts, MCP,
+  # Skills, marketplace) appear only after turning on «حالت پیشرفته» on the admin page; their
+  # role permissions are kept at the ADMIN defaults on every start.
   adminFullAccess: true
+  # The values below only seed the USER role; afterwards the admin page («دسترسی کاربران»)
+  # owns them, and its changes survive restarts.
+  permissionSync: 'seed'
   # Money is shown in Toman. `rate` (Toman per US dollar) is the fallback; the live rate is the
   # free-market dollar on tgju.org, read every 30 minutes, without any extra fee. Pack prices
   # are rounded up to the next 1,000 Toman.
@@ -122,7 +125,7 @@ memory:
   messageWindowSize: 5
   tokenLimit: 2000
   validKeys: ['profile', 'preferences', 'work', 'goals', 'context']
-  excludeEndpoints: ['Local']
+  excludeEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink']
   agent:
     enabled: true
     provider: 'OpenRouterPrivate'
@@ -190,7 +193,9 @@ endpoints:
       titleModel: '~google/gemini-flash-latest'
       # OpenRouter models use a variety of stop tokens.
       dropParams: ['stop']
-      modelDisplayLabel: 'OpenRouter'
+      # Users never see the host's name: errors and icon labels say HiveGPT, and icons show
+      # each model's maker (Claude, GPT, Gemini…) from the model id.
+      modelDisplayLabel: 'HiveGPT'
       # Do not add `headers` here: they make the price cache per-user (one fetch per user).
 
     # Confidential chats: same OpenRouter account, but every request asks OpenRouter to route
@@ -232,129 +237,324 @@ endpoints:
       # A title would be a second slow local call; chats keep the default title.
       titleConvo: false
       modelDisplayLabel: 'داخلی'
+      iconURL: '/assets/logo.svg'
+
+    # Admin-only: Qwen 3.6 35B (3B active) with its refusals removed (abliterated), also on the
+    # `ollama` container. Two endpoints so one spec answers at once and the other thinks first:
+    # Ollama turns thinking off for `reasoning_effort: none`. Only the admin-only specs below
+    # use them; users' requests must name a spec they have, so they cannot reach these.
+    - name: 'LocalUncensored'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['hivegpt-uncensored']
+        fetch: false
+      addParams:
+        reasoning_effort: 'none'
+      tokenConfig:
+        'hivegpt-uncensored':
+          prompt: 0
+          completion: 0
+          context: 16384
+      titleConvo: false
+      modelDisplayLabel: 'بدون سانسور'
+      iconURL: '/assets/logo.svg'
+    - name: 'LocalUncensoredThink'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['hivegpt-uncensored']
+        fetch: false
+      tokenConfig:
+        'hivegpt-uncensored':
+          prompt: 0
+          completion: 0
+          context: 16384
+      titleConvo: false
+      modelDisplayLabel: 'بدون سانسور — فکر عمیق'
+      iconURL: '/assets/logo.svg'
 
 modelSpecs:
   enforce: true
   prioritize: true
+  # Grouped by AI brand in this order; every spec names its own icon (`iconURL`), so no host
+  # name or logo reaches users. Spec names of earlier versions (fast, smart, gpt, economy, pro,
+  # research, perplexity, documents, private-*, local) are kept so old chats continue.
+  # `~…-latest` ids follow each brand's newest model on OpenRouter.
   list:
-    - name: 'fast'
-      label: 'سریع'
-      description: 'پاسخ سریع و کم‌هزینه برای کارهای روزمره؛ در صورت نیاز در وب جستجو می‌کند'
-      default: true
-      group: 'گفتگو'
-      webSearch: true
-      fileSearch: true
-      preset:
-        endpoint: 'OpenRouter'
-        model: '~google/gemini-flash-latest'
-        modelLabel: 'سریع'
+    # --- Claude ---
     - name: 'smart'
-      label: 'هوشمند'
-      description: 'دقیق‌تر برای نوشتن، تحلیل و کدنویسی'
-      group: 'گفتگو'
+      label: 'Claude Sonnet'
+      description: 'دقیق و متعادل؛ برای نوشتن، تحلیل و کدنویسی'
+      group: 'Claude'
+      groupIcon: 'anthropic'
+      iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-sonnet-latest'
-        modelLabel: 'هوشمند'
-    - name: 'gpt'
-      label: 'GPT'
-      description: 'مدل GPT از OpenAI'
-      group: 'گفتگو'
-      webSearch: true
-      fileSearch: true
-      preset:
-        endpoint: 'OpenRouter'
-        model: '~openai/gpt-mini-latest'
-        modelLabel: 'GPT'
-    - name: 'economy'
-      label: 'اقتصادی'
-      description: 'کم‌مصرف‌ترین گزینه برای سوال‌های ساده'
-      group: 'گفتگو'
-      webSearch: true
-      fileSearch: true
-      preset:
-        endpoint: 'OpenRouter'
-        model: '~deepseek/deepseek-flash-latest'
-        modelLabel: 'اقتصادی'
+        modelLabel: 'Claude Sonnet'
     - name: 'pro'
-      label: 'قدرتمند'
-      description: 'قوی‌ترین مدل برای کارهای پیچیده؛ مصرف بیشتری دارد'
-      group: 'گفتگو'
+      label: 'Claude Opus'
+      description: 'قوی‌ترین Claude برای کارهای پیچیده؛ مصرف بیشتری دارد'
+      group: 'Claude'
+      iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-opus-latest'
-        modelLabel: 'قدرتمند'
-    - name: 'research'
-      label: 'جستجو و پژوهش'
-      description: 'همیشه در وب جستجو می‌کند و با ذکر منبع پاسخ می‌دهد'
-      group: 'جستجو'
+        modelLabel: 'Claude Opus'
+    - name: 'claude-haiku'
+      label: 'Claude Haiku'
+      description: 'سریع و کم‌هزینه'
+      group: 'Claude'
+      iconURL: 'anthropic'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~anthropic/claude-haiku-latest'
+        modelLabel: 'Claude Haiku'
+    # --- ChatGPT ---
+    - name: 'gpt'
+      label: 'ChatGPT'
+      description: 'مدل اصلی OpenAI'
+      group: 'ChatGPT'
+      groupIcon: 'openai'
+      iconURL: 'openai'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~openai/gpt-sol-latest'
+        modelLabel: 'ChatGPT'
+    - name: 'gpt-mini'
+      label: 'ChatGPT Mini'
+      description: 'سریع و کم‌هزینه'
+      group: 'ChatGPT'
+      iconURL: 'openai'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~openai/gpt-luna-latest'
+        modelLabel: 'ChatGPT Mini'
+    # --- DeepSeek ---
+    - name: 'deepseek-pro'
+      label: 'DeepSeek Pro'
+      description: 'قوی و بسیار ارزان'
+      group: 'DeepSeek'
+      groupIcon: 'deepseek'
+      iconURL: 'deepseek'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~deepseek/deepseek-pro-latest'
+        modelLabel: 'DeepSeek Pro'
+    - name: 'economy'
+      label: 'DeepSeek Flash'
+      description: 'کم‌مصرف‌ترین گزینه برای سؤال‌های ساده'
+      group: 'DeepSeek'
+      iconURL: 'deepseek'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~deepseek/deepseek-flash-latest'
+        modelLabel: 'DeepSeek Flash'
+    # --- Gemini ---
+    - name: 'fast'
+      label: 'Gemini Flash'
+      description: 'سریع؛ برای کارهای روزمره، در صورت نیاز در وب جستجو می‌کند'
+      default: true
+      group: 'Gemini'
+      groupIcon: 'google'
+      iconURL: 'google'
       webSearch: true
       fileSearch: true
       preset:
         endpoint: 'OpenRouter'
         model: '~google/gemini-flash-latest'
-        modelLabel: 'جستجو'
-        promptPrefix: |
-          You are a research assistant. For every question, first use the web search tool,
-          then answer concisely in the user's language and cite the sources you used.
-          If the user attached files, search them as well and say which file each fact came from.
+        modelLabel: 'Gemini Flash'
+    - name: 'gemini-pro'
+      label: 'Gemini Pro'
+      description: 'قوی‌ترین Gemini؛ متن‌های طولانی و تحلیل'
+      group: 'Gemini'
+      iconURL: 'google'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~google/gemini-pro-latest'
+        modelLabel: 'Gemini Pro'
+    # --- Grok ---
+    - name: 'grok'
+      label: 'Grok'
+      description: 'مدل xAI'
+      group: 'Grok'
+      groupIcon: 'xai'
+      iconURL: 'xai'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~x-ai/grok-latest'
+        modelLabel: 'Grok'
+    # --- GLM ---
+    - name: 'glm'
+      label: 'GLM'
+      description: 'مدل Z.ai'
+      group: 'GLM'
+      groupIcon: 'zhipu'
+      iconURL: 'zhipu'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~z-ai/glm-latest'
+        modelLabel: 'GLM'
+    - name: 'glm-flash'
+      label: 'GLM Flash'
+      description: 'سریع و بسیار ارزان'
+      group: 'GLM'
+      iconURL: 'zhipu'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~z-ai/glm-flash-latest'
+        modelLabel: 'GLM Flash'
+    # --- Qwen ---
+    - name: 'qwen'
+      label: 'Qwen Plus'
+      description: 'مدل اصلی Qwen'
+      group: 'Qwen'
+      groupIcon: 'qwen'
+      iconURL: 'qwen'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: 'qwen/qwen3.6-plus'
+        modelLabel: 'Qwen Plus'
+    - name: 'qwen-coder'
+      label: 'Qwen Coder'
+      description: 'مخصوص برنامه‌نویسی'
+      group: 'Qwen'
+      iconURL: 'qwen'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: 'qwen/qwen3-coder-next'
+        modelLabel: 'Qwen Coder'
+    # --- Perplexity ---
     - name: 'perplexity'
       label: 'Perplexity'
-      description: 'جستجوی بومی Perplexity Sonar Pro'
-      group: 'جستجو'
+      description: 'جستجوی بومی Perplexity با ذکر منبع'
+      group: 'Perplexity'
+      groupIcon: 'perplexity'
+      iconURL: 'perplexity'
       preset:
         endpoint: 'OpenRouter'
         model: 'perplexity/sonar-pro'
         modelLabel: 'Perplexity'
+    # --- Tools ---
+    - name: 'research'
+      label: 'جستجو و پژوهش'
+      description: 'همیشه در وب جستجو می‌کند و با ذکر منبع پاسخ می‌دهد'
+      group: 'ابزارها'
+      groupIcon: '/assets/tools.svg'
+      iconURL: 'google'
+      webSearch: true
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~google/gemini-flash-latest'
+        modelLabel: 'جستجو و پژوهش'
+        promptPrefix: |
+          You are a research assistant. For every question, first use the web search tool,
+          then answer concisely in the user's language and cite the sources you used.
+          If the user attached files, search them as well and say which file each fact came from.
+    - name: 'documents'
+      label: 'پرسش از فایل‌ها'
+      description: 'فایل‌های خود را بارگذاری کنید و درباره‌شان بپرسید'
+      group: 'ابزارها'
+      iconURL: 'anthropic'
+      fileSearch: true
+      preset:
+        endpoint: 'OpenRouter'
+        model: '~anthropic/claude-sonnet-latest'
+        modelLabel: 'پرسش از فایل‌ها'
+        promptPrefix: |
+          Answer using the user's uploaded files. Quote the relevant passage and name the file.
+          If the files do not contain the answer, say so before using general knowledge.
+    # --- Confidential: providers that keep no data (ZDR), and the on-server model ---
     - name: 'private-fast'
-      label: 'محرمانه — سریع'
-      description: 'فقط سرویس‌هایی که هیچ داده‌ای نگه نمی‌دارند (ZDR)؛ بدون جستجوی وب و فایل'
+      label: 'Gemini — محرمانه'
+      description: 'فقط سرویس‌هایی که هیچ داده‌ای نگه نمی‌دارند؛ بدون جستجوی وب و فایل'
       group: 'محرمانه'
+      groupIcon: '/assets/private.svg'
+      iconURL: 'google'
       hideBadgeRow: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'google/gemini-3.8-flash'
-        modelLabel: 'محرمانه'
+        modelLabel: 'Gemini — محرمانه'
     - name: 'private-smart'
-      label: 'محرمانه — هوشمند'
-      description: 'Claude Sonnet روی سرور‌های ZDR؛ بدون جستجوی وب و فایل'
+      label: 'Claude — محرمانه'
+      description: 'Claude روی سرورهایی که داده نگه نمی‌دارند؛ بدون جستجوی وب و فایل'
       group: 'محرمانه'
+      iconURL: 'anthropic'
       hideBadgeRow: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'anthropic/claude-sonnet-5.5'
-        modelLabel: 'محرمانه'
+        modelLabel: 'Claude — محرمانه'
     - name: 'private-gpt'
-      label: 'محرمانه — GPT'
-      description: 'GPT روی سرور‌های ZDR (Azure)؛ بدون جستجوی وب و فایل'
+      label: 'ChatGPT — محرمانه'
+      description: 'ChatGPT روی سرورهایی که داده نگه نمی‌دارند؛ بدون جستجوی وب و فایل'
       group: 'محرمانه'
+      iconURL: 'openai'
       hideBadgeRow: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'openai/gpt-5.6-sol'
-        modelLabel: 'محرمانه'
+        modelLabel: 'ChatGPT — محرمانه'
     - name: 'local'
-      label: 'داخلی (کاملاً محرمانه)'
-      description: 'روی سرور خودمان اجرا می‌شود و هیچ داده‌ای بیرون نمی‌رود؛ کندتر و ضعیف‌تر'
+      label: 'داخلی — روی سرور خودمان'
+      description: 'هیچ داده‌ای از سرور بیرون نمی‌رود؛ کندتر و ضعیف‌تر از بقیه'
       group: 'محرمانه'
+      iconURL: '/assets/logo.svg'
       hideBadgeRow: true
       preset:
         endpoint: 'Local'
         model: 'hivegpt-local'
         modelLabel: 'داخلی'
-    - name: 'documents'
-      label: 'پرسش از فایل‌ها'
-      description: 'فایل‌های خود را بارگذاری کنید و درباره‌شان بپرسید'
-      group: 'اسناد'
-      fileSearch: true
+    # --- Admin only (`adminOnly`): never sent to other roles, and refused for them ---
+    - name: 'local-uncensored'
+      label: 'بدون سانسور — سریع'
+      description: 'Qwen 3.6 بدون سانسور روی سرور خودمان؛ جواب مستقیم، بدون مرحلهٔ فکر'
+      group: 'ادمین'
+      groupIcon: '/assets/admin.svg'
+      iconURL: 'qwen'
+      adminOnly: true
+      hideBadgeRow: true
       preset:
-        endpoint: 'OpenRouter'
-        model: '~anthropic/claude-sonnet-latest'
-        modelLabel: 'اسناد'
-        promptPrefix: |
-          Answer using the user's uploaded files. Quote the relevant passage and name the file.
-          If the files do not contain the answer, say so before using general knowledge.
+        endpoint: 'LocalUncensored'
+        model: 'hivegpt-uncensored'
+        modelLabel: 'بدون سانسور'
+    - name: 'local-uncensored-think'
+      label: 'بدون سانسور — برنامه‌نویسی (فکر عمیق)'
+      description: 'همان مدل، اول فکر می‌کند بعد جواب می‌دهد؛ برای کد و مسئله‌های سخت، کندتر'
+      group: 'ادمین'
+      iconURL: 'qwen'
+      adminOnly: true
+      hideBadgeRow: true
+      preset:
+        endpoint: 'LocalUncensoredThink'
+        model: 'hivegpt-uncensored'
+        modelLabel: 'بدون سانسور'

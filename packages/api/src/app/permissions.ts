@@ -143,6 +143,7 @@ export async function updateInterfacePermissions({
   getRoleByName,
   updateAccessPermissions,
   recordAuditEntry,
+  recordConfigSync,
   tenantId,
 }: {
   appConfig: AppConfig;
@@ -155,6 +156,11 @@ export async function updateInterfacePermissions({
   ) => Promise<void>;
   /** Records a `role.synced` entry for each role whose stored permissions changed. */
   recordAuditEntry?: RecordAuditEntry;
+  /**
+   * Stores the fingerprints of the yaml values applied to a role (`permissionSync: seed`).
+   * Without it, seed mode applies the yaml on every start, as `always` does.
+   */
+  recordConfigSync?: (roleName: string, configSync: Record<string, string>) => Promise<unknown>;
   /**
    * Optional tenant ID for scoping role updates to a specific tenant.
    * When provided (and not SYSTEM_TENANT_ID), runs inside `tenantStorage.run({ tenantId })`.
@@ -169,6 +175,7 @@ export async function updateInterfacePermissions({
         getRoleByName,
         updateAccessPermissions,
         recordAuditEntry,
+        recordConfigSync,
       }),
     );
   }
@@ -204,6 +211,12 @@ export async function updateInterfacePermissions({
 
   const defaults = getConfigDefaults().interface;
   const webSearchDeniedRoles: string[] = [];
+  /**
+   * `interface.permissionSync: seed`: a yaml value is written once, and again only after the
+   * yaml changes, so switches flipped in the admin page survive restarts. The role keeps a
+   * fingerprint of what was last applied per permission type (`configSync`).
+   */
+  const seedOnly = interfaceConfig?.permissionSync === 'seed' && recordConfigSync != null;
 
   /**
    * Re-reads the role so the entry lists what was persisted rather than what was
@@ -255,6 +268,8 @@ export async function updateInterfacePermissions({
     const permissionsToUpdate: Partial<
       Record<PermissionTypes, Record<string, boolean | undefined>>
     > = {};
+    const storedSync = (existingRole?.configSync ?? {}) as Record<string, string>;
+    const nextSync: Record<string, string> = {};
 
     /**
      * Helper to add permission if it should be updated
@@ -264,11 +279,18 @@ export async function updateInterfacePermissions({
       permissions: Record<string, boolean | undefined>,
     ) => {
       const permTypeExists = existingPermissions?.[permType];
+      const isConfigured = interfaceConfig && hasExplicitConfig(interfaceConfig, permType);
+      const fingerprint = JSON.stringify(permissions);
       const isExplicitlyConfigured =
-        interfaceConfig && hasExplicitConfig(interfaceConfig, permType);
+        isConfigured && (!seedOnly || storedSync[permType] !== fingerprint);
+      if (isConfigured && seedOnly && storedSync[permType] !== fingerprint) {
+        nextSync[permType] = fingerprint;
+      }
       const isMemoryDisabled = permType === PermissionTypes.MEMORIES && isMemoryExplicitlyDisabled;
+      /** In seed mode the admin page owns the switch, so a stored `false` is a choice */
       const isMemoryReenabling =
         permType === PermissionTypes.MEMORIES &&
+        !seedOnly &&
         shouldEnableMemory &&
         existingPermissions?.[PermissionTypes.MEMORIES]?.[Permissions.USE] === false;
 
@@ -905,6 +927,9 @@ export async function updateInterfacePermissions({
       if (recordAuditEntry) {
         await recordRoleSync(roleName, existingPermissions);
       }
+    }
+    if (seedOnly && Object.keys(nextSync).length > 0) {
+      await recordConfigSync?.(roleName, { ...storedSync, ...nextSync });
     }
   }
 

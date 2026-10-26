@@ -20,7 +20,7 @@ export default function AgentError({ json, message }: ErrorRendererProps) {
   });
 
   const info = readString(json, 'info');
-  const providerName = info != null ? getProviderName(info) : endpointProvider;
+  const providerName = info != null ? getProviderName(info, endpointsConfig) : endpointProvider;
 
   /**
    * "Open the agent builder" has to be something this reader can do. The side panel offers the

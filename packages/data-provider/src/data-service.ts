@@ -1680,6 +1680,16 @@ export function updateSkillPermissions(
   return request.put(endpoints.updateSkillPermissions(variables.roleName), variables.updates);
 }
 
+/** Any editable permission type of a role, by its route key */
+export function updateRolePermissions(
+  variables: m.UpdateRolePermissionsVars,
+): Promise<m.UpdatePermResponse> {
+  return request.put(
+    endpoints.updateRolePermissions(variables.roleName, variables.key),
+    variables.updates,
+  );
+}
+
 /* Tags */
 export function getConversationTags(): Promise<t.TConversationTagsResponse> {
   return request.get(endpoints.conversationTags());

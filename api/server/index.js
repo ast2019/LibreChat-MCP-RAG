@@ -76,6 +76,7 @@ const {
   updateAccessPermissions,
   sweepOrphanedPreviews,
   getRoleByName,
+  updateRoleByName,
   seedDatabase,
   recordAuditEntry,
 } = require('~/models');
@@ -287,6 +288,7 @@ const startServer = async () => {
       getRoleByName,
       updateAccessPermissions,
       recordAuditEntry,
+      recordConfigSync: (roleName, configSync) => updateRoleByName(roleName, { configSync }),
     });
   });
 

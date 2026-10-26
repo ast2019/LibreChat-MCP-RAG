@@ -29,6 +29,8 @@ export enum ProviderId {
   together = 'together',
   unify = 'unify',
   vercel = 'vercel',
+  /** Zhipu / Z.ai, maker of GLM */
+  zhipu = 'zhipu',
 }
 
 export const endpointToProvider: Partial<Record<EModelEndpoint, ProviderId>> = {
@@ -57,6 +59,10 @@ const providerAliases: Record<string, ProviderId> = {
   lemonadeserver: ProviderId.lemonade,
   mistralai: ProviderId.mistral,
   togetherai: ProviderId.together,
+  glm: ProviderId.zhipu,
+  chatglm: ProviderId.zhipu,
+  zai: ProviderId.zhipu,
+  zhipuai: ProviderId.zhipu,
 };
 
 const modelCatalogAliases: Partial<Record<string, string>> = {

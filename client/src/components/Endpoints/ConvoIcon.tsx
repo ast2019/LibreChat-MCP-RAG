@@ -3,6 +3,7 @@ import { Feather } from 'lucide-react';
 import { Sparkles, AssistantIcon, ProviderIcon } from '@librechat/client';
 import type * as t from 'librechat-data-provider';
 import ConvoIconURL from '~/components/Endpoints/ConvoIconURL';
+import { getEndpointDisplayName } from '~/utils/endpoints';
 import { cn, getEntity, getIconEndpoint } from '~/utils';
 import { useProviderIcon } from '~/hooks/Endpoint';
 import { isImageURL } from '~/utils/icons';
@@ -141,7 +142,13 @@ export default function ConvoIcon({
     }
 
     if (imageURL != null) {
-      return <img src={imageURL} alt={`${endpoint} Icon`} className={className} />;
+      return (
+        <img
+          src={imageURL}
+          alt={`${getEndpointDisplayName(endpointsConfig, endpoint)} Icon`}
+          className={className}
+        />
+      );
     }
 
     return (

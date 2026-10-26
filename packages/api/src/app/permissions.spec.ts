@@ -3416,3 +3416,76 @@ describe('updateInterfacePermissions - interface.adminFullAccess', () => {
     }
   });
 });
+
+describe('updateInterfacePermissions - interface.permissionSync: seed', () => {
+  const mockRecordConfigSync = jest.fn();
+  const yamlPrompts = {
+    [Permissions.USE]: false,
+    [Permissions.CREATE]: false,
+    [Permissions.SHARE]: false,
+    [Permissions.SHARE_PUBLIC]: false,
+  };
+
+  async function run(permissionSync?: 'always' | 'seed', configSync?: Record<string, string>) {
+    mockGetRoleByName.mockImplementation(async (roleName: string) => ({
+      name: roleName,
+      configSync,
+      /** Fresh roles carry the role defaults; or an admin already turned prompts on */
+      permissions: {
+        [PermissionTypes.PROMPTS]: {
+          [Permissions.USE]: true,
+          [Permissions.CREATE]: true,
+          [Permissions.SHARE]: false,
+          [Permissions.SHARE_PUBLIC]: false,
+        },
+      },
+    }));
+    const config = {
+      interface: {
+        prompts: { use: false, create: false, share: false, public: false },
+        ...(permissionSync != null && { permissionSync }),
+      },
+    } as unknown as TCustomConfig;
+    const configDefaults = { interface: {} } as TConfigDefaults;
+    const interfaceConfig = await loadDefaultInterface({ config, configDefaults });
+    const appConfig = { config, interfaceConfig } as unknown as AppConfig;
+    await updateInterfacePermissions({
+      appConfig,
+      getRoleByName: mockGetRoleByName,
+      updateAccessPermissions: mockUpdateAccessPermissions,
+      recordConfigSync: mockRecordConfigSync,
+    });
+  }
+
+  const userWrites = () =>
+    mockUpdateAccessPermissions.mock.calls.find(([name]) => name === SystemRoles.USER)?.[1] ?? {};
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('applies a yaml value the role has never received, and records its fingerprint', async () => {
+    await run('seed');
+    expect(userWrites()[PermissionTypes.PROMPTS]).toEqual(yamlPrompts);
+    expect(mockRecordConfigSync).toHaveBeenCalledWith(SystemRoles.USER, {
+      [PermissionTypes.PROMPTS]: JSON.stringify(yamlPrompts),
+    });
+  });
+
+  it('keeps an admin change once that yaml value was applied', async () => {
+    await run('seed', { [PermissionTypes.PROMPTS]: JSON.stringify(yamlPrompts) });
+    expect(userWrites()[PermissionTypes.PROMPTS]).toBeUndefined();
+    expect(mockRecordConfigSync).not.toHaveBeenCalledWith(SystemRoles.USER, expect.anything());
+  });
+
+  it('applies the yaml again after it changes', async () => {
+    await run('seed', { [PermissionTypes.PROMPTS]: '{"USE":true}' });
+    expect(userWrites()[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+  });
+
+  it('re-applies the yaml on every start by default', async () => {
+    await run(undefined, { [PermissionTypes.PROMPTS]: JSON.stringify(yamlPrompts) });
+    expect(userWrites()[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
+    expect(mockRecordConfigSync).not.toHaveBeenCalled();
+  });
+});

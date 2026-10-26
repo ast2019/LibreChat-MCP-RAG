@@ -47,6 +47,11 @@ export type TModelSpec = {
    * Defaults to true (listed).
    */
   showInMenu?: boolean;
+  /**
+   * Offered to the ADMIN role only. Other roles never receive the spec, so the server also
+   * rejects it for them when `enforce` is on. Defaults to false (every role).
+   */
+  adminOnly?: boolean;
   iconURL?: string | EModelEndpoint; // Allow using project-included icons
   authType?: AuthType;
   /** Hide the chat input tool badge row while this model spec is active. */
@@ -191,6 +196,7 @@ export const tModelSpecSchema = z.object({
   showOnLanding: z.boolean().optional(),
   conversation_starters: z.array(z.string()).optional(),
   showInMenu: z.boolean().optional(),
+  adminOnly: z.boolean().optional(),
   iconURL: z.union([z.string(), eModelEndpointSchema]).optional(),
   authType: authTypeSchema.optional(),
   hideBadgeRow: z.boolean().optional(),

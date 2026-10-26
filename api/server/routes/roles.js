@@ -12,6 +12,11 @@ const {
   peoplePickerPermissionsSchema,
   remoteAgentsPermissionsSchema,
   skillPermissionsSchema,
+  bookmarkPermissionsSchema,
+  webSearchPermissionsSchema,
+  fileSearchPermissionsSchema,
+  fileCitationsPermissionsSchema,
+  temporaryChatPermissionsSchema,
 } = require('librechat-data-provider');
 const { createRolePermissionsUpdateHandler } = require('@librechat/api');
 const { hasCapability, requireCapability } = require('~/server/middleware/roles/capabilities');
@@ -66,6 +71,31 @@ const permissionConfigs = {
     schema: skillPermissionsSchema,
     permissionType: PermissionTypes.SKILLS,
     errorMessage: 'Invalid skill permissions.',
+  },
+  bookmarks: {
+    schema: bookmarkPermissionsSchema,
+    permissionType: PermissionTypes.BOOKMARKS,
+    errorMessage: 'Invalid bookmark permissions.',
+  },
+  'web-search': {
+    schema: webSearchPermissionsSchema,
+    permissionType: PermissionTypes.WEB_SEARCH,
+    errorMessage: 'Invalid web search permissions.',
+  },
+  'file-search': {
+    schema: fileSearchPermissionsSchema,
+    permissionType: PermissionTypes.FILE_SEARCH,
+    errorMessage: 'Invalid file search permissions.',
+  },
+  'file-citations': {
+    schema: fileCitationsPermissionsSchema,
+    permissionType: PermissionTypes.FILE_CITATIONS,
+    errorMessage: 'Invalid file citation permissions.',
+  },
+  'temporary-chat': {
+    schema: temporaryChatPermissionsSchema,
+    permissionType: PermissionTypes.TEMPORARY_CHAT,
+    errorMessage: 'Invalid temporary chat permissions.',
   },
 };
 
@@ -176,5 +206,13 @@ router.put('/:roleName/remote-agents', manageRoles, createPermissionUpdateHandle
  * Update skill permissions for a specific role
  */
 router.put('/:roleName/skills', manageRoles, createPermissionUpdateHandler('skills'));
+
+/**
+ * PUT /api/roles/:roleName/{bookmarks,web-search,file-search,file-citations,temporary-chat}
+ * Feature switches the in-app admin page edits; same handler and capability as the routes above
+ */
+for (const key of ['bookmarks', 'web-search', 'file-search', 'file-citations', 'temporary-chat']) {
+  router.put(`/:roleName/${key}`, manageRoles, createPermissionUpdateHandler(key));
+}
 
 module.exports = router;

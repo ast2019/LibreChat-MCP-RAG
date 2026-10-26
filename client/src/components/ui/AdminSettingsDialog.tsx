@@ -1,4 +1,5 @@
 import { useId, useEffect, useState } from 'react';
+import { useAtomValue } from 'jotai';
 import * as Ariakit from '@ariakit/react';
 import { useForm, Controller } from 'react-hook-form';
 import { ChevronDown, ShieldEllipsis } from 'lucide-react';
@@ -20,6 +21,7 @@ import type { PermissionTypes } from 'librechat-data-provider';
 import type { Control } from 'react-hook-form';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import { useLocalize, useAuthContext, useRoleSelector } from '~/hooks';
+import { adminAdvancedModeAtom } from '~/store/admin';
 
 type FormValues = Record<Permissions, boolean>;
 
@@ -125,6 +127,7 @@ const AdminSettingsDialog: React.FC<AdminSettingsDialogProps> = ({
 }) => {
   const localize = useLocalize();
   const { user } = useAuthContext();
+  const advancedMode = useAtomValue(adminAdvancedModeAtom);
   const { mutate, isLoading, isSuccess } = mutation;
 
   const idPrefix = useId();
@@ -166,7 +169,8 @@ const AdminSettingsDialog: React.FC<AdminSettingsDialogProps> = ({
     }
   }
 
-  if (user?.role !== SystemRoles.ADMIN) {
+  /** Feature access is edited on the admin page; the inline buttons appear in advanced mode */
+  if (user?.role !== SystemRoles.ADMIN || !advancedMode) {
     return null;
   }
 

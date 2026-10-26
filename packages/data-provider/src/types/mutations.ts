@@ -290,6 +290,26 @@ export type UpdateSkillPermVars = UpdatePermVars<p.TSkillPermissions>;
 
 export type UpdatePermResponse = r.TRole;
 
+/** Route keys of `PUT /api/roles/:roleName/:key`, one per editable permission type. */
+export type RolePermissionKey =
+  | 'prompts'
+  | 'agents'
+  | 'memories'
+  | 'mcp-servers'
+  | 'marketplace'
+  | 'skills'
+  | 'bookmarks'
+  | 'web-search'
+  | 'file-search'
+  | 'file-citations'
+  | 'temporary-chat';
+
+export type UpdateRolePermissionsVars = {
+  roleName: string;
+  key: RolePermissionKey;
+  updates: Partial<Record<p.Permissions, boolean>>;
+};
+
 /* Skill mutations */
 
 /**

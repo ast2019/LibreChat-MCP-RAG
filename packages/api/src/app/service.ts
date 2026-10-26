@@ -20,10 +20,10 @@ import type { EnvReferencePolicy } from './allowlist';
 import type { CustomConfigLoadMode } from './loader';
 import type { SecretRebinding } from './rebinding';
 import { createEnvReferencePolicy, parseEnvAllowlist } from './allowlist';
+import { applyAdminFullAccess, applyAdminOnlySpecs } from './admin';
 import { resolveRuntimeConfigSecrets } from '~/admin/secrets';
 import { normalizeEndpointReferences } from './references';
 import { mergeOverrideLayers } from './overrides';
-import { applyAdminFullAccess } from './admin';
 import { checkAppConfigTheme } from './theme';
 
 const BASE_CONFIG_KEY = '_BASE_';
@@ -654,7 +654,10 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
    */
   async function getAppConfig(options: GetAppConfigOptions = {}): Promise<AppConfig> {
     const config = await resolveAppConfig(options);
-    return options.baseOnly === true ? config : applyAdminFullAccess(config, options.role);
+    if (options.baseOnly === true) {
+      return config;
+    }
+    return applyAdminFullAccess(applyAdminOnlySpecs(config, options.role), options.role);
   }
 
   async function resolveAppConfig(options: GetAppConfigOptions): Promise<AppConfig> {
