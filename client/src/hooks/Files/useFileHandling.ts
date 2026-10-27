@@ -413,6 +413,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
               source: data.source,
               embedded: data.embedded,
               llmDeliveryPath: data.llmDeliveryPath,
+              ocr: data.ocr,
             },
             assistant_id ? true : false,
             recovery.isCurrent,
@@ -600,6 +601,15 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       if (!agent_id) {
         formData.append('message_file', 'true');
       }
+      /* The server reads PDFs and images for text through the conversation's privacy route
+       * (public, private or local) and knows whether its model reads PDFs; a new chat has no
+       * stored record to read them from. */
+      if (isConversationUpload && conversation?.spec) {
+        formData.append('spec', conversation.spec);
+      }
+      if (isConversationUpload && conversation?.model) {
+        formData.append('model', conversation.model);
+      }
       const tool_resource = extendedFile.tool_resource;
       if (tool_resource != null) {
         formData.append('tool_resource', tool_resource);
@@ -748,6 +758,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
         files: filesForValidation,
         fileList: acceptedFileList,
         setError,
+        localize,
         fileConfig: currentFileConfig,
         endpointFileConfig,
         toolResource: _toolResource,
@@ -977,12 +988,14 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
           files: filesForValidation,
           fileList: acceptedFiles,
           setError,
+          localize,
           endpointFileConfig,
         }) &&
         validateFileSizes({
           files: filesForValidation,
           fileList: acceptedFiles,
           setError,
+          localize,
           endpointFileConfig,
         });
       if (!batchIsValid) {
@@ -999,6 +1012,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
               files: filesForValidation,
               fileList: processedFileList,
               setError,
+              localize,
               endpointFileConfig,
             });
           }

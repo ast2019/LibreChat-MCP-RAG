@@ -1320,6 +1320,62 @@ describe('File Methods', () => {
     });
   });
 
+  describe('saveFileExtractedText', () => {
+    const ocr = {
+      pages: 3,
+      readPages: 3,
+      ocrPages: 2,
+      engine: 'mixed' as const,
+      credits: 1200,
+      truncated: false,
+    };
+
+    it('stores text and `ocr` and keeps the retention expiry', async () => {
+      const file_id = uuidv4();
+      const expiresAt = new Date(Date.now() + 60_000);
+      await File.create({
+        file_id,
+        user: new mongoose.Types.ObjectId(),
+        filename: 'scan.pdf',
+        filepath: '/uploads/scan.pdf',
+        type: 'application/pdf',
+        bytes: 10,
+        object: 'file',
+        expiresAt,
+      });
+
+      await expect(fileMethods.saveFileExtractedText({ file_id, text: 'متن', ocr })).resolves.toBe(
+        true,
+      );
+
+      const stored = (await File.findOne({ file_id }).lean()) as unknown as IMongoFile;
+      expect(stored.text).toBe('متن');
+      expect(stored.ocr).toEqual(ocr);
+      expect(stored.expiresAt).toEqual(expiresAt);
+    });
+
+    it('never overwrites text that is already stored', async () => {
+      const file_id = uuidv4();
+      await File.create({
+        file_id,
+        user: new mongoose.Types.ObjectId(),
+        filename: 'a.pdf',
+        filepath: '/uploads/a.pdf',
+        type: 'application/pdf',
+        bytes: 10,
+        object: 'file',
+        text: 'قبلی',
+      });
+
+      await expect(fileMethods.saveFileExtractedText({ file_id, text: 'جدید', ocr })).resolves.toBe(
+        false,
+      );
+      const stored = (await File.findOne({ file_id }).lean()) as unknown as IMongoFile;
+      expect(stored.text).toBe('قبلی');
+      expect(stored.ocr).toBeUndefined();
+    });
+  });
+
   describe('createFile', () => {
     it('should create a new file with TTL', async () => {
       const fileId = uuidv4();

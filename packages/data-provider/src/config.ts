@@ -3847,6 +3847,58 @@ export const ocrSchema = z.object({
   strategy: z.nativeEnum(OCRStrategy).default(OCRStrategy.MISTRAL_OCR),
 });
 
+/** Vision OCR target: a configured endpoint name plus a concrete model id priced by that endpoint. */
+const documentOcrVisionRouteSchema = z.object({
+  endpoint: z.string().min(1),
+  model: z.string().min(1),
+});
+
+/**
+ * Persian-capable document text extraction (`documentOcr`). PDF pages with a usable text layer are
+ * read for free; scanned pages are OCR'd through the route the conversation uses: `public` and
+ * `private` call a vision model on an OpenAI-compatible endpoint (billed at that endpoint's token
+ * price, like chat), `local` runs Tesseract on the server (billed per page).
+ */
+export const documentOcrSchema = z.object({
+  /** Off by default: without this block uploads behave as before. */
+  enabled: z.boolean().default(false),
+  /** Pages beyond this limit are not read; the result is flagged as truncated. */
+  maxPages: z.number().int().min(1).max(2000).default(100),
+  /** Pages OCR'd in parallel per document. */
+  concurrency: z.number().int().min(1).max(32).default(4),
+  /** Render resolution for scanned pages. */
+  dpi: z.number().int().min(72).max(600).default(200),
+  /** Longest side in pixels of a rendered page; DPI is lowered to fit. */
+  maxSide: z.number().int().min(256).max(10000).default(2000),
+  /** Per vision call / Tesseract run. */
+  timeoutMs: z.number().int().min(1000).max(600000).default(120000),
+  /** Tokens per page assumed for balance pre-checks before the real usage is known. */
+  estimatePromptTokensPerPage: z.number().int().min(0).default(1500),
+  estimateCompletionTokensPerPage: z.number().int().min(0).default(2000),
+  /** Conversations on these endpoints OCR on the server (`local` route); a spec with
+   * `privacy: 'local'` does too. */
+  localEndpoints: z.array(z.string()).default(['Local', 'LocalUncensored', 'LocalUncensoredThink']),
+  /** Conversations on these endpoints use the `private` route; a spec with
+   * `privacy: 'private'` does too. */
+  privateEndpoints: z.array(z.string()).default(['OpenRouterPrivate']),
+  public: documentOcrVisionRouteSchema.optional(),
+  /** Should name a zero-data-retention endpoint (e.g. one whose `addParams` enforce ZDR). */
+  private: documentOcrVisionRouteSchema.optional(),
+  local: z
+    .object({
+      engine: z.literal('tesseract').default('tesseract'),
+      /** Tesseract `-l` value; the language data must be installed on the server. */
+      languages: z.string().min(1).default('fas+eng'),
+      /** Tesseract executable name or path. */
+      binary: z.string().min(1).default('tesseract'),
+      /** USD charged per locally OCR'd page (before conversion to credits). */
+      pricePerPage: z.number().min(0).default(0.00025),
+    })
+    .optional(),
+});
+
+export type TDocumentOcrConfig = z.infer<typeof documentOcrSchema>;
+
 /** A grantable bundle of credits (1,000,000 credits = $1 of marked-up usage). */
 export const balancePackSchema = z.object({
   /** Stable identifier used by the admin API and CLI, e.g. `starter` */
@@ -4312,6 +4364,7 @@ export const configSchema = z.object({
   cache: z.boolean().default(true),
   projects: chatProjectsConfigSchema,
   ocr: ocrSchema.optional(),
+  documentOcr: documentOcrSchema.optional(),
   webSearch: webSearchSchema.optional(),
   githubCompare: z
     .object({

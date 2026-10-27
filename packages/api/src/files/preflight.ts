@@ -32,6 +32,7 @@ export interface UploadContentPolicyInput {
   readonly fileConfig: FileConfig;
   readonly ocrConfigured: boolean;
   readonly ragConfigured: boolean;
+  readonly documentOcrEnabled?: boolean;
   readonly rawFileMode?: 'materialize' | 'opaque';
   readonly readFile?: (path: string) => Promise<Buffer>;
 }
@@ -54,6 +55,7 @@ export async function assertUploadContentAllowed(input: UploadContentPolicyInput
           fileConfig: input.fileConfig,
           ocrConfigured: input.ocrConfigured,
           ragConfigured: input.ragConfigured,
+          documentOcrEnabled: input.documentOcrEnabled,
         })
       : false;
 

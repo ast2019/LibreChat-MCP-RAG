@@ -59,6 +59,8 @@ export interface TxData {
   user: string | Types.ObjectId;
   conversationId?: string;
   model?: string;
+  /** Endpoint that served the call; stored for reporting, never used for pricing. */
+  endpoint?: string;
   context?: string;
   tokenType?: 'prompt' | 'completion' | 'credits';
   rawAmount?: number;

@@ -62,6 +62,9 @@ services:
       MEILI_MASTER_KEY: ${SERVICE_PASSWORD_64_MEILI}
       MEILI_NO_ANALYTICS: 'true'
       RAG_API_URL: http://rag_api:8000
+      # Uploads answer over an event stream with a heartbeat every second, so a 100-page OCR
+      # (minutes) is not cut off by a proxy's idle timeout (e.g. Cloudflare's 100 s).
+      FILE_UPLOAD_SSE_ENABLED: 'true'
       LIBRECHAT_TEMP_CREDENTIALS_PATH: /app/data/.env.temp
       # One api replica in this stack; lets the (unused) scheduler arm instead of logging an error.
       SCHEDULES_SINGLE_PROCESS: 'true'

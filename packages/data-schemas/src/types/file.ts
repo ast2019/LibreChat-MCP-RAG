@@ -5,6 +5,7 @@ import type {
   FileContext,
   RunFileProvenance,
   TFile,
+  TFileOcr,
   TFileWorkspaceImports,
 } from 'librechat-data-provider';
 
@@ -233,6 +234,8 @@ export interface IMongoFile extends Omit<Document, 'model'> {
     /** Copies placed in attached workspaces. */
     workspaceImports?: TFileWorkspaceImports;
   };
+  /** How `documentOcr` read `text`; see `TFileOcr`. */
+  ocr?: TFileOcr;
   /** Upload-time inference, not a durable contract. See the schema field for why. */
   llmDeliveryPath?: string;
   expiresAt?: Date;

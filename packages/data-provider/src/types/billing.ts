@@ -42,6 +42,8 @@ export type TAdminBillingSummary = {
   creditsGrantedInWindow: number;
   packGrantsInWindow: number;
   creditsSpentInWindow: number;
+  /** Part of the spend with no provider cost (on-server OCR); excluded from the provider cost */
+  creditsSpentLocalInWindow?: number;
   creditsOutstanding: number;
   estimatedProviderCredits: number;
   topModels: { model: string; credits: number }[];

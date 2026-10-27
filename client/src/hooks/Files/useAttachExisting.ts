@@ -187,6 +187,7 @@ export default function useAttachExisting(context: AttachExistingContext): (file
          *  addFile call; the delivery path has to ride along here now that every
          *  attach-existing surface routes through this hook. */
         llmDeliveryPath: fileData.llmDeliveryPath,
+        ocr: fileData.ocr,
       });
     },
     [

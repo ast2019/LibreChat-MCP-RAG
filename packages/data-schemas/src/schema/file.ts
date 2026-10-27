@@ -207,6 +207,21 @@ const file: Schema<IMongoFile> = new Schema(
       type: String,
       enum: ['provider', 'text', 'none'],
     },
+    /** How `documentOcr` read the stored `text` (pages, OCR'd pages, engine, credits charged). */
+    ocr: {
+      type: new Schema(
+        {
+          pages: { type: Number, required: true },
+          readPages: { type: Number, required: true },
+          ocrPages: { type: Number, required: true },
+          engine: { type: String, enum: ['text', 'vision', 'tesseract', 'mixed'], required: true },
+          credits: { type: Number, required: true },
+          truncated: { type: Boolean, required: true },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
     expiresAt: {
       /* Short-lived upload TTL managed by MongoDB. This is separate from
        * retention-scoped `expiredAt`, which is swept by application code

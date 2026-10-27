@@ -456,6 +456,11 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
     data: Partial<IMongoFile> & { file_id: string },
     extraFilter?: FilterQuery<IMongoFile>,
   ) => Promise<IMongoFile | null>;
+  saveFileExtractedText: (data: {
+    file_id: string;
+    text: string;
+    ocr: NonNullable<IMongoFile['ocr']>;
+  }) => Promise<boolean>;
   updateFileCodeEnvRef: (data: {
     file_id: string;
     routeKey: string;
@@ -1307,6 +1312,28 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
     }).lean<IMongoFile>();
   }
 
+  /**
+   * Stores text extracted after upload (e.g. a PDF read by `documentOcr` for a model without file
+   * input) and how it was read. Unlike `updateFile` it keeps the record's retention expiry, and it
+   * only fills a record that has no text yet, so a concurrent extraction cannot overwrite one.
+   */
+  async function saveFileExtractedText({
+    file_id,
+    text,
+    ocr,
+  }: {
+    file_id: string;
+    text: string;
+    ocr: NonNullable<IMongoFile['ocr']>;
+  }): Promise<boolean> {
+    const File = mongoose.models.File as Model<IMongoFile>;
+    const result = await File.updateOne(
+      { file_id, $or: [{ text: { $exists: false } }, { text: null }, { text: '' }] },
+      { $set: { text, ocr } },
+    );
+    return result.modifiedCount > 0;
+  }
+
   /** Background outputs commit only while their dispatch still owns the claimed filename. */
   async function commitCodeFile(
     data: CodeFileCommitData,
@@ -1998,6 +2025,7 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
     commitCodeFile,
     createFile,
     updateFile,
+    saveFileExtractedText,
     updateFileCodeEnvRef,
     clearFileCodeEnvRefs,
     addFileEmbeddedEntity,

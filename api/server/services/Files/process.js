@@ -59,6 +59,8 @@ const {
   getCodeApiUploadOptions,
   withCodeApiUploadRecovery,
   isLeader,
+  readUploadWithDocumentOcr,
+  prepareUploadOcrEmbedding,
 } = require('@librechat/api');
 const {
   convertImage,
@@ -77,6 +79,7 @@ const { determineFileType } = require('~/server/utils');
 const { STTService } = require('./Audio/STTService');
 const db = require('~/models');
 const { getFileStorage } = require('~/server/services/Files/operations');
+const { documentOcrService } = require('./documentOcr');
 
 /**
  * Creates a modular file upload wrapper that ensures filename sanitization
@@ -961,9 +964,10 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
      * @param {object} params
      * @param {string} params.text
      * @param {boolean} params.isTranscript
+     * @param {import('librechat-data-provider').TFileOcr} [params.ocr]
      * @return {Promise<void>}
      */
-    const createTextFile = async ({ text, isTranscript = false }) => {
+    const createTextFile = async ({ text, isTranscript = false, ocr }) => {
       if (!isTranscript) {
         assertExtractedTextInspectable({
           filters: appConfig?.filters,
@@ -1054,6 +1058,7 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
           height,
           width,
           llmDeliveryPath: 'text',
+          ocr,
         }),
         metadata: uploadChoiceMetadata,
         ...retentionExpiry,
@@ -1085,7 +1090,18 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
       fileConfig,
       ocrConfigured: appConfig?.ocr != null,
       ragConfigured: !!process.env.RAG_API_URL,
+      documentOcrEnabled: documentOcrService.getConfig(appConfig).enabled,
     });
+    if (extractedTextPlan === UPLOAD_EXTRACTED_TEXT_PLANS.documentOcr) {
+      const { text, ocr } = await readUploadWithDocumentOcr({
+        req,
+        res,
+        file,
+        metadata,
+        service: documentOcrService,
+      });
+      return await createTextFile({ text, ocr });
+    }
     const shouldUseConfiguredOCR = extractedTextPlan === UPLOAD_EXTRACTED_TEXT_PLANS.configuredOCR;
     const shouldUseConfiguredText = extractedTextPlan === UPLOAD_EXTRACTED_TEXT_PLANS.configuredRAG;
     const shouldUseDocumentParser =
@@ -1225,6 +1241,8 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
   const isImageFile = file.mimetype.startsWith('image');
   const source = getFileStrategy(appConfig, { isImage: isImageFile });
 
+  /** With `documentOcr`, the PDF's extracted text, embedded in place of the file. */
+  let ocrEmbedding = null;
   if (
     effectiveToolResource === EToolResources.file_search &&
     tool_resource === EToolResources.file_search
@@ -1264,13 +1282,26 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
           }),
         },
       },
-      () =>
-        uploadVectors({
+      async () => {
+        ocrEmbedding = await prepareUploadOcrEmbedding({
           req,
+          res,
           file,
-          file_id,
-          entity_id,
-        }),
+          fileId: file_id,
+          metadata,
+          service: documentOcrService,
+        });
+        try {
+          return await uploadVectors({
+            req,
+            file: ocrEmbedding?.file ?? file,
+            file_id,
+            entity_id,
+          });
+        } finally {
+          await ocrEmbedding?.cleanup();
+        }
+      },
     );
 
     /* Vectors live under the entity that embedded them, and priming asks which namespaces
@@ -1439,7 +1470,8 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
       width,
       tenantId: req.user.tenantId,
       llmDeliveryPath,
-      text: fallbackText,
+      text: ocrEmbedding && fallbackText != null ? ocrEmbedding.text : fallbackText,
+      ocr: ocrEmbedding?.ocr,
     }),
     ...retentionExpiry,
   };

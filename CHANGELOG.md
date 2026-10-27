@@ -7,6 +7,40 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-27
+
+### Added
+- **Persian OCR for scanned PDFs and images** (`documentOcr`). Pages with a text layer are read
+  for free; only scanned or garbled pages are OCR'd:
+  - normal chats: `google/gemini-3.8-flash` on `OpenRouter`;
+  - confidential chats: the same model on `OpenRouterPrivate` (ZDR);
+  - local chats: Tesseract (`fas+eng`) on our own server, so nothing leaves it.
+
+  A stored conversation only ever becomes stricter, never public. OCR'd text is used for
+  «upload as text», for file search (scanned PDFs become searchable) and for models that cannot
+  read PDFs themselves (DeepSeek, GLM, Qwen, Perplexity, local models). It is stored on the file,
+  so a file is never read or billed twice.
+- **OCR is billed like chat.** Vision OCR records prompt/completion transactions
+  (`context: 'ocr'`) at the model's real price × the endpoint's `priceMultiplier`; local
+  pages record one `ocr_local` transaction of pages × `pricePerPage` (/bin/sh.00025). An
+  estimate is reserved from the balance first, only real usage is charged, and a failure
+  charges only the pages already read. The admin dashboard counts it, with local pages as
+  pure margin. Worked example in `docs/saas/BILLING.md`.
+- The file chip says «متن ۷ صفحه با OCR خوانده شد — ≈ … تومان», and «فقط ۱۰۰ صفحهٔ اول خوانده شد»
+  when the PDF was longer than `maxPages`. Every OCR failure has a Persian message.
+- File limits: 10 files, 50 MB each, 100 MB per message (`fileConfig`), with Persian messages
+  for oversized, too many or unsupported files.
+- Tesseract with `tessdata_fast` Persian and English in the api image.
+
+### Changed
+- OpenRouter no longer falls back to its own Mistral OCR (`plugins: file-parser, engine: native`),
+  which was billed to our account, never to the user, and is not ZDR.
+- Persian text from PDF, Word, Excel and ODT files is normalized: presentation forms, ی/ک,
+  kashida, bidi marks and lines extracted in visual (reversed) order.
+- A file search upload in a confidential or local chat is refused, because the embeddings
+  service is not ZDR.
+- OpenRouter web search keeps the other request plugins instead of replacing them.
+
 ## [0.14.1] - 2026-10-27
 
 ### Changed

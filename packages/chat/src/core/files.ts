@@ -17,6 +17,8 @@ export interface ExtendedFile {
   attached?: boolean;
   embedded?: boolean;
   llmDeliveryPath?: TFile['llmDeliveryPath'];
+  /** Set by the upload response when `documentOcr` read the file's text. */
+  ocr?: TFile['ocr'];
   tool_resource?: string;
   metadata?: TFile['metadata'];
 }

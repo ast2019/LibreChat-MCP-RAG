@@ -6,6 +6,8 @@ export interface ITransaction extends Document {
   conversationId?: string;
   tokenType: 'prompt' | 'completion' | 'credits';
   model?: string;
+  /** Endpoint that served the call, when the caller records it (e.g. OCR). */
+  endpoint?: string;
   context?: string;
   valueKey?: string;
   rate?: number;
@@ -41,6 +43,9 @@ const transactionSchema: Schema<ITransaction> = new Schema(
     model: {
       type: String,
       index: true,
+    },
+    endpoint: {
+      type: String,
     },
     context: {
       type: String,

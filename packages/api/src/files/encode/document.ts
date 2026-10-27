@@ -268,6 +268,78 @@ function getBase64DecodedByteCount(content: string): number {
 }
 
 /**
+ * Delivers PDFs as their text to a model that cannot read files (the `documentOcr` guard for
+ * uploads made before the conversation moved to such a model). Text already stored on the file is
+ * reused, so a document is extracted and billed at most once.
+ */
+export interface DocumentTextConverter {
+  /** Whether PDFs sent to this model must become text. */
+  needsText: (req: ServerRequest, params: DocumentTarget) => boolean;
+  /** The file's text; extracts, bills and persists it when the record has none. */
+  getText: (
+    req: ServerRequest,
+    file: IMongoFile,
+    pdf: Buffer,
+    params: DocumentTarget,
+  ) => Promise<string>;
+}
+
+/** The model a turn's documents are encoded for. */
+export interface DocumentTarget {
+  provider: Providers;
+  endpoint?: string;
+  model?: string;
+}
+
+function pdfTextBlock(filename: string | undefined, text: string): DocumentBlock {
+  return { type: 'text', text: `File: "${filename ?? 'document'}"\n\n${text}` };
+}
+
+async function appendPdfsAsText(
+  req: ServerRequest,
+  pdfs: IMongoFile[],
+  target: DocumentTarget,
+  converter: DocumentTextConverter,
+  encodingMethods: Record<string, StrategyFunctions>,
+  getStrategyFunctions: (source: string) => StrategyFunctions,
+  result: DocumentResult,
+): Promise<void> {
+  const settled = await Promise.allSettled(
+    pdfs.map(async (file) => {
+      const metadata = {
+        file_id: file.file_id,
+        temp_file_id: file.temp_file_id,
+        filepath: file.filepath,
+        source: file.source,
+        filename: file.filename,
+        type: file.type,
+      };
+      if (typeof file.text === 'string' && file.text.trim() !== '') {
+        return { block: pdfTextBlock(file.filename, file.text), metadata };
+      }
+      const processed = await runGuardedEncode(file.bytes ?? 0, () =>
+        getFileStream(req, file, encodingMethods, getStrategyFunctions),
+      );
+      if (!processed?.content) {
+        return null;
+      }
+      const pdf = Buffer.from(processed.content, 'base64');
+      const text = await converter.getText(req, file, pdf, target);
+      return { block: pdfTextBlock(file.filename, text), metadata: processed.metadata };
+    }),
+  );
+  for (const outcome of settled) {
+    if (outcome.status === 'rejected') {
+      throw outcome.reason;
+    }
+    if (outcome.value) {
+      result.documents.push(outcome.value.block);
+      result.files.push(outcome.value.metadata);
+    }
+  }
+}
+
+/**
  * Encodes and formats document files for various providers.
  *
  * Callers are responsible for pre-filtering `files` to types the endpoint accepts
@@ -284,6 +356,7 @@ export async function encodeAndFormatDocuments(
   files: IMongoFile[],
   params: { provider: Providers; endpoint?: string; useResponsesApi?: boolean; model?: string },
   getStrategyFunctions: (source: string) => StrategyFunctions,
+  textConverter?: DocumentTextConverter,
 ): Promise<DocumentResult> {
   const { provider, endpoint, useResponsesApi, model } = params;
   if (!files?.length) {
@@ -292,6 +365,25 @@ export async function encodeAndFormatDocuments(
 
   const encodingMethods: Record<string, StrategyFunctions> = {};
   const result: DocumentResult = { documents: [], files: [] };
+
+  if (textConverter?.needsText(req, { provider, endpoint, model }) === true) {
+    const pdfs = files.filter((file) => file.type === 'application/pdf');
+    if (pdfs.length > 0) {
+      await appendPdfsAsText(
+        req,
+        pdfs,
+        { provider, endpoint, model },
+        textConverter,
+        encodingMethods,
+        getStrategyFunctions,
+        result,
+      );
+      files = files.filter((file) => file.type !== 'application/pdf');
+      if (!files.length) {
+        return result;
+      }
+    }
+  }
 
   const isBedrock = provider === Providers.BEDROCK;
   const isDocSupported = isDocumentSupportedProvider(provider);

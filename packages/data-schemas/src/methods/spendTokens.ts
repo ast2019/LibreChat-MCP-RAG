@@ -6,6 +6,8 @@ export interface SpendTxData {
   user: string | import('mongoose').Types.ObjectId;
   conversationId?: string;
   model?: string;
+  /** Endpoint that served the call; stored for reporting, never used for pricing. */
+  endpoint?: string;
   context?: string;
   endpointTokenConfig?: Record<string, Record<string, number>> | null;
   balance?: { enabled?: boolean };

@@ -491,10 +491,11 @@ describe('useFileHandling', () => {
         );
         expect(mockMutate).not.toHaveBeenCalled();
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'File size limit exceeded: 5 MB',
+          message: 'com_error_files_size_limit',
           status: 'error',
           duration: 5000,
         });
+        expect(mockLocalize).toHaveBeenCalledWith('com_error_files_size_limit', { 0: 5 });
       } finally {
         jest.useRealTimers();
       }
@@ -642,7 +643,7 @@ describe('useFileHandling', () => {
           expect.anything(),
         );
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'Total file size limit exceeded: 7 MB',
+          message: 'com_error_files_total_size_limit',
           status: 'error',
           duration: 5000,
         });
@@ -754,7 +755,7 @@ describe('useFileHandling', () => {
         expect(accepted).toBe(false);
         expect(mockMutate).not.toHaveBeenCalled();
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'Total file size limit exceeded: 7 MB',
+          message: 'com_error_files_total_size_limit',
           status: 'error',
           duration: 5000,
         });
@@ -795,7 +796,7 @@ describe('useFileHandling', () => {
         );
         expect(mockMutate).not.toHaveBeenCalled();
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'Total file size limit exceeded: 7 MB',
+          message: 'com_error_files_total_size_limit',
           status: 'error',
           duration: 5000,
         });
@@ -999,7 +1000,7 @@ describe('useFileHandling', () => {
 
         expect(mockMutate).toHaveBeenCalledTimes(1);
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'Total file size limit exceeded: 7 MB',
+          message: 'com_error_files_total_size_limit',
           status: 'error',
           duration: 5000,
         });
@@ -1034,7 +1035,7 @@ describe('useFileHandling', () => {
         expect(mockValidateFileSizes.mock.calls[1][0].files.size).toBe(1);
         expect(mockMutate).toHaveBeenCalledTimes(1);
         expect(mockShowToast).toHaveBeenCalledWith({
-          message: 'Total file size limit exceeded: 7 MB',
+          message: 'com_error_files_total_size_limit',
           status: 'error',
           duration: 5000,
         });
