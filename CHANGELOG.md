@@ -7,6 +7,22 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-27
+
+### Removed
+- **Langfuse**, which HiveGPT does not use:
+  - the «پایش هوش (Langfuse)» settings tab and its connection form;
+  - the "open in Langfuse" / "view session" links in the trace viewer, token usage card and
+    shared-chat page;
+  - the `/api/admin/langfuse` admin API with its handlers, data-provider endpoints and types;
+  - the session-link lookup on shared links and the `langfuseConnectionAccess` capability
+    check, so `/api/config` makes fewer DB calls on every load;
+  - the fanout gateway (`otel/langfuse-fanout`, both `*langfuse-fanout.yml` compose files and
+    the Helm templates/values) and the `LANGFUSE_*` block in `.env.example`;
+  - 32 Langfuse translation keys.
+
+  The core tracing code stays; it does nothing unless `LANGFUSE_*` credentials are set.
+
 ## [0.12.0] - 2026-10-27
 
 ### Changed

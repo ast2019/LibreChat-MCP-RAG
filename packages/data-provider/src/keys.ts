@@ -14,8 +14,6 @@ export enum QueryKeys {
   searchConversations = 'searchConversations',
   conversation = 'conversation',
   searchEnabled = 'searchEnabled',
-  langfuseConnection = 'langfuseConnection',
-  langfuseSessionLink = 'langfuseSessionLink',
   conversationTraceAvailability = 'conversationTraceAvailability',
   conversationTraceRecords = 'conversationTraceRecords',
   conversationTraceRecord = 'conversationTraceRecord',
@@ -147,8 +145,6 @@ export enum MutationKeys {
   updateFavorites = 'updateFavorites',
   /** Pinned-section display order write, keyed for the same reason. */
   updatePinnedOrder = 'updatePinnedOrder',
-  updateLangfuseConnection = 'updateLangfuseConnection',
-  testLangfuseConnection = 'testLangfuseConnection',
   createAgentApiKey = 'createAgentApiKey',
   deleteAgentApiKey = 'deleteAgentApiKey',
   fileUpload = 'fileUpload',

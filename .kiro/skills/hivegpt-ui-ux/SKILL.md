@@ -56,7 +56,7 @@ must look native in RTL, read as plain Persian, and use the existing theme token
 - Plain, short, action-first: «ذخیره»، «حذف گفت‌وگو»، «تلاش دوباره» — not «انجام عملیات ذخیره‌سازی».
 - Button = verb; title = noun phrase; one idea per sentence; polite but not formal-bureaucratic.
 - Avoid transliterated English («سینک»، «آپلود‌کردن»، «اکانت») — use «همگام‌سازی»، «بارگذاری»، «حساب».
-- Technical terms (LaTeX, API, Langfuse, MCP, RAG, token) keep the name and get one plain line:
+- Technical terms (LaTeX, API, MCP, RAG, token) keep the name and get one plain line:
   «LaTeX — نوشتن فرمول‌های ریاضی».
 - Errors say what happened + what to do: «اتصال برقرار نشد. اینترنت را بررسی کنید و دوباره تلاش کنید.»
 - Never edit `translation.json` casually; add keys in both `en` and `fa` and list them in the PR.

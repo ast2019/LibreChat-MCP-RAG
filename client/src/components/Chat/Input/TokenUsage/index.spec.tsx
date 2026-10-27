@@ -18,7 +18,6 @@ jest.mock('~/data-provider', () => ({
     config?.enabled === false
       ? { data: undefined, isError: false, isFetched: false }
       : (mockBalanceQuery() ?? { data: mockBalance(), isError: false, isFetched: true }),
-  useGetLangfuseSessionLinkQuery: () => ({ data: undefined }),
 }));
 
 jest.mock('~/hooks/AuthContext', () => ({

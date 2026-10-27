@@ -760,26 +760,4 @@ describe('TokenUsage Breakdown', () => {
       ).not.toBeInTheDocument();
     });
   });
-
-  describe('langfuse', () => {
-    const url = 'https://cloud.langfuse.com/project/project-1/sessions/conversation-1';
-
-    it('renders the Langfuse session as an external link when available', async () => {
-      renderBreakdown({ langfuseSessionUrl: url });
-      await userEvent.click(toggle());
-
-      expect(screen.getByRole('link', { name: 'com_ui_langfuse_view_session' })).toHaveAttribute(
-        'href',
-        url,
-      );
-      expect(screen.getByRole('link')).toHaveAttribute('target', '_blank');
-    });
-
-    it('omits the Langfuse session link when no traced message is available', async () => {
-      renderBreakdown();
-      await userEvent.click(toggle());
-
-      expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    });
-  });
 });

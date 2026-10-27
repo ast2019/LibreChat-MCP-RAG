@@ -102,28 +102,6 @@ export function getConversationTraceRecord(
   );
 }
 
-export function getLangfuseConnection(): Promise<t.TLangfuseConnectionStatus> {
-  return request.get(endpoints.adminLangfuseConnection());
-}
-
-export function updateLangfuseConnection(
-  payload: t.TUpdateLangfuseConnectionRequest,
-): Promise<t.TLangfuseConnectionStatus> {
-  return request.put(endpoints.adminLangfuseConnection(), payload);
-}
-
-export function testLangfuseConnection(
-  payload: t.TLangfuseConnectionTestRequest,
-): Promise<t.TLangfuseConnectionTestResponse> {
-  return request.post(endpoints.adminLangfuseConnectionTest(), payload);
-}
-
-export function getLangfuseSessionLink(
-  conversationId: string,
-): Promise<t.TLangfuseSessionLinkResponse> {
-  return request.get(endpoints.adminLangfuseSessionLink(conversationId));
-}
-
 export function revokeUserKey(name: string): Promise<unknown> {
   return request.delete(endpoints.revokeUserKey(name));
 }

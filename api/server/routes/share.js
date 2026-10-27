@@ -22,7 +22,6 @@ const {
   isValidSharedLinksCursor,
   MAX_SHARED_LINK_SEARCH_LENGTH,
   createSharedLinkConfigMiddleware,
-  createSharedLangfuseSessionResolver,
   recordShareLinkRejection,
   traceIdForMessage,
   resolveDownloadPath,
@@ -45,7 +44,6 @@ const {
   getSharedLink,
   getSharedLinkFile,
   backfillSharedLinkFiles,
-  getMessages,
   getRoleByName,
 } = require('~/models');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
@@ -56,7 +54,6 @@ const { createForkLimiters, createShareLimiters } = require('~/server/middleware
 const optionalShareFileAuth = require('~/server/middleware/optionalShareFileAuth');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
-const { getHeldCapabilities } = require('~/server/middleware/roles/capabilities');
 const configMiddleware = require('~/server/middleware/config/app');
 const { getAppConfig } = require('~/server/services/Config/app');
 const router = express.Router();
@@ -64,11 +61,6 @@ const sharedLinkConfigMiddleware = createSharedLinkConfigMiddleware({ getAppConf
 const sharedStartupConfigMiddleware = createSharedLinkConfigMiddleware({
   getAppConfig,
   failClosed: true,
-});
-
-const getSharedLangfuseSessionUrl = createSharedLangfuseSessionResolver({
-  getHeldCapabilities,
-  getMessages,
 });
 
 const SHARE_SERVICE_ERROR_STATUS = {
@@ -378,31 +370,15 @@ if (allowSharedLinks) {
           sharedFileMetadata: true,
           legacyPii: req.config?.messageFilter?.pii,
         });
-        const sharePromise = getSharedMessages(req.params.shareId, req.shareResourceId, {
+        const share = await getSharedMessages(req.params.shareId, req.shareResourceId, {
           // Viewer-independent: the per-link choice (stored on the share) decides
           // file inclusion; only a global env kill switch can force it off here.
           snapshotFiles: !isFileSnapshotKillSwitchActive(),
           preflight: contentPreflight,
         });
-        const langfuseSessionPromise = getSharedLangfuseSessionUrl({
-          viewer: req.user,
-          shareTenantId: req.shareTenantId,
-          shareConversationId: req.shareConversationId,
-          shareOwnerId: req.shareOwnerId,
-          config: req.config?.langfuse,
-        }).catch((error) => {
-          logger.warn('[share] Failed to resolve Langfuse session link:', error);
-          return null;
-        });
-        const [share, langfuseSessionUrl] = await Promise.all([
-          sharePromise,
-          langfuseSessionPromise,
-        ]);
         if (share) {
           res.set('Cache-Control', 'private, no-store');
-          res
-            .status(200)
-            .json(langfuseSessionUrl == null ? share : { ...share, langfuseSessionUrl });
+          res.status(200).json(share);
         } else {
           res.status(404).end();
         }

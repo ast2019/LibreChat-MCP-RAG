@@ -3515,8 +3515,6 @@ export type TStartupConfig = {
   conversationTitleOwnershipVersion?: typeof CONVERSATION_TITLE_OWNERSHIP_VERSION;
   appTitle: string;
   socialLogins?: string[];
-  langfuseFanoutEnabled?: boolean;
-  langfuseConnectionAccess?: boolean;
   insightsEnabled?: boolean;
   /** Whether pull requests are active (on unless turned off, with a token and a repository scope);
    *  the header does not ask for a pull request without it. */
@@ -5359,10 +5357,6 @@ export enum SettingsTabValues {
    * Tab for Speech Settings
    */
   SPEECH = 'speech',
-  /**
-   * Tab for Langfuse Settings
-   */
-  LANGFUSE = 'langfuse',
   /**
    * Tab for Beta Features
    */

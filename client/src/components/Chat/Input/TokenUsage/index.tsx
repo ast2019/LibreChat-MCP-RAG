@@ -1,12 +1,11 @@
 import { memo } from 'react';
 import { useAtomValue } from 'jotai';
 import { Spinner } from '@librechat/client';
-import { Constants } from 'librechat-data-provider';
 import type { TConversation } from 'librechat-data-provider';
 import type { TokenUsageView } from '~/hooks/Chat/useTokenUsage';
 import type { CurrencyConfig } from '~/utils';
 import useCompactConversation, { supportsCompaction } from '~/hooks/Chat/useCompactConversation';
-import { useGetLangfuseSessionLinkQuery, useGetStartupConfig } from '~/data-provider';
+import { useGetStartupConfig } from '~/data-provider';
 import Balance, { Summary as BalanceSummary } from '~/components/Balance';
 import useBalanceSummary from '~/hooks/useBalanceSummary';
 import useTokenUsage from '~/hooks/Chat/useTokenUsage';
@@ -26,38 +25,20 @@ interface TokenUsageProps {
 
 interface ContextCardProps {
   view: TokenUsageView;
-  conversationId: string;
-  isSubmitting: boolean;
   showCost: boolean;
   currency?: CurrencyConfig;
-  langfuseConnectionAccess: boolean;
   compaction: ReturnType<typeof useCompactConversation>;
   compactionAvailable: boolean;
 }
 
-/** The context half of the card. Mounted only while the card is open, so the
- *  Langfuse session link resolves on demand rather than per conversation. */
+/** The context half of the card. Mounted only while the card is open. */
 function ContextCard({
   view,
-  conversationId,
-  isSubmitting,
   showCost,
   currency,
-  langfuseConnectionAccess,
   compaction,
   compactionAvailable,
 }: ContextCardProps) {
-  const canResolveLangfuseSession =
-    langfuseConnectionAccess &&
-    !isSubmitting &&
-    conversationId !== '' &&
-    conversationId !== Constants.NEW_CONVO &&
-    conversationId !== Constants.PENDING_CONVO;
-  const { data: langfuseSession } = useGetLangfuseSessionLinkQuery(
-    conversationId,
-    canResolveLangfuseSession,
-  );
-
   return (
     <>
       <Breakdown
@@ -65,7 +46,6 @@ function ContextCard({
         showCost={showCost}
         compactionAvailable={compactionAvailable}
         currency={currency}
-        langfuseSessionUrl={langfuseSession?.url ?? undefined}
       />
       {compactionAvailable && (
         <>
@@ -87,13 +67,11 @@ function TokenUsageIndicator({
   isSubmitting,
   showCost,
   currency,
-  langfuseConnectionAccess,
   compactionEnabled,
   balanceEnabled,
 }: TokenUsageProps & {
   showCost: boolean;
   currency?: CurrencyConfig;
-  langfuseConnectionAccess: boolean;
   compactionEnabled: boolean;
   balanceEnabled: boolean;
 }) {
@@ -162,11 +140,8 @@ function TokenUsageIndicator({
         {hasContext && (
           <ContextCard
             view={view}
-            conversationId={conversationId}
-            isSubmitting={isSubmitting}
             showCost={showCost}
             currency={currency}
-            langfuseConnectionAccess={langfuseConnectionAccess}
             compaction={compaction}
             compactionAvailable={compactionAvailable}
           />
@@ -246,7 +221,6 @@ const TokenUsage = memo(function TokenUsage(props: TokenUsageProps) {
       {...props}
       showCost={startupConfig.interface?.contextCost === true}
       currency={startupConfig.interface?.currency}
-      langfuseConnectionAccess={startupConfig.langfuseConnectionAccess === true}
       /** Same `summarization.enabled` switch that governs the automatic detour,
        *  advertised positively: a server that does not know the capability
        *  (a cached config from an older release) must not receive the request,
