@@ -274,6 +274,8 @@ export function getBlockedUploadTranscriptField(input: {
 }
 
 export const UPLOAD_EXTRACTED_TEXT_PLANS = {
+  /** `documentOcr` reads PDFs and images (text layer free, scanned pages OCR'd). */
+  documentOcr: 'document_ocr',
   configuredOCR: 'configured_ocr',
   configuredRAG: 'configured_rag',
   documentParser: 'document_parser',
@@ -289,6 +291,8 @@ interface UploadExtractedTextPlanInput {
   readonly fileConfig: FileConfig;
   readonly ocrConfigured: boolean;
   readonly ragConfigured: boolean;
+  /** `documentOcr.enabled`: PDFs and images are read by it, not by the OCR/parser plans. */
+  readonly documentOcrEnabled?: boolean;
 }
 
 /**
@@ -300,6 +304,12 @@ export function getUploadExtractedTextPlan(
 ): UploadExtractedTextPlan | null {
   if (!isAgentContextUpload(input)) {
     return null;
+  }
+  if (
+    input.documentOcrEnabled === true &&
+    (input.mimeType === 'application/pdf' || input.mimeType.startsWith('image/'))
+  ) {
+    return UPLOAD_EXTRACTED_TEXT_PLANS.documentOcr;
   }
   const checkType = input.fileConfig.checkType;
   if (

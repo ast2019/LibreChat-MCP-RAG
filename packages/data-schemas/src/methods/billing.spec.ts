@@ -111,8 +111,47 @@ describe('billing methods', () => {
       creditsGrantedInWindow: 2_000_000,
       packGrantsInWindow: 1,
       creditsSpentInWindow: 500_000,
+      creditsSpentLocalInWindow: 0,
       creditsOutstanding: 1_500_000,
       topModels: [{ model: 'm1', credits: 500_000 }],
     });
+  });
+
+  it('counts OCR spend: vision tokens like chat, local pages as no-provider-cost spend', async () => {
+    const tx = mongoose.connection.collection('transactions');
+    const ocrSince = new Date('2026-10-20T00:00:00Z');
+    await tx.insertMany([
+      {
+        user: saraId,
+        tokenType: 'prompt',
+        context: 'ocr',
+        model: 'google/gemini-3.8-flash',
+        endpoint: 'OpenRouter',
+        rawAmount: -3600,
+        tokenValue: -2340,
+        createdAt: now,
+      },
+      {
+        user: saraId,
+        tokenType: 'credits',
+        context: 'ocr_local',
+        model: 'tesseract',
+        rawAmount: -750,
+        tokenValue: -750,
+        createdAt: now,
+      },
+    ]);
+    const summary = await billing.getBillingSummary({ since: ocrSince });
+    expect(summary.creditsSpentInWindow).toBe(500_000 + 2340 + 750);
+    expect(summary.creditsSpentLocalInWindow).toBe(750);
+    /** Grants stay grants: a negative `credits` row of another context is not counted. */
+    expect(summary.creditsGrantedInWindow).toBe(2_000_000);
+    expect(summary.topModels).toEqual(
+      expect.arrayContaining([
+        { model: 'google/gemini-3.8-flash', credits: 2340 },
+        { model: 'tesseract', credits: 750 },
+      ]),
+    );
+    await tx.deleteMany({ context: { $in: ['ocr', 'ocr_local'] } });
   });
 });

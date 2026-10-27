@@ -6,6 +6,20 @@ FROM node:24.22.1-alpine AS node
 RUN apk upgrade --no-cache
 RUN apk add --no-cache bash jemalloc
 RUN apk add --no-cache python3 py3-pip uv
+# Tesseract OCR (Persian + English) from pinned, checksum-verified tessdata_fast; see Dockerfile.multi.
+ARG TESSDATA_FAST_COMMIT=87416418657359cb625c412a48b6e1d6d41c29bd
+ENV TESSDATA_PREFIX=/usr/share/tessdata
+RUN apk add --no-cache curl tesseract-ocr && \
+    mkdir -p "$TESSDATA_PREFIX" && \
+    for lang in fas eng; do \
+      curl -fsSL --retry 5 -o "$TESSDATA_PREFIX/$lang.traineddata" \
+        "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/$TESSDATA_FAST_COMMIT/$lang.traineddata" || exit 1; \
+    done && \
+    printf '%s  %s\n' \
+      db1c0a91208aff00d3cf1ed2c1d23f76419afd5f024688b4f71adc3f2ce4a505 "$TESSDATA_PREFIX/fas.traineddata" \
+      7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2 "$TESSDATA_PREFIX/eng.traineddata" \
+      | sha256sum -c && \
+    tesseract --list-langs
 
 # Set environment variable to use jemalloc
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2

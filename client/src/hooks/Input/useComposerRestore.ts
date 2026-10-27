@@ -126,6 +126,7 @@ export default function useComposerRestore({
               progress: 1,
               attached: true,
               llmDeliveryPath: file.llmDeliveryPath,
+              ocr: file.ocr,
             });
           }
           return next;

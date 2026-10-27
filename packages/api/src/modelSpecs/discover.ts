@@ -14,6 +14,8 @@ export interface CatalogueModel {
   name?: string;
   /** Unix seconds. */
   created?: number;
+  /** `architecture.input_modalities`, e.g. `['text', 'image', 'file']`; absent when unknown. */
+  inputModalities?: readonly string[];
 }
 
 /**

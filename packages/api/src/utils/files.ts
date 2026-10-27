@@ -2,6 +2,7 @@ import path from 'path';
 import crypto from 'node:crypto';
 import { createReadStream } from 'fs';
 import { readFile, stat } from 'fs/promises';
+import { OcrError, getOcrErrorMessageKey } from '~/files/hiveOcr/types';
 import { UnsupportedProviderAudioError } from '~/files/upload/errors';
 
 const USER_FACING_UPLOAD_ERRORS = [
@@ -101,6 +102,10 @@ export function resolveUploadErrorMessage(
 ): string {
   if (error instanceof UnsupportedProviderAudioError) {
     return error.message;
+  }
+  /** A stable localization key: OCR messages are not shown, the client localizes the code. */
+  if (error instanceof OcrError) {
+    return getOcrErrorMessageKey(error.code);
   }
   const errorMessage = error?.message;
   if (!errorMessage) {

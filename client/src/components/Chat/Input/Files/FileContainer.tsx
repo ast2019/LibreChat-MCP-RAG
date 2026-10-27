@@ -4,6 +4,7 @@ import type { ExtendedFile } from '~/common';
 import { getFileType, cn } from '~/utils';
 import FilePreview from './FilePreview';
 import RemoveFile from './RemoveFile';
+import OcrNote from './OcrNote';
 
 /** A second action offered in place of the subtitle, stated on the chip rather than revealed on hover. */
 export type SubtitleAction = {
@@ -116,6 +117,7 @@ const FileContainer = ({
               </div>
             ))
           )}
+          {file.ocr != null && <OcrNote ocr={file.ocr} mimeType={file.type} />}
         </div>
       </div>
     </div>

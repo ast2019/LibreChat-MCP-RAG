@@ -112,8 +112,25 @@ RUN mkdir -p /app/data && chmod 1777 /app/data
 # Add `uv` for extended MCP support
 COPY --from=ghcr.io/astral-sh/uv:0.6.13 /uv /uvx /bin/
 RUN uv --version
+# Tesseract OCR for scanned/Persian documents (Persian + English).
+# Alpine ships no `tesseract-ocr-data-fas`, and its `-data-eng` is the large legacy+LSTM model,
+# so both languages come from the pinned, checksum-verified `tessdata_fast` (LSTM-only, ~4.5 MB).
+ARG TESSDATA_FAST_COMMIT=87416418657359cb625c412a48b6e1d6d41c29bd
+ENV TESSDATA_PREFIX=/usr/share/tessdata
+RUN apk add --no-cache tesseract-ocr && \
+    mkdir -p "$TESSDATA_PREFIX" && \
+    for lang in fas eng; do \
+      curl -fsSL --retry 5 -o "$TESSDATA_PREFIX/$lang.traineddata" \
+        "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/$TESSDATA_FAST_COMMIT/$lang.traineddata" || exit 1; \
+    done && \
+    printf '%s  %s\n' \
+      db1c0a91208aff00d3cf1ed2c1d23f76419afd5f024688b4f71adc3f2ce4a505 "$TESSDATA_PREFIX/fas.traineddata" \
+      7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2 "$TESSDATA_PREFIX/eng.traineddata" \
+      | sha256sum -c && \
+    tesseract --list-langs
 WORKDIR /app
-# Install only production deps
+# Install only production deps (optional deps included: pdfjs-dist renders through
+# @napi-rs/canvas, whose `canvas-linux-x64-musl` prebuilt is what loads on Alpine)
 RUN attempt=1; \
     until timeout "$NPM_CI_TIMEOUT_SECONDS" npm ci --omit=dev; do \
       status=$?; \

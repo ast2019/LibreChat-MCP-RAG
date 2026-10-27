@@ -1,5 +1,10 @@
 import type { AppConfig } from '@librechat/data-schemas';
-import { createModelCatalogue, resolveModelCatalogueSource } from './catalogue';
+import {
+  modelAcceptsFiles,
+  modelAcceptsImages,
+  createModelCatalogue,
+  resolveModelCatalogueSource,
+} from './catalogue';
 
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/data-schemas'),
@@ -126,5 +131,51 @@ describe('resolveModelCatalogueSource', () => {
     expect(resolveModelCatalogueSource(config({ baseURL: '${UNSET_CATALOGUE_URL}' }))).toBeNull();
     expect(resolveModelCatalogueSource(config({ baseURL: 'https://x' }, false))).toBeNull();
     expect(resolveModelCatalogueSource(null)).toBeNull();
+  });
+});
+
+describe('modelAcceptsFiles / modelAcceptsImages', () => {
+  const body = {
+    data: [
+      {
+        id: 'google/gemini-3.8-flash',
+        architecture: { input_modalities: ['text', 'image', 'file', 'audio'], modality: 'x' },
+      },
+      { id: '~google/gemini-flash-latest', architecture: { input_modalities: ['text', 'file'] } },
+      { id: 'deepseek/deepseek-v4', architecture: { input_modalities: ['text'] } },
+      { id: 'x/no-architecture' },
+      { id: 'x/bad-modalities', architecture: { input_modalities: 'text' } },
+    ],
+  };
+
+  async function snapshotOf(models: unknown) {
+    const catalogue = createModelCatalogue({ fetchJson: fetchJsonFor({ models, zdr: zdrBody }) });
+    await catalogue.refresh(source);
+    return catalogue.getSnapshot();
+  }
+
+  it('keeps the input modalities of each model', async () => {
+    const snapshot = await snapshotOf(body);
+    expect(snapshot?.models?.[0]).toEqual({
+      id: 'google/gemini-3.8-flash',
+      inputModalities: ['text', 'image', 'file', 'audio'],
+    });
+    expect(snapshot?.models?.[3]).toEqual({ id: 'x/no-architecture' });
+    expect(snapshot?.models?.[4]).toEqual({ id: 'x/bad-modalities' });
+  });
+
+  it('answers from the catalogue, aliases included, and undefined when unknown', async () => {
+    const snapshot = await snapshotOf(body);
+    expect(modelAcceptsFiles('google/gemini-3.8-flash', snapshot)).toBe(true);
+    expect(modelAcceptsImages('google/gemini-3.8-flash', snapshot)).toBe(true);
+    expect(modelAcceptsFiles('~google/gemini-flash-latest', snapshot)).toBe(true);
+    expect(modelAcceptsImages('~google/gemini-flash-latest', snapshot)).toBe(false);
+    expect(modelAcceptsFiles('deepseek/deepseek-v4', snapshot)).toBe(false);
+    expect(modelAcceptsFiles('deepseek/deepseek-v4:free', snapshot)).toBe(false);
+    expect(modelAcceptsFiles('x/no-architecture', snapshot)).toBeUndefined();
+    expect(modelAcceptsFiles('x/bad-modalities', snapshot)).toBeUndefined();
+    expect(modelAcceptsFiles('x/unlisted', snapshot)).toBeUndefined();
+    expect(modelAcceptsFiles('google/gemini-3.8-flash', undefined)).toBeUndefined();
+    expect(modelAcceptsFiles('', snapshot)).toBeUndefined();
   });
 });

@@ -58,6 +58,7 @@ jest.mock('@librechat/api', () => {
     }
   });
   const UPLOAD_EXTRACTED_TEXT_PLANS = {
+    documentOcr: 'document_ocr',
     configuredOCR: 'configured_ocr',
     configuredRAG: 'configured_rag',
     documentParser: 'document_parser',
@@ -99,7 +100,10 @@ jest.mock('@librechat/api', () => {
     };
   });
   const getUploadExtractedTextPlan = jest.fn(
-    ({ mimeType, fileConfig, ocrConfigured, ragConfigured }) => {
+    ({ mimeType, fileConfig, ocrConfigured, ragConfigured, documentOcrEnabled }) => {
+      if (documentOcrEnabled && (mimeType === 'application/pdf' || mimeType.startsWith('image/'))) {
+        return UPLOAD_EXTRACTED_TEXT_PLANS.documentOcr;
+      }
       const checkType = fileConfig.checkType;
       if (ocrConfigured && checkType(mimeType, fileConfig.ocr?.supportedMimeTypes ?? [])) {
         return UPLOAD_EXTRACTED_TEXT_PLANS.configuredOCR;
@@ -216,6 +220,8 @@ jest.mock('@librechat/api', () => {
       }
       return getRetentionExpiry(req);
     }),
+    readUploadWithDocumentOcr: jest.fn(),
+    prepareUploadOcrEmbedding: jest.fn(async () => null),
     sweepExpiredFiles: jest.fn().mockResolvedValue({ scanned: 0, deleted: 0, failed: 0 }),
     startExpiredFileSweep: jest.fn().mockReturnValue('sweep-interval'),
     isLeader: jest.fn().mockResolvedValue(true),
@@ -296,6 +302,16 @@ jest.mock('~/server/services/Files/Audio/STTService', () => ({
 
 jest.mock('./VectorDB/crud', () => ({
   uploadVectors: jest.fn().mockResolvedValue({ embedded: true, filename: 'embedded-upload.bin' }),
+}));
+
+/** `documentOcr` is off unless a test turns it on; its behavior is covered in packages/api. */
+jest.mock('./documentOcr', () => ({
+  documentOcrService: {
+    getConfig: jest.fn(() => ({ enabled: false })),
+    resolveUploadContext: jest.fn(),
+    extract: jest.fn(),
+  },
+  documentTextConverter: { needsText: jest.fn(() => false), getText: jest.fn() },
 }));
 
 const {
@@ -3968,5 +3984,126 @@ describe('stored upload cleanup across storage-before-record paths', () => {
     ).rejects.toThrow('rag unavailable');
 
     expectStoredObjectDeleted(req, { file_id: 'agent-file', embedded: true });
+  });
+});
+
+describe('documentOcr uploads', () => {
+  const { documentOcrService } = require('./documentOcr');
+  const { readUploadWithDocumentOcr, prepareUploadOcrEmbedding } = require('@librechat/api');
+  const ocr = {
+    pages: 3,
+    readPages: 3,
+    ocrPages: 3,
+    engine: 'vision',
+    credits: 9450,
+    truncated: false,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRes.status.mockReturnThis();
+    mockRes.json.mockReturnValue({});
+    checkCapability.mockResolvedValue(true);
+    mergeFileConfig.mockReturnValue(makeFileConfig());
+    inspectContent.mockReturnValue(null);
+    documentOcrService.getConfig.mockReturnValue({ enabled: true });
+    uploadVectors.mockResolvedValue({ embedded: true, filename: 'scan.pdf' });
+    getStrategyFunctions.mockReturnValue({
+      handleFileUpload: jest
+        .fn()
+        .mockResolvedValue({ text: 'extracted text', bytes: 42, filepath: 'doc://result' }),
+    });
+  });
+
+  afterAll(() => {
+    documentOcrService.getConfig.mockReturnValue({ enabled: false });
+  });
+
+  test('stores the OCR text and its `ocr` record for a context PDF, without the parsers', async () => {
+    readUploadWithDocumentOcr.mockResolvedValueOnce({ text: 'متن صفحه', ocr });
+    setupStoredFileUpload();
+    const req = makeReq({ mimetype: PDF_MIME, ocrConfig: null });
+    const metadata = makeMetadata();
+
+    await processAgentFileUpload({ req, res: mockRes, metadata });
+
+    expect(readUploadWithDocumentOcr).toHaveBeenCalledTimes(1);
+    expect(readUploadWithDocumentOcr).toHaveBeenCalledWith(
+      expect.objectContaining({ req, file: req.file, metadata, service: documentOcrService }),
+    );
+    expect(getStrategyFunctions).not.toHaveBeenCalledWith(FileSources.document_parser);
+    expect(checkCapability).not.toHaveBeenCalledWith(expect.anything(), AgentCapabilities.ocr);
+    expect(db.createFile).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'متن صفحه', ocr, llmDeliveryPath: 'text' }),
+      true,
+    );
+  });
+
+  test('keeps the document parser for DOCX', async () => {
+    const req = makeReq({ mimetype: DOCX_MIME, ocrConfig: null });
+
+    await processAgentFileUpload({ req, res: mockRes, metadata: makeMetadata() });
+
+    expect(readUploadWithDocumentOcr).not.toHaveBeenCalled();
+    expect(getStrategyFunctions).toHaveBeenCalledWith(FileSources.document_parser);
+  });
+
+  test('surfaces an OCR failure without storing anything', async () => {
+    readUploadWithDocumentOcr.mockRejectedValueOnce(
+      Object.assign(new Error('Tesseract binary was not found'), { code: 'tesseract_missing' }),
+    );
+    const handleFileUpload = setupStoredFileUpload();
+    const req = makeReq({ mimetype: PDF_MIME, ocrConfig: null });
+
+    await expect(
+      processAgentFileUpload({ req, res: mockRes, metadata: makeMetadata() }),
+    ).rejects.toMatchObject({ code: 'tesseract_missing' });
+    expect(handleFileUpload).not.toHaveBeenCalled();
+    expect(db.createFile).not.toHaveBeenCalled();
+  });
+
+  test('embeds the extracted text for file search and records `ocr`', async () => {
+    const cleanup = jest.fn(async () => undefined);
+    const embedFile = {
+      path: '/tmp/ocr-file-uuid-123/scan.txt',
+      mimetype: 'text/plain',
+      originalname: 'upload.bin',
+      size: 16,
+    };
+    prepareUploadOcrEmbedding.mockResolvedValueOnce({
+      file: embedFile,
+      text: 'متن صفحه',
+      ocr,
+      cleanup,
+    });
+    setupStoredFileUpload();
+    const req = makeReq({ mimetype: PDF_MIME, ocrConfig: null });
+
+    await processAgentFileUpload({
+      req,
+      res: mockRes,
+      metadata: { ...makeMetadata(), tool_resource: EToolResources.file_search },
+    });
+
+    expect(prepareUploadOcrEmbedding).toHaveBeenCalledWith(
+      expect.objectContaining({ file: req.file, fileId: 'file-uuid-123' }),
+    );
+    expect(uploadVectors).toHaveBeenCalledWith(expect.objectContaining({ file: embedFile }));
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(db.createFile).toHaveBeenCalledWith(expect.objectContaining({ ocr }), true);
+  });
+
+  test('embeds the original file when there is no OCR text', async () => {
+    setupStoredFileUpload();
+    const req = makeReq({ mimetype: PDF_MIME, ocrConfig: null });
+
+    await processAgentFileUpload({
+      req,
+      res: mockRes,
+      metadata: { ...makeMetadata(), tool_resource: EToolResources.file_search },
+    });
+
+    expect(uploadVectors).toHaveBeenCalledWith(expect.objectContaining({ file: req.file }));
+    expect(db.createFile).toHaveBeenCalledWith(expect.not.objectContaining({ ocr }), true);
   });
 });

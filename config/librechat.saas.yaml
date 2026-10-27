@@ -168,6 +168,54 @@ webSearch:
   allowedAddresses:
     - 'searxng:8080'
 
+# Upload limits, in MB (upstream default: 512 MB per file). Custom endpoints (OpenRouter…) use
+# the `agents` entry. Allowed file types stay at the defaults.
+fileConfig:
+  serverFileSizeLimit: 50
+  avatarSizeLimit: 2
+  endpoints:
+    default:
+      fileLimit: 10
+      fileSizeLimit: 50
+      totalSizeLimit: 100
+    agents:
+      fileLimit: 10
+      fileSizeLimit: 50
+      totalSizeLimit: 100
+
+# Text extraction for PDFs and images (file search, and models that cannot read images).
+# PDF pages with a usable text layer are read for free; only scanned or garbled pages are OCR'd,
+# through the route that matches the conversation:
+#   public  -> vision model on the regular OpenRouter endpoint
+#   private -> the same model on OpenRouterPrivate, whose addParams enforce zero data retention
+#   local   -> Tesseract on this server; the document never leaves the machine
+# Pricing: vision OCR is billed at the model's real token price x the endpoint's priceMultiplier,
+# exactly like chat. Local OCR is billed per page from server cost: EUR 80/month ~ $93 x 70% local
+# share / busy seconds (30% of a month) ~ $0.0000825/s x ~3 s/page (Tesseract fas, 200 DPI, one
+# core) ~ $0.00025/page. Keep the model ids concrete (gemini-3.8-flash has ZDR endpoints) so the
+# price lookup works.
+documentOcr:
+  enabled: true
+  maxPages: 100
+  concurrency: 4
+  dpi: 200
+  maxSide: 2000
+  # Which route a conversation uses: specs with `privacy: 'local'`/`'private'` and these endpoints
+  # (the stricter wins; a stored conversation can only become stricter, never public).
+  localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink']
+  privateEndpoints: ['OpenRouterPrivate']
+  public:
+    endpoint: 'OpenRouter'
+    model: 'google/gemini-3.8-flash'
+  private:
+    endpoint: 'OpenRouterPrivate'
+    model: 'google/gemini-3.8-flash'
+  local:
+    engine: 'tesseract'
+    languages: 'fas+eng'
+    pricePerPage: 0.00025
+  timeoutMs: 120000
+
 endpoints:
   agents:
     capabilities:
@@ -193,6 +241,14 @@ endpoints:
       titleModel: '~google/gemini-flash-latest'
       # OpenRouter models use a variety of stop tokens.
       dropParams: ['stop']
+      # PDFs go to the model only when it reads files natively. Without this, OpenRouter OCRs
+      # them with paid "mistral-ocr" (billed to our account, not ZDR); models without file
+      # input get their PDFs through our own OCR instead.
+      addParams:
+        plugins:
+          - id: 'file-parser'
+            pdf:
+              engine: 'native'
       # Users never see the host's name: errors and icon labels say HiveGPT, and icons show
       # each model's maker (Claude, GPT, Gemini…) from the model id.
       modelDisplayLabel: 'HiveGPT'
@@ -213,6 +269,11 @@ endpoints:
         provider:
           zdr: true
           data_collection: 'deny'
+        # Never let OpenRouter OCR PDFs with Mistral (not ZDR); see the endpoint above.
+        plugins:
+          - id: 'file-parser'
+            pdf:
+              engine: 'native'
       priceMultiplier: 1.3
       titleConvo: true
       titleModel: 'google/gemini-3.8-flash'

@@ -155,6 +155,21 @@ export type RunFileProvenance = {
   inputFileIds: string[];
 };
 
+/** How a PDF or image's text was read by `documentOcr`, stored on the file and shown on its chip. */
+export type TFileOcr = {
+  /** Pages in the document (1 for an image), including pages beyond the limit. */
+  pages: number;
+  /** Pages read: all of them, or the first `documentOcr.maxPages` when truncated. */
+  readPages: number;
+  /** Pages that needed OCR; text-layer pages were read for free. */
+  ocrPages: number;
+  engine: 'text' | 'vision' | 'tesseract' | 'mixed';
+  /** Credits charged (1,000,000 credits = 1 USD); 0 when nothing was OCR'd. */
+  credits: number;
+  /** Only the first `documentOcr.maxPages` pages were read. */
+  truncated: boolean;
+};
+
 export type TFile = {
   _id?: string;
   __v?: number;
@@ -231,6 +246,8 @@ export type TFile = {
     workspaceImports?: TFileWorkspaceImports;
   };
   llmDeliveryPath?: 'provider' | 'text' | 'none';
+  /** Set when `documentOcr` read the file's text; see {@link TFileOcr}. */
+  ocr?: TFileOcr;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 };

@@ -123,6 +123,41 @@ describe('validateFiles', () => {
     expect(setError).toHaveBeenCalledWith('File limit reached: 3 files');
   });
 
+  it('reports limit errors through the localizer when one is given', () => {
+    const localize = jest.fn(
+      (key: string, options?: Record<string, unknown>) => `${key}:${String(options?.[0])}`,
+    );
+    endpointFileConfig = makeEndpointConfig({ fileLimit: 1, fileSizeLimit: 5 * megabyte });
+    const tooMany = [
+      makeFile('a.pdf', 'application/pdf', 1024),
+      makeFile('b.pdf', 'application/pdf', 1024),
+    ];
+    expect(
+      validateFiles({
+        files,
+        fileList: tooMany,
+        setError,
+        localize,
+        endpointFileConfig,
+        fileConfig,
+      }),
+    ).toBe(false);
+    expect(setError).toHaveBeenLastCalledWith('com_error_files_limit:1');
+
+    const tooLarge = [makeSizedFile('big.pdf', 'application/pdf', 6 * megabyte)];
+    expect(
+      validateFiles({
+        files,
+        fileList: tooLarge,
+        setError,
+        localize,
+        endpointFileConfig,
+        fileConfig,
+      }),
+    ).toBe(false);
+    expect(setError).toHaveBeenLastCalledWith('com_error_files_size_limit:5');
+  });
+
   it('allows upload when exactly at fileLimit boundary', () => {
     endpointFileConfig = makeEndpointConfig({ fileLimit: 3 });
     files = new Map([

@@ -39,6 +39,11 @@ const modelsSchema = z.object({
         id: z.string(),
         name: z.string().optional().catch(undefined),
         created: z.number().optional().catch(undefined),
+        architecture: z
+          .object({ input_modalities: z.array(z.string()).optional().catch(undefined) })
+          .passthrough()
+          .optional()
+          .catch(undefined),
       })
       .passthrough(),
   ),
@@ -105,13 +110,15 @@ export function createModelCatalogue(
     if (parsed.data.length === 0) {
       throw new Error('empty model list');
     }
-    return parsed.data.map(
-      ({ id, name, created }): CatalogueModel => ({
+    return parsed.data.map(({ id, name, created, architecture }): CatalogueModel => {
+      const inputModalities = architecture?.input_modalities;
+      return {
         id,
         ...(name != null && { name }),
         ...(created != null && { created }),
-      }),
-    );
+        ...(inputModalities != null && { inputModalities }),
+      };
+    });
   }
 
   async function readZdr(source: ModelCatalogueSource, headers: Record<string, string>) {
@@ -196,4 +203,54 @@ let sharedCatalogue: ModelCatalogue | undefined;
 export function getSharedModelCatalogue(): ModelCatalogue {
   sharedCatalogue ??= createModelCatalogue();
   return sharedCatalogue;
+}
+
+/** Catalogue lookups by id, built once per model list. */
+const modelIndexes = new WeakMap<readonly CatalogueModel[], Map<string, CatalogueModel>>();
+
+function findCatalogueModel(
+  modelId: string,
+  snapshot: ModelCatalogueSnapshot | undefined,
+): CatalogueModel | undefined {
+  const models = snapshot?.models;
+  if (!models || !modelId) {
+    return undefined;
+  }
+  let index = modelIndexes.get(models);
+  if (!index) {
+    index = new Map(models.map((model) => [model.id, model]));
+    modelIndexes.set(models, index);
+  }
+  /** `~x-latest` aliases are catalogue entries of their own; a `:variant` suffix (`:free`,
+   * `:online`, …) that is not listed falls back to its base model. */
+  return index.get(modelId) ?? index.get(modelId.replace(/:[^/:]+$/, ''));
+}
+
+function modelAcceptsInput(
+  modality: string,
+  modelId: string,
+  snapshot: ModelCatalogueSnapshot | undefined,
+): boolean | undefined {
+  const inputModalities = findCatalogueModel(modelId, snapshot)?.inputModalities;
+  return inputModalities ? inputModalities.includes(modality) : undefined;
+}
+
+/**
+ * Whether the catalogue lists `file` among the model's input modalities, i.e. it reads PDFs
+ * natively. `undefined` when unknown: no catalogue yet, the model is not listed, or it lists no
+ * modalities. Reads the shared catalogue unless a snapshot is given.
+ */
+export function modelAcceptsFiles(
+  modelId: string,
+  snapshot: ModelCatalogueSnapshot | undefined = getSharedModelCatalogue().getSnapshot(),
+): boolean | undefined {
+  return modelAcceptsInput('file', modelId, snapshot);
+}
+
+/** Like {@link modelAcceptsFiles}, for the `image` input modality. */
+export function modelAcceptsImages(
+  modelId: string,
+  snapshot: ModelCatalogueSnapshot | undefined = getSharedModelCatalogue().getSnapshot(),
+): boolean | undefined {
+  return modelAcceptsInput('image', modelId, snapshot);
 }

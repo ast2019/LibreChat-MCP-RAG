@@ -59,6 +59,7 @@ const {
   resolveUseResponsesApi,
 } = require('librechat-data-provider');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
+const { documentTextConverter } = require('~/server/services/Files/documentOcr');
 const { logViolation } = require('~/cache');
 const db = require('~/models');
 
@@ -1746,6 +1747,7 @@ class BaseClient {
         model: this.modelOptions?.model ?? this.model,
       },
       getStrategyFunctions,
+      documentTextConverter,
     );
     message.documents =
       documentResult.documents && documentResult.documents.length

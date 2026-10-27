@@ -24,6 +24,7 @@ const {
   resolveAssistantToolPermissions,
   resolveDownloadPath,
   pipeToResponse,
+  planDocumentOcrUpload,
 } = require('@librechat/api');
 const {
   isUUID,
@@ -49,6 +50,7 @@ const {
   resolveUploadAgent,
 } = require('~/server/services/Files/routing');
 const { fileAccess } = require('~/server/middleware/accessResources/fileAccess');
+const { documentOcrService } = require('~/server/services/Files/documentOcr');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 const { getOpenAIClient } = require('~/server/controllers/assistants/helpers');
 const { hasCapability } = require('~/server/middleware/roles/capabilities');
@@ -843,6 +845,19 @@ const handleFileUpload = async (req, res) => {
     metadata.useResponsesApi ??= uploadAgent?.model_parameters?.useResponsesApi;
     filterFile({ req, endpoint: effectiveEndpoint });
 
+    /* `documentOcr`: the conversation's OCR route, and a PDF for a model that cannot read
+     * files is stored as text. Refuses destinations a private conversation must not reach. */
+    metadata.documentOcrPlan = await planDocumentOcrUpload({
+      req,
+      metadata,
+      file: req.file,
+      service: documentOcrService,
+      agentModel: uploadAgent?.model,
+    });
+    if (metadata.documentOcrPlan?.forceText) {
+      metadata.tool_resource = EToolResources.context;
+    }
+
     /* Same destination the processing path will use: a unified upload routed to text
      * becomes a context resource, and the preflight must account for that extraction
      * before fail-closing on an uninspectable derived field. */
@@ -872,6 +887,7 @@ const handleFileUpload = async (req, res) => {
       fileConfig: mergeFileConfig(req.config?.fileConfig),
       ocrConfigured: req.config?.ocr != null,
       ragConfigured: !!process.env.RAG_API_URL,
+      documentOcrEnabled: metadata.documentOcrPlan != null,
       readFile: fs.readFile,
     });
 

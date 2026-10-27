@@ -172,6 +172,7 @@
   "dependencies": {
     "@langchain/langgraph-checkpoint": "^1.1.2",
     "@langchain/langgraph-checkpoint-mongodb": "^1.4.0",
+    "@napi-rs/canvas": "^0.1.88",
     "@simplewebauthn/server": "^13.3.2",
     "cluster-key-slot": "^1.1.2",
     "croner": "^10.0.1",

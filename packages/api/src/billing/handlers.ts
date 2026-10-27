@@ -222,8 +222,11 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         since: since.toISOString(),
         priceMultiplier: effective,
         ...result,
-        /** What the window's spend cost at provider prices, before the markup */
-        estimatedProviderCredits: result.creditsSpentInWindow / effective,
+        /** What the window's spend cost at provider prices, before the markup. On-server OCR
+         *  pages have no provider bill, so they count entirely as margin. */
+        estimatedProviderCredits:
+          Math.max(0, result.creditsSpentInWindow - (result.creditsSpentLocalInWindow ?? 0)) /
+          effective,
       });
     } catch (error) {
       logger.error('[adminBalance] summary error:', error);

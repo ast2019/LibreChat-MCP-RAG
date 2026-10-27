@@ -6,8 +6,8 @@ import {
   FetchTokenConfig,
   extractEnvVariable,
 } from 'librechat-data-provider';
+import type { AppConfig, IUser } from '@librechat/data-schemas';
 import type { TEndpoint } from 'librechat-data-provider';
-import type { AppConfig } from '@librechat/data-schemas';
 import type {
   InitializeResultBase,
   EndpointTokenConfig,
@@ -176,6 +176,94 @@ function buildAnthropicCustomConfig({
   };
 }
 
+export interface ResolveCustomEndpointTokenConfigParams {
+  endpoint: string;
+  endpointConfig: Partial<TEndpoint>;
+  apiKey: string;
+  baseURL: string;
+  /** The configured base URL with env variables resolved (identifies OpenRouter). */
+  resolvedBaseURL: string;
+  userProvidesURL: boolean;
+  appConfig?: AppConfig;
+  user?: Partial<IUser>;
+}
+
+/**
+ * The per-model prices chat bills a custom endpoint at: a static `tokenConfig`, or the prices
+ * fetched from `/models` (read from the shared cache; fetched when the cache is cold), scaled by
+ * the endpoint's `priceMultiplier`. Everything that bills on behalf of an endpoint (chat, OCR)
+ * reads its rates here so they cannot drift apart.
+ */
+export async function resolveCustomEndpointTokenConfig({
+  endpoint,
+  endpointConfig,
+  apiKey,
+  baseURL,
+  resolvedBaseURL,
+  userProvidesURL,
+  appConfig,
+  user,
+}: ResolveCustomEndpointTokenConfigParams): Promise<EndpointTokenConfig | undefined> {
+  let endpointTokenConfig: EndpointTokenConfig | undefined;
+  const userId = user?.id ?? '';
+  const tenantId = user?.tenantId;
+  const cache = tokenConfigCache();
+  const hasTokenConfig = endpointConfig.tokenConfig != null;
+  /** Prices come from `/models` for the named providers and for any endpoint that is
+   *  OpenRouter by its base URL, so a second OpenRouter endpoint (e.g. one that adds
+   *  privacy routing params) is billed at live prices rather than fallback rates. */
+  const fetchesTokenConfig =
+    FetchTokenConfig[endpoint.toLowerCase() as keyof typeof FetchTokenConfig] != null ||
+    isOpenRouterEndpoint(endpointConfig, resolvedBaseURL);
+  const tokenKey = getTokenConfigKey(endpointConfig, endpoint, userId, tenantId);
+
+  if (hasTokenConfig) {
+    /** A static override is authoritative — use it for the agent's billing
+     *  and balance checks, not just the advertised UI token config. Mirror
+     *  the admin-facing `cacheWrite`/`cacheRead` keys onto the `write`/`read`
+     *  keys the billing multiplier reads. */
+    endpointTokenConfig = toBillingTokenConfig(
+      endpointConfig.tokenConfig as Record<string, Record<string, number>>,
+    );
+  } else {
+    const cachedConfig = fetchesTokenConfig && (await cache.get(tokenKey));
+    endpointTokenConfig = (cachedConfig as EndpointTokenConfig) || undefined;
+  }
+
+  if (
+    fetchesTokenConfig &&
+    endpointConfig &&
+    endpointConfig.models?.fetch &&
+    !endpointTokenConfig
+  ) {
+    await fetchModels({
+      apiKey,
+      baseURL,
+      baseURLIsUserProvided: userProvidesURL,
+      allowedAddresses: appConfig?.endpoints?.allowedAddresses,
+      name: endpoint,
+      user: userId,
+      tokenKey,
+      userObject: user,
+      // Mirror the security guard in `loadConfigModels`: never forward
+      // header overrides when the base URL is user-supplied — configured
+      // templates like {{LIBRECHAT_OPENID_ID_TOKEN}} would otherwise resolve
+      // and leak the user's identity token to a destination the user controls.
+      headers: userProvidesURL ? undefined : endpointConfig.headers,
+      // Note: when both `headers` and `userObject` are supplied below, the
+      // MODEL_QUERIES cache inside `fetchModels` is automatically skipped,
+      // which prevents a per-user filtered model list from leaking across
+      // users. The token-config cache key (`tokenKey`) is also user-scoped
+      // above when these headers will be forwarded.
+    });
+    endpointTokenConfig = (await cache.get(tokenKey)) as EndpointTokenConfig | undefined;
+  }
+
+  /** Scaled after the cache read so the cached provider prices stay unmodified and a
+   *  changed multiplier applies on the next config load without a cache flush. */
+  return applyPriceMultiplier(endpointTokenConfig, endpointConfig.priceMultiplier);
+}
+
 /**
  * Initializes a custom endpoint client configuration.
  * This function handles custom endpoints defined in librechat.yaml, including
@@ -262,10 +350,7 @@ export async function initializeCustom(
     await validateEndpointURL(baseURL, endpoint, appConfig?.endpoints?.allowedAddresses);
   }
 
-  let endpointTokenConfig: EndpointTokenConfig | undefined;
-
   const userId = user?.id ?? '';
-  const tenantId = user?.tenantId;
 
   /** The stored effort is checked against the provider's catalog, an independent read: it starts
    *  here and is awaited where the model options are built, so it overlaps token discovery below
@@ -281,61 +366,16 @@ export async function initializeCustom(
         );
   effortCheck?.catch(() => undefined);
 
-  const cache = tokenConfigCache();
-  const hasTokenConfig = endpointConfig.tokenConfig != null;
-  /** Prices come from `/models` for the named providers and for any endpoint that is
-   *  OpenRouter by its base URL, so a second OpenRouter endpoint (e.g. one that adds
-   *  privacy routing params) is billed at live prices rather than fallback rates. */
-  const fetchesTokenConfig =
-    FetchTokenConfig[endpoint.toLowerCase() as keyof typeof FetchTokenConfig] != null ||
-    isOpenRouterEndpoint(endpointConfig, CUSTOM_BASE_URL);
-  const tokenKey = getTokenConfigKey(endpointConfig, endpoint, userId, tenantId);
-
-  if (hasTokenConfig) {
-    /** A static override is authoritative — use it for the agent's billing
-     *  and balance checks, not just the advertised UI token config. Mirror
-     *  the admin-facing `cacheWrite`/`cacheRead` keys onto the `write`/`read`
-     *  keys the billing multiplier reads. */
-    endpointTokenConfig = toBillingTokenConfig(
-      endpointConfig.tokenConfig as Record<string, Record<string, number>>,
-    );
-  } else {
-    const cachedConfig = fetchesTokenConfig && (await cache.get(tokenKey));
-    endpointTokenConfig = (cachedConfig as EndpointTokenConfig) || undefined;
-  }
-
-  if (
-    fetchesTokenConfig &&
-    endpointConfig &&
-    endpointConfig.models?.fetch &&
-    !endpointTokenConfig
-  ) {
-    await fetchModels({
-      apiKey,
-      baseURL,
-      baseURLIsUserProvided: userProvidesURL,
-      allowedAddresses: appConfig?.endpoints?.allowedAddresses,
-      name: endpoint,
-      user: userId,
-      tokenKey,
-      userObject: user,
-      // Mirror the security guard in `loadConfigModels`: never forward
-      // header overrides when the base URL is user-supplied — configured
-      // templates like {{LIBRECHAT_OPENID_ID_TOKEN}} would otherwise resolve
-      // and leak the user's identity token to a destination the user controls.
-      headers: userProvidesURL ? undefined : endpointConfig.headers,
-      // Note: when both `headers` and `userObject` are supplied below, the
-      // MODEL_QUERIES cache inside `fetchModels` is automatically skipped,
-      // which prevents a per-user filtered model list from leaking across
-      // users. The token-config cache key (`tokenKey`) is also user-scoped
-      // above when these headers will be forwarded.
-    });
-    endpointTokenConfig = (await cache.get(tokenKey)) as EndpointTokenConfig | undefined;
-  }
-
-  /** Scaled after the cache read so the cached provider prices stay unmodified and a
-   *  changed multiplier applies on the next config load without a cache flush. */
-  endpointTokenConfig = applyPriceMultiplier(endpointTokenConfig, endpointConfig.priceMultiplier);
+  const endpointTokenConfig = await resolveCustomEndpointTokenConfig({
+    endpoint,
+    endpointConfig,
+    apiKey,
+    baseURL,
+    resolvedBaseURL: CUSTOM_BASE_URL,
+    userProvidesURL,
+    appConfig,
+    user,
+  });
 
   const customOptions = buildCustomOptions(
     endpointConfig,

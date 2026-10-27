@@ -184,6 +184,20 @@ describe('createAdminBalanceHandlers.listUsers / summary', () => {
     });
   });
 
+  it('keeps local OCR spend out of the provider cost', async () => {
+    const deps = createDeps();
+    (deps.getBillingSummary as jest.Mock).mockResolvedValueOnce({
+      ...(await deps.getBillingSummary({ since: new Date() })),
+      creditsSpentInWindow: 1.3e6 + 13_000,
+      creditsSpentLocalInWindow: 13_000,
+    });
+    const res = mockRes();
+    await createAdminBalanceHandlers(deps).summary(req({}, { days: '7' }), res);
+    expect((res.body as { estimatedProviderCredits: number }).estimatedProviderCredits).toBeCloseTo(
+      1e6,
+    );
+  });
+
   it('falls back to 30 days for an unsupported window', async () => {
     const res = mockRes();
     await createAdminBalanceHandlers(createDeps()).summary(req({}, { days: '365' }), res);

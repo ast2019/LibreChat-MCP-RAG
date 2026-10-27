@@ -324,6 +324,7 @@ export function buildTurn({
         filename: file.filename,
         type: file.type ?? '',
         llmDeliveryPath: file.llmDeliveryPath,
+        ...(file.ocr != null && { ocr: file.ocr }),
         height: file.height,
         width: file.width,
       });

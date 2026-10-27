@@ -133,6 +133,13 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
 
+## فایل‌ها و OCR
+
+- **Tesseract** (فارسی و انگلیسی) داخل image `api` نصب می‌شود: بستهٔ `tesseract-ocr` از Alpine و مدل‌های `fas` و `eng` از `tessdata_fast` (نسخهٔ ثابت با بررسی checksum، حدود ۴٫۵ مگابایت). Alpine بستهٔ دادهٔ فارسی ندارد. برای بررسی: `docker compose exec api tesseract --list-langs`.
+- **سقف آپلود** در `fileConfig` فایل `config/librechat.saas.yaml`: هر فایل ۵۰ مگابایت، حداکثر ۱۰ فایل و مجموعاً ۱۰۰ مگابایت در هر پیام، آواتار ۲ مگابایت.
+- پروکسی Traefik در Coolify به‌طور پیش‌فرض سقفی برای حجم درخواست ندارد و این repo هم سقفی برایش تعیین نمی‌کند. اگر جلوی سرور پروکسی دیگری (مثلاً Cloudflare با سقف ۱۰۰ مگابایت در پلن رایگان، یا nginx) هست، سقف آن را دست‌کم ۵۰ مگابایت بگذارید.
+- برای PDF، OpenRouter فقط موتور `native` را به کار می‌برد (`addParams.plugins` در هر دو endpoint OpenRouter). یعنی OpenRouter دیگر PDF را با `mistral-ocr` پولی (به حساب ما و بدون ZDR) نمی‌خواند. PDF مدل‌هایی که ورودی فایل ندارند از OCR خود سرور می‌گذرد.
+
 ## تغییر تنظیمات
 
 - **مدل‌ها، ضریب قیمت، بسته‌ها و متن‌های UI** در `config/librechat.saas.yaml` هستند. فایل را ویرایش کنید و commit کنید (از طریق PR). Coolify با webhook دوباره deploy می‌کند.

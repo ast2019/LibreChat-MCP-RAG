@@ -1142,6 +1142,37 @@ describe('getOpenAIConfig', () => {
       expect(result.provider).toBe('openrouter');
     });
 
+    it('should forward an addParams file-parser plugin to OpenRouter unchanged', () => {
+      const fileParser = { id: 'file-parser', pdf: { engine: 'native' } };
+      const result = getOpenAIConfig(mockApiKey, {
+        reverseProxyUrl: 'https://openrouter.ai/api/v1',
+        modelOptions: { model: 'deepseek/deepseek-chat' },
+        addParams: {
+          plugins: [fileParser],
+          provider: { zdr: true, data_collection: 'deny' },
+        },
+      });
+
+      expect(result.llmConfig.modelKwargs).toEqual({
+        plugins: [fileParser],
+        provider: { zdr: true, data_collection: 'deny' },
+      });
+      expect(result.provider).toBe('openrouter');
+    });
+
+    it('should keep an addParams file-parser plugin when OpenRouter web search is on', () => {
+      const fileParser = { id: 'file-parser', pdf: { engine: 'native' } };
+      const result = getOpenAIConfig(mockApiKey, {
+        reverseProxyUrl: 'https://openrouter.ai/api/v1',
+        modelOptions: { model: 'gpt-4', web_search: true },
+        addParams: { plugins: [fileParser] },
+      });
+
+      expect(result.llmConfig.modelKwargs).toEqual({
+        plugins: [fileParser, { id: 'web' }],
+      });
+    });
+
     it('should handle web_search with OpenRouter and dropParams', () => {
       const modelOptions = {
         model: 'gpt-4',

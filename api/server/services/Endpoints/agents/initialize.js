@@ -122,6 +122,7 @@ const db = require('~/models');
 const { getFileStorage } = require('~/server/services/Files/operations');
 const { getAppConfig } = require('~/server/services/Config');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
+const { documentTextConverter } = require('~/server/services/Files/documentOcr');
 const { encodeAndFormat } = require('~/server/services/Files/images/encode');
 const { processCodeOutput, runPreviewFinalize } = require('~/server/services/Files/Code/process');
 const { determineFileType } = require('~/server/utils');
@@ -2047,7 +2048,8 @@ const initializeClientWithProvider = async ({
       getAgent: (agentId) => agentToolContexts.get(agentId)?.fileEncodingAgent,
       encodeImages: (request, files, params) =>
         encodeAndFormat(request, files, params, VisionModes.agents),
-      encodeDocuments: encodeAndFormatDocuments,
+      encodeDocuments: (request, files, params, strategies) =>
+        encodeAndFormatDocuments(request, files, params, strategies, documentTextConverter),
       encodeAudios: encodeAndFormatAudios,
       encodeVideos: encodeAndFormatVideos,
       extractText: extractFileContext,

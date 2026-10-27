@@ -37,8 +37,10 @@ export interface BillingSummary {
   creditsGranted: number;
   creditsGrantedInWindow: number;
   packGrantsInWindow: number;
-  /** Credits users spent on models in the window (positive number) */
+  /** Credits users spent on models and OCR in the window (positive number) */
   creditsSpentInWindow: number;
+  /** Part of `creditsSpentInWindow` with no provider cost (on-server OCR pages) */
+  creditsSpentLocalInWindow: number;
   /** Credits currently held across all balances */
   creditsOutstanding: number;
   topModels: BillingModelSpend[];
@@ -47,6 +49,15 @@ export interface BillingSummary {
 const MAX_PAGE_SIZE = 100;
 const GRANT_CONTEXTS = ['pack', 'admin'];
 const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
+/** `credits` transactions that are usage, not grants: on-server OCR pages (no provider cost). */
+const LOCAL_SPEND_CONTEXTS = ['ocr_local'];
+/** Every spend transaction: token usage (chat, vision OCR) and credit-priced local usage. */
+const SPEND_MATCH = {
+  $or: [
+    { tokenType: { $in: SPEND_TOKEN_TYPES } },
+    { tokenType: 'credits', context: { $in: LOCAL_SPEND_CONTEXTS } },
+  ],
+};
 
 export function createBillingMethods(mongoose: typeof import('mongoose')): {
   listUsersWithBalances: (params: {
@@ -163,15 +174,26 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           },
         ],
       ),
-      transactions().aggregate<{ _id: null; credits: number; users: string[] }>([
-        { $match: { tokenType: { $in: SPEND_TOKEN_TYPES }, createdAt: { $gte: since } } },
-        { $group: { _id: null, credits: { $sum: '$tokenValue' }, users: { $addToSet: '$user' } } },
+      transactions().aggregate<{ _id: null; credits: number; local: number; users: string[] }>([
+        { $match: { ...SPEND_MATCH, createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            credits: { $sum: '$tokenValue' },
+            local: {
+              $sum: {
+                $cond: [{ $in: ['$context', LOCAL_SPEND_CONTEXTS] }, '$tokenValue', 0],
+              },
+            },
+            users: { $addToSet: '$user' },
+          },
+        },
       ]),
       balances().aggregate<{ _id: null; credits: number }>([
         { $group: { _id: null, credits: { $sum: '$tokenCredits' } } },
       ]),
       transactions().aggregate<{ _id: string; credits: number }>([
-        { $match: { tokenType: { $in: SPEND_TOKEN_TYPES }, createdAt: { $gte: since } } },
+        { $match: { ...SPEND_MATCH, createdAt: { $gte: since } } },
         { $group: { _id: '$model', credits: { $sum: '$tokenValue' } } },
         { $sort: { credits: 1 } },
         { $limit: Math.min(Math.max(topModels, 1), 50) },
@@ -186,6 +208,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       packGrantsInWindow: grants[0]?.countInWindow ?? 0,
       /** Spend is stored as negative token values */
       creditsSpentInWindow: Math.abs(spend[0]?.credits ?? 0),
+      creditsSpentLocalInWindow: Math.abs(spend[0]?.local ?? 0),
       creditsOutstanding: outstanding[0]?.credits ?? 0,
       topModels: models.map((row) => ({
         model: row._id ?? 'unknown',

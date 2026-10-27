@@ -32,6 +32,7 @@ import type {
   RegexLike,
 } from 'librechat-data-provider';
 import type { QueryClient } from '@tanstack/react-query';
+import type { TranslationKeys } from '~/hooks/useLocalize';
 import type { ExtendedFile } from '~/common';
 
 export const partialTypes = ['text/x-'];
@@ -265,12 +266,26 @@ export function formatFileSize(bytes: number): string {
 
 const { checkType } = defaultFileConfig;
 
+/** Localizes a validation error; without one, the English fallback text is reported. */
+export type FileErrorLocalizer = (
+  key: TranslationKeys,
+  options?: Record<string, unknown>,
+) => string;
+
 type FileSizeValidationParams = {
   fileList: File[];
   files: Map<string, ExtendedFile>;
   setError: (error: string) => void;
   endpointFileConfig: EndpointFileConfig;
+  localize?: FileErrorLocalizer;
 };
+
+const formatFileError = (
+  localize: FileErrorLocalizer | undefined,
+  key: TranslationKeys,
+  value: string | number,
+  fallback: string,
+): string => (localize ? localize(key, { 0: value }) : fallback);
 
 /** Identity used to detect a file already selected or attached: name, byte size, and MIME group. */
 const getFileSignature = (
@@ -287,6 +302,7 @@ export const validateFileSizes = ({
   files,
   fileList,
   setError,
+  localize,
   endpointFileConfig,
 }: FileSizeValidationParams): boolean => {
   const { totalSizeLimit } = endpointFileConfig;
@@ -295,7 +311,15 @@ export const validateFileSizes = ({
   if (fileSizeLimit != null) {
     for (const file of fileList) {
       if (file.size >= fileSizeLimit) {
-        setError(`File size limit exceeded: ${fileSizeLimit / megabyte} MB`);
+        const limit = fileSizeLimit / megabyte;
+        setError(
+          formatFileError(
+            localize,
+            'com_error_files_size_limit',
+            limit,
+            `File size limit exceeded: ${limit} MB`,
+          ),
+        );
         return false;
       }
     }
@@ -308,7 +332,15 @@ export const validateFileSizes = ({
     );
     const incomingTotalSize = fileList.reduce((total, file) => total + file.size, 0);
     if (currentTotalSize + incomingTotalSize > totalSizeLimit) {
-      setError(`Total file size limit exceeded: ${totalSizeLimit / megabyte} MB`);
+      const limit = totalSizeLimit / megabyte;
+      setError(
+        formatFileError(
+          localize,
+          'com_error_files_total_size_limit',
+          limit,
+          `Total file size limit exceeded: ${limit} MB`,
+        ),
+      );
       return false;
     }
   }
@@ -320,11 +352,19 @@ export const validateFileLimit = ({
   files,
   fileList,
   setError,
+  localize,
   endpointFileConfig,
 }: FileSizeValidationParams): boolean => {
   const { fileLimit } = endpointFileConfig;
   if (fileLimit && fileList.length + files.size > fileLimit) {
-    setError(`File limit reached: ${fileLimit} files`);
+    setError(
+      formatFileError(
+        localize,
+        'com_error_files_limit',
+        fileLimit,
+        `File limit reached: ${fileLimit} files`,
+      ),
+    );
     return false;
   }
   return true;
@@ -431,6 +471,7 @@ export const validateFiles = ({
   files,
   fileList,
   setError,
+  localize,
   endpointFileConfig,
   toolResource,
   fileConfig,
@@ -440,6 +481,7 @@ export const validateFiles = ({
   fileList: File[];
   files: Map<string, ExtendedFile>;
   setError: (error: string) => void;
+  localize?: FileErrorLocalizer;
   endpointFileConfig: EndpointFileConfig;
   toolResource?: string;
   fileConfig: FileConfig | null;
@@ -461,7 +503,10 @@ export const validateFiles = ({
     return false;
   }
 
-  if (!skipBatchRules && !validateFileLimit({ files, fileList, setError, endpointFileConfig })) {
+  if (
+    !skipBatchRules &&
+    !validateFileLimit({ files, fileList, setError, localize, endpointFileConfig })
+  ) {
     return false;
   }
 
@@ -471,7 +516,14 @@ export const validateFiles = ({
 
     // Check if the file type is still empty after the extension check
     if (!fileType) {
-      setError('Unable to determine file type for: ' + originalFile.name);
+      setError(
+        formatFileError(
+          localize,
+          'com_error_files_type_unknown',
+          originalFile.name,
+          'Unable to determine file type for: ' + originalFile.name,
+        ),
+      );
       return false;
     }
 
@@ -496,14 +548,21 @@ export const validateFiles = ({
     }
 
     if (!checkType(originalFile.type, mimeTypesToCheck)) {
-      setError(`Unsupported file type: ${originalFile.type}`);
+      setError(
+        formatFileError(
+          localize,
+          'com_error_files_type_unsupported',
+          originalFile.type,
+          `Unsupported file type: ${originalFile.type}`,
+        ),
+      );
       return false;
     }
   }
 
   if (
     !skipSizeValidation &&
-    !validateFileSizes({ files, fileList, setError, endpointFileConfig })
+    !validateFileSizes({ files, fileList, setError, localize, endpointFileConfig })
   ) {
     return false;
   }

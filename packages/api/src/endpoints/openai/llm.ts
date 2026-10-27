@@ -905,8 +905,16 @@ export function getOpenAILLMConfig({
   }
 
   if (useOpenRouter && enableWebSearch) {
-    /** OpenRouter expects web search as a plugins parameter */
-    modelKwargs.plugins = [{ id: 'web' }];
+    /**
+     * OpenRouter expects web search as a plugins parameter. Keep plugins configured
+     * through `addParams`/`defaultParams` (e.g. `file-parser` pinning the PDF engine).
+     */
+    const existingPlugins = Array.isArray(modelKwargs.plugins)
+      ? (modelKwargs.plugins as Array<{ id?: unknown }>)
+      : [];
+    modelKwargs.plugins = existingPlugins.some((plugin) => plugin?.id === 'web')
+      ? existingPlugins
+      : [...existingPlugins, { id: 'web' }];
     hasModelKwargs = true;
   } else if (enableWebSearch) {
     /** Standard OpenAI web search uses tools API */

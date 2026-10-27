@@ -1,9 +1,18 @@
 import * as fs from 'fs';
 import yauzl from 'yauzl';
 import { megabyte, excelMimeTypes, FileSources } from 'librechat-data-provider';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import type { MistralOCRUploadResult } from '~/types';
+import { normalizePersianText } from '~/files/hiveOcr/normalize';
+import { extractPdfPageTexts } from '~/files/hiveOcr/pdf';
 import { assertSafeZipSize } from './zipSafety';
+
+/** Arabic-script letters, incl. presentation forms: only such text needs Persian normalization. */
+const ARABIC_SCRIPT = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+/** Persian-normalizes text that contains Arabic script; other text is returned unchanged. */
+function normalizeIfPersian(text: string): string {
+  return ARABIC_SCRIPT.test(text) ? normalizePersianText(text) : text;
+}
 
 type FileParseFn = (file: Express.Multer.File) => Promise<string>;
 
@@ -70,26 +79,13 @@ function getParserForMimeType(mimetype: string): FileParseFn | undefined {
   return undefined;
 }
 
-/** Parses PDF, returns text inside. */
+/**
+ * Parses PDF, returns text inside: one line per text line, pages separated by a blank line,
+ * Persian-normalized (presentation forms, ی/ک, kashida, reversed lines; see `normalizePersianText`).
+ */
 async function pdfToText(file: Express.Multer.File): Promise<string> {
-  // Imported inline so that Jest can test other routes without failing due to loading ESM
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-  const data = new Uint8Array(await fs.promises.readFile(file.path));
-  const pdf = await getDocument({ data }).promise;
-
-  let fullText = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .filter((item): item is TextItem => !('type' in item))
-      .map((item) => item.str)
-      .join(' ');
-    fullText += pageText + '\n';
-  }
-
-  return fullText;
+  const pages = await extractPdfPageTexts(await fs.promises.readFile(file.path));
+  return pages.map(normalizePersianText).join('\n\n');
 }
 
 /** Parses Word document, returns text inside. */
@@ -102,7 +98,7 @@ async function wordDocToText(file: Express.Multer.File): Promise<string> {
   await assertSafeZipSize(buffer, { name: file.originalname ?? 'docx' });
   const { extractRawText } = await import('mammoth');
   const rawText = await extractRawText({ buffer });
-  return rawText.value;
+  return normalizeIfPersian(rawText.value);
 }
 
 /** Parses Excel sheet, returns text inside. */
@@ -126,7 +122,7 @@ async function excelSheetToText(file: Express.Multer.File): Promise<string> {
     text += `${sheetName}:\n${worksheetAsCsvString}\n`;
   }
 
-  return text;
+  return normalizeIfPersian(text);
 }
 
 /**
@@ -142,7 +138,7 @@ async function odtToText(file: Express.Multer.File): Promise<string> {
   if (!bodyMatch) {
     return '';
   }
-  return bodyMatch[1]
+  const text = bodyMatch[1]
     .replace(/<\/text:p>/g, '\n')
     .replace(/<\/text:h>/g, '\n')
     .replace(/<text:line-break\/>/g, '\n')
@@ -159,6 +155,7 @@ async function odtToText(file: Express.Multer.File): Promise<string> {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+  return normalizeIfPersian(text);
 }
 
 /**
