@@ -7,6 +7,12 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-27
+
+### Changed
+- The on-server model is now labelled «داخلی — کاملاً محرمانه», and its description says it runs on
+  our own server and no data leaves it. Before, the label only said where it ran.
+
 ## [0.14.0] - 2026-10-27
 
 ### Added
