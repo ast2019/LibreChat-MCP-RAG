@@ -35,6 +35,7 @@ import {
   getModelSpecPreset,
   hasModelSelection,
   buildDefaultConvo,
+  requiresExplicitModelSelection,
   requestChatFocus,
   renewNewConversationDraftToken,
   getNewConversationDraftId,
@@ -121,10 +122,22 @@ const useNewConvo = (index = 0) => {
         keepAddedConvos?: boolean,
         disableFocus?: boolean,
         _disableParams?: boolean,
+        /** Start the chat with no model at all (no endpoint default): the user must pick one. */
+        withoutModelSelection?: boolean,
       ) => {
         const modelsConfig = modelsData ?? modelsQuery.data;
+        if (withoutModelSelection === true) {
+          conversation = {
+            ...conversation,
+            endpoint: null,
+            endpointType: undefined,
+            model: null,
+            spec: null,
+          };
+        }
         const { endpoint = null } = conversation;
-        const buildDefaultConversation = (endpoint === null || buildDefault) ?? false;
+        const buildDefaultConversation =
+          withoutModelSelection !== true && ((endpoint === null || buildDefault) ?? false);
         const hasExplicitChatProjectId = Object.prototype.hasOwnProperty.call(
           conversation,
           'chatProjectId',
@@ -375,6 +388,17 @@ const useNewConvo = (index = 0) => {
       if (!preset && startupConfig && shouldApplyModelSpec && defaultModelSpec) {
         preset = getModelSpecPreset(defaultModelSpec);
       }
+      /** Specs drive the model choice but none is preselected (no `default` spec and no prior
+       * pick): instead of building an endpoint default the user never chose, the new chat
+       * starts with no model and the composer refuses to send until one is picked. */
+      const withoutModelSelection =
+        !preset &&
+        defaultModelSpec == null &&
+        conversation.conversationId === Constants.NEW_CONVO &&
+        !hasModelSelection(_template) &&
+        /* A saved default preset naming a spec is the user's own choice. */
+        !defaultPreset?.spec &&
+        requiresExplicitModelSelection(startupConfig);
 
       const prevConversation = getConversation();
       conversation = clearInheritedAgentWorkspace(conversation, prevConversation);
@@ -533,6 +557,7 @@ const useNewConvo = (index = 0) => {
         keepAddedConvos,
         disableFocus,
         disableParams,
+        withoutModelSelection,
       );
     },
     [
@@ -542,6 +567,7 @@ const useNewConvo = (index = 0) => {
       agentsMap,
       saveDrafts,
       mutateAsync,
+      defaultPreset,
       startupConfig,
       endpointsConfig,
       getConversation,

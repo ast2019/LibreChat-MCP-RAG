@@ -7,6 +7,40 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-27
+
+### Changed
+- **Faster login and app entry.** `/api/models` now keeps OpenRouter's model list (and its prices)
+  for 1 hour instead of 2 minutes (`MODELS_CACHE_TTL_MS` overrides it). A failed fetch is
+  remembered for 60 s, so a slow or unreachable OpenRouter no longer makes every page load
+  wait its 5 s timeout. `/api/config` no longer waits up to 1.5 s for the tgju rate: it uses
+  the yaml rate and the live one replaces it in the background. Both caches are filled at
+  server start (`warmStartupCaches`).
+- **New blue logo**: a rounded blue hexagon with a white chat bubble and a spark. Favicons, app
+  icons and the PWA/browser theme colour (`#2563EB`) are updated too.
+- **No preselected model.** The «Gemini Flash» spec is no longer `default`, and the legacy
+  "first spec" fallback is gone. A new chat shows «انتخاب مدل» with a highlighted selector and
+  remembers the user's last pick. A message cannot be sent until a model is chosen; trying
+  shows «لطفاً اول یک مدل هوش مصنوعی انتخاب کنید» and opens the selector.
+- **Week start**: a «شنبه» option was added, and «خودکار» follows the app language, so a Persian
+  UI starts on Saturday even in an English browser.
+- **Speech settings in Persian**: «فارسی (ایران)» is first in the language list, language names
+  are shown in the UI language, Persian is the default speech language for a Persian UI, and
+  Persian browser voices are listed first.
+- **Sidebar read/unread**: unread chats get a green dot and a bold title; read chats have a
+  dimmed grey icon and muted title. The open chat is never dimmed.
+- **Automatic titles**: when the title model is off (local models) or fails, the chat is titled
+  from the first words of the user's first message instead of staying «چت جدید».
+- Clearer Persian copy: Fork is now «کپی در گفت‌وگوی جدید», with plain explanations of each option.
+  The LaTeX toggle is «نمایش فرمول‌های ریاضی (LaTeX)» with a plain explanation, and Langfuse is
+  «پایش هوش (Langfuse)».
+- «لغو همه کلیدهای API» is shown only when some endpoint accepts a user's own key; the Langfuse
+  tab additionally requires the ADMIN role on the client.
+
+### Added
+- `.kiro/skills/hivegpt-ui-ux/SKILL.md`: HiveGPT UI/UX rules (palette, RTL, Persian microcopy,
+  required states, accessibility, pre-merge checklist).
+
 ## [0.11.0] - 2026-10-26
 
 ### Added

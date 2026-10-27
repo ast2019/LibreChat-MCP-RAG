@@ -1,15 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="HiveGPT">
   <defs>
-    <linearGradient id="hive-honey" x1="96" y1="40" x2="416" y2="472" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FCD34D"/>
-      <stop offset="0.5" stop-color="#F59E0B"/>
-      <stop offset="1" stop-color="#C2410C"/>
+    <linearGradient id="hive-blue" x1="96" y1="40" x2="416" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60A5FA"/>
+      <stop offset="0.55" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <linearGradient id="hive-spark" x1="188" y1="172" x2="324" y2="316" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
     </linearGradient>
   </defs>
-  <polygon points="256,40 443.1,148 443.1,364 256,472 68.9,364 68.9,148" fill="url(#hive-honey)" stroke="url(#hive-honey)" stroke-width="48" stroke-linejoin="round"/>
-  <polygon points="256,92 397.3,173.5 397.3,338.5 256,420 114.7,338.5 114.7,173.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="10" stroke-linejoin="round"/>
-  <path d="M188 168h136c30.9 0 56 25.1 56 56v60c0 30.9-25.1 56-56 56h-82l-58 44c-6.6 5-16 0.3-16-8v-36.6c-24.3-6.3-36-27.8-36-55.4v-60c0-30.9 25.1-56 56-56z" fill="#FFFFFF"/>
-  <circle cx="200" cy="254" r="20" fill="#B45309"/>
-  <circle cx="256" cy="254" r="20" fill="#B45309"/>
-  <circle cx="312" cy="254" r="20" fill="#B45309"/>
+  <polygon points="256,44 439.6,150 439.6,362 256,468 72.4,362 72.4,150" fill="url(#hive-blue)" stroke="url(#hive-blue)" stroke-width="56" stroke-linejoin="round"/>
+  <path d="M196 148h120c39.8 0 72 32.2 72 72v48c0 39.8-32.2 72-72 72h-76l-62 46c-7.9 5.9-19 0.2-19-9.6v-44.6c-22.6-12.4-35-35.6-35-63.8v-48c0-39.8 32.2-72 72-72z" fill="#FFFFFF"/>
+  <path d="M256 168c7 42 24 68 72 76c-48 8-65 34-72 76c-7-42-24-68-72-76c48-8 65-34 72-76z" fill="url(#hive-spark)"/>
 </svg>

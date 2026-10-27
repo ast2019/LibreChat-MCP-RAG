@@ -3,6 +3,7 @@ import { useRecoilValue } from 'recoil';
 import {
   AgentCapabilities,
   Permissions,
+  SystemRoles,
   PermissionTypes,
   isTwoFactorPolicyProvider,
 } from 'librechat-data-provider';
@@ -35,7 +36,11 @@ export function useSettingsContext(): SettingsContextValue {
   });
 
   const balanceEnabled = startupConfig?.balance?.enabled === true;
-  const langfuseConnectionAccess = startupConfig?.langfuseConnectionAccess === true;
+  /* Langfuse is an admin-only observability integration. The server already scopes
+     `langfuseConnectionAccess`; the role check is a defensive second gate so a
+     misconfigured flag never surfaces the tab to a normal user. */
+  const langfuseConnectionAccess =
+    startupConfig?.langfuseConnectionAccess === true && user?.role === SystemRoles.ADMIN;
   const adminPanelURL = startupConfig?.adminPanelURL ?? '';
   const isLocalProvider = user?.provider === 'local';
   const emailEnabled = startupConfig?.emailEnabled === true;

@@ -396,7 +396,7 @@ export function applyModelSpecEphemeralAgent({
 
 /**
  * Resolves the default model spec for a new chat. Priority: hard admin default →
- * the most recent conversation's own selection → soft default → legacy first spec.
+ * the most recent conversation's own selection → soft default → nothing.
  *
  * `LAST_CONVO_SETUP_0` is the single source of truth for prior intent: a setup naming
  * the soft spec is the soft default re-arming, any other spec/agent/endpoint is a
@@ -405,9 +405,8 @@ export function applyModelSpecEphemeralAgent({
  * also wins whenever the selector offers no ephemeral endpoint → model options — unless
  * the setup names a concrete agent/assistant the selector still offers, the one real
  * selection picker-only deployments provide — so lingering endpoint/model residue never
- * strands a new chat on an unselectable endpoint. The legacy first-spec fallback applies
- * only when specs are prioritized (or the model menu is hidden) and no soft default is
- * configured.
+ * strands a new chat on an unselectable endpoint. There is deliberately no first-spec
+ * fallback: without an explicit default or prior pick, the user must choose a model.
  *
  * A stored agent pick is trusted only until the agent list can weigh in: pass `agentsMap`
  * once loaded, and a pick naming an agent missing from it (deleted, or selected in another
@@ -427,7 +426,7 @@ export function getDefaultModelSpec(
     }
   | undefined {
   const { modelSpecs, interface: interfaceConfig } = startupConfig ?? {};
-  const { list, prioritize, addedEndpoints } = modelSpecs ?? {};
+  const { list, addedEndpoints } = modelSpecs ?? {};
   if (!list) {
     return;
   }
@@ -471,10 +470,54 @@ export function getDefaultModelSpec(
     return yieldsToSelection ? undefined : { softDefault: softDefaultSpec };
   }
 
-  if (prioritize === true || interfaceConfig?.modelSelect !== true) {
-    return { default: list[0] };
-  }
+  /** No explicit `default`/`softDefault` and no prior pick: the user has never chosen a
+   * model. Upstream silently fell back to the first spec when specs are prioritized (or the
+   * model menu is hidden); that preselected a model the user never chose, so the new chat
+   * now starts unselected and the user must pick one before sending (see
+   * `requiresExplicitModelSelection`). */
   return;
+}
+
+/**
+ * Whether a new chat must start with no model selected rather than building an endpoint
+ * default, i.e. specs are configured and either prioritized, enforced, or the only choice
+ * the selector offers (`interface.modelSelect` not enabled). Combined with a missing default
+ * spec, the user has to explicitly pick a spec before sending.
+ */
+export function requiresExplicitModelSelection(startupConfig?: t.TStartupConfig): boolean {
+  const { modelSpecs, interface: interfaceConfig } = startupConfig ?? {};
+  if (!modelSpecs?.list?.length) {
+    return false;
+  }
+  return (
+    modelSpecs.prioritize === true ||
+    modelSpecs.enforce === true ||
+    interfaceConfig?.modelSelect !== true
+  );
+}
+
+/**
+ * Whether a conversation names a usable model choice: an endpoint plus a model, spec,
+ * agent or assistant. A new chat without one must not be sent.
+ */
+export function hasUsableModelSelection(
+  conversation?: {
+    endpoint?: string | null;
+    model?: string | null;
+    spec?: string | null;
+    agent_id?: string | null;
+    assistant_id?: string | null;
+  } | null,
+): boolean {
+  if (!conversation || !hasSelectionValue(conversation.endpoint ?? null)) {
+    return false;
+  }
+  return (
+    hasSelectionValue(conversation.model ?? null) ||
+    hasSelectionValue(conversation.spec ?? null) ||
+    hasSelectionValue(conversation.agent_id ?? null) ||
+    hasSelectionValue(conversation.assistant_id ?? null)
+  );
 }
 
 /**

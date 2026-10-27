@@ -391,6 +391,7 @@ describe('fetchModels with createTokenConfig true', () => {
     expect(mockTokenConfigSet).toHaveBeenCalledWith(
       `${SCOPED_TOKEN_CONFIG_KEY_PREFIX}tenant\u0000abc123`,
       endpointTokenConfig,
+      Time.ONE_HOUR + Time.ONE_MINUTE,
     );
   });
 
@@ -415,6 +416,7 @@ describe('fetchModels with createTokenConfig true', () => {
       expect.objectContaining({
         'model-1': expect.objectContaining({ context: 1024 }),
       }),
+      Time.ONE_HOUR + Time.ONE_MINUTE,
     );
     const sourceSetCall = mockTokenConfigSet.mock.calls.find(([key]) =>
       key.startsWith(`${SCOPED_TOKEN_CONFIG_KEY_PREFIX}models`),
@@ -731,7 +733,7 @@ describe('fetchModels with Ollama specific logic', () => {
     expect(mockCacheSet).toHaveBeenCalledWith(
       expect.any(String),
       ['Ollama-Base', 'Ollama-Advanced'],
-      Time.TWO_MINUTES,
+      Time.ONE_HOUR,
     );
   });
 
@@ -1021,7 +1023,7 @@ describe('fetchModels caching behavior', () => {
     expect(mockCacheSet).toHaveBeenCalledWith(
       expect.any(String),
       ['cached-model-1', 'cached-model-2'],
-      Time.TWO_MINUTES,
+      Time.ONE_HOUR,
     );
   });
 
@@ -1065,6 +1067,54 @@ describe('fetchModels caching behavior', () => {
       expect.any(Array),
       expect.any(Number),
     );
+  });
+
+  it('honors MODELS_CACHE_TTL_MS for the model list', async () => {
+    process.env.MODELS_CACHE_TTL_MS = '5000';
+    try {
+      await fetchModels({ apiKey: 'key', baseURL: 'https://api.test.com', name: 'TestAPI' });
+    } finally {
+      delete process.env.MODELS_CACHE_TTL_MS;
+    }
+
+    expect(mockCacheSet).toHaveBeenCalledWith(
+      expect.any(String),
+      ['cached-model-1', 'cached-model-2'],
+      5000,
+    );
+  });
+
+  it('negatively caches a failed fetch for one minute', async () => {
+    mockedAxios.get.mockRejectedValueOnce(new Error('timeout'));
+
+    const models = await fetchModels({
+      apiKey: 'key',
+      baseURL: 'https://api.test.com',
+      name: 'TestAPI',
+    });
+
+    expect(models).toEqual([]);
+    expect(mockCacheSet).toHaveBeenCalledWith(
+      expect.stringMatching(/^failed:/),
+      expect.any(String),
+      Time.ONE_MINUTE,
+    );
+  });
+
+  it('returns the failure result without fetching while a negative entry is cached', async () => {
+    mockCacheGet.mockImplementation(async (key: string) =>
+      key.startsWith('failed:') ? '__model_fetch_failed__' : undefined,
+    );
+
+    const models = await fetchModels({
+      apiKey: 'key',
+      baseURL: 'https://api.test.com',
+      name: 'TestAPI',
+    });
+
+    expect(models).toEqual([]);
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+    expect(mockCacheSet).not.toHaveBeenCalled();
   });
 
   it('skips MODEL_QUERIES cache when both headers and userObject are supplied (user-scoped response)', async () => {

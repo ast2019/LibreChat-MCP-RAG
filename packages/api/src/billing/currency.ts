@@ -33,8 +33,12 @@ export const TGJU_URLS = [
 ] as const;
 
 const DEFAULT_REFRESH_MINUTES = 30;
-/** How long a request waits for the very first reading before it uses the yaml rate */
-const DEFAULT_FIRST_READ_WAIT_MS = 1500;
+/**
+ * How long a request waits for the very first reading before it uses the yaml rate. Zero: the
+ * startup config must never wait on the market source — the first request (or the startup
+ * warm-up) answers with the yaml rate and later ones pick up the live reading.
+ */
+const DEFAULT_FIRST_READ_WAIT_MS = 0;
 const DEFAULT_TIMEOUT_MS = 8000;
 /** A failed read is not retried sooner than this, so an outage costs one request per minute */
 const DEFAULT_RETRY_MS = 60_000;
@@ -109,8 +113,8 @@ export interface CurrencyRates {
   /**
    * The currency the client should format with and where its rate came from. A configured
    * live source answers from its last reading and refreshes in the background once that is
-   * older than `refreshMinutes`; before the first reading, a request waits briefly and then
-   * uses the yaml `rate`.
+   * older than `refreshMinutes`; before the first reading, a request waits up to
+   * `firstReadWaitMs` (none by default) and then uses the yaml `rate`.
    */
   resolve(
     currency: InterfaceCurrency | undefined,
@@ -174,7 +178,7 @@ export function createCurrencyRates({
     const backingOff = state.failedAt != null && at - state.failedAt < retryMs;
     if (!fresh && !backingOff) {
       const pending = refresh(source, state);
-      if (state.value == null) {
+      if (state.value == null && firstReadWaitMs > 0) {
         const waited = await Promise.race([
           pending,
           new Promise<undefined>((resolve) => {
@@ -222,4 +226,15 @@ export function createCurrencyRates({
       };
     },
   };
+}
+
+let sharedCurrencyRates: CurrencyRates | undefined;
+
+/**
+ * The process-wide live-rate cache (tgju), shared by the `/api/config` route and the startup
+ * warm-up so a reading fetched at boot is the one requests answer with.
+ */
+export function getSharedCurrencyRates(): CurrencyRates {
+  sharedCurrencyRates ??= createCurrencyRates({ fetchers: { tgju: createTgjuFetcher() } });
+  return sharedCurrencyRates;
 }

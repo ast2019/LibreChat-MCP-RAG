@@ -1,4 +1,5 @@
 export * from './app';
+export * from './app/warmup';
 export * from './acl/accessControlService';
 export * from './acl/insightsPermissions';
 export * from './acl/audit';
@@ -57,6 +58,7 @@ export * from './mcp/utils';
 export * from './mcp/domainValidation';
 export * from './mcp/context';
 export * from './utils';
+export * from './utils/fallbackTitle';
 export { default as Tokenizer, countTokens } from './utils/tokenizer';
 export type { EncodingName } from './utils/tokenizer';
 export * from './db/utils';

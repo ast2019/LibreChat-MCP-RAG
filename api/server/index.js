@@ -70,6 +70,7 @@ const {
   warnOnUnreachableDeliveryPaths,
   createCodeApiUploadRegistry,
   createRequestSanitizer,
+  warmStartupCaches,
 } = require('@librechat/api');
 const { connectDb, indexSync } = require('~/db');
 const {
@@ -519,6 +520,10 @@ const startServer = async () => {
     } else {
       logger.info(`Server listening at http://${host == '0.0.0.0' ? 'localhost' : host}:${port}`);
     }
+
+    /** Fire-and-forget: model lists/prices and the live currency rate, so the first page load
+     *  after a restart does not wait on providers. Never throws. */
+    void warmStartupCaches({ appConfig });
 
     /**
      * The listen callback is async, so any rejection from these awaits would

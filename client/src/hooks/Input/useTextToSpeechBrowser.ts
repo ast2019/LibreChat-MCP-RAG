@@ -1,6 +1,10 @@
 import { useMemo, useCallback, useSyncExternalStore } from 'react';
 import { useRecoilValue } from 'recoil';
 import type { VoiceOption } from '~/common';
+import {
+  speechLanguageMatches,
+  useEffectiveLanguageTTS,
+} from '~/components/Nav/SettingsTabs/Speech/speechLanguage';
 import { subscribeSpeechVoices, getSpeechVoicesSnapshot } from '~/utils';
 import store from '~/store';
 
@@ -11,6 +15,7 @@ function useTextToSpeechBrowser({
 }) {
   const voiceName = useRecoilValue(store.voice);
   const cloudBrowserVoices = useRecoilValue(store.cloudBrowserVoices);
+  const languageTTS = useEffectiveLanguageTTS();
   const { voices: availableVoices, supported: isSpeechSynthesisSupported } = useSyncExternalStore(
     subscribeSpeechVoices,
     getSpeechVoicesSnapshot,
@@ -21,8 +26,16 @@ function useTextToSpeechBrowser({
     const filteredVoices = availableVoices.filter(
       (v) => cloudBrowserVoices || v.localService === true,
     );
-    return filteredVoices.map((v): VoiceOption => ({ value: v.name, label: v.name }));
-  }, [availableVoices, cloudBrowserVoices]);
+    /* Voices speaking the effective TTS language (the UI language by default) first, so
+       the picker leads with them and an unset voice defaults to one (`useTTSBrowser`
+       picks the first). A stable partition: the browser's own order is kept otherwise. */
+    const matching = filteredVoices.filter((v) => speechLanguageMatches(v.lang, languageTTS));
+    const ordered =
+      matching.length === 0
+        ? filteredVoices
+        : [...matching, ...filteredVoices.filter((v) => !matching.includes(v))];
+    return ordered.map((v): VoiceOption => ({ value: v.name, label: v.name }));
+  }, [availableVoices, cloudBrowserVoices, languageTTS]);
 
   /** Reports whether an utterance was actually queued: autoplay must not mark a run as
    *  played when the voice list has not loaded yet, or the message is never spoken. */

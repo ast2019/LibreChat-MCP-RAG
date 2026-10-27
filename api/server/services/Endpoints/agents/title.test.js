@@ -219,14 +219,91 @@ describe('agents addTitle', () => {
     );
   });
 
-  it('skips generation when the endpoint disables titleConvo', async () => {
+  it('titles from the first message when the endpoint disables titleConvo', async () => {
+    const client = makeClient();
+    client.options.titleConvo = false;
+    const onTitleGenerated = jest.fn();
+
+    await addTitle(makeReq(), {
+      text: '**Help me** plan a trip to the mountains next weekend please',
+      client,
+      conversationId: 'cid',
+      immediate: true,
+      convoReady: Promise.resolve(),
+      onTitleGenerated,
+    });
+
+    const fallback = 'Help me plan a trip to the mountains…';
+    expect(client.titleConvo).not.toHaveBeenCalled();
+    expect(mockCache.set).toHaveBeenCalledWith('user-1-cid', fallback, 120000);
+    expect(onTitleGenerated).toHaveBeenCalledWith({ conversationId: 'cid', title: fallback });
+    expect(mockSaveConvo).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'cid', title: fallback }),
+      expect.objectContaining({ noUpsert: true, titleSource: 'generated' }),
+    );
+  });
+
+  it('saves nothing when titleConvo is disabled and the message has no text', async () => {
     const client = makeClient();
     client.options.titleConvo = false;
 
-    await addTitle(makeReq(), { text: 'hi', client, conversationId: 'cid', immediate: true });
+    await addTitle(makeReq(), { text: '  ', client, conversationId: 'cid', immediate: true });
 
-    expect(client.titleConvo).not.toHaveBeenCalled();
     expect(mockSaveConvo).not.toHaveBeenCalled();
+    expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['fails', () => jest.fn().mockRejectedValue(new Error('provider down'))],
+    ['returns nothing', () => jest.fn().mockResolvedValue(undefined)],
+    ['returns the placeholder', () => jest.fn().mockResolvedValue('Untitled Conversation')],
+  ])('titles from the first message when the title model %s', async (_label, makeTitleConvo) => {
+    const client = makeClient();
+    client.titleConvo = makeTitleConvo();
+
+    await addTitle(makeReq(), {
+      text: 'Summarize this article',
+      client,
+      conversationId: 'cid-fail',
+      immediate: true,
+      convoReady: Promise.resolve(),
+    });
+
+    expect(client.titleConvo).toHaveBeenCalled();
+    expect(mockSaveConvo).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'cid-fail', title: 'Summarize this article' }),
+      expect.objectContaining({ noUpsert: true }),
+    );
+  });
+
+  it('runs the fallback title through the title filters', async () => {
+    const client = makeClient();
+    client.options.titleConvo = false;
+    const req = makeReq();
+    req.config.filters = {
+      conversationTitles: {
+        pii: {
+          starterPatterns: [],
+          customPatterns: [{ id: 'blocked', label: 'blocked', regex: 'BLOCKED' }],
+        },
+      },
+    };
+
+    await addTitle(req, {
+      text: 'my BLOCKED secret',
+      client,
+      conversationId: 'cid-filtered-fallback',
+      immediate: true,
+      convoReady: Promise.resolve(),
+    });
+
+    expect(mockSaveConvo).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'cid-filtered-fallback', title: 'New Chat' }),
+      expect.anything(),
+    );
   });
 
   it('skips generation for temporary conversations', async () => {

@@ -160,6 +160,9 @@ function Conversation({
     }
   }, [currentConvoId, conversationId, activeConversationId]);
 
+  /** Read, idle and not open: the row recedes so unread replies stand out. */
+  const isRead = !isUnseen && !isGenerating && !isActiveConvo && !isPopoverActive;
+
   const handleRename = () => {
     if (!canRename) return;
     setIsPopoverActive(false);
@@ -416,7 +419,19 @@ function Conversation({
               and menu. The ring is 2.125rem around the 1.25rem icon: offset by half the
               difference. Both are rem so the ring follows the icon box at any UI scale. */}
           <span className="relative flex size-5 shrink-0 items-center justify-center">
-            <ConversationEndpointIcon conversation={conversation} size={20} context="menu-item" />
+            {/* A read, idle chat that is not open dims its avatar so unread rows stand out;
+                hovering or focusing the row restores full color. */}
+            <span
+              data-testid="convo-avatar"
+              data-read={isRead ? 'true' : undefined}
+              className={cn(
+                'flex size-5 items-center justify-center transition-all duration-150',
+                isRead &&
+                  'opacity-60 grayscale group-focus-within:opacity-100 group-focus-within:grayscale-0 group-hover:opacity-100 group-hover:grayscale-0',
+              )}
+            >
+              <ConversationEndpointIcon conversation={conversation} size={20} context="menu-item" />
+            </span>
             {isGenerating && (
               <Spinner
                 size={34}
@@ -429,8 +444,9 @@ function Conversation({
               /* `ConvoLink`'s aria-label carries the text equivalent of the ring and the dot. */
               <span
                 aria-hidden="true"
+                data-testid="unread-dot"
                 className={cn(
-                  'bg-status-info pointer-events-none absolute -inset-e-0.5 -bottom-0.5 size-2 rounded-full ring-2',
+                  'bg-status-success-strong pointer-events-none absolute -inset-e-1 -bottom-1 size-2.5 rounded-full ring-2',
                   isActiveConvo || isPopoverActive
                     ? 'ring-surface-nav-selected'
                     : 'ring-surface-sidebar group-hover:ring-surface-nav-hover',

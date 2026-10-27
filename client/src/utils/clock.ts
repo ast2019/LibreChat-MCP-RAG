@@ -67,9 +67,9 @@ export const resolveHour12 = (preference: ClockFormatPreference, locale?: string
 };
 
 /** First day of the week on the same 0-6 Sunday-first scale the schedule cadence
- *  uses (the cron day-of-week field). Deliberately not narrowed to Sunday/Monday:
- *  the setting offers only those two, but its 'system' branch reports whatever the
- *  locale says, and several (`ar-EG`, `fa-IR`) start the week on Saturday. */
+ *  uses (the cron day-of-week field). Deliberately not narrowed to the overrides the
+ *  setting offers (Saturday/Sunday/Monday): its 'system' branch reports whatever the
+ *  locale says, and `dv-MV` starts the week on Friday. */
 export type WeekStartDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /**
@@ -231,17 +231,44 @@ export const localeWeekStartsOn = (locale?: string): WeekStartDay => {
   if (region == null) {
     return 1;
   }
-  // The mapped days matter doubly here: the type above allows them, but the
-  // selector offers no Saturday or Friday override, so a user in `ar-EG` or
-  // `dv-MV` on such an engine has no other route back to their own week order.
+  // The mapped days matter doubly here: the selector offers no Friday override,
+  // so a user in `dv-MV` on such an engine has no other route to their week order.
   return FALLBACK_REGION_WEEK_START.get(region) ?? 1;
 };
 
-/** Resolves the "Week starts on" setting to a concrete day index (0 = Sunday, 1 = Monday). */
+const primaryLanguage = (tag: string): string => tag.split(/[-_]/)[0].toLowerCase();
+
+/**
+ * The locale the "Week starts on: System" setting reads. The app's UI language wins
+ * (a Persian UI means a Saturday-first week even in an en-US browser), and the
+ * runtime locale is used only when the app has no language of its own ('auto' or
+ * unset). When both name the same language, the runtime locale is kept because it
+ * carries the region the picker cannot express: the picker offers only `en-US` for
+ * English, and a British user choosing English still expects a Monday-first week.
+ */
+export const weekStartLocale = (
+  appLanguage?: string | null,
+  runtimeLocale?: string,
+): string | undefined => {
+  const app = appLanguage?.trim();
+  if (!app || app === 'auto') {
+    return runtimeLocale;
+  }
+  if (runtimeLocale && primaryLanguage(runtimeLocale) === primaryLanguage(app)) {
+    return runtimeLocale;
+  }
+  return app;
+};
+
+/** Resolves the "Week starts on" setting to a concrete day index (0 = Sunday,
+ *  1 = Monday, 6 = Saturday). */
 export const resolveWeekStartsOn = (
   preference: WeekStartPreference,
   locale?: string,
 ): WeekStartDay => {
+  if (preference === 'saturday') {
+    return 6;
+  }
   if (preference === 'sunday') {
     return 0;
   }

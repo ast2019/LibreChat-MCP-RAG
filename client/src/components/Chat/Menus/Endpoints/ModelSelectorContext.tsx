@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import debounce from 'lodash/debounce';
 import {
   EModelEndpoint,
@@ -19,6 +19,7 @@ import { useAgentsMapContext, useAssistantsMapContext, useLiveAnnouncer } from '
 import { useGetEndpointsQuery, useListAgentsQuery } from '~/data-provider';
 import { useModelSelectorChatContext } from './ModelSelectorChatContext';
 import useSelectMention from '~/hooks/Input/useSelectMention';
+import { hasUsableModelSelection } from '~/utils/endpoints';
 import { filterItems } from './utils';
 
 type ModelSelectorContextType = {
@@ -33,6 +34,8 @@ type ModelSelectorContextType = {
   agentsMap: t.TAgentsMap | undefined;
   assistantsMap: t.TAssistantsMap | undefined;
   endpointsConfig: t.TEndpointsConfig;
+  /** The loaded conversation names no model yet: the user still has to pick one. */
+  modelSelectionMissing: boolean;
 
   // Functions
   endpointRequiresUserKey: (endpoint: string) => boolean;
@@ -63,8 +66,19 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const agentsMap = useAgentsMapContext();
   const assistantsMap = useAssistantsMapContext();
   const { data: endpointsConfig } = useGetEndpointsQuery();
-  const { endpoint, model, spec, agent_id, assistant_id, getConversation, newConversation } =
-    useModelSelectorChatContext();
+  const {
+    conversationId,
+    endpoint,
+    model,
+    spec,
+    agent_id,
+    assistant_id,
+    getConversation,
+    newConversation,
+  } = useModelSelectorChatContext();
+  const modelSelectionMissing =
+    conversationId != null &&
+    !hasUsableModelSelection({ endpoint, model, spec, agent_id, assistant_id });
   const localize = useLocalize();
   const { announcePolite } = useLiveAnnouncer();
   const modelSpecs = useMemo(() => {
@@ -172,6 +186,14 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     setSelectedValues,
   });
 
+  /** `useSelectorEffects` only mirrors conversations that carry a selection; a new chat
+   * that starts with no model must clear what an earlier chat left in the trigger. */
+  useEffect(() => {
+    if (conversationId != null && !endpoint) {
+      setSelectedValues({ endpoint: '', model: '', modelSpec: '' });
+    }
+  }, [conversationId, endpoint]);
+
   const [searchValue, setSearchValueState] = useState('');
   const [endpointSearchValues, setEndpointSearchValues] = useState<Record<string, string>>({});
 
@@ -275,6 +297,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       assistantsMap,
       mappedEndpoints,
       endpointsConfig,
+      modelSelectionMissing,
       handleSelectSpec,
       handleSelectModel,
       setSelectedValues,
@@ -294,6 +317,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       assistantsMap,
       mappedEndpoints,
       endpointsConfig,
+      modelSelectionMissing,
       handleSelectSpec,
       handleSelectModel,
       setSelectedValues,

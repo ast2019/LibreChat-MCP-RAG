@@ -117,6 +117,32 @@ async function fetchOllamaModels(
   return response.data.models.map((tag) => tag.name);
 }
 
+/** Default lifetime of a successfully fetched model list in `MODEL_QUERIES`. */
+export const DEFAULT_MODELS_CACHE_TTL_MS: number = Time.ONE_HOUR;
+/** How long a failed/empty model fetch is remembered so callers stop re-waiting on a down provider. */
+export const MODELS_NEGATIVE_CACHE_TTL_MS: number = Time.ONE_MINUTE;
+const NEGATIVE_CACHE_PREFIX = 'failed:';
+const NEGATIVE_CACHE_MARKER = '__model_fetch_failed__';
+
+/**
+ * Lifetime of a cached model list: `MODELS_CACHE_TTL_MS` (positive integer, ms) or one hour.
+ * Read per call so the env var can be changed without a rebuild.
+ */
+export function getModelsCacheTtl(): number {
+  const raw = Number(process.env.MODELS_CACHE_TTL_MS);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MODELS_CACHE_TTL_MS;
+}
+
+/**
+ * Lifetime for token/price configs derived from a model fetch. Outlives the model list
+ * (otherwise a cold price cache forces a live `/models` fetch on the first message) and is
+ * never shorter than the token-config cache's own default.
+ */
+function getTokenConfigTtl(): number {
+  /** The margin covers the model list being written just after its prices. */
+  return Math.max(getModelsCacheTtl(), Time.THIRTY_MINUTES) + Time.ONE_MINUTE;
+}
+
 async function backfillTokenConfigFromModelCache(
   cacheKey: string,
   tokenKey: string,
@@ -126,7 +152,7 @@ async function backfillTokenConfigFromModelCache(
     return false;
   }
 
-  await tokenConfigCache().set(tokenKey, cachedTokenConfig);
+  await tokenConfigCache().set(tokenKey, cachedTokenConfig, getTokenConfigTtl());
   return true;
 }
 
@@ -209,6 +235,14 @@ export async function fetchModels({
         return cachedModels as string[];
       }
     }
+
+    /** A recent fetch for this baseURL+apiKey failed or came back empty: return what the
+     *  failure path returns (any cached list kept above, else `[]`) instead of re-waiting
+     *  on the provider timeout for every request. */
+    const recentFailure = await modelsCache.get(`${NEGATIVE_CACHE_PREFIX}${cacheKey}`);
+    if (recentFailure === NEGATIVE_CACHE_MARKER) {
+      return models;
+    }
   }
 
   if (name && name.toLowerCase().startsWith(KnownEndpoints.ollama)) {
@@ -228,12 +262,14 @@ export async function fetchModels({
     }
     if (ollamaModels !== null) {
       if (modelsCache && cacheKey && ollamaModels.length > 0) {
-        await modelsCache.set(cacheKey, ollamaModels, Time.TWO_MINUTES);
+        await modelsCache.set(cacheKey, ollamaModels, getModelsCacheTtl());
       }
       return ollamaModels;
     }
   }
 
+  /** Only a list returned by this call counts as success for the positive/negative cache. */
+  let fetchedModels: string[] = [];
   try {
     // Resolve template variables (e.g. {{LIBRECHAT_OPENID_ID_TOKEN}}) in the
     // configured headers, mirroring fetchOllamaModels above. Without this,
@@ -293,19 +329,29 @@ export async function fetchModels({
     if (validationResult.success && createTokenConfig) {
       const endpointTokenConfig = processModelData(input);
       const cache = tokenConfigCache();
-      await cache.set(tokenKey ?? name, endpointTokenConfig);
+      const tokenConfigTtl = getTokenConfigTtl();
+      await cache.set(tokenKey ?? name, endpointTokenConfig, tokenConfigTtl);
       if (modelsCache && cacheKey) {
-        await cache.set(getModelCacheTokenConfigKey(cacheKey), endpointTokenConfig);
+        await cache.set(getModelCacheTokenConfigKey(cacheKey), endpointTokenConfig, tokenConfigTtl);
       }
     }
-    models = input.data.map((item: { id: string }) => item.id);
+    fetchedModels = input.data.map((item: { id: string }) => item.id);
+    models = fetchedModels;
   } catch (error) {
     const logMessage = `Failed to fetch models from ${azure ? 'Azure ' : ''}${name} API`;
     logAxiosError({ message: logMessage, error: error as Error });
   }
 
-  if (modelsCache && cacheKey && models.length > 0) {
-    await modelsCache.set(cacheKey, models, Time.TWO_MINUTES);
+  if (modelsCache && cacheKey) {
+    if (fetchedModels.length > 0) {
+      await modelsCache.set(cacheKey, fetchedModels, getModelsCacheTtl());
+    } else {
+      await modelsCache.set(
+        `${NEGATIVE_CACHE_PREFIX}${cacheKey}`,
+        NEGATIVE_CACHE_MARKER,
+        MODELS_NEGATIVE_CACHE_TTL_MS,
+      );
+    }
   }
 
   return models;

@@ -3,6 +3,7 @@ import { useRecoilState } from 'recoil';
 import { useToastContext } from '@librechat/client';
 import { useGetCustomConfigSpeechQuery } from 'librechat-data-provider/react-query';
 import SpeechRecognitionImport, { useSpeechRecognition } from 'react-speech-recognition';
+import { useEffectiveLanguageSTT } from '~/components/Nav/SettingsTabs/Speech/speechLanguage';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -43,7 +44,8 @@ const useSpeechToTextBrowser = (
   const lastInterim = useRef<string | null>(null);
   const activeTakeIdRef = useRef<number | undefined>(undefined);
   const timeoutRef = useRef<NodeJS.Timeout | null>();
-  const [languageSTT] = useRecoilState<string>(store.languageSTT);
+  /** The saved choice, else the UI language's default (`fa-IR` for a Persian UI). */
+  const languageSTT = useEffectiveLanguageSTT();
   const [autoTranscribeAudio] = useRecoilState<boolean>(store.autoTranscribeAudio);
 
   const {

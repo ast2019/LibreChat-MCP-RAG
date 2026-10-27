@@ -80,7 +80,7 @@ describe('createCurrencyRates', () => {
 
   it('converts the live rial price to Toman and keeps the price step', async () => {
     const fetcher: RateFetcher = jest.fn().mockResolvedValue(reading(2695000));
-    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now });
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
     await expect(rates.resolve(toman)).resolves.toEqual({
       currency: { code: 'IRT', rate: 269500, priceStep: 1000 },
       info: { source: 'tgju', updatedAt: '2026-10-25T16:29:59.000Z' },
@@ -96,7 +96,7 @@ describe('createCurrencyRates', () => {
       .fn<Promise<MarketRate>, [AbortSignal]>()
       .mockResolvedValueOnce(reading(2695000))
       .mockResolvedValueOnce(reading(2800000));
-    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now });
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
     await rates.resolve(toman);
 
     clock += 31 * 60_000;
@@ -130,7 +130,7 @@ describe('createCurrencyRates', () => {
       .fn<Promise<MarketRate>, [AbortSignal]>()
       .mockResolvedValueOnce(reading(2695000))
       .mockRejectedValueOnce(new Error('timeout'));
-    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now });
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
     await rates.resolve(toman);
     clock += 31 * 60_000;
     await rates.resolve(toman);
@@ -138,6 +138,28 @@ describe('createCurrencyRates', () => {
     const after = await rates.resolve(toman);
     expect(after.currency?.rate).toBe(269500);
     expect(after.info?.source).toBe('tgju');
+  });
+
+  it('never waits for the first reading by default, then serves it once it lands', async () => {
+    let settle: (value: MarketRate) => void = () => undefined;
+    const fetcher = jest.fn<Promise<MarketRate>, [AbortSignal]>(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now });
+
+    await expect(rates.resolve(toman)).resolves.toEqual({
+      currency: { code: 'IRT', rate: 270000, priceStep: 1000 },
+      info: { source: 'config' },
+    });
+    settle(reading(2695000));
+    await new Promise((resolve) => setImmediate(resolve));
+    await expect(rates.resolve(toman)).resolves.toEqual(
+      expect.objectContaining({ currency: { code: 'IRT', rate: 269500, priceStep: 1000 } }),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('waits only briefly for a slow first reading', async () => {
