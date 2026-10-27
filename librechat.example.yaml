@@ -46,10 +46,9 @@ projects:
 # credentials:
 #   writeFormat: v3
 
-# Langfuse connections are managed through Settings > Langfuse when available.
-# That flow verifies the credentials and stores the secret key encrypted; do not
-# place a plaintext langfuse.secretKey in this file. Environment-managed central
-# credentials and optional fanout routing are documented in .env.example.
+# HiveGPT does not use Langfuse: the settings tab, the admin connection API and the
+# fanout gateway were removed. The options below are inert unless LANGFUSE_* env
+# credentials are set; do not place a plaintext langfuse.secretKey in this file.
 #
 # Self-hosted Langfuse behind an authenticating proxy or gateway can be given
 # custom request headers. They are sent on every outbound Langfuse request —

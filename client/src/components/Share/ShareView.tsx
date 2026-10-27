@@ -5,7 +5,7 @@ import { buildTree } from 'librechat-data-provider';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGetSharedMessages } from 'librechat-data-provider/react-query';
-import { CalendarDays, ExternalLink, RefreshCw, Settings, MessageSquarePlus } from 'lucide-react';
+import { CalendarDays, RefreshCw, Settings, MessageSquarePlus } from 'lucide-react';
 import {
   Spinner,
   Button,
@@ -204,8 +204,6 @@ function SharedView() {
           onLangChange={handleLangChange}
           settingsLabel={localize('com_nav_settings')}
           continueLabel={localize('com_ui_continue_chat')}
-          langfuseSessionLabel={localize('com_ui_langfuse_view_session')}
-          langfuseSessionUrl={data.langfuseSessionUrl}
           onContinue={handleContinue}
           isContinuing={forkShare.isLoading}
           analyticsConfigured={hasAnalyticsGtmId(config?.analyticsGtmId)}
@@ -332,8 +330,6 @@ interface ShareHeaderProps {
   langcode: string;
   settingsLabel: string;
   continueLabel: string;
-  langfuseSessionLabel: string;
-  langfuseSessionUrl?: string;
   isContinuing: boolean;
   onContinue: () => void;
   onThemeChange: (value: string) => void;
@@ -349,8 +345,6 @@ export function ShareHeader({
   langcode,
   settingsLabel,
   continueLabel,
-  langfuseSessionLabel,
-  langfuseSessionUrl,
   isContinuing,
   onContinue,
   onThemeChange,
@@ -383,14 +377,6 @@ export function ShareHeader({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap md:self-start">
-            {langfuseSessionUrl && (
-              <Button asChild variant="outline" shape="round" className="border-border-medium">
-                <a href={langfuseSessionUrl} target="_blank" rel="noopener noreferrer">
-                  <span>{langfuseSessionLabel}</span>
-                  <ExternalLink className="size-4 shrink-0" aria-hidden="true" />
-                </a>
-              </Button>
-            )}
             <Button
               type="button"
               variant="submit"

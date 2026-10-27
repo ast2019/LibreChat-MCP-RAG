@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAtom } from 'jotai';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { QueryKeys, resolveTraceViewerConfig } from 'librechat-data-provider';
-import { Button, Spinner, EmptyState, FilterInput, buttonVariants } from '@librechat/client';
+import { Button, Spinner, EmptyState, FilterInput } from '@librechat/client';
 import {
   X,
   Clock,
@@ -11,7 +11,6 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
-  ExternalLink,
   ChevronsUpDown,
   ChevronsDownUp,
   TriangleAlert,
@@ -30,7 +29,6 @@ import {
   keepNewestTracePage,
   useGetStartupConfig,
   fetchConversationMessages,
-  useGetLangfuseSessionLinkQuery,
   useConversationTraceRecordsQuery,
 } from '~/data-provider';
 import {
@@ -106,10 +104,6 @@ export default function Viewer({
   const currency = startupConfig?.interface?.currency;
 
   const recordsQuery = useConversationTraceRecordsQuery(conversationId, true);
-  const { data: langfuseSession } = useGetLangfuseSessionLinkQuery(
-    conversationId,
-    startupConfig?.langfuseConnectionAccess === true,
-  );
   /** The chat's own messages, already loaded underneath the trace; they are only read, never fetched here. */
   const { data: messages } = useQuery<TMessage[]>(
     [QueryKeys.messages, conversationId],
@@ -151,15 +145,6 @@ export default function Viewer({
     }
     return sources;
   }, [pages]);
-  /** The session link opens one project; offer it only when that project served every loaded page. */
-  const langfuseUrl =
-    langfuseSession?.url != null &&
-    langfuseSession.destinationId != null &&
-    pages != null &&
-    pages.length > 0 &&
-    pages.every((page) => page.sourceId === langfuseSession.destinationId)
-      ? langfuseSession.url
-      : undefined;
   const hasOlder = recordsQuery.hasNextPage === true;
   const model = useMemo(() => buildTraceModel(records, mode, hasOlder), [records, mode, hasOlder]);
   const bounds = useMemo(() => boundsOf(model, scale), [model, scale]);
@@ -613,18 +598,6 @@ export default function Viewer({
           {localize('com_ui_trace_title')}
         </h2>
         <div className="ms-auto flex items-center gap-2">
-          {langfuseUrl != null && (
-            <a
-              href={langfuseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{localize('com_ui_trace_open_langfuse')}</span>
-              <span className="sr-only sm:hidden">{localize('com_ui_trace_open_langfuse')}</span>
-            </a>
-          )}
           {refreshButton}
           <Button
             ref={closeRef}

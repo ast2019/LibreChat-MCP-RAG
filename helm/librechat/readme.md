@@ -8,7 +8,7 @@ In this Chart, LibreChat will only work with environment Variables. You can Spec
 
 The bundled MongoDB and Redis subcharts run with authentication enabled. Their generated passwords stay in the subchart Secrets and reach LibreChat through `secretKeyRef` (`MONGODB_ROOT_PASSWORD`, `REDIS_PASSWORD`); `MONGO_URI` is assembled in the Deployment. Set `librechat.configEnv.MONGO_URI` (or `REDIS_URI`) to use your own database. Set `mongodb.auth.enabled=false` or `redis.auth.enabled=false` only to restore the old unauthenticated behavior; custom root passwords must be URL-safe because they are placed in `MONGO_URI`.
 
-If `MONGO_URI`, `REDIS_URI` or `REDIS_PASSWORD` comes from the Secret named by `global.librechat.existingSecretName`, set `librechat.injectBundledCredentials.mongodb=false` (for `MONGO_URI`) or `librechat.injectBundledCredentials.redis=false` (for `REDIS_URI` or `REDIS_PASSWORD`): the chart cannot see inside that Secret, and the generated values would otherwise override it. The two are independent, so overriding one database keeps the generated credentials for the other. Entries with the same names in `global.librechat.env` are respected and not duplicated. Supplying `REDIS_PASSWORD` (or `MONGODB_ROOT_PASSWORD`, in `configEnv` or `global.librechat.env`) while LibreChat still uses the bundled database fails the render unless `redis.auth.password` / `mongodb.auth.rootPassword` (or the matching `existingSecret`) is set too, because the bundled server would otherwise keep its own generated password. Literal values that differ from the subchart's password fail the render as well. The credentials are read when a pod starts, so after rotating a database password restart every Deployment that reads it: `kubectl rollout restart deployment/<release>-librechat`, plus `deployment/<release>-librechat-langfuse-fanout` when `langfuseFanout.enabled=true` and it uses the bundled Redis (or use a rollout controller such as Reloader).
+If `MONGO_URI`, `REDIS_URI` or `REDIS_PASSWORD` comes from the Secret named by `global.librechat.existingSecretName`, set `librechat.injectBundledCredentials.mongodb=false` (for `MONGO_URI`) or `librechat.injectBundledCredentials.redis=false` (for `REDIS_URI` or `REDIS_PASSWORD`): the chart cannot see inside that Secret, and the generated values would otherwise override it. The two are independent, so overriding one database keeps the generated credentials for the other. Entries with the same names in `global.librechat.env` are respected and not duplicated. Supplying `REDIS_PASSWORD` (or `MONGODB_ROOT_PASSWORD`, in `configEnv` or `global.librechat.env`) while LibreChat still uses the bundled database fails the render unless `redis.auth.password` / `mongodb.auth.rootPassword` (or the matching `existingSecret`) is set too, because the bundled server would otherwise keep its own generated password. Literal values that differ from the subchart's password fail the render as well. The credentials are read when a pod starts, so after rotating a database password restart every Deployment that reads it: `kubectl rollout restart deployment/<release>-librechat` (or use a rollout controller such as Reloader).
 
 ### Keeping the generated passwords across upgrades
 
@@ -126,48 +126,6 @@ required. Rolling upgrades must start from a v2-capable bridge release
 (LibreChat `v0.8.8-rc1` or newer, or Helm chart `2.0.8` or newer). When
 upgrading from an older release, stop the old replicas before starting the new
 image so pre-v2 and automatic-v2 binaries never share generation state in Redis.
-
-## Langfuse Fanout
-
-The chart can optionally deploy a Langfuse fanout gateway with an internal
-OpenTelemetry Collector sidecar. The gateway handles Langfuse media fanout and
-proxies traces to the collector; the collector forwards tenant-scoped Langfuse
-traces to both a central Langfuse project and the tenant Langfuse project. It is
-disabled by default.
-
-When enabled, the chart also sets `LANGFUSE_FANOUT_ENABLED` and
-`LANGFUSE_FANOUT_COLLECTOR_URL` for the LibreChat app unless those values are
-already provided in `librechat.configEnv`.
-
-Set `librechat.configEnv.LANGFUSE_FANOUT_TENANT_EXPORT_DISABLED=true` to keep
-central trace export flowing through the fanout gateway while disabling tenant trace
-and score export. When omitted, false, or blank, tenant export remains available
-if tenant keys and a known destination are configured.
-
-Langfuse tenant base URLs are selected from the startup-configured destination
-map rendered into LibreChat and the fanout gateway. Tenant API keys can still be added
-through tenant app configuration at runtime without restarting either component.
-The internal collector provides trace memory limiting, batching, tenant routing,
-and removal of LibreChat-only routing attributes before export.
-
-The fanout gateway stores one-time media upload plans in Redis so media create
-and byte-upload requests can land on different gateway replicas. Set
-`langfuseFanout.redis.uri` for an external Redis service, or enable the bundled
-Redis chart with `redis.enabled=true` and let the chart derive the internal URI.
-Scale the gateway manually with `langfuseFanout.replicaCount`; the chart does
-not create a fanout HPA.
-The internal collector receiver is bound to `127.0.0.1:4319` by default because
-only the gateway sidecar should send traces to it.
-
-The gateway exposes Prometheus metrics at `/metrics`. Configure
-`langfuseFanout.metrics.secret.name` and `.key` to pass a bearer token secret to
-the gateway; if omitted, `/metrics` returns 401. Use
-`langfuseFanout.service.annotations` for scrape annotations when your cluster
-uses annotation-based discovery. The gateway container also has configurable
-`/healthz` liveness and readiness probes under `langfuseFanout`.
-
-See [`otel/langfuse-fanout/README.md`](../../otel/langfuse-fanout/README.md)
-for the central Langfuse secret and values example.
 
 ## Content Security Policy
 

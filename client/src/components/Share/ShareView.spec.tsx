@@ -8,7 +8,6 @@ const defaultProps = {
   langcode: 'en-US',
   settingsLabel: 'Settings',
   continueLabel: 'Continue chat',
-  langfuseSessionLabel: 'View session in Langfuse',
   isContinuing: false,
   onContinue: jest.fn(),
   onThemeChange: jest.fn(),
@@ -16,23 +15,14 @@ const defaultProps = {
 };
 
 describe('ShareHeader', () => {
-  it('shows the Langfuse session as an external link when supplied', () => {
-    const url = 'https://cloud.langfuse.com/project/project-1/sessions/conversation-1';
+  it('continues the shared chat from the header action', () => {
+    const onContinue = jest.fn();
 
-    render(<ShareHeader {...defaultProps} langfuseSessionUrl={url} />);
+    render(<ShareHeader {...defaultProps} onContinue={onContinue} />);
 
-    const link = screen.getByRole('link', { name: 'View session in Langfuse' });
-    expect(link).toHaveAttribute('href', url);
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link.parentElement).toHaveClass('flex-wrap');
-  });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue chat' }));
 
-  it('omits the Langfuse action when the server does not supply a session', () => {
-    render(<ShareHeader {...defaultProps} />);
-
-    expect(
-      screen.queryByRole('link', { name: 'View session in Langfuse' }),
-    ).not.toBeInTheDocument();
+    expect(onContinue).toHaveBeenCalledTimes(1);
   });
 });
 

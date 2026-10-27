@@ -136,10 +136,6 @@ describe('Trace Viewer', () => {
       input: { value: '{"messages":[{"role":"user","content":"hi"}]}', truncated: false },
       output: { value: 'partial outp', truncated: true },
     });
-    jest.spyOn(dataService, 'getLangfuseSessionLink').mockResolvedValue({
-      url: 'https://langfuse.test/project/p/sessions/convo-1',
-      destinationId: 'tenant-project',
-    });
     jest.spyOn(dataService, 'getMessagesByConvoId').mockResolvedValue([]);
   });
 
@@ -857,43 +853,6 @@ describe('Trace Viewer', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('links to Langfuse only for users who manage the connection', async () => {
-    const first = renderViewer();
-    await recordRow('llm');
-    expect(
-      screen.queryByRole('link', { name: /com_ui_trace_open_langfuse/ }),
-    ).not.toBeInTheDocument();
-    expect(dataService.getLangfuseSessionLink).not.toHaveBeenCalled();
-    first.unmount();
-
-    mockStartupConfig = {
-      interface: { traceViewer: { enabled: true } },
-      langfuseConnectionAccess: true,
-    };
-    renderViewer();
-
-    const link = await screen.findByRole('link', { name: /com_ui_trace_open_langfuse/ });
-    expect(link).toHaveAttribute('href', 'https://langfuse.test/project/p/sessions/convo-1');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-  });
-
-  it('does not link to a Langfuse project other than the one that served the trace', async () => {
-    mockStartupConfig = {
-      interface: { traceViewer: { enabled: true } },
-      langfuseConnectionAccess: true,
-    };
-    jest
-      .spyOn(dataService, 'getConversationTraceRecords')
-      .mockResolvedValue({ records, sourceId: 'central-project' });
-    renderViewer();
-
-    await recordRow('llm');
-    await waitFor(() => expect(dataService.getLangfuseSessionLink).toHaveBeenCalled());
-    expect(
-      screen.queryByRole('link', { name: /com_ui_trace_open_langfuse/ }),
-    ).not.toBeInTheDocument();
-  });
-
   it('cancels an in-flight trace read when the viewer closes', async () => {
     let signal: AbortSignal | undefined;
     jest
@@ -978,7 +937,7 @@ describe('Trace Viewer', () => {
             type: ContentTypes.TOOL_CALL,
             tool_call: { name: 'web_search', args: { query: 'weather' }, output: 'Sunny.' },
           },
-          { type: ContentTypes.TEXT, text: 'It reads from Langfuse.' },
+          { type: ContentTypes.TEXT, text: 'It reads from the trace.' },
         ],
       },
     ] as unknown as TMessage[];

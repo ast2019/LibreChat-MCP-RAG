@@ -593,12 +593,6 @@ export const skillTree = ({ skillId, path = '' }: { skillId: string; path?: stri
 /* Skill active states (per-user overrides) */
 export const skillStates = () => `${BASE_URL}/api/user/settings/skills/active`;
 
-/* Langfuse connection (admin) */
-export const adminLangfuseConnection = () => `${BASE_URL}/api/admin/langfuse/connection`;
-export const adminLangfuseConnectionTest = () => `${adminLangfuseConnection()}/test`;
-export const adminLangfuseSessionLink = (conversationId: string) =>
-  `${adminLangfuseConnection()}/session/${encodeURIComponent(conversationId)}`;
-
 /* Combined Pinned-section display order: favorite and pinned-chat entry keys interleaved. */
 export const pinnedOrder = () => `${BASE_URL}/api/user/settings/pinned-order`;
 

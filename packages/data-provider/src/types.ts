@@ -513,7 +513,6 @@ export type TMarkConversationUnreadResponse = {
 
 export type TSharedMessagesResponse = Omit<TSharedLink, 'messages'> & {
   messages: TMessage[];
-  langfuseSessionUrl?: string;
   /** Whether the link was published with a configured sender label; withholds the
    * model on hover. */
   hasConfiguredSender?: boolean;
@@ -1325,53 +1324,4 @@ export type TUpdateSkillNodeRequest = {
   name?: string;
   parentId?: string | null;
   order?: number;
-};
-
-export type TLangfuseConnectionStatus = {
-  configured: boolean;
-  enabled: boolean;
-  destinations: TLangfuseDestinationOption[];
-  destination?: string;
-  publicKey?: string;
-  secretKeyPreview?: string;
-  updatedAt?: string;
-};
-
-export type TLangfuseDestinationOption = {
-  key: string;
-  baseUrl: string;
-};
-
-export type TUpdateLangfuseConnectionRequest = {
-  enabled: boolean;
-  destination: string;
-  publicKey: string;
-  secretKey?: string;
-};
-
-export type TLangfuseConnectionTestRequest = {
-  destination: string;
-  publicKey: string;
-  secretKey?: string;
-};
-
-export type TLangfuseConnectionTestErrorCode =
-  | 'invalid_credentials'
-  | 'access_denied'
-  | 'rate_limited'
-  | 'server_error'
-  | 'timeout'
-  | 'unreachable'
-  | 'missing_secret'
-  | 'stored_secret_unavailable'
-  | 'unexpected_response';
-
-export type TLangfuseConnectionTestResponse =
-  | { success: true }
-  | { success: false; errorCode: TLangfuseConnectionTestErrorCode };
-
-export type TLangfuseSessionLinkResponse = {
-  url: string | null;
-  /** Opaque identity of the project `url` opens, so a caller can tell whether it holds what it showed. */
-  destinationId?: string;
 };

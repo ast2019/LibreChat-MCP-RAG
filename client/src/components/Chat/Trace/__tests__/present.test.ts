@@ -56,7 +56,7 @@ const response = {
     { type: ContentTypes.ACTIVITY_LABEL, activity_label: 'Finding the trace reader' },
     {
       type: ContentTypes.TOOL_CALL,
-      tool_call: { name: 'web_search', args: { query: 'langfuse' }, output: 'ten results' },
+      tool_call: { name: 'web_search', args: { query: 'tracing' }, output: 'ten results' },
     },
     {
       type: ContentTypes.TOOL_CALL,
@@ -100,8 +100,8 @@ describe('buildActivityIndex', () => {
       'search_code_mcp_github',
     ]);
     expect(activity.calls.get('round-1')?.[0]).toMatchObject({
-      args: 'query: langfuse',
-      input: '{"query":"langfuse"}',
+      args: 'query: tracing',
+      input: '{"query":"tracing"}',
       output: 'ten results',
     });
     expect(activity.calls.get('round-2')?.map((call) => call.name)).toEqual(['read_file']);
