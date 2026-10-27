@@ -24,8 +24,19 @@ jest.mock('@librechat/data-schemas', () => {
   };
 });
 
-const { Constants, EModelEndpoint, parseCompactConvo } = require('librechat-data-provider');
+const {
+  Constants,
+  ErrorTypes,
+  EModelEndpoint,
+  parseCompactConvo,
+} = require('librechat-data-provider');
 const { logger } = require('@librechat/data-schemas');
+
+/** The typed payload a model-spec refusal sends: the client localizes `type`; `message` is for logs. */
+const specError = (type, message) => ({ text: JSON.stringify({ type, message }) });
+const NO_SPEC_SELECTED = specError(ErrorTypes.MODEL_SPEC_MISSING, 'No model spec selected');
+const INVALID_SPEC = specError(ErrorTypes.MODEL_SPEC_INVALID, 'Invalid model spec');
+const SPEC_MISMATCH = specError(ErrorTypes.MODEL_SPEC_MISMATCH, 'Model spec mismatch');
 
 const mockBuildOptions = jest.fn((_endpoint, parsedBody) => ({
   ...parsedBody,
@@ -401,7 +412,7 @@ describe('buildEndpointOption - defaultParamsEndpoint parsing', () => {
 
     await buildEndpointOption(req, res, next);
 
-    expect(handleError).toHaveBeenCalledWith(res, { text: 'Model spec mismatch' });
+    expect(handleError).toHaveBeenCalledWith(res, SPEC_MISMATCH);
     expect(mockAgentBuildOptions).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -771,14 +782,8 @@ describe('buildEndpointOption - defaultParamsEndpoint parsing', () => {
 
     await buildEndpointOption(req, res, jest.fn());
 
-    expect(handleError).not.toHaveBeenCalledWith(
-      res,
-      expect.objectContaining({ text: 'No model spec selected' }),
-    );
-    expect(handleError).not.toHaveBeenCalledWith(
-      res,
-      expect.objectContaining({ text: 'Invalid model spec' }),
-    );
+    expect(handleError).not.toHaveBeenCalledWith(res, NO_SPEC_SELECTED);
+    expect(handleError).not.toHaveBeenCalledWith(res, INVALID_SPEC);
   });
 });
 
@@ -951,9 +956,7 @@ describe('buildEndpointOption - enforced server continuations', () => {
           await buildEndpointOption(req, createRes(), next);
           if (storedSpec === 'removed-spec') {
             expect(next).not.toHaveBeenCalled();
-            expect(handleError).toHaveBeenCalledWith(expect.anything(), {
-              text: 'No model spec selected',
-            });
+            expect(handleError).toHaveBeenCalledWith(expect.anything(), NO_SPEC_SELECTED);
           } else {
             expect(handleError).not.toHaveBeenCalled();
             expect(next).toHaveBeenCalledWith();
@@ -1031,7 +1034,7 @@ describe('buildEndpointOption - enforced server continuations', () => {
 
     await buildEndpointOption(req, res, next);
 
-    expect(handleError).toHaveBeenCalledWith(res, { text: 'No model spec selected' });
+    expect(handleError).toHaveBeenCalledWith(res, NO_SPEC_SELECTED);
     expect(next).not.toHaveBeenCalled();
     expect(mockAgentBuildOptions).not.toHaveBeenCalled();
   });
@@ -1058,9 +1061,10 @@ describe('buildEndpointOption - enforced server continuations', () => {
 
       await buildEndpointOption(req, res, next);
 
-      expect(handleError).toHaveBeenCalledWith(res, {
-        text: selected === 'explicit-invalid' ? 'Invalid model spec' : 'Model spec mismatch',
-      });
+      expect(handleError).toHaveBeenCalledWith(
+        res,
+        selected === 'explicit-invalid' ? INVALID_SPEC : SPEC_MISMATCH,
+      );
       expect(next).not.toHaveBeenCalled();
     },
   );
@@ -1068,6 +1072,13 @@ describe('buildEndpointOption - enforced server continuations', () => {
 
 describe('buildEndpointOption - private model spec lock', () => {
   const { handleError, SPEC_PRIVACY_LOCK_MESSAGES } = require('@librechat/api');
+  const lockError = (reason, type) => specError(type, SPEC_PRIVACY_LOCK_MESSAGES[reason]);
+  const LOCKED = lockError('private_locked', ErrorTypes.MODEL_SPEC_LOCKED);
+  const REQUIRES_NEW_CHAT = lockError(
+    'private_requires_new_chat',
+    ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT,
+  );
+  const NO_COMPARE = lockError('private_no_compare', ErrorTypes.MODEL_SPEC_NO_COMPARE);
   const list = [
     {
       name: 'private-fast',
@@ -1121,18 +1132,14 @@ describe('buildEndpointOption - private model spec lock', () => {
     'R1: refuses switching a stored private conversation to another spec (enforce=%s)',
     async (enforce) => {
       const { res, next } = await run({ spec: 'normal', stored: 'private-fast', enforce });
-      expect(handleError).toHaveBeenCalledWith(res, {
-        text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
-      });
+      expect(handleError).toHaveBeenCalledWith(res, LOCKED);
       expect(next).not.toHaveBeenCalled();
     },
   );
 
   it('R1: refuses switching between two private specs mid-conversation', async () => {
     const { res, next } = await run({ spec: 'private-smart', stored: 'private-fast' });
-    expect(handleError).toHaveBeenCalledWith(res, {
-      text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
-    });
+    expect(handleError).toHaveBeenCalledWith(res, LOCKED);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -1145,9 +1152,7 @@ describe('buildEndpointOption - private model spec lock', () => {
 
   it('R2: refuses switching a non-private conversation into a private spec in place', async () => {
     const { res, next } = await run({ spec: 'private-fast', stored: 'normal' });
-    expect(handleError).toHaveBeenCalledWith(res, {
-      text: SPEC_PRIVACY_LOCK_MESSAGES.private_requires_new_chat,
-    });
+    expect(handleError).toHaveBeenCalledWith(res, REQUIRES_NEW_CHAT);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -1185,18 +1190,17 @@ describe('buildEndpointOption - private model spec lock', () => {
     mockGetConvo.mockResolvedValue({ conversationId: 'convo-1', spec: 'private-fast' });
     const { res, next } = await run({ spec: 'normal' });
     expect(mockGetConvo).toHaveBeenCalledWith('user-1', 'convo-1');
-    expect(handleError).toHaveBeenCalledWith(res, {
-      text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
-    });
+    expect(handleError).toHaveBeenCalledWith(res, LOCKED);
     expect(next).not.toHaveBeenCalled();
   });
 
   it('fails closed when the stored conversation cannot be read', async () => {
     mockGetConvo.mockRejectedValue(new Error('db down'));
     const { res, next } = await run({ spec: 'private-fast' });
-    expect(handleError).toHaveBeenCalledWith(res, {
-      text: 'Error checking model spec privacy lock',
-    });
+    expect(handleError).toHaveBeenCalledWith(
+      res,
+      specError(ErrorTypes.MODEL_SPEC_CHECK_FAILED, 'Error checking model spec privacy lock'),
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -1206,9 +1210,7 @@ describe('buildEndpointOption - private model spec lock', () => {
       stored: 'private-fast',
       extra: { addedConvo: { endpoint: EModelEndpoint.openAI, spec: 'normal' } },
     });
-    expect(handleError).toHaveBeenCalledWith(res, {
-      text: SPEC_PRIVACY_LOCK_MESSAGES.private_no_compare,
-    });
+    expect(handleError).toHaveBeenCalledWith(res, NO_COMPARE);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -1223,5 +1225,52 @@ describe('buildEndpointOption - private model spec lock', () => {
     await buildEndpointOption(req, createRes(), next);
     expect(mockGetConvo).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith();
+  });
+});
+
+describe('buildEndpointOption - typed model spec refusals', () => {
+  const { handleError } = require('@librechat/api');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetEndpointsConfig.mockResolvedValue({});
+  });
+
+  it('refuses with MODEL_SPEC_UNAVAILABLE when enforced access rules leave no spec', async () => {
+    const req = createReq(
+      { endpoint: EModelEndpoint.openAI, model: 'gpt-4o' },
+      { modelSpecs: { enforce: true, list: [] } },
+    );
+    const res = createRes();
+    const next = jest.fn();
+
+    await buildEndpointOption(req, res, next);
+
+    expect(handleError).toHaveBeenCalledWith(
+      res,
+      specError(ErrorTypes.MODEL_SPEC_UNAVAILABLE, 'No model spec available'),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('sends a payload the client can classify while keeping the English text', async () => {
+    const req = createReq(
+      { endpoint: EModelEndpoint.openAI, model: 'gpt-4o' },
+      {
+        modelSpecs: {
+          enforce: true,
+          list: [{ name: 'normal', preset: { endpoint: EModelEndpoint.openAI, model: 'gpt-4o' } }],
+        },
+      },
+    );
+    const res = createRes();
+
+    await buildEndpointOption(req, res, jest.fn());
+
+    const [, { text }] = handleError.mock.calls[0];
+    expect(JSON.parse(text)).toEqual({
+      type: ErrorTypes.MODEL_SPEC_MISSING,
+      message: 'No model spec selected',
+    });
   });
 });

@@ -99,8 +99,12 @@ services:
       # i.e. the domain typed on the `api` service in Coolify, so enter it WITH the scheme:
       #   https://chat.example.com   (Coolify then issues a Let's Encrypt certificate itself;
       #                               the DNS A record must point at the server first)
-      # An http:// domain hides the passkey button, the Settings panel and the sign-in nudge.
-      # Check: GET <domain>/api/config must return "passkeyLoginEnabled": true.
+      # If the domain was typed as http:// while the site is actually served on https:// (TLS at
+      # the proxy), the server also accepts the https:// twin of that host, so passkeys still
+      # work. A site really served over plain HTTP keeps them hidden.
+      # Check: GET <domain>/api/config must return "passkeyLoginEnabled": true; the api log
+      # prints "[passkeys] Enabled for <host>" at startup (or a warning saying why not).
+      # PASSKEY_ORIGINS (comma-separated https:// origins) overrides the derived origins.
       # PASSKEY_RP_ID is the bare hostname (chat.example.com: no scheme, port or path). Empty =
       # derived from DOMAIN_CLIENT. A passkey is bound to it: before moving to another domain,
       # pin PASSKEY_RP_ID to the old hostname (only works for a subdomain of it) or users must
@@ -108,6 +112,7 @@ services:
       ALLOW_PASSKEY_LOGIN: ${ALLOW_PASSKEY_LOGIN:-true}
       PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-HiveGPT}
       PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}
+      PASSKEY_ORIGINS: ${PASSKEY_ORIGINS:-}
       # Session cookies are `Secure` on an https:// domain and plain on an http:// one (browsers
       # drop Secure cookies over HTTP, which logged users out on every reload). Set true/false
       # only to force one or the other.

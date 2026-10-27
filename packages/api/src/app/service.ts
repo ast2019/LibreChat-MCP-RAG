@@ -18,6 +18,7 @@ import {
 import type { AppConfig, RolePermissions, ConfigOverrideLayer } from '@librechat/data-schemas';
 import type { TUserModelAccess } from 'librechat-data-provider';
 import type { Types } from 'mongoose';
+import type { ModelCatalogueSnapshot } from '~/modelSpecs/discover';
 import type { EnvReferencePolicy } from './allowlist';
 import type { CustomConfigLoadMode } from './loader';
 import type { SecretRebinding } from './rebinding';
@@ -28,6 +29,8 @@ import {
   applyPrivacyAccessSpecs,
 } from './admin';
 import { createEnvReferencePolicy, parseEnvAllowlist } from './allowlist';
+import { getSharedModelCatalogue } from '~/modelSpecs/catalogue';
+import { applyAutoDiscoveredSpecs } from '~/modelSpecs/discover';
 import { resolveRuntimeConfigSecrets } from '~/admin/secrets';
 import { normalizeEndpointReferences } from './references';
 import { mergeOverrideLayers } from './overrides';
@@ -266,6 +269,11 @@ export interface AppConfigServiceDeps {
    * every role keeps both classes.
    */
   getRolePermissions?: (roleName: string) => Promise<RolePermissions | null | undefined>;
+  /**
+   * The model catalogue `modelSpecs.autoDiscover` adds specs from, read synchronously (it is
+   * refreshed in the background). Defaults to the process-wide catalogue.
+   */
+  getModelCatalogue?: () => ModelCatalogueSnapshot | undefined;
   /** TTL in ms for per-user/role merged config caches. Defaults to 60 000. */
   overrideCacheTtl?: number;
   /**
@@ -440,6 +448,7 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
     getUserPrincipals,
     augmentConfig,
     getRolePermissions,
+    getModelCatalogue = () => getSharedModelCatalogue().getSnapshot(),
     overrideCacheTtl = DEFAULT_OVERRIDE_CACHE_TTL,
     overrideEnvAllowlist,
   } = deps;
@@ -691,8 +700,10 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
       permissions,
       override: options.modelAccess,
     });
+    /** Discovered specs join before the access filters, so the same rules hide them */
+    const discovered = applyAutoDiscoveredSpecs(config, getModelCatalogue());
     return applyAdminFullAccess(
-      applyPrivacyAccessSpecs(applyAdminOnlySpecs(config, options.role), access),
+      applyPrivacyAccessSpecs(applyAdminOnlySpecs(discovered, options.role), access),
       options.role,
     );
   }

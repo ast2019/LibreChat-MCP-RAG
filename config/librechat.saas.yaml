@@ -220,7 +220,18 @@ endpoints:
       modelDisplayLabel: 'محرمانه'
 
     # Internal model served by the `ollama` container: nothing leaves the server.
-    # Slow on CPU and much weaker than cloud models. Free for users (CPU only).
+    # Slow on CPU and much weaker than cloud models.
+    #
+    # Local prices recover the server's cost (docs/saas/BILLING.md, «قیمت مدل‌های لوکال»):
+    #   server ≈ €80/month ≈ $93; 70% of it is charged to the local models ($65) and spread
+    #   over the hours the model is busy (30% of the month ≈ 219 h), i.e. $0.0000825 per
+    #   busy second. A token costs that divided by the model's speed on this CPU
+    #   (Ryzen 9 3900, 12 threads), in USD per 1M tokens:
+    #     gemma3:4b             ~100 tok/s reading, ~15 tok/s writing → 0.8 / 5.5
+    #     Qwen 3.6 35B (3B act.) ~50 tok/s reading, ~10 tok/s writing → 1.6 / 8
+    #   A stronger model is slower per token, so it costs more. Thinking tokens bill as output,
+    #   so the "think" spec costs more per answer at the same rate. Re-measure the speeds
+    #   (`ollama run --verbose`) and scale these numbers when the server or models change.
     - name: 'Local'
       apiKey: 'ollama'
       baseURL: 'http://ollama:11434/v1'
@@ -231,8 +242,8 @@ endpoints:
         fetch: false
       tokenConfig:
         'hivegpt-local':
-          prompt: 0
-          completion: 0
+          prompt: 0.8
+          completion: 5.5
           context: 8192
       # A title would be a second slow local call; chats keep the default title.
       titleConvo: false
@@ -253,8 +264,8 @@ endpoints:
         reasoning_effort: 'none'
       tokenConfig:
         'hivegpt-uncensored':
-          prompt: 0
-          completion: 0
+          prompt: 1.6
+          completion: 8
           context: 16384
       titleConvo: false
       modelDisplayLabel: 'بدون سانسور'
@@ -267,8 +278,8 @@ endpoints:
         fetch: false
       tokenConfig:
         'hivegpt-uncensored':
-          prompt: 0
-          completion: 0
+          prompt: 1.6
+          completion: 8
           context: 16384
       titleConvo: false
       modelDisplayLabel: 'بدون سانسور — فکر عمیق'
@@ -277,6 +288,54 @@ endpoints:
 modelSpecs:
   enforce: true
   prioritize: true
+  # New models appear on their own. The server reads OpenRouter's catalogue (/models) and its
+  # Zero-Data-Retention list (/endpoints/zdr) at startup and every `refreshHours`, in the
+  # background (requests never wait on it; a failed read keeps the last one), and adds:
+  # - public specs: every `~{provider}/{family}-latest` alias of a provider below that no spec
+  #   in `list` already uses, named `auto-{provider}-{family}`, after that brand's specs;
+  # - confidential specs (CONFIDENTIAL RULE: only concrete model ids that are on the ZDR list —
+  #   never an alias, never a model without a ZDR endpoint): `auto-private-{family}` for each
+  #   family below that has no private spec yet. Private specs in `list` move to the newest ZDR
+  #   version of their family, and one whose model leaves the ZDR list is removed. Until the
+  #   ZDR list has been read once, private specs are served exactly as written here.
+  # Role/user access to private specs applies to discovered ones too. To hide a discovered
+  # model, add its id (alias or concrete) to `exclude`; specs written in `list` always win.
+  autoDiscover:
+    enabled: true
+    endpoint: 'OpenRouter'
+    privateEndpoint: 'OpenRouterPrivate'
+    refreshHours: 6
+    # New brand groups go before the tools group.
+    insertBeforeGroup: 'ابزارها'
+    # OpenRouter provider prefix → menu group and icon.
+    providers:
+      anthropic: { group: 'Claude', icon: 'anthropic' }
+      openai: { group: 'ChatGPT', icon: 'openai' }
+      google: { group: 'Gemini', icon: 'google' }
+      deepseek: { group: 'DeepSeek', icon: 'deepseek' }
+      x-ai: { group: 'Grok', icon: 'xai' }
+      z-ai: { group: 'GLM', icon: 'zhipu' }
+      qwen: { group: 'Qwen', icon: 'qwen' }
+    # Older families that would duplicate a menu entry: GPT Mini (ChatGPT Mini is GPT Luna) and
+    # DeepSeek V4 Flash (DeepSeek Flash follows the newest Flash).
+    exclude:
+      - '~openai/gpt-mini-latest'
+      - '~deepseek/deepseek-v4-flash-latest'
+    private:
+      enabled: true
+      groupIcon: '/assets/private.svg'
+      # Model families offered as confidential (a concrete id's name without its version:
+      # anthropic/claude-sonnet-5.5 → claude-sonnet, openai/gpt-6.1-sol → gpt-sol).
+      families:
+        - 'claude-sonnet'
+        - 'claude-opus'
+        - 'claude-haiku'
+        - 'gpt-sol'
+        - 'gpt-luna'
+        - 'gpt-astra'
+        - 'gemini-flash'
+        - 'gemini-pro'
+        - 'gemini-argon'
   # Grouped by AI brand in this order; every spec names its own icon (`iconURL`), so no host
   # name or logo reaches users. Spec names of earlier versions (fast, smart, gpt, economy, pro,
   # research, perplexity, documents, private-*, local) are kept so old chats continue.

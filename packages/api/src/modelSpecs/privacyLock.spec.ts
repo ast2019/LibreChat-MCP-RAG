@@ -1,4 +1,12 @@
-import { checkSpecPrivacyLock } from './privacyLock';
+import { ErrorTypes } from 'librechat-data-provider';
+import type { SpecPrivacyLockReason } from './privacyLock';
+import {
+  checkSpecPrivacyLock,
+  formatModelSpecErrorText,
+  getSpecPrivacyLockErrorText,
+  SPEC_PRIVACY_LOCK_MESSAGES,
+  SPEC_PRIVACY_LOCK_ERROR_TYPES,
+} from './privacyLock';
 
 const list = [
   { name: 'private-fast', privacy: 'private' as const },
@@ -138,5 +146,25 @@ describe('checkSpecPrivacyLock', () => {
         hasMessages: true,
       }),
     ).toEqual({ allowed: true });
+  });
+});
+
+describe('privacy lock error text', () => {
+  it.each<[SpecPrivacyLockReason, ErrorTypes]>([
+    ['private_locked', ErrorTypes.MODEL_SPEC_LOCKED],
+    ['private_requires_new_chat', ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT],
+    ['private_no_compare', ErrorTypes.MODEL_SPEC_NO_COMPARE],
+  ])('sends %s as the typed %s payload with the English message', (reason, type) => {
+    expect(SPEC_PRIVACY_LOCK_ERROR_TYPES[reason]).toBe(type);
+    expect(JSON.parse(getSpecPrivacyLockErrorText(reason))).toEqual({
+      type,
+      message: SPEC_PRIVACY_LOCK_MESSAGES[reason],
+    });
+  });
+
+  it('formats any model spec refusal as a typed payload', () => {
+    expect(formatModelSpecErrorText(ErrorTypes.MODEL_SPEC_MISSING, 'No model spec selected')).toBe(
+      '{"type":"model_spec_missing","message":"No model spec selected"}',
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { ErrorTypes } from 'librechat-data-provider';
 import type { TModelSpec } from 'librechat-data-provider';
 
 export type SpecPrivacyLockReason =
@@ -25,12 +26,35 @@ export type CheckSpecPrivacyLockParams = {
   addedSpec?: string | null;
 };
 
-/** Error text sent to the client for each refusal; kept stable for logs and tests. */
+/** English description of each refusal, carried as the typed payload's `message` for logs. */
 export const SPEC_PRIVACY_LOCK_MESSAGES: Readonly<Record<SpecPrivacyLockReason, string>> = {
   private_locked: 'Model spec locked: private conversation',
   private_requires_new_chat: 'Private model spec requires a new conversation',
   private_no_compare: 'Model comparison is not allowed in a private conversation',
 };
+
+/** The `ErrorTypes` code the client localizes for each refusal. */
+export const SPEC_PRIVACY_LOCK_ERROR_TYPES: Readonly<Record<SpecPrivacyLockReason, ErrorTypes>> = {
+  private_locked: ErrorTypes.MODEL_SPEC_LOCKED,
+  private_requires_new_chat: ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT,
+  private_no_compare: ErrorTypes.MODEL_SPEC_NO_COMPARE,
+};
+
+/**
+ * Error text for a refused model-spec turn: a typed payload the client error registry renders as
+ * localized copy. `message` keeps the English description for logs and older readers.
+ */
+export function formatModelSpecErrorText(type: ErrorTypes, message: string): string {
+  return JSON.stringify({ type, message });
+}
+
+/** Typed error text for a privacy-lock refusal. */
+export function getSpecPrivacyLockErrorText(reason: SpecPrivacyLockReason): string {
+  return formatModelSpecErrorText(
+    SPEC_PRIVACY_LOCK_ERROR_TYPES[reason],
+    SPEC_PRIVACY_LOCK_MESSAGES[reason],
+  );
+}
 
 const ALLOWED: SpecPrivacyLockResult = { allowed: true };
 

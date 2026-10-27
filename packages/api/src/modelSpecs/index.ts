@@ -296,3 +296,5 @@ export * from './reasoningOverride';
 export * from './persistedReasoningOverride';
 export * from './continuation';
 export * from './privacyLock';
+export * from './discover';
+export * from './catalogue';

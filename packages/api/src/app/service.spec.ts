@@ -2172,3 +2172,81 @@ describe('getAppConfig model privacy access', () => {
     expect(cached.every((value) => value.modelSpecs?.list?.length === 3)).toBe(true);
   });
 });
+
+describe('getAppConfig discovered model specs', () => {
+  const catalogue = {
+    version: 1,
+    models: [
+      { id: '~openai/gpt-terra-latest', name: 'OpenAI: GPT Terra Latest', created: 5 },
+      { id: 'anthropic/claude-opus-5.5', name: 'Anthropic: Claude Opus 5.5', created: 9 },
+    ],
+    zdr: new Set(['anthropic/claude-opus-5.5']),
+  };
+  const baseConfig = {
+    interfaceConfig: { adminFullAccess: true },
+    endpoints: {
+      custom: [
+        { name: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1' },
+        { name: 'OpenRouterPrivate', baseURL: 'https://openrouter.ai/api/v1' },
+      ],
+    },
+    modelSpecs: {
+      enforce: true,
+      list: [
+        {
+          name: 'gpt',
+          group: 'ChatGPT',
+          preset: { endpoint: 'OpenRouter', model: '~openai/gpt-sol-latest' },
+        },
+      ],
+      autoDiscover: {
+        enabled: true,
+        endpoint: 'OpenRouter',
+        privateEndpoint: 'OpenRouterPrivate',
+        providers: {
+          openai: { group: 'ChatGPT', icon: 'openai' },
+          anthropic: { group: 'Claude', icon: 'anthropic' },
+        },
+        private: { enabled: true, families: ['claude-opus'] },
+      },
+    },
+  };
+  const names = (config: AppConfig) => config.modelSpecs?.list?.map((spec) => spec.name);
+
+  function setup(snapshot: typeof catalogue | undefined, privateAllowed: boolean) {
+    const getModelCatalogue = jest.fn(() => snapshot);
+    const deps = createDeps({
+      loadBaseConfig: jest.fn().mockResolvedValue(baseConfig),
+      getRolePermissions: jest.fn().mockResolvedValue({
+        LOCAL_MODELS: { USE: true },
+        PRIVATE_MODELS: { USE: privateAllowed },
+      }),
+      getModelCatalogue,
+    });
+    return { getModelCatalogue, ...createAppConfigService(deps) };
+  }
+
+  it('adds discovered specs to the request config', async () => {
+    const { getAppConfig } = setup(catalogue, true);
+    const config = await getAppConfig({ role: 'USER', userId: 'uid1' });
+    expect(names(config)).toEqual(['gpt', 'auto-openai-gpt-terra', 'auto-private-claude-opus']);
+    expect(config.modelSpecs?.list?.[2]).toMatchObject({
+      privacy: 'private',
+      preset: { endpoint: 'OpenRouterPrivate', model: 'anthropic/claude-opus-5.5' },
+    });
+  });
+
+  it('subjects discovered private specs to privacy access', async () => {
+    const { getAppConfig } = setup(catalogue, false);
+    const config = await getAppConfig({ role: 'USER', userId: 'uid1' });
+    expect(names(config)).toEqual(['gpt', 'auto-openai-gpt-terra']);
+  });
+
+  it('serves the YAML list as written before the catalogue is fetched, and never reads it for baseOnly', async () => {
+    const { getAppConfig, getModelCatalogue } = setup(undefined, true);
+    expect(names(await getAppConfig({ role: 'USER', userId: 'uid1' }))).toEqual(['gpt']);
+    getModelCatalogue.mockClear();
+    expect(names(await getAppConfig({ baseOnly: true }))).toEqual(['gpt']);
+    expect(getModelCatalogue).not.toHaveBeenCalled();
+  });
+});

@@ -211,6 +211,40 @@ const ERROR_CASES = [
     type: ErrorTypes.UPSTREAM_MODEL_ERROR,
   }),
 
+  /* ---------- model spec refusals (buildEndpointOption) ---------- */
+  payloadCase('Private conversation model locked', {
+    type: ErrorTypes.MODEL_SPEC_LOCKED,
+    message: 'Model spec locked: private conversation',
+  }),
+  payloadCase('Private model requires a new conversation', {
+    type: ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT,
+    message: 'Private model spec requires a new conversation',
+  }),
+  payloadCase('Private conversation cannot compare models', {
+    type: ErrorTypes.MODEL_SPEC_NO_COMPARE,
+    message: 'Model comparison is not allowed in a private conversation',
+  }),
+  payloadCase('No model spec selected', {
+    type: ErrorTypes.MODEL_SPEC_MISSING,
+    message: 'No model spec selected',
+  }),
+  payloadCase('Invalid model spec', {
+    type: ErrorTypes.MODEL_SPEC_INVALID,
+    message: 'Invalid model spec',
+  }),
+  payloadCase('Model spec mismatch', {
+    type: ErrorTypes.MODEL_SPEC_MISMATCH,
+    message: 'Model spec mismatch',
+  }),
+  payloadCase('No model spec available', {
+    type: ErrorTypes.MODEL_SPEC_UNAVAILABLE,
+    message: 'No model spec available',
+  }),
+  payloadCase('Model spec privacy check failed', {
+    type: ErrorTypes.MODEL_SPEC_CHECK_FAILED,
+    message: 'Error checking model spec privacy lock',
+  }),
+
   /* ---------- context window and compaction ---------- */
   payloadCase('Context pruning removed every message', {
     type: ErrorTypes.EMPTY_MESSAGES,
