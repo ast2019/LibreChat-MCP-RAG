@@ -221,11 +221,60 @@ export const tModelSpecSchema = z.object({
   subagents: modelSpecSubagentsSchema.optional(),
 });
 
+/** An OpenRouter provider prefix (`anthropic`, `x-ai`…) and the menu group its models join. */
+export const autoDiscoverProviderSchema = z.object({
+  group: z.string(),
+  /** Spec and (for a group with no spec yet) group icon: a URL or a known icon name. */
+  icon: z.string().optional(),
+});
+
+/**
+ * Adds model specs from the OpenRouter catalogue, refreshed in the background.
+ * - Public: each `~{provider}/{family}-latest` alias of a listed provider that no spec offers.
+ * - Private (`privacy: 'private'`): only concrete model ids OpenRouter lists as Zero Data
+ *   Retention, never an alias. Existing private specs on these endpoints are moved to the newest
+ *   ZDR version of their family and dropped once their model leaves the ZDR list.
+ * Without a catalogue (never fetched) the YAML list is served as written.
+ */
+export const autoDiscoverConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** Custom endpoint public specs use; it also supplies the catalogue's base URL and key. */
+  endpoint: z.string().default('OpenRouter'),
+  /** Custom endpoint private specs use (one that only routes to ZDR providers). */
+  privateEndpoint: z.string().optional(),
+  /** Catalogue refresh interval. */
+  refreshHours: z.number().positive().default(6),
+  /** Per-request timeout for each catalogue fetch. */
+  timeoutMs: z.number().int().positive().default(15000),
+  providers: z.record(autoDiscoverProviderSchema).default({}),
+  /** Model or alias ids never added (and never chosen as a private upgrade). */
+  exclude: z.array(z.string()).default([]),
+  /** Group new providers' groups are inserted before; else after the last provider group. */
+  insertBeforeGroup: z.string().optional(),
+  /** Description of public specs; `{group}` is replaced by the provider's group. */
+  description: z.string().optional(),
+  private: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Model families offered as private, e.g. `claude-sonnet`, `gpt-sol`, `gemini-flash`. */
+      families: z.array(z.string()).default([]),
+      group: z.string().optional(),
+      groupIcon: z.string().optional(),
+      /** Appended to the model's name to form the label. */
+      labelSuffix: z.string().optional(),
+      description: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type TAutoDiscoverConfig = z.infer<typeof autoDiscoverConfigSchema>;
+
 export const specsConfigSchema = z.object({
   enforce: z.boolean().default(false),
   prioritize: z.boolean().default(true),
   list: z.array(tModelSpecSchema).default([]),
   addedEndpoints: z.array(z.union([z.string(), eModelEndpointSchema])).optional(),
+  autoDiscover: autoDiscoverConfigSchema.optional(),
 });
 
 export type TSpecsConfig = z.infer<typeof specsConfigSchema>;

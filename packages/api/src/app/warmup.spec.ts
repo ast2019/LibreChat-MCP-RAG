@@ -57,3 +57,40 @@ describe('warmStartupCaches', () => {
     await expect(warmStartupCaches({ appConfig: null })).resolves.toBeUndefined();
   });
 });
+
+describe('warmStartupCaches model catalogue', () => {
+  const discovering = (autoDiscover: Record<string, unknown>) =>
+    ({
+      ...appConfig,
+      modelSpecs: { list: [], autoDiscover: { endpoint: 'OpenRouter', ...autoDiscover } },
+    }) as unknown as AppConfig;
+  const deps = () => ({
+    fetchModels: jest.fn().mockResolvedValue([]),
+    currencyRates: { resolve: jest.fn().mockResolvedValue({}) } as unknown as CurrencyRates,
+    modelCatalogue: {
+      start: jest.fn().mockResolvedValue(undefined),
+      refresh: jest.fn(),
+      stop: jest.fn(),
+      getSnapshot: jest.fn(),
+    },
+  });
+
+  it('starts the catalogue from the discovery endpoint every refreshHours', async () => {
+    const d = deps();
+    await warmStartupCaches(
+      { appConfig: discovering({ enabled: true, refreshHours: 6, timeoutMs: 2000 }) },
+      d,
+    );
+    expect(d.modelCatalogue.start).toHaveBeenCalledWith(
+      { baseURL: 'https://openrouter.test/api/v1', apiKey: 'sk-admin', timeoutMs: 2000 },
+      6 * 3_600_000,
+    );
+  });
+
+  it('does not fetch the catalogue when discovery is off', async () => {
+    const d = deps();
+    await warmStartupCaches({ appConfig: discovering({ enabled: false }) }, d);
+    await warmStartupCaches({ appConfig }, d);
+    expect(d.modelCatalogue.start).not.toHaveBeenCalled();
+  });
+});

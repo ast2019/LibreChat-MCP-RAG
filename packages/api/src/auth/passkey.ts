@@ -95,6 +95,38 @@ function hostnameOf(value?: string): string | undefined {
   }
 }
 
+/**
+ * A public `http://` origin plus its `https://` twin. Behind a TLS-terminating proxy
+ * (Coolify/Traefik) `DOMAIN_CLIENT` is often left as `http://host` while browsers reach
+ * `https://host`; the twin lets those ceremonies verify. It widens nothing: the RP ID is the
+ * same host, WebAuthn never runs on a plain-HTTP public page, and the client hides the button
+ * where the browser has no WebAuthn. Localhost and explicit `PASSKEY_ORIGINS` are kept as given.
+ */
+function withHttpsVariant(origin: string): string[] {
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== 'http:' || isLocalHostname(url.hostname)) {
+      return [origin];
+    }
+    url.protocol = 'https:';
+    if (url.port === '80') {
+      url.port = '';
+    }
+    return [origin, url.origin];
+  } catch {
+    return [origin];
+  }
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname.endsWith('.localhost')
+  );
+}
+
 function normalizeOrigin(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -127,7 +159,9 @@ export function getPasskeyConfig(env: NodeJS.ProcessEnv = process.env): PasskeyC
 
   const origins = configuredOrigins.length
     ? configuredOrigins
-    : [clientOrigin, serverOrigin].filter((origin): origin is string => !!origin);
+    : [clientOrigin, serverOrigin]
+        .filter((origin): origin is string => !!origin)
+        .flatMap(withHttpsVariant);
 
   const rpID = env.PASSKEY_RP_ID?.trim() || hostnameOf(clientOrigin) || 'localhost';
 
@@ -164,6 +198,31 @@ function isSecureOrigin(origin: string): boolean {
  */
 export function isPasskeyEnabled(config: PasskeyConfig = getPasskeyConfig()): boolean {
   return config.enabled && config.origins.some(isSecureOrigin);
+}
+
+/**
+ * One startup log line saying whether passkey sign-in is live and why not, so a deployment
+ * that set `ALLOW_PASSKEY_LOGIN=true` but serves only plain HTTP is visible in the logs
+ * instead of silently hiding the button.
+ */
+export function describePasskeyStatus(config: PasskeyConfig = getPasskeyConfig()): {
+  level: 'info' | 'warn';
+  message: string;
+} {
+  if (!config.enabled) {
+    return { level: 'info', message: '[passkeys] Off (ALLOW_PASSKEY_LOGIN is not true)' };
+  }
+  const origins = config.origins.join(', ');
+  if (!isPasskeyEnabled(config)) {
+    return {
+      level: 'warn',
+      message: `[passkeys] ALLOW_PASSKEY_LOGIN is true but no origin is HTTPS (${origins}); the passkey button stays hidden. Serve the site on https:// and set DOMAIN_CLIENT/DOMAIN_SERVER (or PASSKEY_ORIGINS) to it.`,
+    };
+  }
+  return {
+    level: 'info',
+    message: `[passkeys] Enabled for ${config.rpID} (origins: ${origins})`,
+  };
 }
 
 /** The schema's bounds for `passkeys.perUserMax`, applied to every source of the cap. */

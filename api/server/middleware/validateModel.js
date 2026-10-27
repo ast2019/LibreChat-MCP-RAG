@@ -1,5 +1,5 @@
 const { handleError } = require('@librechat/api');
-const { resolveModelCatalogKey, ViolationTypes } = require('librechat-data-provider');
+const { resolveModelCatalogKey, ViolationTypes, ErrorTypes } = require('librechat-data-provider');
 const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { getEndpointsConfig } = require('~/server/services/Config');
 const { logViolation } = require('~/cache');
@@ -15,17 +15,34 @@ const MODEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.:/@+-]*$/;
  * @param {Express.Response} res - The Express response object.
  * @param {Function} next - The Express next function.
  */
+/**
+ * Refuses with a typed payload the client error registry localizes; `message` keeps the English
+ * text for logs and older readers.
+ *
+ * @param {Express.Response} res
+ * @param {Record<string, string>} payload
+ */
+const refuse = (res, payload) => handleError(res, { text: JSON.stringify(payload) });
+
 const validateModel = async (req, res, next) => {
   const { endpoint } = req.body;
   const rawModel = req.body.model;
 
   if (!rawModel || typeof rawModel !== 'string') {
-    return handleError(res, { text: 'Model not provided' });
+    return refuse(res, {
+      type: ErrorTypes.MISSING_MODEL,
+      info: endpoint,
+      message: 'Model not provided',
+    });
   }
 
   const model = rawModel.trim();
   if (!model || model.length > MAX_MODEL_STRING_LENGTH || !MODEL_PATTERN.test(model)) {
-    return handleError(res, { text: 'Invalid model identifier' });
+    return refuse(res, {
+      type: ViolationTypes.ILLEGAL_MODEL_REQUEST,
+      info: `${endpoint ?? ''}|`,
+      message: 'Invalid model identifier',
+    });
   }
 
   req.body.model = model;
@@ -40,12 +57,16 @@ const validateModel = async (req, res, next) => {
   const modelsConfig = await getModelsConfig(req);
 
   if (!modelsConfig) {
-    return handleError(res, { text: 'Models not loaded' });
+    return refuse(res, { type: ErrorTypes.MODELS_NOT_LOADED, message: 'Models not loaded' });
   }
 
   const availableModels = modelsConfig[resolveModelCatalogKey(endpoint, modelsConfig)];
   if (!availableModels) {
-    return handleError(res, { text: 'Endpoint models not loaded' });
+    return refuse(res, {
+      type: ErrorTypes.ENDPOINT_MODELS_NOT_LOADED,
+      info: endpoint,
+      message: 'Endpoint models not loaded',
+    });
   }
 
   let validModel = !!availableModels.find((availableModel) => availableModel === model);
@@ -62,7 +83,11 @@ const validateModel = async (req, res, next) => {
   };
 
   await logViolation(req, res, type, errorMessage, score);
-  return handleError(res, { text: 'Illegal model request' });
+  return refuse(res, {
+    type,
+    info: `${endpoint ?? ''}|${model}`,
+    message: 'Illegal model request',
+  });
 };
 
 module.exports = validateModel;

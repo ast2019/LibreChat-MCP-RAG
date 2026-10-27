@@ -22,6 +22,21 @@ const { getEndpointsConfig } = require('~/server/services/Config');
 const { logViolation } = require('~/cache');
 const validateModel = require('../validateModel');
 
+describe('validateModel typed refusals', () => {
+  it('sends a typed payload the client localizes', async () => {
+    const req = { body: { endpoint: 'openAI', model: 'gpt-x' } };
+    getEndpointsConfig.mockResolvedValue({ openAI: {} });
+    getModelsConfig.mockResolvedValue({ openAI: ['gpt-4o'] });
+    await validateModel(req, {}, jest.fn());
+    const [, { text }] = handleError.mock.calls.at(-1);
+    expect(JSON.parse(text)).toEqual({
+      type: ViolationTypes.ILLEGAL_MODEL_REQUEST,
+      info: 'openAI|gpt-x',
+      message: 'Illegal model request',
+    });
+  });
+});
+
 describe('validateModel', () => {
   let req, res, next;
 
@@ -42,33 +57,43 @@ describe('validateModel', () => {
     it('rejects missing model', async () => {
       req.body.model = undefined;
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Model not provided' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Model not provided"'),
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
     it('rejects non-string model', async () => {
       req.body.model = 12345;
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Model not provided' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Model not provided"'),
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
     it('rejects model exceeding 256 chars', async () => {
       req.body.model = 'a'.repeat(257);
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Invalid model identifier' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Invalid model identifier"'),
+      });
     });
 
     it('rejects model with leading special character', async () => {
       req.body.model = '.bad-model';
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Invalid model identifier' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Invalid model identifier"'),
+      });
     });
 
     it('rejects model with script injection', async () => {
       req.body.model = '<script>alert(1)</script>';
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Invalid model identifier' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Invalid model identifier"'),
+      });
     });
 
     it('trims whitespace before validation', async () => {
@@ -82,7 +107,9 @@ describe('validateModel', () => {
     it('rejects model with spaces in the middle', async () => {
       req.body.model = 'gpt 4o';
       await validateModel(req, res, next);
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Invalid model identifier' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Invalid model identifier"'),
+      });
     });
 
     it('accepts standard model IDs', async () => {
@@ -146,7 +173,9 @@ describe('validateModel', () => {
         expect.any(Object),
         expect.anything(),
       );
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Illegal model request' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Illegal model request"'),
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -191,7 +220,9 @@ describe('validateModel', () => {
 
       await validateModel(req, res, next);
 
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Illegal model request' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Illegal model request"'),
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -200,7 +231,9 @@ describe('validateModel', () => {
 
       await validateModel(req, res, next);
 
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Endpoint models not loaded' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Endpoint models not loaded"'),
+      });
     });
 
     it('rejects when modelsConfig is null', async () => {
@@ -208,7 +241,9 @@ describe('validateModel', () => {
 
       await validateModel(req, res, next);
 
-      expect(handleError).toHaveBeenCalledWith(res, { text: 'Models not loaded' });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: expect.stringContaining('"message":"Models not loaded"'),
+      });
     });
   });
 });

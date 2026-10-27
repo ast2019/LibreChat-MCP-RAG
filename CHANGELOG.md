@@ -7,6 +7,42 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-27
+
+### Added
+- **New models appear in the menu by themselves** (`modelSpecs.autoDiscover`). The server reads
+  OpenRouter's catalogue (`/models`) and its Zero Data Retention list (`/endpoints/zdr`) at
+  start and every 6 hours, in the background. No request waits on it.
+  - **Public:** each `~{provider}/{family}-latest` alias of a listed brand that no spec offers
+    yet is added to that brand's group. Today that adds «GPT Terra». Near-duplicates are in
+    `exclude`.
+  - **Confidential, strict:**
+    - A confidential spec only ever names a concrete model id that has a ZDR endpoint, never an
+      alias.
+    - Existing «محرمانه» specs move to the newest ZDR version of their family.
+    - A spec whose model loses ZDR is removed.
+    - Listed families with no spec get one. Today that adds Claude Opus, Claude Haiku, GPT-6
+      Luna, GPT-6 Astra and Gemini 4 Argon — محرمانه.
+    - Claude Fable has no ZDR endpoint, so it is never offered as confidential.
+  - Discovered specs pass through the same role/user access rules as written ones.
+- **Prices for local models**, based on what the server costs (€80/month).
+  - Each model's share is set by its speed on this CPU, so a stronger model costs more per
+    token: `hivegpt-local` 0.8 / 5.5, Qwen 3.6 35B 1.6 / 8 USD per 1M tokens.
+  - The formula and how to re-measure the speeds are in `docs/saas/BILLING.md`.
+- Persian (and English) messages for every model-selection refusal:
+  - the private-chat lock;
+  - a missing, invalid, mismatched or unavailable model spec;
+  - a model the endpoint does not offer (`validateModel`).
+
+  The server sends typed `ErrorTypes` payloads, and the chat error bubble localizes them.
+
+### Changed
+- **Passkeys on an HTTPS domain behind a proxy.**
+  - When `DOMAIN_CLIENT` is a public `http://` URL but the site is served on `https://` (TLS at
+    Coolify/Traefik), the server also accepts the `https://` twin of that host.
+  - The api log states the passkey status at startup.
+  - `PASSKEY_ORIGINS` is passed through docker-compose.
+
 ## [0.13.0] - 2026-10-27
 
 ### Added

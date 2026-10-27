@@ -10,10 +10,12 @@ const {
   getReasoningCapabilities,
   applyRequestReasoningOverride,
   checkSpecPrivacyLock,
-  SPEC_PRIVACY_LOCK_MESSAGES,
+  formatModelSpecErrorText,
+  getSpecPrivacyLockErrorText,
 } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const {
+  ErrorTypes,
   EndpointURLs,
   Constants,
   EModelEndpoint,
@@ -26,6 +28,18 @@ const assistants = require('~/server/services/Endpoints/assistants');
 const { getEndpointsConfig } = require('~/server/services/Config');
 const agents = require('~/server/services/Endpoints/agents');
 const { updateFilesUsage, getConvo } = require('~/models');
+
+/**
+ * Sends a model-spec refusal as a typed payload the client localizes; `message` keeps the
+ * English text for logs and readers without a mapping.
+ *
+ * @param {Express.Response} res
+ * @param {import('librechat-data-provider').ErrorTypes} type
+ * @param {string} message
+ */
+function handleModelSpecError(res, type, message) {
+  return handleError(res, { text: formatModelSpecErrorText(type, message) });
+}
 
 const buildFunction = {
   [EModelEndpoint.agents]: agents.buildOptions,
@@ -101,7 +115,7 @@ async function loadStoredConversationSpec(req, conversationId) {
  *
  * @param {ServerRequest} req
  * @param {string | null | undefined} requestedSpec
- * @returns {Promise<string | null>} refusal text, or `null` when the turn may proceed
+ * @returns {Promise<string | null>} typed refusal text, or `null` when the turn may proceed
  */
 async function getSpecPrivacyLockError(req, requestedSpec) {
   const list = req.config?.modelSpecs?.list;
@@ -150,7 +164,7 @@ async function getSpecPrivacyLockError(req, requestedSpec) {
     reason: result.reason,
     conversationId,
   });
-  return SPEC_PRIVACY_LOCK_MESSAGES[result.reason];
+  return getSpecPrivacyLockErrorText(result.reason);
 }
 
 async function buildEndpointOption(req, res, next) {
@@ -191,7 +205,7 @@ async function buildEndpointOption(req, res, next) {
     Array.isArray(appConfig.modelSpecs.list) &&
     appConfig.modelSpecs.list.length === 0
   ) {
-    return handleError(res, { text: 'No model spec available' });
+    return handleModelSpecError(res, ErrorTypes.MODEL_SPEC_UNAVAILABLE, 'No model spec available');
   }
   if (appConfig.modelSpecs?.list?.length && appConfig.modelSpecs?.enforce) {
     /** @type {{ list: TModelSpec[] }}*/
@@ -206,7 +220,7 @@ async function buildEndpointOption(req, res, next) {
         : parsedBody;
 
     if (!spec) {
-      return handleError(res, { text: 'No model spec selected' });
+      return handleModelSpecError(res, ErrorTypes.MODEL_SPEC_MISSING, 'No model spec selected');
     }
 
     const modelSpecResolution = resolveModelSpecForEndpoint({
@@ -215,12 +229,9 @@ async function buildEndpointOption(req, res, next) {
       endpoint,
     });
     if ('error' in modelSpecResolution) {
-      return handleError(res, {
-        text:
-          modelSpecResolution.error === 'invalid-model-spec'
-            ? 'Invalid model spec'
-            : 'Model spec mismatch',
-      });
+      return modelSpecResolution.error === 'invalid-model-spec'
+        ? handleModelSpecError(res, ErrorTypes.MODEL_SPEC_INVALID, 'Invalid model spec')
+        : handleModelSpecError(res, ErrorTypes.MODEL_SPEC_MISMATCH, 'Model spec mismatch');
     }
     const { modelSpec: currentModelSpec } = modelSpecResolution;
 
@@ -264,7 +275,7 @@ async function buildEndpointOption(req, res, next) {
         return handleError(res, { text: 'Error parsing model spec' });
       }
     } else if (modelSpecResolution.error === 'model-spec-mismatch') {
-      return handleError(res, { text: 'Model spec mismatch' });
+      return handleModelSpecError(res, ErrorTypes.MODEL_SPEC_MISMATCH, 'Model spec mismatch');
     }
   }
 
@@ -279,7 +290,11 @@ async function buildEndpointOption(req, res, next) {
     }
   } catch (error) {
     logger.error('Error checking model spec privacy lock', error);
-    return handleError(res, { text: 'Error checking model spec privacy lock' });
+    return handleModelSpecError(
+      res,
+      ErrorTypes.MODEL_SPEC_CHECK_FAILED,
+      'Error checking model spec privacy lock',
+    );
   }
 
   if (!isAgents && appliedModelSpecPrivateFields.has('promptPrefix')) {

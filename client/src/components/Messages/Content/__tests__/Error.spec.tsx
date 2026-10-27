@@ -1309,3 +1309,49 @@ describe('Error — agent handoffs within a row', () => {
     expect(document.body.textContent).not.toContain('Google');
   });
 });
+
+describe('Error — model spec refusals', () => {
+  const faCatalog = jest.requireActual('~/locales/fa/translation.json') as Record<string, string>;
+  const cases: Array<[ErrorTypes, string, string]> = [
+    [ErrorTypes.MODEL_SPEC_LOCKED, 'com_error_model_spec_locked', 'Model spec locked'],
+    [
+      ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT,
+      'com_error_model_spec_requires_new_chat',
+      'Private model spec requires a new conversation',
+    ],
+    [
+      ErrorTypes.MODEL_SPEC_NO_COMPARE,
+      'com_error_model_spec_no_compare',
+      'Model comparison is not allowed in a private conversation',
+    ],
+    [ErrorTypes.MODEL_SPEC_MISSING, 'com_error_model_spec_missing', 'No model spec selected'],
+    [ErrorTypes.MODEL_SPEC_INVALID, 'com_error_model_spec_invalid', 'Invalid model spec'],
+    [ErrorTypes.MODEL_SPEC_MISMATCH, 'com_error_model_spec_mismatch', 'Model spec mismatch'],
+    [
+      ErrorTypes.MODEL_SPEC_UNAVAILABLE,
+      'com_error_model_spec_unavailable',
+      'No model spec available',
+    ],
+    [
+      ErrorTypes.MODEL_SPEC_CHECK_FAILED,
+      'com_error_model_spec_check_failed',
+      'Error checking model spec privacy lock',
+    ],
+  ];
+
+  it.each(cases)(
+    'renders %s as its localized copy instead of the English log message',
+    (type, key, message) => {
+      renderError({ type, message }, providerMessage);
+
+      expect(screen.getByText(catalog[key])).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain(message);
+      expectReadable();
+    },
+  );
+
+  it.each(cases)('has Persian copy for %s', (_type, key) => {
+    expect(faCatalog[key]).toEqual(expect.any(String));
+    expect(faCatalog[key]).not.toBe(catalog[key]);
+  });
+});

@@ -13,6 +13,7 @@ import {
   defaultPasskeyName,
   getPasskeyConfig,
   isPasskeyEnabled,
+  describePasskeyStatus,
   registrationChallengeKey,
   resolveMaxPasskeysPerUser,
   verifyPasskeyAuthentication,
@@ -177,6 +178,52 @@ describe('getPasskeyConfig', () => {
     } as NodeJS.ProcessEnv);
 
     expect(resolved.origins).toEqual(['https://chat.example.com', 'https://api.example.com']);
+  });
+
+  it('accepts the https twin of a public http DOMAIN_CLIENT behind a TLS proxy', () => {
+    const resolved = getPasskeyConfig({
+      ALLOW_PASSKEY_LOGIN: 'true',
+      DOMAIN_CLIENT: 'http://chat.example.com',
+      DOMAIN_SERVER: 'http://chat.example.com:80',
+    } as NodeJS.ProcessEnv);
+
+    expect(resolved.rpID).toBe('chat.example.com');
+    expect(resolved.origins).toEqual(['http://chat.example.com', 'https://chat.example.com']);
+    expect(isPasskeyEnabled(resolved)).toBe(true);
+  });
+
+  it('keeps localhost and explicit PASSKEY_ORIGINS without an https twin', () => {
+    expect(
+      getPasskeyConfig({
+        ALLOW_PASSKEY_LOGIN: 'true',
+        DOMAIN_CLIENT: 'http://localhost:3080',
+      } as NodeJS.ProcessEnv).origins,
+    ).toEqual(['http://localhost:3080']);
+    expect(
+      getPasskeyConfig({
+        ALLOW_PASSKEY_LOGIN: 'true',
+        DOMAIN_CLIENT: 'http://chat.example.com',
+        PASSKEY_ORIGINS: 'http://chat.example.com',
+      } as NodeJS.ProcessEnv).origins,
+    ).toEqual(['http://chat.example.com']);
+  });
+
+  it('describes the passkey status for the startup log', () => {
+    expect(
+      describePasskeyStatus({
+        enabled: true,
+        rpID: 'chat.example.com',
+        rpName: 'HiveGPT',
+        origins: ['https://chat.example.com'],
+      }),
+    ).toEqual({
+      level: 'info',
+      message: '[passkeys] Enabled for chat.example.com (origins: https://chat.example.com)',
+    });
+    expect(describePasskeyStatus({ ...config, enabled: false }).level).toBe('info');
+    expect(
+      describePasskeyStatus({ ...config, enabled: true, origins: ['http://chat.example.com'] }),
+    ).toMatchObject({ level: 'warn' });
   });
 
   it('prefers explicit overrides and ignores unparseable origins', () => {

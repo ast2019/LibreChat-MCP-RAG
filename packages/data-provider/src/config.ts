@@ -5298,6 +5298,38 @@ export enum ErrorTypes {
    */
   MODEL_STREAM_STALLED = 'model_stream_stalled',
   /**
+   * The turn asked for a different model spec in a private conversation that already has history
+   */
+  MODEL_SPEC_LOCKED = 'model_spec_locked',
+  /**
+   * A private model spec was selected in a conversation that already has non-private history
+   */
+  MODEL_SPEC_REQUIRES_NEW_CHAT = 'model_spec_requires_new_chat',
+  /**
+   * A private conversation's turn asked to compare against another model spec
+   */
+  MODEL_SPEC_NO_COMPARE = 'model_spec_no_compare',
+  /**
+   * Model specs are enforced and the turn named none
+   */
+  MODEL_SPEC_MISSING = 'model_spec_missing',
+  /**
+   * The turn named a model spec that is not configured (or no longer exists)
+   */
+  MODEL_SPEC_INVALID = 'model_spec_invalid',
+  /**
+   * The turn's model spec does not serve the requested endpoint
+   */
+  MODEL_SPEC_MISMATCH = 'model_spec_mismatch',
+  /**
+   * Model specs are enforced and access rules left the principal none
+   */
+  MODEL_SPEC_UNAVAILABLE = 'model_spec_unavailable',
+  /**
+   * The server could not verify the conversation's model spec (privacy lock lookup failed)
+   */
+  MODEL_SPEC_CHECK_FAILED = 'model_spec_check_failed',
+  /**
    * An agent model provider failed and the run could not recover.
    */
   UPSTREAM_MODEL_ERROR = 'upstream_model_error',
