@@ -14,6 +14,7 @@ const mockBalanceQuery = jest.fn();
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: mockStartupConfig() }),
+  useTokenConfigQuery: () => ({ data: undefined, isLoading: false, isError: false }),
   useGetUserBalance: (config?: { enabled?: boolean }) =>
     config?.enabled === false
       ? { data: undefined, isError: false, isFetched: false }

@@ -1,13 +1,19 @@
 import { Skeleton } from '@librechat/client';
 import AutoRefillSettings from '../SettingsTabs/Balance/AutoRefillSettings';
+import ModelPrices from '~/components/Pricing/ModelPrices';
 import useBalanceSummary from '~/hooks/useBalanceSummary';
 import { formatBalanceAmount } from '~/utils';
 import Balance from '~/components/Balance';
 import { useLocalize } from '~/hooks';
 
-/** The same reading the context gauge shows, so both surfaces agree. */
+/** The same reading the context gauge shows, so both surfaces agree, then what each model costs. */
 export function TokenCredits() {
-  return <Balance />;
+  return (
+    <>
+      <Balance />
+      <ModelPrices className="border-border-light mt-4 border-t pt-4" />
+    </>
+  );
 }
 
 export function AutoRefill() {

@@ -25,7 +25,13 @@ describe('billing methods', () => {
 
   beforeAll(async () => {
     const [sara, reza] = await mongoose.models.User.create([
-      { name: 'Sara', username: 'sara', email: 'sara@example.com', provider: 'local' },
+      {
+        name: 'Sara',
+        username: 'sara',
+        email: 'sara@example.com',
+        provider: 'local',
+        modelAccess: { local: false },
+      },
       { name: 'Reza', username: 'reza', email: 'reza@example.com', provider: 'local' },
     ]);
     saraId = sara._id;
@@ -89,6 +95,8 @@ describe('billing methods', () => {
     const sara = all.users.find((u) => u.email === 'sara@example.com');
     expect(sara?.balance).toMatchObject({ tokenCredits: 1_500_000, packLabel: 'Starter' });
     expect(all.users.find((u) => u.email === 'reza@example.com')?.balance).toBeNull();
+    expect(sara?.modelAccess).toEqual({ local: false });
+    expect(all.users.find((u) => u.email === 'reza@example.com')?.modelAccess).toEqual({});
 
     const found = await billing.listUsersWithBalances({ search: 'sara' });
     expect(found.users.map((u) => u.id)).toEqual([saraId.toString()]);

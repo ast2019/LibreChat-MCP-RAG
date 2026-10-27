@@ -18,6 +18,8 @@ import {
   peoplePickerPermissionsSchema,
   remoteAgentsPermissionsSchema,
   temporaryChatPermissionsSchema,
+  localModelsPermissionsSchema,
+  privateModelsPermissionsSchema,
   fileCitationsPermissionsSchema,
 } from './permissions';
 
@@ -122,6 +124,12 @@ const defaultRolesSchema = z.object({
         [Permissions.USE]: z.boolean().default(true),
         [Permissions.CREATE]: z.boolean().default(true),
       }),
+      [PermissionTypes.LOCAL_MODELS]: localModelsPermissionsSchema.extend({
+        [Permissions.USE]: z.boolean().default(true),
+      }),
+      [PermissionTypes.PRIVATE_MODELS]: privateModelsPermissionsSchema.extend({
+        [Permissions.USE]: z.boolean().default(true),
+      }),
     }),
   }),
   [SystemRoles.USER]: roleSchema.extend({
@@ -220,6 +228,12 @@ export const roleDefaults = defaultRolesSchema.parse({
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: {
+        [Permissions.USE]: true,
+      },
+      [PermissionTypes.PRIVATE_MODELS]: {
+        [Permissions.USE]: true,
+      },
     },
   },
   [SystemRoles.USER]: {
@@ -280,6 +294,12 @@ export const roleDefaults = defaultRolesSchema.parse({
       [PermissionTypes.SCHEDULES]: {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
+      },
+      [PermissionTypes.LOCAL_MODELS]: {
+        [Permissions.USE]: true,
+      },
+      [PermissionTypes.PRIVATE_MODELS]: {
+        [Permissions.USE]: true,
       },
     },
   },

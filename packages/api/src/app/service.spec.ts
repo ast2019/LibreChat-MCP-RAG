@@ -2055,3 +2055,120 @@ describe('message App budget reader composition', () => {
     await expect(b.getBudget()).rejects.toThrow('not been initialized');
   });
 });
+
+describe('getAppConfig model privacy access', () => {
+  const specs = {
+    enforce: true,
+    list: [
+      { name: 'fast', preset: { endpoint: 'openAI' } },
+      { name: 'zdr', privacy: 'private', preset: { endpoint: 'openAI' } },
+      { name: 'on-prem', privacy: 'local', preset: { endpoint: 'openAI' } },
+    ],
+  };
+  const names = (config: AppConfig) => config.modelSpecs?.list?.map((spec) => spec.name);
+  const rolePermissions = (local: boolean, priv: boolean) => ({
+    LOCAL_MODELS: { USE: local },
+    PRIVATE_MODELS: { USE: priv },
+  });
+
+  function setup(getRolePermissions?: jest.Mock) {
+    const deps = createDeps({
+      loadBaseConfig: jest.fn().mockResolvedValue({
+        interfaceConfig: { adminFullAccess: true },
+        endpoints: {},
+        modelSpecs: specs,
+      }),
+      ...(getRolePermissions && { getRolePermissions }),
+    });
+    return { deps, ...createAppConfigService(deps) };
+  }
+
+  it('hides the classes the role withholds and reads the role on every call', async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(false, true));
+    const { getAppConfig } = setup(getRolePermissions);
+
+    const first = await getAppConfig({ role: 'USER', userId: 'uid1' });
+    expect(names(first)).toEqual(['fast', 'zdr']);
+    expect(first.modelSpecs?.enforce).toBe(true);
+
+    getRolePermissions.mockResolvedValue(rolePermissions(true, false));
+    const second = await getAppConfig({ role: 'USER', userId: 'uid1' });
+    expect(names(second)).toEqual(['fast', 'on-prem']);
+    expect(getRolePermissions).toHaveBeenCalledWith('USER');
+    expect(getRolePermissions).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets the user override win over the role', async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(false, false));
+    const { getAppConfig } = setup(getRolePermissions);
+
+    const config = await getAppConfig({
+      role: 'USER',
+      userId: 'uid1',
+      modelAccess: { local: true },
+    });
+    expect(names(config)).toEqual(['fast', 'on-prem']);
+
+    const denied = await getAppConfig({
+      ...getAppConfigOptionsFromUser({
+        id: 'uid2',
+        role: 'USER',
+        modelAccess: { local: false, private: false },
+      }),
+    });
+    expect(names(denied)).toEqual(['fast']);
+    /** Both classes overridden: the role does not decide, so it is not read */
+    expect(getRolePermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('never filters ADMIN and does not read its role', async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(false, false));
+    const { getAppConfig } = setup(getRolePermissions);
+
+    const config = await getAppConfig({ role: 'ADMIN', userId: 'admin1' });
+    expect(names(config)).toEqual(['fast', 'zdr', 'on-prem']);
+    expect(config.modelSpecs?.enforce).toBe(false);
+    expect(getRolePermissions).not.toHaveBeenCalled();
+  });
+
+  it("gives a read that names no role USER's view", async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(false, false));
+    const { getAppConfig } = setup(getRolePermissions);
+
+    expect(names(await getAppConfig())).toEqual(['fast']);
+    expect(getRolePermissions).toHaveBeenCalledWith('USER');
+  });
+
+  it('keeps every class when no role reader is wired, and for baseOnly reads', async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(false, false));
+    expect(names(await setup().getAppConfig({ role: 'USER', userId: 'uid1' }))).toHaveLength(3);
+    const { getAppConfig } = setup(getRolePermissions);
+    expect(names(await getAppConfig({ baseOnly: true }))).toHaveLength(3);
+    expect(getRolePermissions).not.toHaveBeenCalled();
+  });
+
+  it('hides both classes when the role read fails, and throws for failClosed callers', async () => {
+    const getRolePermissions = jest.fn().mockRejectedValue(new Error('db down'));
+    const { getAppConfig } = setup(getRolePermissions);
+    const spy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+
+    expect(names(await getAppConfig({ role: 'USER', userId: 'uid1' }))).toEqual(['fast']);
+    await expect(getAppConfig({ role: 'USER', userId: 'uid1', failClosed: true })).rejects.toThrow(
+      'db down',
+    );
+    spy.mockRestore();
+  });
+
+  it('applies access after the merged-config cache instead of caching it per principal', async () => {
+    const getRolePermissions = jest.fn().mockResolvedValue(rolePermissions(true, true));
+    const { getAppConfig, deps } = setup(getRolePermissions);
+
+    await getAppConfig({ role: 'USER', userId: 'uid1', modelAccess: { private: false } });
+    const allowed = await getAppConfig({ role: 'USER', userId: 'uid1' });
+    expect(names(allowed)).toEqual(['fast', 'zdr', 'on-prem']);
+    const cached = [...deps._cache._store.values()].filter(
+      (value) => (value as AppConfig)?.modelSpecs != null,
+    ) as AppConfig[];
+    expect(cached.every((value) => value.modelSpecs?.list?.length === 3)).toBe(true);
+  });
+});

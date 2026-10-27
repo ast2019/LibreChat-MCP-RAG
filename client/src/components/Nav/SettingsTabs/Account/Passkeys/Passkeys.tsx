@@ -4,21 +4,19 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { MAX_PASSKEYS_PER_USER } from 'librechat-data-provider';
 import {
   Button,
+  EmptyState,
   Label,
   OGDialog,
-  OGDialogClose,
   OGDialogContent,
   OGDialogDescription,
-  OGDialogFooter,
   OGDialogHeader,
   OGDialogTitle,
   OGDialogTrigger,
   PasskeyIcon,
-  SecretInput,
   Skeleton,
-  Spinner,
   useToastContext,
 } from '@librechat/client';
+import type { TPasskey } from 'librechat-data-provider';
 import type { PasskeyRemovalResult } from './PasskeyItem';
 import {
   useDeletePasskeyMutation,
@@ -28,12 +26,8 @@ import {
 } from '~/data-provider';
 import { isPasswordRejection, usePasskeyRegistration } from '~/hooks/Auth/usePasskey';
 import { useAuthContext, useLocalize } from '~/hooks';
+import AddPasskeyDialog, { ADD_PASSKEY_DIALOG_ID } from './AddPasskeyDialog';
 import PasskeyItem from './PasskeyItem';
-
-const PASSWORD_FIELD_ID = 'passkey-confirm-password';
-const PASSWORD_ERROR_ID = 'passkey-confirm-password-error';
-const PASSWORD_FORM_ID = 'passkey-confirm-password-form';
-const ADD_DIALOG_ID = 'add-passkey-dialog';
 
 function Passkeys() {
   const localize = useLocalize();
@@ -43,9 +37,7 @@ function Passkeys() {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const passwordRef = useRef<HTMLInputElement | null>(null);
   const renameAfterCloseRef = useRef<string | null>(null);
 
   const { data, isLoading, isError } = usePasskeysQuery({ enabled: isDialogOpen });
@@ -69,28 +61,15 @@ function Passkeys() {
    */
   const isLocalAccount = user?.provider === 'local';
 
-  /** Callback ref so the field takes focus the moment the step-up form appears. */
-  const bindPasswordField = useCallback((input: HTMLInputElement | null) => {
-    passwordRef.current = input;
-    input?.focus();
-  }, []);
-
   const handleAdd = useCallback(() => {
     clearPasswordError();
-    setPassword('');
     setAddDialogOpen(true);
   }, [clearPasswordError]);
 
-  const handleAddOpenChange = useCallback(
-    (open: boolean) => {
-      setAddDialogOpen(open);
-      if (!open) {
-        setPassword('');
-        clearPasswordError();
-      }
-    },
-    [clearPasswordError],
-  );
+  /** Start rename after the child dialog releases its focus trap. */
+  const handleAdded = useCallback((passkey: TPasskey) => {
+    renameAfterCloseRef.current = passkey.id;
+  }, []);
 
   const handleAddCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
@@ -102,23 +81,6 @@ function Passkeys() {
     }
     addButtonRef.current?.focus();
   }, []);
-
-  const handleConfirmAdd = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      const passkey = await registerPasskey(password);
-      if (!passkey) {
-        /** Put focus back on the field the error describes so it can be corrected. */
-        passwordRef.current?.focus();
-        return;
-      }
-      setPassword('');
-      /** Start rename after the child dialog releases its focus trap. */
-      renameAfterCloseRef.current = passkey.id;
-      setAddDialogOpen(false);
-    },
-    [password, registerPasskey],
-  );
 
   const handleRename = useCallback(
     (passkeyId: string, name: string) => {
@@ -168,7 +130,6 @@ function Passkeys() {
         void refetchStartupConfig();
         return;
       }
-      setPassword('');
       setAddDialogOpen(false);
       setRenamingId(null);
       renameAfterCloseRef.current = null;
@@ -222,12 +183,11 @@ function Passkeys() {
             </div>
           )}
           {!isLoading && !isError && passkeys.length === 0 && (
-            <div className="border-border-light flex flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center">
-              <span className="text-text-tertiary">
-                <PasskeyIcon className="h-6 w-6" />
-              </span>
-              <p className="text-text-secondary text-sm">{localize('com_ui_passkey_empty')}</p>
-            </div>
+            <EmptyState
+              icon={PasskeyIcon}
+              title={localize('com_ui_passkey_empty')}
+              description={localize('com_ui_passkey_empty_description')}
+            />
           )}
           {!isLoading && passkeys.length > 0 && (
             <ul className="space-y-1.5">
@@ -267,7 +227,7 @@ function Passkeys() {
               disabled={isRegistering || atLimit || isLoading}
               aria-haspopup="dialog"
               aria-expanded={isAddDialogOpen}
-              aria-controls={ADD_DIALOG_ID}
+              aria-controls={ADD_PASSKEY_DIALOG_ID}
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               {localize('com_ui_passkey_add')}
@@ -281,53 +241,16 @@ function Passkeys() {
         )}
       </OGDialogContent>
 
-      <OGDialog open={isAddDialogOpen} onOpenChange={handleAddOpenChange}>
-        <OGDialogContent
-          id={ADD_DIALOG_ID}
-          className="w-11/12 max-w-md"
-          showCloseButton={false}
-          onCloseAutoFocus={handleAddCloseAutoFocus}
-        >
-          <OGDialogHeader>
-            <OGDialogTitle>{localize('com_ui_passkey_add')}</OGDialogTitle>
-            <OGDialogDescription>
-              {localize('com_ui_passkey_confirm_password_description')}
-            </OGDialogDescription>
-          </OGDialogHeader>
-
-          <form id={PASSWORD_FORM_ID} onSubmit={handleConfirmAdd} className="flex flex-col gap-2">
-            <Label htmlFor={PASSWORD_FIELD_ID} className="text-sm font-medium">
-              {localize('com_ui_passkey_confirm_password')}
-            </Label>
-            <SecretInput
-              id={PASSWORD_FIELD_ID}
-              ref={bindPasswordField}
-              name="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              aria-invalid={passwordErrorKey != null}
-              aria-describedby={passwordErrorKey != null ? PASSWORD_ERROR_ID : undefined}
-            />
-            {passwordErrorKey != null && (
-              <p id={PASSWORD_ERROR_ID} role="alert" className="text-text-destructive text-xs">
-                {localize(passwordErrorKey)}
-              </p>
-            )}
-            <OGDialogFooter className="mt-2">
-              <OGDialogClose asChild>
-                <Button type="button" variant="outline">
-                  {localize('com_ui_cancel')}
-                </Button>
-              </OGDialogClose>
-              <Button type="submit" variant="submit" disabled={isRegistering || password === ''}>
-                {isRegistering && <Spinner className="h-4 w-4" />}
-                {localize('com_ui_confirm')}
-              </Button>
-            </OGDialogFooter>
-          </form>
-        </OGDialogContent>
-      </OGDialog>
+      <AddPasskeyDialog
+        open={isAddDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        registerPasskey={registerPasskey}
+        isRegistering={isRegistering}
+        passwordErrorKey={passwordErrorKey}
+        clearPasswordError={clearPasswordError}
+        onAdded={handleAdded}
+        onCloseAutoFocus={handleAddCloseAutoFocus}
+      />
     </OGDialog>
   );
 }

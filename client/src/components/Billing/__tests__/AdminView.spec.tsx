@@ -1,11 +1,12 @@
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import AdminView from '../AdminView';
 
 let mockRole = 'ADMIN';
 const mockMutate = jest.fn();
 const mockRoleMutate = jest.fn();
+const mockModelAccessMutate = jest.fn();
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -33,6 +34,7 @@ jest.mock('~/data-provider', () => ({
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
   useGetRole: () => mockUserRole,
   useUpdateRolePermissionsMutation: () => ({ mutate: mockRoleMutate, isLoading: false }),
+  useAdminUserModelAccessMutation: () => ({ mutate: mockModelAccessMutate, isLoading: false }),
   useGetStartupConfig: () => ({
     data: {
       interface: { currency: mockCurrency },
@@ -154,6 +156,33 @@ describe('AdminView', () => {
       { roleName: 'USER', key: 'web-search', updates: { USE: false } },
       expect.any(Object),
     );
+  });
+
+  it('shows local and private AI as granted until the role withholds them, and switches them', async () => {
+    renderView('/admin?tab=access');
+    const local = within(screen.getByTestId('access-local-models')).getByRole('switch');
+    const privateModels = within(screen.getByTestId('access-private-models')).getByRole('switch');
+    /** The role does not store either type yet; the server grants both then */
+    expect(local).toBeChecked();
+    expect(privateModels).toBeChecked();
+
+    await userEvent.click(local);
+    expect(mockRoleMutate).toHaveBeenCalledWith(
+      { roleName: 'USER', key: 'local-models', updates: { USE: false } },
+      expect.any(Object),
+    );
+  });
+
+  it('reflects a withheld private AI permission', () => {
+    mockUserRole = {
+      isLoading: false,
+      isError: false,
+      data: { name: 'USER', permissions: { PRIVATE_MODELS: { USE: false } } },
+    };
+    renderView('/admin?tab=access');
+    expect(
+      within(screen.getByTestId('access-private-models')).getByRole('switch'),
+    ).not.toBeChecked();
   });
 
   it('turns the admin advanced mode on and keeps it in this browser', async () => {

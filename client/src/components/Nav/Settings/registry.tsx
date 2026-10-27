@@ -53,6 +53,7 @@ import AdminPanel from '../SettingsTabs/General/AdminPanel';
 import SharedLinks from '../SettingsTabs/Data/SharedLinks';
 import ImageResize from '../SettingsTabs/Chat/ImageResize';
 import Passkeys from '../SettingsTabs/Account/Passkeys';
+import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import { showThinkingAtom } from '~/store/showThinking';
 import ProviderKeys from '../SettingsTabs/ProviderKeys';
 import { showLiaAtom } from '~/components/Lia/store';
@@ -829,7 +830,8 @@ export const registry: SettingEntry[] = [
     section: 'security',
     labelKey: 'com_ui_passkeys',
     keywords: ['passkey', 'webauthn', 'fido', 'security key', 'passwordless'],
-    show: (ctx) => ctx.passkeyLoginEnabled,
+    /** WebAuthn exists only on HTTPS (or localhost), so an HTTP deployment hides the panel. */
+    show: (ctx) => ctx.passkeyLoginEnabled && passkeysSupported(),
     Component: Passkeys,
   },
   // Account · Connected accounts

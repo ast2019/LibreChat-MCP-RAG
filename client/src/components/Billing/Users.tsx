@@ -5,13 +5,15 @@ import type { TAdminBillingUser } from 'librechat-data-provider';
 import { useAdminBillingUsersQuery, useAdminBillingPacksQuery } from '~/data-provider';
 import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { Money, UsageCell } from './parts';
+import ModelAccess from './ModelAccess';
 import GrantDialog from './GrantDialog';
 import { useLocalize } from '~/hooks';
 
 const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
+const COLUMN_COUNT = 6;
 
-/** Every user with their pack, usage and credit, and the dialog that adds credit. */
+/** Every user with their pack, usage, model access and credit, and the dialog that adds credit. */
 export default function Users() {
   const localize = useLocalize();
   const [searchInput, setSearchInput] = useState('');
@@ -67,6 +69,9 @@ export default function Users() {
                 <th scope="col" className="px-4 py-2 text-start font-medium">
                   {localize('com_admin_col_usage')}
                 </th>
+                <th scope="col" className="px-4 py-2 text-start font-medium">
+                  {localize('com_admin_col_model_access')}
+                </th>
                 <th scope="col" className="px-4 py-2 text-end font-medium">
                   {localize('com_admin_col_balance')}
                 </th>
@@ -79,21 +84,24 @@ export default function Users() {
               {users.isLoading &&
                 Array.from({ length: 3 }, (_, index) => (
                   <tr key={index} className="border-border-light border-b last:border-0">
-                    <td colSpan={5} className="px-4 py-3">
+                    <td colSpan={COLUMN_COUNT} className="px-4 py-3">
                       <Skeleton className="h-4 w-full" />
                     </td>
                   </tr>
                 ))}
               {users.isError && (
                 <tr>
-                  <td colSpan={5} className="text-text-destructive px-4 py-6 text-center">
+                  <td
+                    colSpan={COLUMN_COUNT}
+                    className="text-text-destructive px-4 py-6 text-center"
+                  >
                     <span role="alert">{localize('com_admin_load_error')}</span>
                   </td>
                 </tr>
               )}
               {users.data?.users.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-text-secondary px-4 py-6 text-center">
+                  <td colSpan={COLUMN_COUNT} className="text-text-secondary px-4 py-6 text-center">
                     {localize('com_admin_no_users')}
                   </td>
                 </tr>
@@ -114,6 +122,9 @@ export default function Users() {
                   <td className="text-text-secondary px-4 py-2">{row.balance?.packLabel || '—'}</td>
                   <td className="px-4 py-2">
                     <UsageCell user={row} />
+                  </td>
+                  <td className="px-4 py-2">
+                    <ModelAccess user={row} />
                   </td>
                   <td className="text-text-primary px-4 py-2 text-end">
                     <Money credits={row.balance?.tokenCredits ?? 0} currency={currency} />

@@ -1,3 +1,5 @@
+import type { TUserModelAccess } from '../permissions';
+
 /** Admin billing page wire types (`/api/admin/balance/*`). */
 export type TAdminBillingBalance = {
   tokenCredits: number;
@@ -14,6 +16,8 @@ export type TAdminBillingUser = {
   email: string;
   role: string;
   createdAt?: string;
+  /** Local/private model override; an absent key follows the role. Older servers omit it. */
+  modelAccess?: TUserModelAccess;
   balance: TAdminBillingBalance | null;
   /** Whole percent of the last pack used; null when nothing measures it */
   usedPercent: number | null;
@@ -62,3 +66,13 @@ export type TAdminBillingGrantResponse = {
   packAllotment: number;
   pack: { id: string; label: string } | null;
 };
+
+/** `PATCH /api/admin/users/:id/model-access` */
+export type TAdminModelAccessRequest = {
+  userId: string;
+  /** `true`/`false` sets the override, `null` follows the role again; omitted keys are kept */
+  local?: boolean | null;
+  private?: boolean | null;
+};
+
+export type TAdminModelAccessResponse = { id: string; modelAccess: TUserModelAccess };

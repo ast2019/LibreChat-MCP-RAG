@@ -228,3 +228,38 @@ describe('PUT /api/roles/:roleName/prompts', () => {
     expect(mockUpdateRoleByName).not.toHaveBeenCalled();
   });
 });
+
+describe('PUT /api/roles/:roleName/{local-models,private-models}', () => {
+  it.each([
+    ['local-models', 'LOCAL_MODELS'],
+    ['private-models', 'PRIVATE_MODELS'],
+  ])('stores %s USE on the role', async (key, type) => {
+    mockGetRoleByName.mockResolvedValue(userRole);
+    mockUpdateRoleByName.mockImplementation(async (name, updates) => ({ name, ...updates }));
+    mockRecordAuditEntry.mockResolvedValue(null);
+    const app = createApp({ id: 'u1', _id: 'u1', role: SystemRoles.ADMIN, name: 'Admin' });
+
+    const res = await request(app)
+      .put(`/api/roles/${SystemRoles.USER}/${key}`)
+      .send({ USE: false });
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateRoleByName).toHaveBeenCalledWith(
+      SystemRoles.USER,
+      expect.objectContaining({
+        permissions: expect.objectContaining({ [type]: { USE: false } }),
+      }),
+    );
+  });
+
+  it('rejects a non-boolean value without writing', async () => {
+    const app = createApp({ id: 'u1', role: SystemRoles.ADMIN });
+
+    const res = await request(app)
+      .put(`/api/roles/${SystemRoles.USER}/local-models`)
+      .send({ USE: 'no' });
+
+    expect(res.status).toBe(400);
+    expect(mockUpdateRoleByName).not.toHaveBeenCalled();
+  });
+});

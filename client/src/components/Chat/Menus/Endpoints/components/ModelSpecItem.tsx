@@ -4,8 +4,10 @@ import { CheckCircle2 } from 'lucide-react';
 import { MorphIcon } from '@librechat/client';
 import { VisuallyHidden } from '@ariakit/react';
 import type { TModelSpec } from 'librechat-data-provider';
+import { CostBadge, SpecMeta, useSpecPricing, useThousandWordsPrice } from '~/components/Pricing';
 import { useFavorites, useLocalize, useIsActiveItem } from '~/hooks';
 import { useModelSelectorContext } from '../ModelSelectorContext';
+import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { CustomMenuItem as MenuItem } from '../CustomMenu';
 import { cn, getSpecAgentAvatarURL } from '~/utils';
 import SpecDescription from './SpecDescription';
@@ -27,6 +29,9 @@ export function ModelSpecItem({ spec, isSelected, posInSet, setSize }: ModelSpec
   const agentAvatarURL = getSpecAgentAvatarURL(spec, agentsMap);
 
   const { ref: itemRef, isActive } = useIsActiveItem<HTMLDivElement>();
+  const pricing = useSpecPricing(spec);
+  const { currency } = useBalanceDisplay();
+  const price = useThousandWordsPrice(pricing, currency);
 
   const isFavorite = isFavoriteSpec(spec.name);
 
@@ -60,8 +65,12 @@ export function ModelSpecItem({ spec, isSelected, posInSet, setSize }: ModelSpec
           </div>
         )}
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-start">{spec.label}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-start">{spec.label}</span>
+            <CostBadge tier={pricing.tier} title={price ?? undefined} />
+          </span>
           <SpecDescription description={spec.description} />
+          <SpecMeta resolved={pricing.resolved} price={price} />
         </div>
       </div>
       <button

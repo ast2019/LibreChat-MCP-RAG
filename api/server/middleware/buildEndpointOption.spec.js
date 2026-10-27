@@ -24,7 +24,7 @@ jest.mock('@librechat/data-schemas', () => {
   };
 });
 
-const { EModelEndpoint, parseCompactConvo } = require('librechat-data-provider');
+const { Constants, EModelEndpoint, parseCompactConvo } = require('librechat-data-provider');
 const { logger } = require('@librechat/data-schemas');
 
 const mockBuildOptions = jest.fn((_endpoint, parsedBody) => ({
@@ -48,8 +48,9 @@ jest.mock('~/server/services/Endpoints/agents', () => ({
 
 jest.mock('~/models', () => ({
   updateFilesUsage: jest.fn(),
+  getConvo: jest.fn(async () => null),
 }));
-const { updateFilesUsage } = require('~/models');
+const { updateFilesUsage, getConvo: mockGetConvo } = require('~/models');
 
 const mockGetEndpointsConfig = jest.fn();
 jest.mock('~/server/services/Config', () => ({
@@ -1063,4 +1064,164 @@ describe('buildEndpointOption - enforced server continuations', () => {
       expect(next).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('buildEndpointOption - private model spec lock', () => {
+  const { handleError, SPEC_PRIVACY_LOCK_MESSAGES } = require('@librechat/api');
+  const list = [
+    {
+      name: 'private-fast',
+      label: 'Private Fast',
+      privacy: 'private',
+      preset: { endpoint: EModelEndpoint.openAI, model: 'gpt-4o-mini' },
+    },
+    {
+      name: 'private-smart',
+      label: 'Private Smart',
+      privacy: 'private',
+      preset: { endpoint: EModelEndpoint.openAI, model: 'gpt-4o' },
+    },
+    {
+      name: 'local',
+      label: 'Local',
+      privacy: 'local',
+      preset: { endpoint: EModelEndpoint.openAI, model: 'llama3' },
+    },
+    {
+      name: 'normal',
+      label: 'Normal',
+      preset: { endpoint: EModelEndpoint.openAI, model: 'gpt-4.1' },
+    },
+  ];
+
+  const run = async ({ spec, conversationId = 'convo-1', stored, enforce = true, extra = {} }) => {
+    const req = createReq(
+      { endpoint: EModelEndpoint.openAI, conversationId, spec, ...extra },
+      { modelSpecs: { enforce, list } },
+    );
+    req.baseUrl = '/api/agents/chat';
+    req.user = { id: 'user-1' };
+    if (stored !== undefined) {
+      req.resolvedConversation =
+        stored === null ? null : { conversationId, user: 'user-1', spec: stored };
+    }
+    const res = createRes();
+    const next = jest.fn();
+    await buildEndpointOption(req, res, next);
+    return { req, res, next };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetEndpointsConfig.mockResolvedValue({});
+    mockGetConvo.mockResolvedValue(null);
+  });
+
+  it.each([true, false])(
+    'R1: refuses switching a stored private conversation to another spec (enforce=%s)',
+    async (enforce) => {
+      const { res, next } = await run({ spec: 'normal', stored: 'private-fast', enforce });
+      expect(handleError).toHaveBeenCalledWith(res, {
+        text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
+      });
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
+
+  it('R1: refuses switching between two private specs mid-conversation', async () => {
+    const { res, next } = await run({ spec: 'private-smart', stored: 'private-fast' });
+    expect(handleError).toHaveBeenCalledWith(res, {
+      text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('keeps regenerate/edit/continue on the same private spec working', async () => {
+    const { next, req } = await run({ spec: 'private-fast', stored: 'private-fast' });
+    expect(handleError).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+    expect(req.body.endpointOption).toMatchObject({ spec: 'private-fast' });
+  });
+
+  it('R2: refuses switching a non-private conversation into a private spec in place', async () => {
+    const { res, next } = await run({ spec: 'private-fast', stored: 'normal' });
+    expect(handleError).toHaveBeenCalledWith(res, {
+      text: SPEC_PRIVACY_LOCK_MESSAGES.private_requires_new_chat,
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['local', 'normal'],
+    ['normal', 'local'],
+  ])('allows switching %s -> %s in place', async (stored, spec) => {
+    const { next } = await run({ spec, stored });
+    expect(handleError).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it.each([Constants.NEW_CONVO, null])(
+    'gives a new conversation (%s) a free choice without reading the database',
+    async (conversationId) => {
+      const { next } = await run({ spec: 'private-fast', conversationId });
+      expect(handleError).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledWith();
+      expect(mockGetConvo).not.toHaveBeenCalled();
+    },
+  );
+
+  it('treats an id with no stored conversation as new', async () => {
+    const { next } = await run({ spec: 'private-fast', stored: null });
+    expect(next).toHaveBeenCalledWith();
+    expect(mockGetConvo).not.toHaveBeenCalled();
+  });
+
+  it('reuses the conversation an earlier middleware resolved', async () => {
+    await run({ spec: 'private-fast', stored: 'private-fast' });
+    expect(mockGetConvo).not.toHaveBeenCalled();
+  });
+
+  it('loads the stored spec when nothing resolved the conversation', async () => {
+    mockGetConvo.mockResolvedValue({ conversationId: 'convo-1', spec: 'private-fast' });
+    const { res, next } = await run({ spec: 'normal' });
+    expect(mockGetConvo).toHaveBeenCalledWith('user-1', 'convo-1');
+    expect(handleError).toHaveBeenCalledWith(res, {
+      text: SPEC_PRIVACY_LOCK_MESSAGES.private_locked,
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the stored conversation cannot be read', async () => {
+    mockGetConvo.mockRejectedValue(new Error('db down'));
+    const { res, next } = await run({ spec: 'private-fast' });
+    expect(handleError).toHaveBeenCalledWith(res, {
+      text: 'Error checking model spec privacy lock',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('refuses a compare turn with another spec in a private conversation', async () => {
+    const { res, next } = await run({
+      spec: 'private-fast',
+      stored: 'private-fast',
+      extra: { addedConvo: { endpoint: EModelEndpoint.openAI, spec: 'normal' } },
+    });
+    expect(handleError).toHaveBeenCalledWith(res, {
+      text: SPEC_PRIVACY_LOCK_MESSAGES.private_no_compare,
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when no spec list is configured', async () => {
+    const req = createReq(
+      { endpoint: EModelEndpoint.openAI, conversationId: 'convo-1', model: 'gpt-4o' },
+      {},
+    );
+    req.baseUrl = '/api/agents/chat';
+    req.user = { id: 'user-1' };
+    const next = jest.fn();
+    await buildEndpointOption(req, createRes(), next);
+    expect(mockGetConvo).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+  });
 });

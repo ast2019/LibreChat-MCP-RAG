@@ -668,6 +668,8 @@ export function areMessageFieldsEqual(
     (prevMsg.children?.length ?? 0) === (nextMsg.children?.length ?? 0) &&
     prevMsg.content === nextMsg.content &&
     prevMsg.model === nextMsg.model &&
+    /** The header shows the provider-reported model once the final message lands */
+    prevMsg.metadata?.resolvedModel === nextMsg.metadata?.resolvedModel &&
     prevMsg.endpoint === nextMsg.endpoint &&
     prevMsg.iconURL === nextMsg.iconURL &&
     prevMsg.feedback?.rating === nextMsg.feedback?.rating &&

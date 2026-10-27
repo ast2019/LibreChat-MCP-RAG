@@ -4,8 +4,8 @@ const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { getValueKey, getMultiplier, getCacheMultiplier } = require('~/models');
 
 /**
- * Returns server-resolved context windows (and pricing when
- * `interface.contextCost` is enabled) for every configured model. Resolution
+ * Returns server-resolved context windows for every configured model, plus pricing when
+ * `interface.contextCost` is enabled or the model is offered by a model spec. Resolution
  * lives in `@librechat/api`; this controller only supplies request-scoped deps.
  * @param {ServerRequest} req
  * @param {ServerResponse} res

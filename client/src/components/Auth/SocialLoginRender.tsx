@@ -9,6 +9,7 @@ import {
   SamlIcon,
 } from '@librechat/client';
 
+import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import PasskeySignIn from './PasskeySignIn';
 import SocialButton from './SocialButton';
 import { useLocalize } from '~/hooks';
@@ -119,7 +120,9 @@ function SocialLoginRender({
     ),
   };
 
-  const passkeyEnabled = showPasskey && startupConfig.passkeyLoginEnabled === true;
+  /** Browsers expose WebAuthn only on HTTPS (or localhost); elsewhere the button could only fail. */
+  const passkeyEnabled =
+    showPasskey && startupConfig.passkeyLoginEnabled === true && passkeysSupported();
   /** A listed provider renders only once it is configured, so count the buttons themselves:
    *  otherwise an unconfigured provider leaves the "or" divider above nothing */
   const socialButtons =

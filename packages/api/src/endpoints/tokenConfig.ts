@@ -1,7 +1,19 @@
-import { EModelEndpoint, normalizeEndpointName } from 'librechat-data-provider';
-import type { TModelsConfig, TTokenConfigMap, TEndpoint } from 'librechat-data-provider';
+import {
+  EModelEndpoint,
+  normalizeEndpointName,
+  resolveModelCatalogKey,
+} from 'librechat-data-provider';
+import type {
+  TModelTokenomics,
+  TTokenConfigMap,
+  TModelsConfig,
+  TModelSpec,
+  TEndpoint,
+} from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
+import type { ResolvedModelRegistry } from '~/endpoints/resolved';
 import type { EndpointTokenConfig } from '~/types';
+import { resolvedModels as defaultResolvedModels } from '~/endpoints/resolved';
 import { buildTokenConfigMap, type TokenomicsDeps } from '~/endpoints/pricing';
 import { getTokenConfigKey } from '~/endpoints/custom/initialize';
 import { applyPriceMultiplier } from '~/billing/markup';
@@ -13,6 +25,44 @@ export interface ResolveTokenConfigParams {
   modelsConfig: TModelsConfig;
   userId: string;
   tenantId?: string | null;
+  /** Where observed alias → concrete model ids are read; the process registry by default */
+  resolvedModels?: Pick<ResolvedModelRegistry, 'get'>;
+}
+
+/** The part of a model spec that names what it runs. */
+export interface SpecPresetRef {
+  preset?: Pick<TModelSpec['preset'], 'endpoint' | 'model'> | null;
+}
+
+/**
+ * endpoint (token-config map key) → model ids that a model spec offers. Their prices are
+ * public — the same per-token rates users are billed and can see on the price list — so they
+ * are sent even when `interface.contextCost` keeps per-chat cost hidden.
+ */
+export function getSpecModelKeys(
+  specs: ReadonlyArray<SpecPresetRef | null | undefined> | undefined,
+  map: TTokenConfigMap,
+): Map<string, Set<string>> {
+  const keys = new Map<string, Set<string>>();
+  for (const spec of specs ?? []) {
+    const model = spec?.preset?.model;
+    const endpoint = spec?.preset?.endpoint;
+    if (!model || !endpoint) {
+      continue;
+    }
+    const key = resolveModelCatalogKey(endpoint, map);
+    let models = keys.get(key);
+    if (models == null) {
+      models = new Set();
+      keys.set(key, models);
+    }
+    models.add(model);
+  }
+  return keys;
+}
+
+function withoutPricing(tokenomics: TModelTokenomics): TModelTokenomics {
+  return tokenomics.context != null ? { context: tokenomics.context } : {};
 }
 
 /**
@@ -23,10 +73,17 @@ export interface ResolveTokenConfigParams {
  * Lives in TypeScript so the `/api` controller stays a thin wrapper.
  */
 export async function resolveTokenConfigMap(
-  { appConfig, modelsConfig, userId, tenantId }: ResolveTokenConfigParams,
+  {
+    appConfig,
+    modelsConfig,
+    userId,
+    tenantId,
+    resolvedModels = defaultResolvedModels,
+  }: ResolveTokenConfigParams,
   deps: TokenomicsDeps,
 ): Promise<TTokenConfigMap> {
-  const includePricing = appConfig?.interfaceConfig?.contextCost === true;
+  const contextCost = appConfig?.interfaceConfig?.contextCost === true;
+  const specs = appConfig?.modelSpecs?.list;
   const customEndpoints = (appConfig?.endpoints?.[EModelEndpoint.custom] ?? []) as TEndpoint[];
   const cache = tokenConfigCache();
   const endpointTokenConfigs: Record<string, EndpointTokenConfig | undefined> = {};
@@ -55,5 +112,25 @@ export async function resolveTokenConfigMap(
     }
   }
 
-  return buildTokenConfigMap({ modelsConfig, endpointTokenConfigs, includePricing }, deps);
+  const includePricing = contextCost || (specs?.length ?? 0) > 0;
+  const map = buildTokenConfigMap({ modelsConfig, endpointTokenConfigs, includePricing }, deps);
+  const specModels = contextCost ? undefined : getSpecModelKeys(specs, map);
+
+  for (const [endpoint, models] of Object.entries(map)) {
+    const offered = specModels?.get(endpoint);
+    for (const [model, tokenomics] of Object.entries(models)) {
+      let entry = tokenomics;
+      if (specModels != null && offered?.has(model) !== true) {
+        entry = withoutPricing(entry);
+      }
+      const resolved = resolvedModels.get(model);
+      if (resolved != null) {
+        entry = { ...entry, resolved };
+      }
+      if (entry !== tokenomics) {
+        models[model] = entry;
+      }
+    }
+  }
+  return map;
 }

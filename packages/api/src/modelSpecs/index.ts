@@ -295,3 +295,4 @@ export function sanitizeModelSpecs<T extends Partial<TSpecsConfig> | null | unde
 export * from './reasoningOverride';
 export * from './persistedReasoningOverride';
 export * from './continuation';
+export * from './privacyLock';

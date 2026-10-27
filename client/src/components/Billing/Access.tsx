@@ -12,10 +12,26 @@ type Feature = {
   description: TranslationKeys;
   /** Offer a second switch for creating/editing, beside using */
   create?: boolean;
+  /** The server grants the permission when the role does not store it, so show it on */
+  grantedWhenUnset?: boolean;
 };
 
 /** What users can do, in the order the chat shows it; each row is one stored permission type. */
 const FEATURES: Feature[] = [
+  {
+    key: 'local-models',
+    type: PermissionTypes.LOCAL_MODELS,
+    label: 'com_admin_access_local_models',
+    description: 'com_admin_access_local_models_desc',
+    grantedWhenUnset: true,
+  },
+  {
+    key: 'private-models',
+    type: PermissionTypes.PRIVATE_MODELS,
+    label: 'com_admin_access_private_models',
+    description: 'com_admin_access_private_models_desc',
+    grantedWhenUnset: true,
+  },
   {
     key: 'web-search',
     type: PermissionTypes.WEB_SEARCH,
@@ -175,7 +191,9 @@ export default function Access() {
                   <Toggle
                     feature={localize(feature.label)}
                     label={localize('com_admin_access_use')}
-                    checked={current?.[Permissions.USE] === true}
+                    checked={
+                      (current?.[Permissions.USE] ?? feature.grantedWhenUnset ?? false) === true
+                    }
                     disabled={update.isLoading}
                     onChange={(value) => set(feature, Permissions.USE, value)}
                   />

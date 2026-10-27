@@ -234,3 +234,36 @@ describe('MessageRow', () => {
     expect(screen.getByLabelText('Assistant message')).toHaveClass('max-w-full');
   });
 });
+
+describe('MessageRow resolved model', () => {
+  const renderWithModel = (isCreatedByUser: boolean, resolvedModel?: string) =>
+    render(
+      <MessageRow
+        label="Claude"
+        icon={<span />}
+        footer={null}
+        isCreatedByUser={isCreatedByUser}
+        showAuthor={isCreatedByUser}
+        resolvedModel={resolvedModel}
+      >
+        <p>{MESSAGE_BODY}</p>
+      </MessageRow>,
+    );
+
+  it('shows the provider-reported model after the assistant label', () => {
+    renderWithModel(false, 'anthropic/claude-sonnet-5.5');
+    const label = screen.getByTestId('resolved-model');
+    expect(label).toHaveTextContent('Claude Sonnet 5.5');
+    expect(label).toHaveAttribute('title', 'anthropic/claude-sonnet-5.5');
+  });
+
+  it('shows nothing for a message saved without one', () => {
+    renderWithModel(false);
+    expect(screen.queryByTestId('resolved-model')).not.toBeInTheDocument();
+  });
+
+  it('never labels a user-side turn', () => {
+    renderWithModel(true, 'anthropic/claude-sonnet-5.5');
+    expect(screen.queryByTestId('resolved-model')).not.toBeInTheDocument();
+  });
+});

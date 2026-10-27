@@ -18,7 +18,7 @@ import {
 import { useAgentsMapContext, useAssistantsMapContext, useLiveAnnouncer } from '~/Providers';
 import { useGetEndpointsQuery, useListAgentsQuery } from '~/data-provider';
 import { useModelSelectorChatContext } from './ModelSelectorChatContext';
-import useSelectMention from '~/hooks/Input/useSelectMention';
+import useSelectMention, { isConversationSpecLocked } from '~/hooks/Input/useSelectMention';
 import { hasUsableModelSelection } from '~/utils/endpoints';
 import { filterItems } from './utils';
 
@@ -36,6 +36,8 @@ type ModelSelectorContextType = {
   endpointsConfig: t.TEndpointsConfig;
   /** The loaded conversation names no model yet: the user still has to pick one. */
   modelSelectionMissing: boolean;
+  /** A confidential (private-spec) conversation with history: its model cannot change. */
+  specLocked: boolean;
 
   // Functions
   endpointRequiresUserKey: (endpoint: string) => boolean;
@@ -100,6 +102,12 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       return true;
     });
   }, [startupConfig, agentsMap]);
+
+  /** Uses the full configured list so a menu-hidden stored spec still reports its privacy. */
+  const specLocked = useMemo(
+    () => isConversationSpecLocked({ conversationId, spec }, startupConfig?.modelSpecs?.list),
+    [conversationId, spec, startupConfig],
+  );
 
   const permissionLevel = useAgentDefaultPermissionLevel();
   /**
@@ -225,7 +233,10 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const handleSelectSpec = useCallback(
     (spec: t.TModelSpec) => {
       let model = spec.preset.model ?? null;
-      onSelectSpec?.(spec);
+      /* A refused switch (private lock) leaves the trigger showing the current model. */
+      if (onSelectSpec?.(spec) === false) {
+        return;
+      }
       /** Specs arrive with `preset.endpoint` materialized at config load. */
       const endpoint = spec.preset.endpoint ?? null;
       if (isAgentsEndpoint(endpoint)) {
@@ -245,8 +256,8 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const handleSelectEndpoint = useCallback(
     (endpoint: Endpoint) => {
       if (!endpoint.hasModels) {
-        if (endpoint.value) {
-          onSelectEndpoint?.(endpoint.value);
+        if (endpoint.value && onSelectEndpoint?.(endpoint.value) === false) {
+          return;
         }
         setSelectedValues({
           endpoint: endpoint.value,
@@ -260,18 +271,23 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
 
   const handleSelectModel = useCallback(
     (endpoint: Endpoint, model: string) => {
+      let applied: boolean | undefined;
       if (isAgentsEndpoint(endpoint.value)) {
-        onSelectEndpoint?.(endpoint.value, {
+        applied = onSelectEndpoint?.(endpoint.value, {
           agent_id: model,
           model: agentsMap?.[model]?.model ?? '',
         });
       } else if (isAssistantsEndpoint(endpoint.value)) {
-        onSelectEndpoint?.(endpoint.value, {
+        applied = onSelectEndpoint?.(endpoint.value, {
           assistant_id: model,
           model: assistantsMap?.[endpoint.value]?.[model]?.model ?? '',
         });
       } else if (endpoint.value) {
-        onSelectEndpoint?.(endpoint.value, { model });
+        applied = onSelectEndpoint?.(endpoint.value, { model });
+      }
+      /* A refused switch (private lock) leaves the trigger showing the current model. */
+      if (applied === false) {
+        return;
       }
       setSelectedValues({
         endpoint: endpoint.value,
@@ -298,6 +314,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       mappedEndpoints,
       endpointsConfig,
       modelSelectionMissing,
+      specLocked,
       handleSelectSpec,
       handleSelectModel,
       setSelectedValues,
@@ -318,6 +335,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       mappedEndpoints,
       endpointsConfig,
       modelSelectionMissing,
+      specLocked,
       handleSelectSpec,
       handleSelectModel,
       setSelectedValues,

@@ -708,6 +708,16 @@ export async function updateInterfacePermissions({
             }
           : {}),
       },
+      /**
+       * Model privacy classes have no librechat.yaml switch: the role default seeds a role that
+       * lacks the type, and from then on the admin page (or a per-user override) owns it.
+       */
+      [PermissionTypes.LOCAL_MODELS]: {
+        [Permissions.USE]: defaultPerms[PermissionTypes.LOCAL_MODELS]?.[Permissions.USE] ?? true,
+      },
+      [PermissionTypes.PRIVATE_MODELS]: {
+        [Permissions.USE]: defaultPerms[PermissionTypes.PRIVATE_MODELS]?.[Permissions.USE] ?? true,
+      },
     };
 
     // Check and add each permission type if needed

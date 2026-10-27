@@ -1,5 +1,6 @@
 import { Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
+import ResolvedModel from '~/components/Pricing/ResolvedModel';
 import MessageTimestamp from './MessageTimestamp';
 import HeaderLabel from './HeaderLabel';
 import { cn } from '~/utils';
@@ -8,6 +9,8 @@ type MessageRowProps = {
   id?: string;
   label: string;
   hoverLabel?: string | null;
+  /** Concrete model id the provider reported answering with, shown muted after the label */
+  resolvedModel?: string;
   icon: ReactNode;
   children: ReactNode;
   footer: ReactNode;
@@ -50,8 +53,12 @@ function renderAuthorHeader({
   hoverLabel,
   headerPrefix,
   timestamp,
+  resolvedModel,
   align,
-}: Pick<MessageRowProps, 'icon' | 'label' | 'hoverLabel' | 'headerPrefix' | 'timestamp'> & {
+}: Pick<
+  MessageRowProps,
+  'icon' | 'label' | 'hoverLabel' | 'headerPrefix' | 'timestamp' | 'resolvedModel'
+> & {
   align: 'start' | 'end';
 }) {
   return (
@@ -67,6 +74,7 @@ function renderAuthorHeader({
       </span>
       <span className="sr-only">{headerPrefix}</span>
       <HeaderLabel label={label} hoverLabel={hoverLabel} />
+      {resolvedModel != null && <ResolvedModel id={resolvedModel} />}
       {align === 'start' && (
         <MessageTimestamp value={timestamp} className="ms-auto shrink-0 font-normal" />
       )}
@@ -91,6 +99,7 @@ export default function MessageRow({
   icon,
   label,
   hoverLabel,
+  resolvedModel,
   footer,
   children,
   timestamp,
@@ -162,6 +171,7 @@ export default function MessageRow({
             hoverLabel,
             headerPrefix,
             timestamp,
+            resolvedModel: isCreatedByUser ? undefined : resolvedModel,
             align: isCreatedByUser ? 'end' : 'start',
           })}
 

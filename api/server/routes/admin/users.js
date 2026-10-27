@@ -6,6 +6,7 @@ const {
   deleteAllSharedLinksWithCleanup,
   createErasureResolver,
   createAdminUsersHandlers,
+  createAdminModelAccessHandlers,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
 const { SystemCapabilities, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
@@ -50,7 +51,7 @@ const resolveErasure = createErasureResolver({
 
 const requireAdminAccess = requireCapability(SystemCapabilities.ACCESS_ADMIN);
 const requireReadUsers = requireCapability(SystemCapabilities.READ_USERS);
-// const requireManageUsers = requireCapability(SystemCapabilities.MANAGE_USERS);
+const requireManageUsers = requireCapability(SystemCapabilities.MANAGE_USERS);
 
 const handlers = createAdminUsersHandlers({
   findUsers: db.findUsers,
@@ -81,10 +82,17 @@ const handlers = createAdminUsersHandlers({
   generationJobs: GenerationJobManager,
 });
 
+const modelAccess = createAdminModelAccessHandlers({
+  findUserModelAccess: (id) => db.findUser({ _id: id }, '_id modelAccess'),
+  saveUserModelAccess: (id, value) =>
+    db.updateUser(id, { modelAccess: value }, {}, { preserveExpiresAt: true }),
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/', requireReadUsers, handlers.listUsers);
 router.get('/search', requireReadUsers, handlers.searchUsers);
+router.patch('/:id/model-access', requireManageUsers, modelAccess.updateModelAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;
