@@ -4,6 +4,8 @@ import type { UsageMetadata } from '../stream/interfaces/IJobStore';
 import type { BulkWriteDeps, PricingFns } from './transactions';
 import {
   getModelEndUsage,
+  getResolvedModelName,
+  getResponseResolvedModel,
   computeUsageCostUSD,
   aggregateEmittedUsage,
   createDetachedSubagentUsageRecorder,
@@ -2016,6 +2018,59 @@ describe('getModelEndUsage', () => {
   it('returns undefined when the call reported no usage', () => {
     expect(getModelEndUsage(undefined)).toBeUndefined();
     expect(getModelEndUsage({ response_metadata: null })).toBeUndefined();
+  });
+
+  it('tags the usage with the model the provider reported running', () => {
+    const usage = getModelEndUsage({
+      usage_metadata,
+      response_metadata: { model_name: 'anthropic/claude-sonnet-5.5' },
+    });
+    expect(usage?.resolved_model).toBe('anthropic/claude-sonnet-5.5');
+    expect(usage?.input_tokens).toBe(3510);
+    expect(usage_metadata).not.toHaveProperty('resolved_model');
+  });
+});
+
+describe('getResolvedModelName', () => {
+  it('reads model_name, then model', () => {
+    expect(getResolvedModelName({ response_metadata: { model_name: 'openai/gpt-6.1-sol' } })).toBe(
+      'openai/gpt-6.1-sol',
+    );
+    expect(getResolvedModelName({ response_metadata: { model: 'claude-sonnet-5-5' } })).toBe(
+      'claude-sonnet-5-5',
+    );
+  });
+
+  it('collapses an id that streaming concatenated with itself', () => {
+    expect(getResolvedModelName({ response_metadata: { model_name: 'a/m-1a/m-1' } })).toBe('a/m-1');
+  });
+
+  it('ignores missing or non-id values', () => {
+    expect(getResolvedModelName(undefined)).toBeUndefined();
+    expect(getResolvedModelName({ response_metadata: { model_name: 42 } })).toBeUndefined();
+    expect(
+      getResolvedModelName({ response_metadata: { model_name: 'two words' } }),
+    ).toBeUndefined();
+    expect(getResolvedModelName({ response_metadata: { model_name: '' } })).toBeUndefined();
+  });
+});
+
+describe('getResponseResolvedModel', () => {
+  it('takes the last primary call that reported a model', () => {
+    expect(
+      getResponseResolvedModel([
+        { model: '~a/x-latest', resolved_model: 'a/x-1' },
+        { model: '~a/x-latest', resolved_model: 'a/x-2' },
+        { model: 'g/flash', resolved_model: 'g/flash-3', usage_type: 'summarization' },
+        { model: 'sub', resolved_model: 'sub-1', usage_type: 'subagent' },
+        { model: '~a/x-latest' },
+      ]),
+    ).toEqual({ resolved: 'a/x-2', requested: '~a/x-latest' });
+  });
+
+  it('returns undefined when nothing was reported', () => {
+    expect(getResponseResolvedModel(undefined)).toBeUndefined();
+    expect(getResponseResolvedModel([{ model: 'm' }, null])).toBeUndefined();
   });
 });
 

@@ -2,6 +2,7 @@ import type {
   TUserFavorite,
   RefillIntervalUnit,
   BalanceRefillMode,
+  TUserModelAccess,
   StatefulCodeEnvironment,
 } from 'librechat-data-provider';
 import type { Document, Types } from 'mongoose';
@@ -78,6 +79,8 @@ export interface IUser extends Document {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
   };
+  /** Per-user grant (`true`) or denial (`false`) of local/private model specs; unset follows the role. */
+  modelAccess?: TUserModelAccess;
   favorites?: TUserFavorite[];
   /** Display order for the sidebar's Pinned section: favorite and pinned-chat
    *  entry keys interleaved (`agent:`, `spec:`, `model:`, `convo:` prefixes). */

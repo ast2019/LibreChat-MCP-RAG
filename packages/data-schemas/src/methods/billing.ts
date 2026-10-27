@@ -1,3 +1,4 @@
+import type { TUserModelAccess } from 'librechat-data-provider';
 import type { Model } from 'mongoose';
 import type { ITransaction } from '~/schema/transaction';
 import type { IBalance } from '~/types/balance';
@@ -12,6 +13,8 @@ export interface BillingUserRow {
   email: string;
   role: string;
   createdAt?: string;
+  /** The user's own local/private model override; empty when the user follows the role */
+  modelAccess: TUserModelAccess;
   balance: {
     tokenCredits: number;
     packId?: string;
@@ -73,7 +76,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
 
     const [docs, total] = await Promise.all([
       users()
-        .find(filter, '_id name username email role createdAt')
+        .find(filter, '_id name username email role createdAt modelAccess')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -102,6 +105,12 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           email: doc.email ?? '',
           role: doc.role ?? 'USER',
           createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : undefined,
+          modelAccess: {
+            ...(typeof doc.modelAccess?.local === 'boolean' && { local: doc.modelAccess.local }),
+            ...(typeof doc.modelAccess?.private === 'boolean' && {
+              private: doc.modelAccess.private,
+            }),
+          },
           balance: balance
             ? {
                 tokenCredits: balance.tokenCredits ?? 0,

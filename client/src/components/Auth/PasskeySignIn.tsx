@@ -1,11 +1,13 @@
 import React from 'react';
-import { PasskeyIcon, Spinner } from '@librechat/client';
+import { Fingerprint } from 'lucide-react';
+import { Button, Spinner } from '@librechat/client';
 import { usePasskeySignIn } from '~/hooks/Auth/usePasskey';
 import { useLocalize } from '~/hooks';
 
 /**
- * Sign-in affordance for discoverable passkeys. Styled to match `SocialButton`
- * so it reads as one more way in rather than a separate mechanism.
+ * Sign-in affordance for discoverable passkeys: a full-width secondary button in the
+ * same shape as the password form's submit, so it reads as an equal way in and names
+ * the gesture (fingerprint / face) instead of the jargon alone.
  *
  * Mounting this also arms the browser's conditional (autofill) ceremony, which
  * is why it renders even while the button itself is busy.
@@ -18,20 +20,28 @@ function PasskeySignIn({ enabled }: { enabled: boolean }) {
     return null;
   }
 
+  const label = localize('com_auth_passkey_login_biometric');
+
   return (
-    <div className="mt-2 flex gap-x-2">
-      <button
+    <div className="mt-2">
+      <Button
         type="button"
         data-testid="passkey"
+        variant="outline"
+        shape="soft"
+        size="auth"
         onClick={() => void signIn()}
         disabled={isSigningIn}
         aria-busy={isSigningIn}
-        aria-label={localize('com_auth_passkey_login')}
-        className="border-border-light bg-surface-primary text-text-primary hover:bg-surface-tertiary focus-visible:ring-text-primary flex w-full items-center gap-3 rounded-2xl border px-5 py-3 transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+        className="w-full"
       >
-        {isSigningIn ? <Spinner className="h-5 w-5" /> : <PasskeyIcon />}
-        <p>{localize('com_auth_passkey_login')}</p>
-      </button>
+        {isSigningIn ? (
+          <Spinner className="size-5" />
+        ) : (
+          <Fingerprint className="size-5 shrink-0" aria-hidden="true" />
+        )}
+        <span>{label}</span>
+      </Button>
     </div>
   );
 }

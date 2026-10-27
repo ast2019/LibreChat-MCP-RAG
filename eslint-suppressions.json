@@ -40,11 +40,6 @@
       "count": 2
     }
   },
-  "client/src/components/Auth/PasskeySignIn.tsx": {
-    "design/disabled-recipe": {
-      "count": 1
-    }
-  },
   "client/src/components/Auth/TwoFactorScreen.tsx": {
     "shadcn/no-restyle": {
       "count": 1

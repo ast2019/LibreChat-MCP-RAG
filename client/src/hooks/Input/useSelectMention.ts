@@ -1,7 +1,13 @@
 import { useCallback, useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useSearchParams } from 'react-router-dom';
-import { EModelEndpoint, isAgentsEndpoint, isAssistantsEndpoint } from 'librechat-data-provider';
+import { useToastContext } from '@librechat/client';
+import {
+  Constants,
+  EModelEndpoint,
+  isAgentsEndpoint,
+  isAssistantsEndpoint,
+} from 'librechat-data-provider';
 import type {
   TPreset,
   TModelSpec,
@@ -17,8 +23,43 @@ import {
   getConvoSwitchLogic,
   logger,
 } from '~/utils';
-import { useDefaultConvo } from '~/hooks';
+import { useGetStartupConfig } from '~/data-provider';
+import { useDefaultConvo, useLocalize } from '~/hooks';
 import store from '~/store';
+
+type SpecPrivacyList = Pick<TModelSpec, 'name' | 'privacy'>[] | null | undefined;
+
+/** A conversation with a real id has been persisted, so it already holds messages. */
+export function isPersistedConversation(conversationId?: string | null): boolean {
+  return (
+    typeof conversationId === 'string' &&
+    conversationId !== '' &&
+    conversationId !== Constants.NEW_CONVO &&
+    conversationId !== 'new'
+  );
+}
+
+export function isPrivateSpecName(list: SpecPrivacyList, spec?: string | null): boolean {
+  if (!spec || !Array.isArray(list)) {
+    return false;
+  }
+  return list.some((modelSpec) => modelSpec?.name === spec && modelSpec.privacy === 'private');
+}
+
+/**
+ * A confidential (`privacy: 'private'`) conversation with history keeps its model:
+ * changing it mid-conversation would break the work. Mirrors the server lock in
+ * `checkSpecPrivacyLock` (`@librechat/api`).
+ */
+export function isConversationSpecLocked(
+  conversation: { conversationId?: string | null; spec?: string | null } | null | undefined,
+  list: SpecPrivacyList,
+): boolean {
+  return (
+    isPersistedConversation(conversation?.conversationId) &&
+    isPrivateSpecName(list, conversation?.spec)
+  );
+}
 
 export default function useSelectMention({
   presets,
@@ -37,6 +78,12 @@ export default function useSelectMention({
   endpointsConfig: TEndpointsConfig;
   getConversation: () => TConversation | null;
 }) {
+  const localize = useLocalize();
+  const { showToast } = useToastContext();
+  const { data: startupConfig } = useGetStartupConfig();
+  /** The full configured list (falls back to the caller's list) so a stored spec hidden
+   * from the menu still resolves its privacy. */
+  const privacyList = startupConfig?.modelSpecs?.list ?? modelSpecs;
   const getDefaultConversation = useDefaultConvo();
   const modularChat = useRecoilValue(store.modularChat);
   const availableTools = useRecoilValue(store.availableTools);
@@ -51,10 +98,29 @@ export default function useSelectMention({
     return projectId != null && /^[a-f\d]{24}$/i.test(projectId) ? projectId : null;
   }, [searchParams]);
 
+  /** Refuses (with a toast) any model change in a locked private conversation. */
+  const refuseIfSpecLocked = useCallback(
+    (conversation: TConversation | null, nextSpec?: string | null): boolean => {
+      if (!isConversationSpecLocked(conversation, privacyList)) {
+        return false;
+      }
+      if (nextSpec != null && nextSpec === conversation?.spec) {
+        return false;
+      }
+      showToast({ message: localize('com_ui_private_chat_model_locked'), status: 'warning' });
+      return true;
+    },
+    [privacyList, showToast, localize],
+  );
+
+  /**
+   * Returns `true` when the selection was applied (in place or in a new conversation),
+   * `false` when it was ignored or refused.
+   */
   const onSelectSpec = useCallback(
-    (spec?: TModelSpec) => {
+    (spec?: TModelSpec): boolean => {
       if (!spec) {
-        return;
+        return false;
       }
 
       const conversation = getConversation();
@@ -66,7 +132,12 @@ export default function useSelectMention({
       const { endpoint } = preset;
       const newEndpoint = endpoint ?? '';
       if (!newEndpoint) {
-        return;
+        return false;
+      }
+
+      /* R1: a private conversation with history never changes model. */
+      if (refuseIfSpecLocked(conversation, spec.name)) {
+        return false;
       }
 
       const {
@@ -95,6 +166,26 @@ export default function useSelectMention({
         preset.model = assistantsMap?.[newEndpoint]?.[preset.assistant_id]?.model;
       }
 
+      /* R2: entering a private spec from a conversation with non-private history happens
+       * in a fresh conversation, so earlier messages never reach the confidential chat. */
+      if (
+        isPersistedConversation(conversation?.conversationId) &&
+        conversation?.spec !== spec.name &&
+        (spec.privacy === 'private' || isPrivateSpecName(privacyList, spec.name))
+      ) {
+        logger.info('conversation', 'Opening private spec in a new conversation', conversation);
+        newConversation({
+          template: {
+            conversationId: Constants.NEW_CONVO as string,
+            chatProjectId: routeChatProjectId ?? conversation?.chatProjectId ?? null,
+          },
+          preset,
+          keepAddedConvos: false,
+        });
+        showToast({ message: localize('com_ui_private_chat_opened_new'), status: 'info' });
+        return true;
+      }
+
       const isModular = isCurrentModular && isNewModular && shouldSwitch;
       if (isExistingConversation && isModular) {
         template.endpointType = newEndpointType as EModelEndpoint | undefined;
@@ -113,7 +204,7 @@ export default function useSelectMention({
           preset,
           keepAddedConvos: true,
         });
-        return;
+        return true;
       }
 
       logger.info('conversation', 'Switching conversation to new spec', conversation);
@@ -123,10 +214,16 @@ export default function useSelectMention({
           chatProjectId: routeChatProjectId ?? conversation?.chatProjectId ?? null,
         },
         preset,
-        keepAddedConvos: isModular,
+        /* A private chat never starts with a second model attached. */
+        keepAddedConvos: isModular && !isPrivateSpecName(privacyList, spec.name),
       });
+      return true;
     },
     [
+      refuseIfSpecLocked,
+      privacyList,
+      showToast,
+      localize,
       getConversation,
       getDefaultConversation,
       modularChat,
@@ -145,13 +242,17 @@ export default function useSelectMention({
   };
 
   const onSelectEndpoint = useCallback(
-    (_newEndpoint?: EModelEndpoint | string | null, kwargs: Kwargs = {}) => {
+    (_newEndpoint?: EModelEndpoint | string | null, kwargs: Kwargs = {}): boolean => {
       const newEndpoint = _newEndpoint ?? '';
       if (!newEndpoint) {
-        return;
+        return false;
       }
 
       const conversation = getConversation();
+      /* Picking a bare endpoint/model leaves the spec, so it is a model change too. */
+      if (refuseIfSpecLocked(conversation)) {
+        return false;
+      }
 
       const {
         shouldSwitch,
@@ -211,7 +312,7 @@ export default function useSelectMention({
           preset: currentConvo,
           keepAddedConvos: true,
         });
-        return;
+        return true;
       }
 
       logger.info('conversation', 'Switching conversation to new endpoint/model', template);
@@ -223,8 +324,10 @@ export default function useSelectMention({
         preset: { ...kwargs, spec: null, iconURL: null, modelLabel: null, endpoint: newEndpoint },
         keepAddedConvos: isNewModular,
       });
+      return true;
     },
     [
+      refuseIfSpecLocked,
       getConversation,
       getDefaultConversation,
       modularChat,
@@ -241,6 +344,9 @@ export default function useSelectMention({
       }
 
       const conversation = getConversation();
+      if (refuseIfSpecLocked(conversation)) {
+        return;
+      }
 
       const newPreset = removeUnavailableTools(_newPreset, availableTools);
       const newEndpoint = newPreset.endpoint ?? '';
@@ -296,6 +402,7 @@ export default function useSelectMention({
       });
     },
     [
+      refuseIfSpecLocked,
       modularChat,
       getConversation,
       availableTools,

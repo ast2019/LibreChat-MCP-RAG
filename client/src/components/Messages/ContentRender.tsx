@@ -19,6 +19,7 @@ import { ErrorSourceProvider } from '~/components/Messages/Content/Error/source'
 import Elapsed, { shouldShowElapsed } from '~/components/Chat/Messages/Elapsed';
 import { getHeaderHoverLabel } from '~/components/Chat/Messages/ui/HeaderLabel';
 import ContentParts from '~/components/Chat/Messages/Content/ContentParts';
+import { getResolvedModel } from '~/components/Pricing/ResolvedModel';
 import { PrivateText } from '~/components/Chat/Messages/PrivateText';
 import SiblingSwitch from '~/components/Chat/Messages/SiblingSwitch';
 import HoverButtons from '~/components/Chat/Messages/HoverButtons';
@@ -178,6 +179,7 @@ const ContentRender = memo(function ContentRender({
         msg.model,
         conversation?.model,
       )}
+      resolvedModel={getResolvedModel(msg)}
       timestamp={msg.createdAt ?? msg.clientTimestamp}
       ariaLabel={getMessageAriaLabel(msg, localize)}
       headerPrefix={getHeaderPrefixForScreenReader(msg, localize)}

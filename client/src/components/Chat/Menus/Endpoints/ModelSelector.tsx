@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Lock } from 'lucide-react';
 import { TooltipAnchor } from '@librechat/client';
 import { getConfigDefaults } from 'librechat-data-provider';
 import type { ModelSelectorProps } from '~/common';
@@ -31,6 +32,7 @@ function ModelSelectorContent() {
     mappedEndpoints,
     endpointsConfig,
     modelSelectionMissing,
+    specLocked,
     // State
     searchValue,
     searchResults,
@@ -67,10 +69,16 @@ function ModelSelectorContent() {
     [localize, agentsMap, modelSpecs, selectedValues, mappedEndpoints],
   );
 
+  /** Screen readers read the button's own label, so the lock is announced there too. */
+  const triggerLabel = specLocked
+    ? `${localize('com_ui_select_model')} (${localize('com_ui_private_chat_model_locked_label')})`
+    : localize('com_ui_select_model');
   const trigger = (
     <TooltipAnchor
-      aria-label={localize('com_ui_select_model')}
-      description={modelSelectorHint}
+      aria-label={triggerLabel}
+      description={
+        specLocked ? localize('com_ui_private_chat_model_locked_label') : modelSelectorHint
+      }
       render={
         <button
           data-testid="model-selector-button"
@@ -81,7 +89,7 @@ function ModelSelectorContent() {
             /* No model chosen yet: a highlighted, pulsing ring invites the pick. */
             modelSelectionMissing && 'ring-ring-primary font-medium ring-2',
           )}
-          aria-label={localize('com_ui_select_model')}
+          aria-label={triggerLabel}
         >
           {modelSelectionMissing && (
             <span
@@ -95,6 +103,13 @@ function ModelSelectorContent() {
             </div>
           )}
           <span className="truncate text-start">{selectedDisplayValue}</span>
+          {specLocked && (
+            <Lock
+              className="text-text-secondary size-3.5 shrink-0"
+              aria-hidden="true"
+              data-testid="model-selector-spec-lock"
+            />
+          )}
         </button>
       }
     />

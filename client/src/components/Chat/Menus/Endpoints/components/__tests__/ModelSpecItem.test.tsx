@@ -26,6 +26,15 @@ jest.mock('~/components/Chat/Menus/Endpoints/CustomMenu', () => {
   };
 });
 
+jest.mock('~/data-provider', () => ({
+  useTokenConfigQuery: () => ({ data: mockTokenConfig }),
+}));
+let mockTokenConfig: Record<string, Record<string, Record<string, unknown>>> | undefined;
+
+jest.mock('~/hooks/useBalanceSummary', () => ({
+  useBalanceDisplay: () => ({ display: 'currency', currency: { code: 'IRT', rate: 100000 } }),
+}));
+
 jest.mock('../SpecIcon', () => ({
   __esModule: true,
   default: () => <span data-testid="spec-icon" />,
@@ -54,6 +63,54 @@ describe('ModelSpecItem', () => {
     jest.clearAllMocks();
     mockIsFavoriteSpec = false;
     mockIsActive = false;
+    mockTokenConfig = undefined;
+  });
+
+  it('shows the cost tier, the observed version and the price of ~1000 words', () => {
+    mockTokenConfig = {
+      OpenRouter: {
+        '~anthropic/claude-sonnet-latest': {
+          prompt: 3,
+          completion: 15,
+          resolved: 'anthropic/claude-sonnet-5.5',
+        },
+      },
+    };
+    render(
+      <ModelSpecItem
+        spec={{
+          ...baseSpec,
+          preset: { endpoint: 'OpenRouter', model: '~anthropic/claude-sonnet-latest' },
+        }}
+        isSelected={false}
+      />,
+    );
+    expect(screen.getByTestId('cost-badge')).toHaveAttribute('data-tier', '3');
+    expect(screen.getByTestId('spec-resolved-model')).toHaveAttribute(
+      'title',
+      'anthropic/claude-sonnet-5.5',
+    );
+    expect(screen.getByTestId('spec-price')).toBeInTheDocument();
+  });
+
+  it('marks a free model and shows no version it has not observed', () => {
+    mockTokenConfig = { Local: { 'local-model': { prompt: 0, completion: 0 } } };
+    render(
+      <ModelSpecItem
+        spec={{ ...baseSpec, preset: { endpoint: 'Local', model: 'local-model' } }}
+        isSelected={false}
+      />,
+    );
+    expect(screen.queryByTestId('cost-badge')).not.toBeInTheDocument();
+    expect(screen.getByText('Free')).toBeInTheDocument();
+    expect(screen.queryByTestId('spec-resolved-model')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('spec-price')).not.toBeInTheDocument();
+  });
+
+  it('renders no price details when the price is unknown', () => {
+    render(<ModelSpecItem spec={baseSpec} isSelected={false} />);
+    expect(screen.queryByTestId('cost-badge')).not.toBeInTheDocument();
+    expect(screen.queryByText('Free')).not.toBeInTheDocument();
   });
 
   it('renders the spec label and icon', () => {

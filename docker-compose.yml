@@ -93,10 +93,18 @@ services:
       OPENID_USE_PKCE: ${OPENID_USE_PKCE:-false}
       OPENID_USERNAME_CLAIM: ${OPENID_USERNAME_CLAIM:-}
       OPENID_NAME_CLAIM: ${OPENID_NAME_CLAIM:-}
-      # Passkeys (sign in with fingerprint / face / device PIN). Browsers allow them only over
-      # HTTPS, so the button appears once the domain is https://. A passkey is bound to the
-      # domain: after moving to another domain, set PASSKEY_RP_ID to the old hostname or users
-      # must add their passkeys again.
+      # Passkeys (sign in with fingerprint / face / device PIN) for every signed-in user.
+      # Browsers run passkeys only over HTTPS (or localhost), and the server turns them off
+      # unless DOMAIN_CLIENT/DOMAIN_SERVER are https:// URLs. Both come from SERVICE_URL_API,
+      # i.e. the domain typed on the `api` service in Coolify, so enter it WITH the scheme:
+      #   https://chat.example.com   (Coolify then issues a Let's Encrypt certificate itself;
+      #                               the DNS A record must point at the server first)
+      # An http:// domain hides the passkey button, the Settings panel and the sign-in nudge.
+      # Check: GET <domain>/api/config must return "passkeyLoginEnabled": true.
+      # PASSKEY_RP_ID is the bare hostname (chat.example.com: no scheme, port or path). Empty =
+      # derived from DOMAIN_CLIENT. A passkey is bound to it: before moving to another domain,
+      # pin PASSKEY_RP_ID to the old hostname (only works for a subdomain of it) or users must
+      # add their passkeys again.
       ALLOW_PASSKEY_LOGIN: ${ALLOW_PASSKEY_LOGIN:-true}
       PASSKEY_RP_NAME: ${PASSKEY_RP_NAME:-HiveGPT}
       PASSKEY_RP_ID: ${PASSKEY_RP_ID:-}

@@ -736,10 +736,16 @@ export type TModelsConfig = Record<string, string[]>;
 /** Server-resolved context window and pricing for one model. Rates are USD per 1M tokens. */
 export type TModelTokenomics = {
   context?: number;
+  /** USD per 1M input tokens, the endpoint's `priceMultiplier` applied. Sent for every model
+   *  when `interface.contextCost` is on, otherwise only for models a model spec offers. */
   prompt?: number;
+  /** USD per 1M output tokens, multiplier applied; sent under the same rule as `prompt`. */
   completion?: number;
   cacheWrite?: number;
   cacheRead?: number;
+  /** Concrete model id this (alias) id last answered as, e.g. `~anthropic/claude-sonnet-latest`
+   *  → `anthropic/claude-sonnet-5.5`. Present only once a response has reported it. */
+  resolved?: string;
 };
 
 /**

@@ -1,14 +1,18 @@
 import { QueryKeys, dataService } from 'librechat-data-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  TUserModelAccess,
   TAdminBillingSummary,
+  TAdminModelAccessRequest,
   TAdminBillingUsersParams,
+  TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
 } from 'librechat-data-provider';
 import type {
+  QueryKey,
   UseQueryOptions,
   UseMutationResult,
   QueryObserverResult,
@@ -56,6 +60,76 @@ export const useAdminBillingGrantMutation = (): UseMutationResult<
       onSuccess: () => {
         queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
         queryClient.invalidateQueries([QueryKeys.adminBillingSummary]);
+      },
+    },
+  );
+};
+
+/** Applies a model-access change to a stored override: `null` clears a key, `undefined` keeps it. */
+export function applyModelAccessChange(
+  current: TUserModelAccess | undefined,
+  change: Pick<TAdminModelAccessRequest, 'local' | 'private'>,
+): TUserModelAccess {
+  const next: TUserModelAccess = { ...current };
+  for (const key of ['local', 'private'] as const) {
+    const value = change[key];
+    if (value === null) {
+      delete next[key];
+    } else if (typeof value === 'boolean') {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+type ModelAccessContext = { snapshots: [QueryKey, TAdminBillingUsersResponse | undefined][] };
+
+/**
+ * Sets a user's local/private model override. The user lists show the change at once and roll
+ * back if the server refuses it; every list is refetched afterwards.
+ */
+export const useAdminUserModelAccessMutation = (): UseMutationResult<
+  TAdminModelAccessResponse,
+  unknown,
+  TAdminModelAccessRequest,
+  ModelAccessContext
+> => {
+  const queryClient = useQueryClient();
+  const setUserAccess = (
+    userId: string,
+    update: (current?: TUserModelAccess) => TUserModelAccess,
+  ) =>
+    queryClient.setQueriesData<TAdminBillingUsersResponse>(
+      [QueryKeys.adminBillingUsers],
+      (data) =>
+        data && {
+          ...data,
+          users: data.users.map((user) =>
+            user.id === userId ? { ...user, modelAccess: update(user.modelAccess) } : user,
+          ),
+        },
+    );
+  return useMutation(
+    (payload: TAdminModelAccessRequest) => dataService.updateAdminUserModelAccess(payload),
+    {
+      onMutate: async (payload) => {
+        await queryClient.cancelQueries([QueryKeys.adminBillingUsers]);
+        const snapshots = queryClient.getQueriesData<TAdminBillingUsersResponse>([
+          QueryKeys.adminBillingUsers,
+        ]);
+        setUserAccess(payload.userId, (current) => applyModelAccessChange(current, payload));
+        return { snapshots };
+      },
+      onSuccess: (data) => {
+        setUserAccess(data.id, () => data.modelAccess);
+      },
+      onError: (_error, _payload, context) => {
+        for (const [key, data] of context?.snapshots ?? []) {
+          queryClient.setQueryData(key, data);
+        }
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
       },
     },
   );

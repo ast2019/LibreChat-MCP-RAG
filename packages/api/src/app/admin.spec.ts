@@ -1,6 +1,11 @@
-import { SystemRoles } from 'librechat-data-provider';
-import type { AppConfig } from '@librechat/data-schemas';
-import { applyAdminFullAccess, applyAdminOnlySpecs } from './admin';
+import { SystemRoles, Permissions, PermissionTypes } from 'librechat-data-provider';
+import type { AppConfig, RolePermissions } from '@librechat/data-schemas';
+import {
+  applyAdminFullAccess,
+  applyAdminOnlySpecs,
+  resolvePrivacyAccess,
+  applyPrivacyAccessSpecs,
+} from './admin';
 
 const base = {
   interfaceConfig: { adminFullAccess: true, modelSelect: false, parameters: false, presets: false },
@@ -62,5 +67,110 @@ describe('applyAdminOnlySpecs', () => {
 
   it('returns the config untouched when no spec is admin-only', () => {
     expect(applyAdminOnlySpecs(base, SystemRoles.USER)).toBe(base);
+  });
+});
+
+describe('applyPrivacyAccessSpecs', () => {
+  const config = {
+    modelSpecs: {
+      enforce: true,
+      list: [
+        { name: 'fast' },
+        { name: 'zdr', privacy: 'private' },
+        { name: 'on-prem', privacy: 'local' },
+      ],
+    },
+  } as unknown as AppConfig;
+  const names = (result: AppConfig) => result.modelSpecs?.list?.map((spec) => spec.name);
+
+  it('returns the same config when both classes are allowed', () => {
+    expect(applyPrivacyAccessSpecs(config, { allowLocal: true, allowPrivate: true })).toBe(config);
+  });
+
+  it('removes only the class that is withheld and keeps enforce', () => {
+    const noLocal = applyPrivacyAccessSpecs(config, { allowLocal: false, allowPrivate: true });
+    expect(names(noLocal)).toEqual(['fast', 'zdr']);
+    expect(noLocal.modelSpecs?.enforce).toBe(true);
+    expect(
+      names(applyPrivacyAccessSpecs(config, { allowLocal: true, allowPrivate: false })),
+    ).toEqual(['fast', 'on-prem']);
+    expect(
+      names(applyPrivacyAccessSpecs(config, { allowLocal: false, allowPrivate: false })),
+    ).toEqual(['fast']);
+    expect(config.modelSpecs?.list).toHaveLength(3);
+  });
+
+  it('leaves a config without privacy specs, or without specs, untouched', () => {
+    const plain = { modelSpecs: { list: [{ name: 'fast' }] } } as unknown as AppConfig;
+    const none = {} as AppConfig;
+    const denied = { allowLocal: false, allowPrivate: false };
+    expect(applyPrivacyAccessSpecs(plain, denied)).toBe(plain);
+    expect(applyPrivacyAccessSpecs(none, denied)).toBe(none);
+  });
+});
+
+describe('resolvePrivacyAccess', () => {
+  const permissions = (local?: boolean, priv?: boolean) =>
+    ({
+      ...(local !== undefined && { [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: local } }),
+      ...(priv !== undefined && { [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: priv } }),
+    }) as RolePermissions;
+
+  it('always allows ADMIN, whatever the role or override says', () => {
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.ADMIN,
+        permissions: permissions(false, false),
+        override: { local: false, private: false },
+      }),
+    ).toEqual({ allowLocal: true, allowPrivate: true });
+  });
+
+  it('follows the role permission when the user has no override', () => {
+    expect(
+      resolvePrivacyAccess({ role: SystemRoles.USER, permissions: permissions(false, true) }),
+    ).toEqual({ allowLocal: false, allowPrivate: true });
+  });
+
+  it('treats a permission type the role does not store as granted', () => {
+    expect(resolvePrivacyAccess({ role: SystemRoles.USER, permissions: {} })).toEqual({
+      allowLocal: true,
+      allowPrivate: true,
+    });
+    expect(resolvePrivacyAccess({ role: SystemRoles.USER })).toEqual({
+      allowLocal: true,
+      allowPrivate: true,
+    });
+  });
+
+  it('lets the user override win in both directions, per class', () => {
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.USER,
+        permissions: permissions(false, true),
+        override: { local: true, private: false },
+      }),
+    ).toEqual({ allowLocal: true, allowPrivate: false });
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.USER,
+        permissions: permissions(false, false),
+        override: { private: true },
+      }),
+    ).toEqual({ allowLocal: false, allowPrivate: true });
+  });
+
+  it('withholds both classes when the role could not be read, unless overridden', () => {
+    expect(resolvePrivacyAccess({ role: SystemRoles.USER, permissions: null })).toEqual({
+      allowLocal: false,
+      allowPrivate: false,
+    });
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.USER,
+        permissions: null,
+        override: { local: true },
+      }),
+    ).toEqual({ allowLocal: true, allowPrivate: false });
   });
 });

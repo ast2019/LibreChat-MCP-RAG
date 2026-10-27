@@ -11,6 +11,7 @@ import { useLocalize, useAuthContext, useGreeting } from '~/hooks';
 import { useChatSettings } from '~/Providers/ChatSettingsContext';
 import AgentContact from '~/components/Agents/AgentContact';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
+import PasskeyNudge from '~/components/Auth/PasskeyNudge';
 
 const containerClassName =
   'relative flex h-full items-center justify-center rounded-full bg-presentation text-text-primary';
@@ -107,6 +108,13 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
       setContentHeight(contentRef.current.offsetHeight);
     }
   }, [lineCount, description, selectedAgent, remScale]);
+
+  /** The passkey nudge appears/disappears on its own schedule, so it asks for a re-measure. */
+  const measureContent = useCallback(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.offsetHeight);
+    }
+  }, []);
 
   const getDynamicMargin = useMemo(() => {
     let margin = 'mb-0';
@@ -221,6 +229,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
             className="animate-fadeIn mt-2 max-w-md justify-center text-center text-sm"
           />
         )}
+        {!isTemporary && <PasskeyNudge onVisibilityChange={measureContent} />}
       </div>
     </div>
   );

@@ -74,7 +74,50 @@ interface ModelEndOutput {
     usage?: RawProviderUsage | null;
     /** Bedrock's streamed `metadata` event */
     metadata?: { usage?: RawProviderUsage | null } | null;
+    /** Model the provider reports it ran: LangChain's OpenAI-compatible chat models (OpenAI,
+     *  OpenRouter, custom endpoints) set it from the response's `model`, streamed or not */
+    model_name?: unknown;
+    /** Anthropic and some SDKs keep the provider's `model` field under its own name */
+    model?: unknown;
   } | null;
+}
+
+/** Usage of one model call, tagged with the model id the provider reported running. */
+export type ResolvedModelUsage = UsageMetadata & {
+  /** Concrete model id from the provider response; differs from `model` for aliases such as
+   *  OpenRouter's `~anthropic/claude-sonnet-latest`. Absent when the provider reported none. */
+  resolved_model?: string;
+};
+
+/** Longest provider model id kept; anything longer is not a model id. */
+const MAX_RESOLVED_MODEL_LENGTH = 200;
+
+/**
+ * The model id the provider says produced this output, read from `response_metadata`.
+ * A streamed id can be concatenated with itself when every chunk carried it (LangChain merges
+ * string metadata by concatenation), so a value that is an exact repetition is collapsed.
+ */
+export function getResolvedModelName(output?: ModelEndOutput | null): string | undefined {
+  const metadata = output?.response_metadata;
+  const raw = metadata?.model_name ?? metadata?.model;
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+  let value = raw.trim();
+  for (let parts = 2; parts <= 4; parts++) {
+    if (value.length % parts !== 0) {
+      continue;
+    }
+    const unit = value.slice(0, value.length / parts);
+    if (unit.repeat(parts) === value) {
+      value = unit;
+      break;
+    }
+  }
+  if (value === '' || value.length > MAX_RESOLVED_MODEL_LENGTH || /\s/.test(value)) {
+    return undefined;
+  }
+  return value;
 }
 
 function getOneHourCacheWrites(usage?: RawProviderUsage | null): number {
@@ -102,7 +145,7 @@ function getOneHourCacheWrites(usage?: RawProviderUsage | null): number {
  * `input_token_details.cache_creation_1h` so those writes are billed at the 1-hour
  * rate; without a breakdown the usage is returned unchanged.
  */
-export function getModelEndUsage(output?: ModelEndOutput | null): UsageMetadata | undefined {
+export function getModelEndUsage(output?: ModelEndOutput | null): ResolvedModelUsage | undefined {
   const usage = output?.usage_metadata;
   if (!usage) {
     return undefined;
@@ -110,16 +153,44 @@ export function getModelEndUsage(output?: ModelEndOutput | null): UsageMetadata 
   const metadata = output?.response_metadata;
   const oneHour =
     getOneHourCacheWrites(metadata?.usage) || getOneHourCacheWrites(metadata?.metadata?.usage);
-  if (!(oneHour > 0)) {
+  const resolved_model = getResolvedModelName(output);
+  if (!(oneHour > 0) && resolved_model == null) {
     return usage;
   }
-  return {
-    ...usage,
-    input_token_details: {
+  const result: ResolvedModelUsage = { ...usage };
+  if (oneHour > 0) {
+    result.input_token_details = {
       ...usage.input_token_details,
       cache_creation_1h: Math.min(oneHour, getCacheCreationTokens(usage)),
-    },
-  };
+    };
+  }
+  if (resolved_model != null) {
+    result.resolved_model = resolved_model;
+  }
+  return result;
+}
+
+/**
+ * The model that answered a turn: the last primary (shown) call that reported one. Summaries,
+ * subagents, hidden sequential agents and title/label calls are skipped, so the id belongs to
+ * the response the user reads. `requested` is the configured id that call was made with.
+ */
+export function getResponseResolvedModel(
+  collectedUsage?: ReadonlyArray<ResolvedModelUsage | null | undefined> | null,
+): { resolved: string; requested?: string } | undefined {
+  if (!collectedUsage) {
+    return undefined;
+  }
+  for (let i = collectedUsage.length - 1; i >= 0; i--) {
+    const usage = collectedUsage[i];
+    if (usage == null || (usage.usage_type != null && usage.usage_type !== 'message')) {
+      continue;
+    }
+    if (typeof usage.resolved_model === 'string' && usage.resolved_model !== '') {
+      return { resolved: usage.resolved_model, requested: usage.model };
+    }
+  }
+  return undefined;
 }
 
 /**

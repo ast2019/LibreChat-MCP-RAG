@@ -551,6 +551,8 @@ export const adminBillingSummary = (days: number) =>
   `${adminBilling()}/summary${buildQuery({ days })}`;
 export const adminBillingPacks = () => `${adminBilling()}/packs`;
 export const adminBillingGrant = () => `${adminBilling()}/grant`;
+export const adminUserModelAccess = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/model-access`;
 
 /* Conversation traces */
 export const conversationTrace = (conversationId: string) =>

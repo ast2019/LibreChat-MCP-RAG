@@ -8,19 +8,26 @@ import {
   SYSTEM_TENANT_ID,
 } from '@librechat/data-schemas';
 import {
+  SystemRoles,
   PrincipalType,
   materializeModelSpecEndpoints,
   getConfigDefaults,
   normalizeEndpointName,
   setMaxSubagents,
 } from 'librechat-data-provider';
-import type { AppConfig, ConfigOverrideLayer } from '@librechat/data-schemas';
+import type { AppConfig, RolePermissions, ConfigOverrideLayer } from '@librechat/data-schemas';
+import type { TUserModelAccess } from 'librechat-data-provider';
 import type { Types } from 'mongoose';
 import type { EnvReferencePolicy } from './allowlist';
 import type { CustomConfigLoadMode } from './loader';
 import type { SecretRebinding } from './rebinding';
+import {
+  applyAdminFullAccess,
+  applyAdminOnlySpecs,
+  resolvePrivacyAccess,
+  applyPrivacyAccessSpecs,
+} from './admin';
 import { createEnvReferencePolicy, parseEnvAllowlist } from './allowlist';
-import { applyAdminFullAccess, applyAdminOnlySpecs } from './admin';
 import { resolveRuntimeConfigSecrets } from '~/admin/secrets';
 import { normalizeEndpointReferences } from './references';
 import { mergeOverrideLayers } from './overrides';
@@ -253,6 +260,12 @@ export interface AppConfigServiceDeps {
     principals: AppConfigPrincipal[];
     options: GetAppConfigOptions;
   }) => Promise<AppConfig>;
+  /**
+   * Reads a role's stored permissions, from the role cache (`getRoleByName`), to decide which
+   * model privacy classes (`LOCAL_MODELS`, `PRIVATE_MODELS`) the principal sees. Without it
+   * every role keeps both classes.
+   */
+  getRolePermissions?: (roleName: string) => Promise<RolePermissions | null | undefined>;
   /** TTL in ms for per-user/role merged config caches. Defaults to 60 000. */
   overrideCacheTtl?: number;
   /**
@@ -268,6 +281,11 @@ export interface GetAppConfigOptions {
   userId?: string;
   idOnTheSource?: string | null;
   tenantId?: string;
+  /**
+   * The user's own grant or denial of the local/private spec classes (`user.modelAccess`),
+   * which wins over the role permission. Read from the loaded user, never from the database.
+   */
+  modelAccess?: TUserModelAccess | null;
   refresh?: boolean;
   /** When true, return only the YAML-derived base config — no DB override queries. */
   baseOnly?: boolean;
@@ -291,6 +309,7 @@ export interface AppConfigUserLike {
   role?: string;
   tenantId?: string;
   idOnTheSource?: string | null;
+  modelAccess?: TUserModelAccess | null;
 }
 
 export function getAppConfigOptionsFromUser(
@@ -305,6 +324,7 @@ export function getAppConfigOptionsFromUser(
     userId,
     idOnTheSource: userId && hasSourceIdentity ? (user.idOnTheSource ?? null) : undefined,
     tenantId: tenantId ?? user?.tenantId ?? getTenantId(),
+    modelAccess: user?.modelAccess ?? undefined,
   };
 }
 
@@ -419,6 +439,7 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
     getApplicableConfigs,
     getUserPrincipals,
     augmentConfig,
+    getRolePermissions,
     overrideCacheTtl = DEFAULT_OVERRIDE_CACHE_TTL,
     overrideEnvAllowlist,
   } = deps;
@@ -653,11 +674,69 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
    * read the `__base__` override through `resolvePreAuthAppConfig`.
    */
   async function getAppConfig(options: GetAppConfigOptions = {}): Promise<AppConfig> {
-    const config = await resolveAppConfig(options);
     if (options.baseOnly === true) {
-      return config;
+      return resolveAppConfig(options);
     }
-    return applyAdminFullAccess(applyAdminOnlySpecs(config, options.role), options.role);
+    /**
+     * Privacy access is applied after the merged-config cache, never cached with it: the role
+     * read comes from the role cache in parallel with the merge, and the user override travels
+     * on the loaded user, so a permission change shows on the next read.
+     */
+    const [config, permissions] = await Promise.all([
+      resolveAppConfig(options),
+      loadRolePermissions(options),
+    ]);
+    const access = resolvePrivacyAccess({
+      role: options.role,
+      permissions,
+      override: options.modelAccess,
+    });
+    return applyAdminFullAccess(
+      applyPrivacyAccessSpecs(applyAdminOnlySpecs(config, options.role), access),
+      options.role,
+    );
+  }
+
+  /**
+   * The principal's role permissions for {@link resolvePrivacyAccess}; `undefined` when they do
+   * not decide (no reader, ADMIN, or a user override for both classes) and `null`
+   * when the read failed, which withholds both classes unless the caller wants the error.
+   */
+  async function loadRolePermissions(
+    options: GetAppConfigOptions,
+  ): Promise<RolePermissions | null | undefined> {
+    /** Like `adminOnly`, a read that names no role (signed out, fallbacks) gets USER's view */
+    const roleName = options.role || SystemRoles.USER;
+    const override = options.modelAccess;
+    if (
+      getRolePermissions == null ||
+      roleName === SystemRoles.ADMIN ||
+      (typeof override?.local === 'boolean' && typeof override?.private === 'boolean')
+    ) {
+      return undefined;
+    }
+    const read = async () => {
+      try {
+        return await getRolePermissions(roleName);
+      } catch (error) {
+        if (options.failClosed) throw error;
+        logger.error(
+          `[getAppConfig] Could not read role '${roleName}'; hiding local and private model specs:`,
+          error,
+        );
+        return null;
+      }
+    };
+    const ambientTenantId = getTenantId();
+    const requestedTenantId = options.tenantId === SYSTEM_TENANT_ID ? undefined : options.tenantId;
+    if (
+      requestedTenantId &&
+      (!ambientTenantId || ambientTenantId === SYSTEM_TENANT_ID) &&
+      requestedTenantId !== ambientTenantId
+    ) {
+      return tenantStorage.run({ ...tenantStorage.getStore(), tenantId: requestedTenantId }, read);
+    }
+    return read();
   }
 
   async function resolveAppConfig(options: GetAppConfigOptions): Promise<AppConfig> {

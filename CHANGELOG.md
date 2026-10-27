@@ -7,6 +7,46 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-27
+
+### Added
+- **Confidential chats keep their model.** Specs carry `privacy: 'private' | 'local'`.
+  - A saved «محرمانه» conversation cannot switch to another model, endpoint or preset. The
+    selector shows a lock icon and comparing with a second model is hidden.
+  - Picking a confidential model in a normal chat that has messages opens it in a new chat,
+    so earlier messages never enter the confidential one.
+  - The server enforces both rules (`checkSpecPrivacyLock` in `buildEndpointOption`) for
+    every role, admins included. Local and normal chats switch freely as before.
+- **Access switches for local and confidential AI.** New `LOCAL_MODELS` and `PRIVATE_MODELS`
+  role permissions (on by default) appear on «دسترسی کاربران».
+  - A per-user override on «کاربران و اعتبار» offers «طبق نقش» / «مجاز» / «غیرمجاز»
+    (`user.modelAccess`, `PATCH /api/admin/users/:id/model-access`).
+  - Hidden specs are filtered out of each principal's config, so the server also refuses them.
+- **Which model really answered.** The concrete model the provider reports, e.g.
+  `anthropic/claude-sonnet-5.5` behind `~anthropic/claude-sonnet-latest`, is saved as
+  `metadata.resolvedModel`.
+  - It is shown next to the answer, e.g. «Claude Sonnet 5.5».
+  - The selector shows «نسخهٔ فعلی: …» once a version has actually been observed. Nothing is
+    guessed.
+- **Model prices for users.**
+  - Each model in the selector has a cost badge («رایگان» or 1–4 coins) and an estimated
+    Toman price per ~1000 words.
+  - A «قیمت مدل‌ها» table under Settings → Account → Billing lists input/output per 1M tokens.
+    It uses the billed rates, multiplier included.
+- New specs: **Claude Fable** (`~anthropic/claude-fable-latest`) and **ChatGPT Astra**
+  (`~openai/gpt-astra-latest`).
+- **Passkeys for users.**
+  - The login page has a full-width «ورود با کلید عبور (اثر انگشت / چهره)» button.
+  - Password users with no passkey get a dismissible invitation on the new-chat screen.
+  - The button and the settings row are hidden where the browser has no WebAuthn.
+  - Passkeys still need the site on HTTPS (see `docs/saas/DEPLOY_COOLIFY.md`).
+
+### Changed
+- The on-server model moved from «محرمانه» to its own «لوکال» group.
+- «ChatGPT — محرمانه» now runs `openai/gpt-6.1-sol`, which has ZDR endpoints.
+- With `modelSpecs.enforce` on, a principal whose access rules leave no spec is refused instead
+  of falling through to an unchecked endpoint.
+
 ## [0.12.1] - 2026-10-27
 
 ### Removed

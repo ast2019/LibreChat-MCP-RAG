@@ -52,6 +52,13 @@ export type TModelSpec = {
    * rejects it for them when `enforce` is on. Defaults to false (every role).
    */
   adminOnly?: boolean;
+  /**
+   * Data-handling class of the spec. `private`: confidential, non-retaining providers (ZDR);
+   * a conversation on it stays on that exact spec. `local`: runs on our own server and nothing
+   * leaves it. Each class can be granted or withheld per role (`PRIVATE_MODELS`, `LOCAL_MODELS`)
+   * and per user.
+   */
+  privacy?: 'private' | 'local';
   iconURL?: string | EModelEndpoint; // Allow using project-included icons
   authType?: AuthType;
   /** Hide the chat input tool badge row while this model spec is active. */
@@ -197,6 +204,7 @@ export const tModelSpecSchema = z.object({
   conversation_starters: z.array(z.string()).optional(),
   showInMenu: z.boolean().optional(),
   adminOnly: z.boolean().optional(),
+  privacy: z.enum(['private', 'local']).optional(),
   iconURL: z.union([z.string(), eModelEndpointSchema]).optional(),
   authType: authTypeSchema.optional(),
   hideBadgeRow: z.boolean().optional(),

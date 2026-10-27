@@ -9,6 +9,7 @@ jest.mock('~/cache', () => ({
 
 import { resolveTokenConfigMap } from './tokenConfig';
 import { SCOPED_TOKEN_CONFIG_KEY_PREFIX } from './keys';
+import { createResolvedModelRegistry } from './resolved';
 
 const deps: TokenomicsDeps = {
   getValueKey: () => 'value-key',
@@ -130,5 +131,56 @@ describe('resolveTokenConfigMap', () => {
     expect(map.MyProxy['custom-model'].context).toBe(32000);
     expect(map.MyProxy['custom-model'].prompt).toBeUndefined();
     expect(map.MyProxy['custom-model'].completion).toBeUndefined();
+  });
+
+  it('sends prices for model-spec models only when contextCost is disabled', async () => {
+    const appConfig = {
+      ...appConfigWith(
+        [
+          {
+            name: 'MyProxy',
+            priceMultiplier: 2,
+            tokenConfig: {
+              offered: { prompt: 1, completion: 4, context: 32000 },
+              hidden: { prompt: 3, completion: 9, context: 16000 },
+            },
+          },
+        ],
+        false,
+      ),
+      modelSpecs: {
+        list: [{ name: 'spec', label: 'Spec', preset: { endpoint: 'MyProxy', model: 'offered' } }],
+      },
+    } as unknown as AppConfig;
+
+    const map = await resolveTokenConfigMap(
+      { appConfig, modelsConfig: { MyProxy: ['offered', 'hidden'] }, userId: 'user-1' },
+      deps,
+    );
+
+    expect(map.MyProxy.offered).toEqual({ context: 32000, prompt: 2, completion: 8 });
+    expect(map.MyProxy.hidden).toEqual({ context: 16000 });
+  });
+
+  it('attaches the concrete model an alias last resolved to, and nothing unobserved', async () => {
+    const resolvedModels = createResolvedModelRegistry();
+    resolvedModels.record('~vendor/family-latest', 'vendor/family-5.5');
+    const appConfig = appConfigWith(
+      [{ name: 'MyProxy', tokenConfig: { '~vendor/family-latest': { context: 1000 } } }],
+      false,
+    );
+
+    const map = await resolveTokenConfigMap(
+      {
+        appConfig,
+        modelsConfig: { MyProxy: ['~vendor/family-latest', 'other'] },
+        userId: 'user-1',
+        resolvedModels,
+      },
+      deps,
+    );
+
+    expect(map.MyProxy['~vendor/family-latest'].resolved).toBe('vendor/family-5.5');
+    expect(map.MyProxy.other.resolved).toBeUndefined();
   });
 });

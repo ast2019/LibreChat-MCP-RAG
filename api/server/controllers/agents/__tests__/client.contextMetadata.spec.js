@@ -56,9 +56,11 @@ function buildMeta({
   latestToolCallIds,
   contentParts,
   maxRetainedToolCountChars,
+  collectedUsage,
 }) {
   const self = {
     collectedThoughtSignatures: null,
+    collectedUsage,
     usageEmitSink: usageEvents,
     stepLimitReached,
     contentParts,
@@ -217,5 +219,37 @@ describe('AgentClient.buildResponseMetadata — snapshot persistence + summary m
     expect(Object.prototype.hasOwnProperty.call(meta.contextUsage, 'retainedToolTokens')).toBe(
       false,
     );
+  });
+});
+
+describe('AgentClient.buildResponseMetadata — resolved model', () => {
+  it('persists the concrete model the last primary call reported', () => {
+    const meta = buildMeta({
+      usageEvents: [],
+      collectedUsage: [
+        { input_tokens: 5, output_tokens: 1, model: 'x', resolved_model: 'old/model' },
+        {
+          input_tokens: 5,
+          output_tokens: 1,
+          model: '~anthropic/claude-sonnet-latest',
+          resolved_model: 'anthropic/claude-sonnet-5.5',
+        },
+        {
+          input_tokens: 5,
+          output_tokens: 1,
+          usage_type: 'summarization',
+          resolved_model: 'google/gemini-3.8-flash',
+        },
+      ],
+    });
+    expect(meta.resolvedModel).toBe('anthropic/claude-sonnet-5.5');
+  });
+
+  it('adds nothing when no call reported a model', () => {
+    const meta = buildMeta({
+      usageEvents: [],
+      collectedUsage: [{ input_tokens: 5, output_tokens: 1, model: 'x' }],
+    });
+    expect(meta).toBeUndefined();
   });
 });

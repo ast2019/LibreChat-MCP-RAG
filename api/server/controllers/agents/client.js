@@ -33,6 +33,7 @@ const {
   sendEvent,
   computeUsageCostUSD,
   aggregateEmittedUsage,
+  captureResolvedModel,
   resolveAgentTokenConfig,
   buildPersistedContextUsage,
   resolveRetainedToolTokens,
@@ -3732,6 +3733,7 @@ class AgentClient extends BaseClient {
    *   thoughtSignatures?: Record<string, string>,
    *   contextUsage?: import('librechat-data-provider').TContextUsageEvent,
    *   usage?: import('librechat-data-provider').TResponseUsage,
+   *   resolvedModel?: string,
    * } | undefined}
    */
   buildResponseMetadata() {
@@ -3739,6 +3741,7 @@ class AgentClient extends BaseClient {
      *   thoughtSignatures?: Record<string, string>,
      *   contextUsage?: import('librechat-data-provider').TContextUsageEvent,
      *   usage?: import('librechat-data-provider').TResponseUsage,
+     *   resolvedModel?: string,
      * }} */
     const metadata = {};
     const signatures = this.collectedThoughtSignatures;
@@ -3805,6 +3808,12 @@ class AgentClient extends BaseClient {
     const usage = aggregateEmittedUsage(usageEvents);
     if (usage) {
       metadata.usage = usage;
+    }
+    /** The concrete model the provider ran (an alias such as `~anthropic/claude-sonnet-latest`
+     *  names a family, not a version), shown beside the response */
+    const resolvedModel = captureResolvedModel(this.collectedUsage);
+    if (resolvedModel) {
+      metadata.resolvedModel = resolvedModel;
     }
     return Object.keys(metadata).length > 0 ? metadata : undefined;
   }

@@ -302,7 +302,9 @@ export type RolePermissionKey =
   | 'web-search'
   | 'file-search'
   | 'file-citations'
-  | 'temporary-chat';
+  | 'temporary-chat'
+  | 'local-models'
+  | 'private-models';
 
 export type UpdateRolePermissionsVars = {
   roleName: string;

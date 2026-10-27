@@ -128,6 +128,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -191,6 +193,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -348,6 +352,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -411,6 +417,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -524,6 +532,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -587,6 +597,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -713,6 +725,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -776,6 +790,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -889,6 +905,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -952,6 +970,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -1070,6 +1090,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -1121,6 +1143,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -1256,6 +1280,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     const expectedPermissionsForAdmin = {
@@ -1311,6 +1337,8 @@ describe('updateInterfacePermissions - permissions', () => {
         [Permissions.USE]: true,
         [Permissions.CREATE]: true,
       },
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: true },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: true },
     };
 
     expect(mockUpdateAccessPermissions).toHaveBeenCalledTimes(2);
@@ -3487,5 +3515,52 @@ describe('updateInterfacePermissions - interface.permissionSync: seed', () => {
     await run(undefined, { [PermissionTypes.PROMPTS]: JSON.stringify(yamlPrompts) });
     expect(userWrites()[PermissionTypes.PROMPTS]?.[Permissions.USE]).toBe(false);
     expect(mockRecordConfigSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateInterfacePermissions - model privacy classes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  async function sync(existing: IRole['permissions'] | null) {
+    mockGetRoleByName.mockResolvedValue(existing ? { permissions: existing } : null);
+    const interfaceConfig = await loadDefaultInterface({
+      config: { interface: { adminFullAccess: true } } as unknown as TCustomConfig,
+      configDefaults: { interface: {} } as TConfigDefaults,
+    });
+    await updateInterfacePermissions({
+      appConfig: { config: {}, interfaceConfig } as unknown as AppConfig,
+      getRoleByName: mockGetRoleByName,
+      updateAccessPermissions: mockUpdateAccessPermissions,
+    });
+    const writes = (roleName: string) =>
+      mockUpdateAccessPermissions.mock.calls.find(([name]) => name === roleName)?.[1] ?? {};
+    return { user: writes(SystemRoles.USER), admin: writes(SystemRoles.ADMIN) };
+  }
+
+  it('seeds both types as allowed on roles that predate them', async () => {
+    const { user, admin } = await sync({});
+    for (const writes of [user, admin]) {
+      expect(writes[PermissionTypes.LOCAL_MODELS]).toEqual({ [Permissions.USE]: true });
+      expect(writes[PermissionTypes.PRIVATE_MODELS]).toEqual({ [Permissions.USE]: true });
+    }
+  });
+
+  it('keeps a value the admin page stored', async () => {
+    const { user } = await sync({
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: false },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: false },
+    });
+    expect(user[PermissionTypes.LOCAL_MODELS]).toBeUndefined();
+    expect(user[PermissionTypes.PRIVATE_MODELS]).toBeUndefined();
+  });
+
+  it('keeps both types granted in the role defaults', () => {
+    for (const roleName of [SystemRoles.USER, SystemRoles.ADMIN]) {
+      const permissions = roleDefaults[roleName].permissions;
+      expect(permissions[PermissionTypes.LOCAL_MODELS][Permissions.USE]).toBe(true);
+      expect(permissions[PermissionTypes.PRIVATE_MODELS][Permissions.USE]).toBe(true);
+    }
   });
 });

@@ -10,6 +10,12 @@ let mockAgentsMap: Record<string, any> | undefined;
 let mockAssistantMap: Record<string, any> | undefined;
 let mockInterfaceConfig: Record<string, unknown> = {};
 
+/** The passkey nudge has its own spec; here it would only need the passkey queries mocked. */
+jest.mock('~/components/Auth/PasskeyNudge', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 jest.mock('@react-spring/web', () => ({
   easings: {
     easeOutCubic: jest.fn(),

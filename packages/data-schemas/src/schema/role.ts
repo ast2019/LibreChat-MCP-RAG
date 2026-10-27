@@ -83,6 +83,12 @@ const rolePermissionsSchema = new Schema(
       [Permissions.USE]: { type: Boolean },
       [Permissions.CREATE]: { type: Boolean },
     },
+    [PermissionTypes.LOCAL_MODELS]: {
+      [Permissions.USE]: { type: Boolean },
+    },
+    [PermissionTypes.PRIVATE_MODELS]: {
+      [Permissions.USE]: { type: Boolean },
+    },
   },
   { _id: false },
 );

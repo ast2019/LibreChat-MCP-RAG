@@ -72,6 +72,14 @@ export enum PermissionTypes {
    * Type for Scheduled Chats Permissions
    */
   SCHEDULES = 'SCHEDULES',
+  /**
+   * Type for using model specs with `privacy: 'local'` (models on our own server)
+   */
+  LOCAL_MODELS = 'LOCAL_MODELS',
+  /**
+   * Type for using model specs with `privacy: 'private'` (non-retaining providers)
+   */
+  PRIVATE_MODELS = 'PRIVATE_MODELS',
 }
 
 /**
@@ -97,6 +105,8 @@ export const PERMISSION_TYPE_INTERFACE_FIELDS: Record<PermissionTypes, string> =
   [PermissionTypes.SKILLS]: 'skills',
   [PermissionTypes.SHARED_LINKS]: 'sharedLinks',
   [PermissionTypes.SCHEDULES]: 'schedules',
+  [PermissionTypes.LOCAL_MODELS]: 'localModels',
+  [PermissionTypes.PRIVATE_MODELS]: 'privateModels',
 };
 
 /** Set of interface config field names that correspond to role permissions. */
@@ -272,6 +282,37 @@ export const sharedLinksPermissionsSchema = z.object({
 });
 export type TSharedLinksPermissions = z.infer<typeof sharedLinksPermissionsSchema>;
 
+export const localModelsPermissionsSchema = z.object({
+  [Permissions.USE]: z.boolean().default(true),
+});
+export type TLocalModelsPermissions = z.infer<typeof localModelsPermissionsSchema>;
+
+export const privateModelsPermissionsSchema = z.object({
+  [Permissions.USE]: z.boolean().default(true),
+});
+export type TPrivateModelsPermissions = z.infer<typeof privateModelsPermissionsSchema>;
+
+/**
+ * Per-user override of the `LOCAL_MODELS` / `PRIVATE_MODELS` role permissions. `true` grants and
+ * `false` withholds the class for that user whatever the role says; an absent key follows the role.
+ */
+export type TUserModelAccess = { local?: boolean; private?: boolean };
+
+/**
+ * Body of the admin model-access update: a boolean sets the override, `null` clears it so the
+ * user follows the role again, and an omitted key is left as stored.
+ */
+export const userModelAccessUpdateSchema = z
+  .object({
+    local: z.boolean().nullable().optional(),
+    private: z.boolean().nullable().optional(),
+  })
+  .strict()
+  .refine((value) => value.local !== undefined || value.private !== undefined, {
+    message: 'Provide `local` or `private`',
+  });
+export type TUserModelAccessUpdate = z.infer<typeof userModelAccessUpdateSchema>;
+
 // Define a single permissions schema that holds all permission types.
 export const permissionsSchema = z.object({
   [PermissionTypes.PROMPTS]: promptPermissionsSchema,
@@ -291,4 +332,6 @@ export const permissionsSchema = z.object({
   [PermissionTypes.SKILLS]: skillPermissionsSchema,
   [PermissionTypes.SHARED_LINKS]: sharedLinksPermissionsSchema,
   [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema,
+  [PermissionTypes.LOCAL_MODELS]: localModelsPermissionsSchema,
+  [PermissionTypes.PRIVATE_MODELS]: privateModelsPermissionsSchema,
 });

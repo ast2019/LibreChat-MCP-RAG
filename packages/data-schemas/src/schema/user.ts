@@ -194,6 +194,15 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       },
       default: {},
     },
+    /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
+    modelAccess: {
+      type: {
+        _id: false,
+        local: { type: Boolean },
+        private: { type: Boolean },
+      },
+      default: undefined,
+    },
     favorites: {
       type: [
         {

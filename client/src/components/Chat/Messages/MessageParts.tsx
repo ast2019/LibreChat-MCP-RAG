@@ -14,6 +14,7 @@ import ResumeAuthorHeader from '~/components/Chat/Messages/Content/Parts/ResumeA
 import { ErrorSourceProvider } from '~/components/Messages/Content/Error/source';
 import { getHeaderHoverLabel } from '~/components/Chat/Messages/ui/HeaderLabel';
 import { revealOnRowHoverClasses, messageFooterClasses } from './styles';
+import { getResolvedModel } from '~/components/Pricing/ResolvedModel';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import { showThinkingAtom } from '~/store/showThinking';
@@ -126,6 +127,7 @@ function MessageParts(props: TMessageProps) {
             message.model,
             conversation?.model,
           )}
+          resolvedModel={getResolvedModel(message)}
           timestamp={message.createdAt ?? message.clientTimestamp}
           ariaLabel={getMessageAriaLabel(message, localize)}
           headerPrefix={getHeaderPrefixForScreenReader(message, localize)}

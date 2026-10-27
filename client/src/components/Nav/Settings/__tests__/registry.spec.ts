@@ -155,4 +155,44 @@ describe('settings registry', () => {
       expect(emailChangeEntry?.show?.({ ...settingsContext, allowEmailChange: false })).toBe(false);
     });
   });
+
+  describe('passkeys visibility', () => {
+    const passkeysEntry = registry.find((entry) => entry.id === 'passkeys');
+    const original = Object.getOwnPropertyDescriptor(window, 'PublicKeyCredential');
+
+    afterEach(() => {
+      if (original) {
+        Object.defineProperty(window, 'PublicKeyCredential', original);
+      } else {
+        delete (window as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+      }
+    });
+
+    const withWebAuthn = (available: boolean) => {
+      if (available) {
+        Object.defineProperty(window, 'PublicKeyCredential', {
+          configurable: true,
+          writable: true,
+          value: function PublicKeyCredential() {},
+        });
+      } else {
+        delete (window as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+      }
+    };
+
+    it('shows for every user when the server enables passkeys and the browser supports them', () => {
+      withWebAuthn(true);
+      expect(passkeysEntry?.show?.({ ...settingsContext, passkeyLoginEnabled: true })).toBe(true);
+    });
+
+    it('hides when the server has passkeys off', () => {
+      withWebAuthn(true);
+      expect(passkeysEntry?.show?.(settingsContext)).toBe(false);
+    });
+
+    it('hides when the browser has no WebAuthn (plain http)', () => {
+      withWebAuthn(false);
+      expect(passkeysEntry?.show?.({ ...settingsContext, passkeyLoginEnabled: true })).toBe(false);
+    });
+  });
 });

@@ -17,6 +17,8 @@ const {
   fileSearchPermissionsSchema,
   fileCitationsPermissionsSchema,
   temporaryChatPermissionsSchema,
+  localModelsPermissionsSchema,
+  privateModelsPermissionsSchema,
 } = require('librechat-data-provider');
 const { createRolePermissionsUpdateHandler } = require('@librechat/api');
 const { hasCapability, requireCapability } = require('~/server/middleware/roles/capabilities');
@@ -96,6 +98,16 @@ const permissionConfigs = {
     schema: temporaryChatPermissionsSchema,
     permissionType: PermissionTypes.TEMPORARY_CHAT,
     errorMessage: 'Invalid temporary chat permissions.',
+  },
+  'local-models': {
+    schema: localModelsPermissionsSchema,
+    permissionType: PermissionTypes.LOCAL_MODELS,
+    errorMessage: 'Invalid local model permissions.',
+  },
+  'private-models': {
+    schema: privateModelsPermissionsSchema,
+    permissionType: PermissionTypes.PRIVATE_MODELS,
+    errorMessage: 'Invalid private model permissions.',
   },
 };
 
@@ -208,10 +220,19 @@ router.put('/:roleName/remote-agents', manageRoles, createPermissionUpdateHandle
 router.put('/:roleName/skills', manageRoles, createPermissionUpdateHandler('skills'));
 
 /**
- * PUT /api/roles/:roleName/{bookmarks,web-search,file-search,file-citations,temporary-chat}
+ * PUT /api/roles/:roleName/{bookmarks,web-search,file-search,file-citations,temporary-chat,
+ * local-models,private-models}
  * Feature switches the in-app admin page edits; same handler and capability as the routes above
  */
-for (const key of ['bookmarks', 'web-search', 'file-search', 'file-citations', 'temporary-chat']) {
+for (const key of [
+  'bookmarks',
+  'web-search',
+  'file-search',
+  'file-citations',
+  'temporary-chat',
+  'local-models',
+  'private-models',
+]) {
   router.put(`/:roleName/${key}`, manageRoles, createPermissionUpdateHandler(key));
 }
 

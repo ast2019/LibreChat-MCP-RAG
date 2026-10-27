@@ -1,7 +1,9 @@
 import type { AxiosResponse } from 'axios';
 import type {
   TAdminBillingSummary,
+  TAdminModelAccessRequest,
   TAdminBillingUsersParams,
+  TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
@@ -70,6 +72,13 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function updateAdminUserModelAccess({
+  userId,
+  ...body
+}: TAdminModelAccessRequest): Promise<TAdminModelAccessResponse> {
+  return request.patch(endpoints.adminUserModelAccess(userId), body);
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {
