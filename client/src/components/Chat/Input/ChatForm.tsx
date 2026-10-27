@@ -32,6 +32,7 @@ import {
   clearAllDrafts,
   getFilesDraftCached,
   isPastedTextFileMarked,
+  hasUsableModelSelection,
 } from '~/utils';
 import {
   useTextarea,
@@ -233,6 +234,12 @@ const ChatForm = memo(function ChatForm({
     [conversation?.conversationId],
   );
   const isNewConversation = conversationId === '' || conversationId === Constants.NEW_CONVO;
+  /** A new chat that names no model (specs configured without a default and nothing picked
+   * yet). The composer still renders so it looks normal, but sending stays disabled until
+   * the user picks a model; `ask` refuses as well (Enter path) and explains why. */
+  const modelSelectionMissing =
+    conversation != null && isNewConversation && !hasUsableModelSelection(conversation);
+  const composerReady = !!endpoint || modelSelectionMissing;
   /**
    * The quote feature merges excerpts server-side in `BaseClient.sendMessage`,
    * which the Assistants endpoints bypass, so hide the UI there rather than
@@ -656,7 +663,7 @@ const ChatForm = memo(function ChatForm({
     () =>
       isSubmitting && !answerMode.composerAnswers && duringRunSlot != null
         ? duringRunSlot
-        : endpoint && (
+        : composerReady && (
             <SendButton
               ref={submitButtonRef}
               control={methods.control}
@@ -668,6 +675,7 @@ const ChatForm = memo(function ChatForm({
                 !codeWorkspace.canSubmit ||
                 isNotAppendable ||
                 answerMode.composerLocked ||
+                modelSelectionMissing ||
                 (isSubmitting && !answerMode.composerAnswers)
               }
             />
@@ -675,7 +683,8 @@ const ChatForm = memo(function ChatForm({
     [
       codeWorkspace.canSubmit,
       isPreparingFromUrl,
-      endpoint,
+      composerReady,
+      modelSelectionMissing,
       duringRunSlot,
       filesLoading,
       disableInputs,
@@ -867,7 +876,7 @@ const ChatForm = memo(function ChatForm({
                 onClose={pastedTextEdit.closeEditor}
                 onSave={pastedTextEdit.saveEdit}
               />
-              {endpoint && (
+              {composerReady && (
                 <div className="flex">
                   <div
                     className={cn(

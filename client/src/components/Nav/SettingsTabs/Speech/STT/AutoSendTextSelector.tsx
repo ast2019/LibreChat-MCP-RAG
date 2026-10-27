@@ -92,7 +92,7 @@ export default function AutoSendTextSelector() {
             />
             <div className="w-2" />
             <InputNumber
-              value={`${delayValue} s`}
+              value={delayValue}
               disabled={!speechToText || !isEnabled}
               onChange={handleInputChange}
               min={0}

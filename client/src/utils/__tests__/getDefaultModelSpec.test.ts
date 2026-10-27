@@ -5,7 +5,12 @@ import type {
   TEndpointsConfig,
   TAgentsMap,
 } from 'librechat-data-provider';
-import { getDefaultModelSpec, defaultSpecAwaitsAgents } from '../endpoints';
+import {
+  getDefaultModelSpec,
+  defaultSpecAwaitsAgents,
+  hasUsableModelSelection,
+  requiresExplicitModelSelection,
+} from '../endpoints';
 
 const createModelSpec = (name: string, overrides: Partial<TModelSpec> = {}): TModelSpec =>
   ({
@@ -145,13 +150,28 @@ describe('getDefaultModelSpec', () => {
     expect(result).toEqual({ default: hardSpec });
   });
 
-  it('preserves the legacy first-spec fallback when no soft default is configured', () => {
+  it('does not fall back to the first spec when no default is configured', () => {
     const firstSpec = createModelSpec('first-spec');
     const secondSpec = createModelSpec('second-spec');
 
-    const result = getDefaultModelSpec(createStartupConfig([firstSpec, secondSpec]));
+    expect(getDefaultModelSpec(createStartupConfig([firstSpec, secondSpec]))).toBeUndefined();
+    expect(
+      getDefaultModelSpec(
+        createStartupConfig([firstSpec, secondSpec], { prioritize: true, modelSelect: false }),
+      ),
+    ).toBeUndefined();
+  });
 
-    expect(result).toEqual({ default: firstSpec });
+  it('still remembers the last explicitly chosen spec when no default is configured', () => {
+    const firstSpec = createModelSpec('first-spec');
+    const secondSpec = createModelSpec('second-spec');
+    persistAppliedSpec(secondSpec);
+
+    const result = getDefaultModelSpec(
+      createStartupConfig([firstSpec, secondSpec], { prioritize: true, modelSelect: false }),
+    );
+
+    expect(result).toEqual({ last: secondSpec });
   });
 
   describe('soft default auto-application residue', () => {
@@ -693,5 +713,53 @@ describe('defaultSpecAwaitsAgents', () => {
         fullEndpointsConfig,
       ),
     ).toBe(false);
+  });
+});
+
+describe('requiresExplicitModelSelection', () => {
+  const spec = createModelSpec('a-spec');
+
+  it('is false without model specs', () => {
+    expect(requiresExplicitModelSelection(undefined)).toBe(false);
+    expect(requiresExplicitModelSelection(createStartupConfig([]))).toBe(false);
+  });
+
+  it('is true when specs are prioritized, enforced or the model menu is hidden', () => {
+    expect(requiresExplicitModelSelection(createStartupConfig([spec]))).toBe(true);
+    expect(
+      requiresExplicitModelSelection(
+        createStartupConfig([spec], { prioritize: false, modelSelect: false }),
+      ),
+    ).toBe(true);
+    const enforced = createStartupConfig([spec], { prioritize: false });
+    (enforced.modelSpecs as { enforce?: boolean }).enforce = true;
+    expect(requiresExplicitModelSelection(enforced)).toBe(true);
+  });
+
+  it('is false when specs sit beside a free model menu', () => {
+    expect(
+      requiresExplicitModelSelection(
+        createStartupConfig([spec], { prioritize: false, modelSelect: true }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('hasUsableModelSelection', () => {
+  it('requires an endpoint plus a model, spec, agent or assistant', () => {
+    expect(hasUsableModelSelection(null)).toBe(false);
+    expect(hasUsableModelSelection({ endpoint: null, model: 'gpt-4o' })).toBe(false);
+    expect(hasUsableModelSelection({ endpoint: EModelEndpoint.openAI })).toBe(false);
+    expect(hasUsableModelSelection({ endpoint: EModelEndpoint.openAI, model: '' })).toBe(false);
+    expect(hasUsableModelSelection({ endpoint: EModelEndpoint.openAI, model: 'gpt-4o' })).toBe(
+      true,
+    );
+    expect(hasUsableModelSelection({ endpoint: 'OpenRouter', spec: 'fast' })).toBe(true);
+    expect(hasUsableModelSelection({ endpoint: EModelEndpoint.agents, agent_id: 'agent_1' })).toBe(
+      true,
+    );
+    expect(
+      hasUsableModelSelection({ endpoint: EModelEndpoint.assistants, assistant_id: 'asst_1' }),
+    ).toBe(true);
   });
 });

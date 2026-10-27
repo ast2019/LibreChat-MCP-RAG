@@ -156,7 +156,9 @@ const ConvoLink: React.FC<ConvoLinkProps> = ({
       <span
         ref={titleRef}
         className={cn(
-          isUnseen && !isGenerating && 'font-semibold',
+          isUnseen && !isGenerating
+            ? 'text-text-primary font-semibold'
+            : !isActiveConvo && !isPopoverActive && !isGenerating && 'text-text-secondary',
           'min-w-0 flex-1 overflow-hidden [mask-size:100%_100%] [mask-position:left] [mask-repeat:no-repeat] [text-align:start] whitespace-nowrap [transition-property:mask-size] duration-0 ease-linear [--convo-title-fade-width:24px] [--convo-title-reveal-duration:800ms] [&:dir(rtl)]:[mask-position:right]',
           isOverflowing &&
             '[mask-image:linear-gradient(to_right,currentColor_calc(100%_-_var(--convo-title-fade-width)),transparent)] [&:dir(rtl)]:[mask-image:linear-gradient(to_left,currentColor_calc(100%_-_var(--convo-title-fade-width)),transparent)]',

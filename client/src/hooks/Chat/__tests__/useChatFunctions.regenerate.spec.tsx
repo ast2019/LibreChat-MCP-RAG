@@ -189,6 +189,8 @@ function renderAsk(
     reasoningOverride?: TReasoningOverride;
     agentId?: string;
     files?: Map<string, ExtendedFile>;
+    /** Drop the default model and agent so the conversation names no model. */
+    clearSelection?: boolean;
   } = {},
 ) {
   const setMessages = jest.fn();
@@ -198,6 +200,10 @@ function renderAsk(
   const immutableConversation = conversation(conversationId);
   if ('endpoint' in options) {
     immutableConversation.endpoint = options.endpoint ?? null;
+  }
+  if (options.clearSelection === true) {
+    immutableConversation.model = null;
+    immutableConversation.agent_id = undefined;
   }
   if (options.model != null) {
     immutableConversation.model = options.model;
@@ -554,6 +560,44 @@ describe('useChatFunctions ask', () => {
     });
 
     expect(setSubmission).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses to send a new chat that names no model and opens the model selector', () => {
+    const selectorButton = document.createElement('button');
+    selectorButton.setAttribute('data-testid', 'model-selector-button');
+    const openSelector = jest.fn();
+    selectorButton.addEventListener('click', openSelector);
+    document.body.appendChild(selectorButton);
+
+    const { result, setMessages, setSubmission } = renderAsk([], Constants.NEW_CONVO, {
+      endpoint: 'OpenRouter' as TConversation['endpoint'],
+      clearSelection: true,
+    });
+
+    let askResult: ReturnType<typeof result.current.ask>;
+    act(() => {
+      askResult = result.current.ask({ text: 'hello' });
+    });
+
+    expect(askResult!).toBe(false);
+    expect(setMessages).not.toHaveBeenCalled();
+    expect(setSubmission).not.toHaveBeenCalled();
+    expect(openSelector).toHaveBeenCalledTimes(1);
+    selectorButton.remove();
+  });
+
+  it('sends a new agent chat that names only its agent', () => {
+    const { result, setSubmission } = renderAsk([], Constants.NEW_CONVO, {
+      endpoint: EModelEndpoint.agents,
+      clearSelection: true,
+      agentId: 'agent-1',
+    });
+
+    act(() => {
+      result.current.ask({ text: 'hello' });
+    });
+
+    expect(setSubmission).toHaveBeenCalledTimes(1);
   });
 
   it('reports a refusal when no endpoint is available', () => {

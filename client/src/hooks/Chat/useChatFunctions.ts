@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import { useStore, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToastContext } from '@librechat/client';
 import { hasPendingAssistantParent } from '@librechat/chat';
 import {
   Constants,
@@ -37,6 +38,7 @@ import {
   isSubmittableMessage,
   bindComposerLaunch,
 } from '~/utils';
+import { hasUsableModelSelection } from '~/utils/endpoints';
 import {
   withSubmittedCodeDecision,
   resolveSubmittedCodeApprovalMode,
@@ -54,6 +56,7 @@ import { resolveSubmittedReasoning } from './ask/reasoning';
 import { isHistoryRevalidating } from './ask/guards';
 import { createRegenerate } from './ask/regenerate';
 import useUserKey from '~/hooks/Input/useUserKey';
+import useLocalize from '~/hooks/useLocalize';
 import { buildTurn } from './ask/turn';
 
 export {
@@ -89,6 +92,8 @@ export default function useChatFunctions({
   setConversation: SetterOrUpdater<TConversation | null>;
 }) {
   const navigate = useNavigate();
+  const localize = useLocalize();
+  const { showToast } = useToastContext();
   const reasoningStore = useStore();
   const getSender = useGetSender();
   const queryClient = useQueryClient();
@@ -252,12 +257,25 @@ export default function useChatFunctions({
     });
 
     const endpoint = conversation?.endpoint;
-    if (endpoint === null) {
-      console.error('No endpoint available');
+    conversationId = conversationId ?? conversation?.conversationId ?? null;
+    /** A new chat must name a model the user chose: an endpoint plus a model, spec, agent or
+     * assistant. Specs configured without a default start a chat with none, and every send
+     * path (button, Enter, queued sends) lands here. Existing conversations always carry
+     * their own model, so regenerate/edit/continue there are unaffected. */
+    const targetsNewConversation =
+      conversationId == null || conversationId === '' || conversationId === Constants.NEW_CONVO;
+    if (endpoint === null || (targetsNewConversation && !hasUsableModelSelection(conversation))) {
+      logger.warn('[useChatFunctions] Refusing to send without a selected model');
+      showToast({
+        message: localize('com_ui_select_model_first'),
+        status: 'warning',
+      });
+      if (typeof document !== 'undefined') {
+        document.querySelector<HTMLElement>('[data-testid="model-selector-button"]')?.click();
+      }
       return false;
     }
 
-    conversationId = conversationId ?? conversation?.conversationId ?? null;
     if (conversationId == 'search') {
       console.error('cannot send any message under search view!');
       return false;

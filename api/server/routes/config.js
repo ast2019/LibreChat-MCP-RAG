@@ -26,8 +26,7 @@ const {
   resolvePullRequestCapabilities,
   resolvePreLoginAppConfig,
   withSafePolicyLinks,
-  createCurrencyRates,
-  createTgjuFetcher,
+  getSharedCurrencyRates,
 } = require('@librechat/api');
 const {
   DEFAULT_MCP_APP_CSP_LIMITS,
@@ -52,8 +51,9 @@ const sharedLinksEnabled =
 const publicSharedLinksEnabled =
   sharedLinksEnabled && isEnabled(process.env.ALLOW_SHARED_LINKS_PUBLIC);
 
-/** Live exchange rates for `interface.currency.live`; one cache for the process. */
-const currencyRates = createCurrencyRates({ fetchers: { tgju: createTgjuFetcher() } });
+/** Live exchange rates for `interface.currency.live`; one cache for the process, shared with
+ *  the startup warm-up. Never waits on the source: a cold cache answers with the yaml rate. */
+const currencyRates = getSharedCurrencyRates();
 
 const sharePointFilePickerEnabled = isEnabled(process.env.ENABLE_SHAREPOINT_FILEPICKER);
 const openidReuseTokens = isEnabled(process.env.OPENID_REUSE_TOKENS);

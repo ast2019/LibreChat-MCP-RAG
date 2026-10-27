@@ -281,6 +281,9 @@ modelSpecs:
   # name or logo reaches users. Spec names of earlier versions (fast, smart, gpt, economy, pro,
   # research, perplexity, documents, private-*, local) are kept so old chats continue.
   # `~…-latest` ids follow each brand's newest model on OpenRouter.
+  # No spec is marked `default`/`softDefault` on purpose: a user who never picked a model
+  # starts with an empty selector and must choose one before sending (their last pick is
+  # remembered for later new chats).
   list:
     # --- Claude ---
     - name: 'smart'
@@ -369,7 +372,6 @@ modelSpecs:
     - name: 'fast'
       label: 'Gemini Flash'
       description: 'سریع؛ برای کارهای روزمره، در صورت نیاز در وب جستجو می‌کند'
-      default: true
       group: 'Gemini'
       groupIcon: 'google'
       iconURL: 'google'

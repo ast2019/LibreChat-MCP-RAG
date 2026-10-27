@@ -4,6 +4,7 @@ import {
   resolveWeekStartsOn,
   localeWeekStartsOn,
   rotateWeekFrom,
+  weekStartLocale,
 } from '../clock';
 
 describe('resolveHour12', () => {
@@ -34,6 +35,16 @@ describe('resolveWeekStartsOn', () => {
 
   it('forces Monday (1) for the monday preference regardless of locale', () => {
     expect(resolveWeekStartsOn('monday', 'en-US')).toBe(1);
+  });
+
+  it('forces Saturday (6) for the saturday preference regardless of locale', () => {
+    expect(resolveWeekStartsOn('saturday', 'en-US')).toBe(6);
+    expect(resolveWeekStartsOn('saturday', 'fr-FR')).toBe(6);
+  });
+
+  it('resolves a Persian app locale to Saturday (6) under the system preference', () => {
+    expect(resolveWeekStartsOn('system', weekStartLocale('fa-IR', 'en-US'))).toBe(6);
+    expect(resolveWeekStartsOn('system', weekStartLocale('fa', 'en-US'))).toBe(6);
   });
 
   it('defers to the locale for the system preference', () => {
@@ -145,5 +156,28 @@ describe('rotateWeekFrom', () => {
 
   it('rotates to start at Saturday, wrapping Sunday through Friday to the end', () => {
     expect(rotateWeekFrom(6)).toEqual([6, 0, 1, 2, 3, 4, 5]);
+  });
+});
+
+describe('weekStartLocale', () => {
+  it('prefers the app UI language over the runtime locale', () => {
+    expect(weekStartLocale('fa-IR', 'en-US')).toBe('fa-IR');
+    expect(weekStartLocale('de-DE', 'en-US')).toBe('de-DE');
+  });
+
+  it('falls back to the runtime locale when the app language is unset or auto', () => {
+    expect(weekStartLocale(undefined, 'en-GB')).toBe('en-GB');
+    expect(weekStartLocale('', 'en-GB')).toBe('en-GB');
+    expect(weekStartLocale('auto', 'fr-FR')).toBe('fr-FR');
+  });
+
+  it('keeps the regional runtime locale when it shares the app language', () => {
+    // The picker only offers en-US for English; a British runtime keeps Monday-first.
+    expect(weekStartLocale('en-US', 'en-GB')).toBe('en-GB');
+    expect(weekStartLocale('fa', 'fa-IR')).toBe('fa-IR');
+  });
+
+  it('returns the app language when the runtime cannot say', () => {
+    expect(weekStartLocale('fa-IR', undefined)).toBe('fa-IR');
   });
 });

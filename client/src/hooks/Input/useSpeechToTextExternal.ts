@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRecoilState } from 'recoil';
 import { useToastContext } from '@librechat/client';
+import { useEffectiveLanguageSTT } from '~/components/Nav/SettingsTabs/Speech/speechLanguage';
 import { useSpeechToTextMutation } from '~/data-provider';
 import store from '~/store';
 
@@ -64,7 +65,8 @@ const useSpeechToTextExternal = (
   const [isRequestBeingMade, setIsRequestBeingMade] = useState(false);
 
   const [minDecibels] = useRecoilState(store.decibelValue);
-  const [languageSTT] = useRecoilState<string>(store.languageSTT);
+  /** The saved choice, else the UI language's default (`fa-IR` for a Persian UI). */
+  const languageSTT = useEffectiveLanguageSTT();
   const [speechToText] = useRecoilState<boolean>(store.speechToText);
   const [autoTranscribeAudio] = useRecoilState<boolean>(store.autoTranscribeAudio);
 

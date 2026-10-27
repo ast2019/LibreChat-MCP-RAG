@@ -1,4 +1,9 @@
-const { isEnabled, publishConversationTitle } = require('@librechat/api');
+const {
+  isEnabled,
+  buildFallbackTitle,
+  isMissingGeneratedTitle,
+  publishConversationTitle,
+} = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { CacheKeys } = require('librechat-data-provider');
 const getLogStores = require('~/cache/getLogStores');
@@ -51,10 +56,6 @@ const addTitle = async (
     return;
   }
 
-  if (client.options.titleConvo === false) {
-    return;
-  }
-
   // Skip title generation for temporary conversations
   if (req?.body?.isTemporary) {
     return;
@@ -68,6 +69,51 @@ const addTitle = async (
 
   const titleCache = getLogStores(CacheKeys.GEN_TITLE);
   const key = `${req.user.id}-${convoId}`;
+
+  /** Saves and delivers a title exactly like a generated one: same filters, cache and save. */
+  const publish = async (candidate) => {
+    const title = resolveConversationTitle(req, candidate);
+    if (title == null) {
+      return;
+    }
+    await publishConversationTitle(
+      { saveConvo, getConvo, titleCache },
+      {
+        ctx: {
+          userId: req?.user?.id,
+          isTemporary: req?.resolvedConversation?.isTemporary ?? req?.body?.isTemporary,
+          expiredAt: req?.resolvedConversation?.expiredAt,
+          interfaceConfig: req?.config?.interfaceConfig,
+        },
+        conversationId: convoId,
+        title,
+        convoReady,
+        discardSignal,
+        signal,
+        onTitleGenerated,
+      },
+    );
+  };
+
+  /** Without a title model (or when it fails), title the chat from the first message
+   *  instead of leaving every conversation as "New Chat". */
+  const publishFallback = async () => {
+    const fallbackTitle = buildFallbackTitle(text);
+    if (!fallbackTitle) {
+      return;
+    }
+    logger.debug(`[${key}] Using fallback title from the first message`);
+    await publish(fallbackTitle);
+  };
+
+  if (client.options.titleConvo === false) {
+    try {
+      await publishFallback();
+    } catch (error) {
+      logger.error('Error saving fallback title:', error);
+    }
+    return;
+  }
   /** @type {NodeJS.Timeout} */
   let timeoutId;
   try {
@@ -113,33 +159,13 @@ const addTitle = async (
       clearTimeout(timeoutId);
     }
 
-    if (!generatedTitle) {
+    if (isMissingGeneratedTitle(generatedTitle)) {
       logger.debug(`[${key}] No title generated`);
+      await publishFallback();
       return;
     }
 
-    const title = resolveConversationTitle(req, generatedTitle);
-    if (title == null) {
-      return;
-    }
-
-    await publishConversationTitle(
-      { saveConvo, getConvo, titleCache },
-      {
-        ctx: {
-          userId: req?.user?.id,
-          isTemporary: req?.resolvedConversation?.isTemporary ?? req?.body?.isTemporary,
-          expiredAt: req?.resolvedConversation?.expiredAt,
-          interfaceConfig: req?.config?.interfaceConfig,
-        },
-        conversationId: convoId,
-        title,
-        convoReady,
-        discardSignal,
-        signal,
-        onTitleGenerated,
-      },
-    );
+    await publish(generatedTitle);
   } catch (error) {
     logger.error('Error generating title:', error);
   }

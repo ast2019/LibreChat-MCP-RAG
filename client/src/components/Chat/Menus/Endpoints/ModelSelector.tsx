@@ -15,6 +15,7 @@ import { getSelectedIcon, getDisplayValue } from './utils';
 import { CustomMenu as Menu } from './CustomMenu';
 import DialogManager from './DialogManager';
 import { useLocalize } from '~/hooks';
+import { cn } from '~/utils';
 
 const defaultInterface = getConfigDefaults().interface;
 
@@ -29,6 +30,7 @@ function ModelSelectorContent() {
     modelSpecs,
     mappedEndpoints,
     endpointsConfig,
+    modelSelectionMissing,
     // State
     searchValue,
     searchResults,
@@ -72,10 +74,21 @@ function ModelSelectorContent() {
       render={
         <button
           data-testid="model-selector-button"
+          data-model-missing={modelSelectionMissing ? 'true' : undefined}
           aria-keyshortcuts={modelSelectorAriaKey}
-          className="border-border-chrome bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control my-1 flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm"
+          className={cn(
+            'border-border-chrome bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control relative my-1 flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm',
+            /* No model chosen yet: a highlighted, pulsing ring invites the pick. */
+            modelSelectionMissing && 'ring-ring-primary font-medium ring-2',
+          )}
           aria-label={localize('com_ui_select_model')}
         >
+          {modelSelectionMissing && (
+            <span
+              aria-hidden="true"
+              className="ring-ring-primary rounded-theme-control pointer-events-none absolute -inset-1 ring-2 motion-safe:animate-pulse"
+            />
+          )}
           {selectedIcon && React.isValidElement(selectedIcon) && (
             <div className="flex shrink-0 items-center justify-center overflow-hidden">
               {selectedIcon}

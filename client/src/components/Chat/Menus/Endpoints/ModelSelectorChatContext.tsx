@@ -6,6 +6,8 @@ import { useGetConversation, useNewConvo } from '~/hooks';
 import store from '~/store';
 
 interface ModelSelectorChatContextValue {
+  /** Null until the first conversation is set (still loading). */
+  conversationId?: string | null;
   endpoint?: EModelEndpoint | null;
   model?: string | null;
   spec?: string | null;
@@ -28,6 +30,7 @@ export function ModelSelectorChatProvider({ children }: { children: React.ReactN
   const agent_id = useRecoilValue(store.conversationAgentIdByIndex(0));
   const endpoint = useRecoilValue(store.conversationEndpointByIndex(0));
   const assistant_id = useRecoilValue(store.conversationAssistantIdByIndex(0));
+  const conversationId = useRecoilValue(store.conversationIdByIndex(0));
 
   const newConversationRef = useRef(nextNewConversation);
   newConversationRef.current = nextNewConversation;
@@ -39,6 +42,7 @@ export function ModelSelectorChatProvider({ children }: { children: React.ReactN
   /** Context value only created when relevant conversation properties change */
   const contextValue = useMemo<ModelSelectorChatContextValue>(
     () => ({
+      conversationId,
       model,
       spec,
       agent_id,
@@ -47,7 +51,16 @@ export function ModelSelectorChatProvider({ children }: { children: React.ReactN
       getConversation,
       newConversation,
     }),
-    [endpoint, model, spec, agent_id, assistant_id, getConversation, newConversation],
+    [
+      conversationId,
+      endpoint,
+      model,
+      spec,
+      agent_id,
+      assistant_id,
+      getConversation,
+      newConversation,
+    ],
   );
 
   return (

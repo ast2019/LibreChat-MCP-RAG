@@ -132,7 +132,17 @@ export const registry: SettingEntry[] = [
     tab: GENERAL,
     section: 'appearance',
     labelKey: 'com_nav_week_start',
-    keywords: ['week', 'calendar', 'sunday', 'monday'],
+    keywords: [
+      'week',
+      'calendar',
+      'saturday',
+      'sunday',
+      'monday',
+      'شنبه',
+      'یکشنبه',
+      'دوشنبه',
+      'هفته',
+    ],
     Component: WeekStartSelector,
   },
   // General · Layout
@@ -759,6 +769,9 @@ export const registry: SettingEntry[] = [
     tab: DATA,
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_revoke_keys',
+    // Revokes user-provided provider keys; meaningless (and alarming) when the
+    // deployment offers no endpoint a user can supply a key for.
+    show: (ctx) => ctx.hasUserProvidedEndpoints,
     Component: RevokeKeys,
   },
   // Langfuse

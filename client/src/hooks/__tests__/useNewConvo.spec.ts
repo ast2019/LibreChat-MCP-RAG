@@ -105,6 +105,7 @@ jest.mock('~/utils', () => ({
   getDefaultEndpoint: () => undefined,
   getModelSpecPreset: jest.fn(),
   hasModelSelection: () => false,
+  requiresExplicitModelSelection: () => false,
   isPastedTextFileMarked: (fileId?: string | null) =>
     fileId != null && mockMarkedPasteIds.has(fileId),
   collectForeignAttachmentClaims: (excludeDraftIds: string[], excludeOwnPane?: number | 'tab') =>

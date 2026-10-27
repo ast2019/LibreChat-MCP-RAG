@@ -159,7 +159,7 @@ export default defineConfig(({ command }) => ({
         short_name: 'HiveGPT',
         display: 'standalone',
         background_color: '#000000',
-        theme_color: '#F59E0B',
+        theme_color: '#2563EB',
         icons: [
           {
             src: 'assets/favicon-32x32.png',

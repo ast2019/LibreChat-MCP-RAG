@@ -89,7 +89,7 @@ const renderRow = (props: { isGenerating?: boolean; convo?: TConversation } = {}
 
 const rowButton = () => screen.getByRole('button', { name: /^com_ui_conversation_label/ });
 const unreadDot = (container: HTMLElement) =>
-  container.querySelector('span[aria-hidden="true"].bg-status-info');
+  container.querySelector('span[aria-hidden="true"][data-testid="unread-dot"]');
 
 describe('Conversation row status', () => {
   beforeEach(() => {
@@ -133,7 +133,12 @@ describe('Conversation row status', () => {
     expect(dot).not.toBeNull();
     expect(rowButton()).toContainElement(dot as HTMLElement);
     expect(rowButton()).toHaveAccessibleName('com_ui_conversation_label, com_ui_unread');
-    expect(screen.getByText('Tool Approval UI').parentElement).toHaveClass('font-semibold');
+    expect(dot).toHaveClass('bg-status-success-strong', 'size-2.5', '-inset-e-1');
+    expect(screen.getByText('Tool Approval UI').parentElement).toHaveClass(
+      'font-semibold',
+      'text-text-primary',
+    );
+    expect(screen.getByTestId('convo-avatar')).not.toHaveClass('grayscale');
   });
 
   it('shows only the ring when a chat with an unseen reply runs again', () => {
@@ -152,6 +157,21 @@ describe('Conversation row status', () => {
     expect(screen.queryByTestId('status-ring')).not.toBeInTheDocument();
     expect(unreadDot(container)).toBeNull();
     expect(rowButton()).toHaveAccessibleName('com_ui_conversation_label');
+  });
+
+  it('dims the avatar and title of a read chat that is not open', () => {
+    renderRow();
+
+    expect(screen.getByTestId('convo-avatar')).toHaveClass('grayscale', 'opacity-60');
+    expect(screen.getByTestId('convo-avatar')).toHaveAttribute('data-read', 'true');
+    expect(screen.getByText('Tool Approval UI').parentElement).toHaveClass('text-text-secondary');
+    expect(screen.getByText('Tool Approval UI').parentElement).not.toHaveClass('font-semibold');
+  });
+
+  it('keeps a running chat in full color', () => {
+    renderRow({ isGenerating: true });
+
+    expect(screen.getByTestId('convo-avatar')).not.toHaveClass('grayscale');
   });
 
   it('names the project of a filed chat listed under Chats', () => {
