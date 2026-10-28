@@ -10,6 +10,17 @@ import type {
   TAdminBillingUsersResponse,
 } from './types/billing';
 import type {
+  TPaymentOrder,
+  TPaymentOptions,
+  TAdminPaymentsParams,
+  TAdminPaymentsSummary,
+  TAdminPaymentsResponse,
+  TPaymentCheckoutRequest,
+  TPaymentCheckoutResponse,
+  TAdminPaymentVerifyResponse,
+  TAdminPaymentsReconcileResponse,
+} from './payments';
+import type {
   TTracePage,
   TTracePageParams,
   TTraceAvailability,
@@ -18,7 +29,9 @@ import type {
 } from './types/traces';
 import type { TInsightsAccessResponse, TInsightsParams, TInsightsResponse } from './types/insights';
 import type { ScheduleMCPConsentView, ConfirmScheduleMCPConsent } from './types/scheduleConsent';
+import type { TPhoneCodeRequest, TPhoneCodeRequestResponse, TPhoneCodeVerify } from './phone';
 import type { CodeSetupAttempt, CodeSetupApprovalRequest } from './codeSetup';
+import type { TServiceStatusResponse } from './types/status';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
 import type * as t from './types';
@@ -64,6 +77,14 @@ export function getAdminBillingSummary(days: number): Promise<TAdminBillingSumma
   return request.get(endpoints.adminBillingSummary(days));
 }
 
+export function getAdminServiceStatus(): Promise<TServiceStatusResponse> {
+  return request.get(endpoints.adminServiceStatus());
+}
+
+export function refreshAdminServiceStatus(): Promise<TServiceStatusResponse> {
+  return request.post(endpoints.adminServiceStatusRefresh());
+}
+
 export function getAdminBillingPacks(): Promise<TAdminBillingPacksResponse> {
   return request.get(endpoints.adminBillingPacks());
 }
@@ -72,6 +93,38 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function getPaymentOptions(): Promise<TPaymentOptions> {
+  return request.get(endpoints.paymentOptions());
+}
+
+export function createPaymentCheckout(
+  payload: TPaymentCheckoutRequest,
+): Promise<TPaymentCheckoutResponse> {
+  return request.post(endpoints.paymentCheckout(), payload);
+}
+
+export function getPaymentOrder(orderId: string): Promise<TPaymentOrder> {
+  return request.get(endpoints.paymentOrder(orderId));
+}
+
+export function getAdminPayments(
+  params: TAdminPaymentsParams = {},
+): Promise<TAdminPaymentsResponse> {
+  return request.get(endpoints.adminPayments(params));
+}
+
+export function getAdminPaymentsSummary(): Promise<TAdminPaymentsSummary> {
+  return request.get(endpoints.adminPaymentsSummary());
+}
+
+export function verifyAdminPayment(orderId: string): Promise<TAdminPaymentVerifyResponse> {
+  return request.post(endpoints.adminPaymentVerify(orderId));
+}
+
+export function reconcileAdminPayments(): Promise<TAdminPaymentsReconcileResponse> {
+  return request.post(endpoints.adminPaymentsReconcile());
 }
 
 export function updateAdminUserModelAccess({
@@ -1820,6 +1873,38 @@ export function deletePasskey({
   password,
 }: t.TDeletePasskeyRequest): Promise<{ message: string }> {
   return request.deleteWithOptions(endpoints.passkey(passkeyId), { data: { password } });
+}
+
+/* Phone sign-in */
+export function requestPhoneCode(payload: TPhoneCodeRequest): Promise<TPhoneCodeRequestResponse> {
+  return request.post(endpoints.phoneCodeRequest(), payload);
+}
+
+export function verifyPhoneCode(payload: TPhoneCodeVerify): Promise<t.TLoginResponse> {
+  return request.post(endpoints.phoneCodeVerify(), payload);
+}
+
+/** Sends a code to a number the signed-in user wants to add or change to. */
+export function requestUserPhoneCode(payload: {
+  phone: string;
+  /** Required when the account has a password. */
+  password?: string;
+}): Promise<TPhoneCodeRequestResponse> {
+  return request.post(endpoints.userPhone(), payload);
+}
+
+export function removeUserPhone(payload: { password?: string }): Promise<{ phone: null }> {
+  return request.deleteWithOptions(endpoints.userPhone(), { data: payload });
+}
+
+export function verifyUserPhoneCode(
+  payload: Omit<TPhoneCodeVerify, 'name'>,
+): Promise<{ phone: string; phoneVerified: boolean }> {
+  return request.post(endpoints.userPhoneVerify(), payload);
+}
+
+export function updateUserProfile(payload: { name: string }): Promise<{ name: string }> {
+  return request.patch(endpoints.userProfile(), payload);
 }
 
 /* Memories */

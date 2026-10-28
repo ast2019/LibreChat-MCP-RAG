@@ -25,6 +25,8 @@ const {
   resolvePreLoginAppConfig,
   withSafePolicyLinks,
   getSharedCurrencyRates,
+  getPaymentsStartupConfig,
+  getPhoneLoginStartupFlags,
 } = require('@librechat/api');
 const {
   DEFAULT_MCP_APP_CSP_LIMITS,
@@ -242,6 +244,7 @@ router.get('/', async function (req, res) {
       const payload = {
         ...preLoginPayload,
         socialLogins: baseConfig?.registration?.socialLogins ?? defaultSocialLogins,
+        ...getPhoneLoginStartupFlags(baseConfig?.registration?.phone, process.env),
         turnstile: baseConfig?.turnstileConfig,
         rum: getRumConfig(baseConfig?.config?.telemetry),
       };
@@ -290,6 +293,7 @@ router.get('/', async function (req, res) {
       conversationListLimits,
       sharedLinksSnapshotFilesEnabled: sharedLinksEnabled && isFileSnapshotEnabled(appConfig),
       socialLogins: appConfig?.registration?.socialLogins ?? defaultSocialLogins,
+      ...getPhoneLoginStartupFlags(appConfig?.registration?.phone, process.env),
       projects: appConfig?.projects,
       interface:
         interfacePayload && currency ? { ...interfacePayload, currency } : interfacePayload,
@@ -301,6 +305,7 @@ router.get('/', async function (req, res) {
       turnstile: appConfig?.turnstileConfig,
       modelSpecs: sanitizeModelSpecs(excludeHiddenModelSpecs(appConfig?.modelSpecs)),
       balance: balanceConfig,
+      payments: getPaymentsStartupConfig(appConfig),
       bundlerURL: process.env.SANDPACK_BUNDLER_URL,
       staticBundlerURL: process.env.SANDPACK_STATIC_BUNDLER_URL,
       sharePointFilePickerEnabled,

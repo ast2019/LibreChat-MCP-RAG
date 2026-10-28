@@ -481,6 +481,12 @@ export type VoiceOption = {
 };
 
 export type TMessageAudio = {
+  /** The message's conversation: decides the speech route (local chats stay on the device). */
+  conversation?: {
+    conversationId?: string | null;
+    endpoint?: string | null;
+    spec?: string | null;
+  } | null;
   isLast?: boolean;
   index: number;
   messageId: string;

@@ -1,5 +1,6 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { useToastContext } from '@librechat/client';
+import type { SpeechRoute } from './useSpeechRoute';
 import type { TAskFunction } from '~/common';
 import useGetAudioSettings from './useGetAudioSettings';
 import { useChatFormContext } from '~/Providers';
@@ -48,6 +49,7 @@ export default function useDictation({
   autoSendText,
   speechToText,
   index = 0,
+  speechRoute,
 }: {
   ask: TAskFunction;
   /** Optional host route for a take that completes while generation is active. */
@@ -69,6 +71,8 @@ export default function useDictation({
   speechToText: boolean;
   /** The chat pane this composer belongs to; only the focused pane answers the shortcut. */
   index?: number;
+  /** How this conversation's speech is routed (local conversations use browser speech). */
+  speechRoute?: SpeechRoute;
 }): Dictation {
   const { setValue, reset, getValues } = methods;
   const localize = useLocalize();
@@ -163,7 +167,9 @@ export default function useDictation({
 
       /** For external STT, append existing text to the transcription */
       const finalText =
-        isExternalSTT(speechToTextEndpoint) && existingTextRef.current
+        isExternalSTT(speechToTextEndpoint) &&
+        speechRoute?.local !== true &&
+        existingTextRef.current
           ? `${existingTextRef.current} ${text}`
           : text;
 
@@ -177,7 +183,7 @@ export default function useDictation({
 
       submit(finalText);
     },
-    [autoSendEnabled, reset, setValue, submit, speechToTextEndpoint],
+    [autoSendEnabled, reset, setValue, submit, speechToTextEndpoint, speechRoute?.local],
   );
 
   const setText = useCallback(
@@ -209,6 +215,7 @@ export default function useDictation({
     onTranscriptionComplete,
     onTranscriptionSettled,
     autoSendText,
+    speechRoute,
   );
 
   const active = isListening === true;

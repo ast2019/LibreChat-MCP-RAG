@@ -3,6 +3,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import { parseTextParts } from 'librechat-data-provider';
 import type { TMessageContentParts } from 'librechat-data-provider';
+import type { SpeechRouteFields } from '~/utils/speech';
 import useTextToSpeechExternal from '~/hooks/Input/useTextToSpeechExternal';
 import usePauseGlobalAudio from '~/hooks/Audio/usePauseGlobalAudio';
 import useAudioRef from '~/hooks/Audio/useAudioRef';
@@ -14,10 +15,11 @@ type TUseTextToSpeech = {
   content?: TMessageContentParts[] | string;
   isLast?: boolean;
   index?: number;
+  routeFields?: SpeechRouteFields;
 };
 
 const useTTSExternal = (props?: TUseTextToSpeech) => {
-  const { messageId, content, isLast = false, index = 0 } = props ?? {};
+  const { messageId, content, isLast = false, index = 0, routeFields } = props ?? {};
 
   const isMouseDownRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
@@ -40,6 +42,7 @@ const useTTSExternal = (props?: TUseTextToSpeech) => {
     messageId,
     isLast,
     index,
+    routeFields,
   });
 
   useEffect(() => {

@@ -5,6 +5,8 @@ export * from './Skills';
 export * from './Files';
 export * from './Insights';
 export * from './Billing';
+export * from './Status';
+export * from './Payments';
 /* Memories */
 export * from './Memories';
 export * from './Messages';

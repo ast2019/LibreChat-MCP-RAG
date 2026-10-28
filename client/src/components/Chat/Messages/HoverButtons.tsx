@@ -201,6 +201,7 @@ const HoverButtons = ({
       {/* Text to Speech */}
       {TextToSpeech && !error && !isActiveStreamingMessage && speechText.length > 0 && (
         <MessageAudio
+          conversation={conversation}
           index={index}
           isLast={isLast}
           messageId={message.messageId}

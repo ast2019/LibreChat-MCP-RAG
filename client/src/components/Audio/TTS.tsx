@@ -4,6 +4,7 @@ import { useRecoilValue } from 'recoil';
 import { VolumeIcon, VolumeMuteIcon, Spinner } from '@librechat/client';
 import type { TMessageAudio } from '~/common';
 import { useLocalize, useTTSBrowser, useTTSExternal } from '~/hooks';
+import useSpeechRoute from '~/hooks/Input/useSpeechRoute';
 import { logger } from '~/utils';
 import store from '~/store';
 
@@ -101,15 +102,18 @@ export function ExternalTTS({
   content,
   className,
   renderButton,
+  conversation,
 }: TMessageAudio) {
   const localize = useLocalize();
   const playbackRate = useRecoilValue(store.playbackRate);
+  const { fields: routeFields } = useSpeechRoute(conversation);
 
   const { toggleSpeech, isSpeaking, isLoading, audioRef } = useTTSExternal({
     isLast,
     index,
     messageId,
     content,
+    routeFields,
   });
 
   const renderIcon = () => {

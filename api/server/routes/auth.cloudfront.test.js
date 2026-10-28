@@ -51,6 +51,20 @@ jest.mock('~/server/controllers/auth/LogoutController', () => ({
   logoutController: jest.fn((req, res) => res.status(200).end()),
 }));
 
+jest.mock('~/server/controllers/auth/PhoneController', () => {
+  const ok = (_req, res) => res.status(200).json({});
+  const pass = (_req, _res, next) => next();
+  return {
+    phoneCodeRequestLimiter: pass,
+    phoneCodeVerifyLimiter: pass,
+    requestLoginCode: ok,
+    verifyLoginCode: ok,
+    requestLinkCode: ok,
+    verifyLinkCode: ok,
+    removePhone: ok,
+    updateProfile: ok,
+  };
+});
 jest.mock('~/server/controllers/auth/LoginController', () => ({
   loginController: jest.fn((req, res) => res.status(200).end()),
 }));

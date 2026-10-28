@@ -318,7 +318,11 @@ export type TBackupCode = {
 export type TUser = {
   id: string;
   username: string;
-  email: string;
+  /** Absent for accounts registered by phone only. */
+  email?: string;
+  /** E.164 mobile number, when the account has one. */
+  phone?: string;
+  phoneVerified?: boolean;
   name: string;
   avatar: string;
   role: string;
@@ -1238,7 +1242,35 @@ export type TGetRandomPromptsRequest = {
   skip: number;
 };
 
-export type TCustomConfigSpeechResponse = { [key: string]: string };
+/** What the client needs to know about the billed `hive` speech providers. */
+export type TServerSpeechConfig = {
+  stt?: { language: string; maxDurationSeconds: number; private: boolean };
+  tts?: { voices: string[]; private: boolean };
+  /** Endpoints whose conversations use browser speech only (audio never leaves the device). */
+  localEndpoints: string[];
+  /** Endpoints whose conversations use the private (zero-data-retention) route. */
+  privateEndpoints: string[];
+};
+
+export type TCustomConfigSpeechResponse = {
+  [key: string]: string | number | boolean | TServerSpeechConfig | undefined;
+  serverSpeech?: TServerSpeechConfig;
+};
+
+/** Stable codes of server speech failures; the client maps them to localized copy. */
+export type TSpeechErrorCode =
+  | 'disabled'
+  | 'local_route'
+  | 'route_not_configured'
+  | 'endpoint_not_found'
+  | 'empty_input'
+  | 'too_large'
+  | 'unsupported_format'
+  | 'insufficient_balance'
+  | 'provider_failed'
+  | 'empty_transcript'
+  | 'timeout'
+  | 'aborted';
 
 export type TUserTermsResponse = {
   termsAccepted: boolean;

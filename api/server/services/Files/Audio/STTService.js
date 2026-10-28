@@ -4,6 +4,7 @@ const FormData = require('form-data');
 const { Readable } = require('stream');
 const { logger } = require('@librechat/data-schemas');
 const {
+  isSpeechError,
   inspectContent,
   extractFileContent,
   hasActiveFileFieldPolicy,
@@ -22,6 +23,7 @@ const {
   listConfiguredSpeechProviders,
 } = require('librechat-data-provider');
 const { getAppConfig } = require('~/server/services/Config');
+const { getHiveSpeech } = require('./hiveSpeech');
 
 /**
  * Maps MIME types to their corresponding file extensions for audio files.
@@ -370,21 +372,28 @@ class STTService {
 
       let text;
       try {
-        const audioBuffer = await fs.readFile(req.file.path);
-        const audioFile = {
-          originalname: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-        };
         const [provider, sttSchema, allowedAddresses] = await this.getProviderSchema(req);
-        const language = req.body?.language || '';
-        text = await this.sttRequest(
-          provider,
-          sttSchema,
-          { audioBuffer, audioFile, language },
-          allowedAddresses,
-        );
+        if (provider === STTProviders.HIVE) {
+          text = await getHiveSpeech().transcribeUpload(req, res);
+        } else {
+          const audioBuffer = await fs.readFile(req.file.path);
+          const audioFile = {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+          };
+          const language = req.body?.language || '';
+          text = await this.sttRequest(
+            provider,
+            sttSchema,
+            { audioBuffer, audioFile, language },
+            allowedAddresses,
+          );
+        }
       } catch (error) {
+        if (isSpeechError(error)) {
+          throw error;
+        }
         const uninspectableField = getBlockedUninspectableFileField(req.config?.filters, [
           'transcript',
         ]);
@@ -416,6 +425,10 @@ class STTService {
         '[STT] An error occurred while processing the audio:',
         getSafeErrorMetadata(error),
       );
+      if (isSpeechError(error)) {
+        getHiveSpeech().sendError(res, error);
+        return;
+      }
       res.sendStatus(500);
     } finally {
       try {

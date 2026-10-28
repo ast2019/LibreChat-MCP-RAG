@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRecoilState } from 'recoil';
 import { useToastContext } from '@librechat/client';
+import { useGetCustomConfigSpeechQuery } from 'librechat-data-provider/react-query';
+import type { SpeechRouteFields } from '~/utils/speech';
+import { appendSpeechRouteFields, readSpeechErrorCode, speechErrorKey } from '~/utils/speech';
 import { useEffectiveLanguageSTT } from '~/components/Nav/SettingsTabs/Speech/speechLanguage';
 import { useSpeechToTextMutation } from '~/data-provider';
+import useLocalize from '~/hooks/useLocalize';
 import store from '~/store';
 
 export const getBestSupportedMimeType = (
@@ -40,8 +44,19 @@ const useSpeechToTextExternal = (
   onTranscriptionComplete: (text: string, takeId?: number) => void,
   onTranscriptionSettled: (takeId?: number) => void,
   autoSendText: number,
+  /** The conversation the take belongs to, so the server routes it like that conversation. */
+  routeFields?: SpeechRouteFields,
 ) => {
+  const localize = useLocalize();
   const { showToast } = useToastContext();
+  const { data: speechConfig } = useGetCustomConfigSpeechQuery({ enabled: true });
+  /** Server speech bounds a take; recording stops on its own at the limit. */
+  const maxDurationSeconds = speechConfig?.serverSpeech?.stt?.maxDurationSeconds;
+  const routeFieldsRef = useRef(routeFields);
+  routeFieldsRef.current = routeFields;
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Why the last microphone request failed: a refusal reads differently from no device. */
+  const permissionErrorRef = useRef<string | null>(null);
   const audioStream = useRef<MediaStream | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -84,7 +99,15 @@ const useSpeechToTextExternal = (
     }
   };
 
+  const clearMaxDurationTimer = () => {
+    if (maxDurationTimerRef.current != null) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+  };
+
   const cleanup = () => {
+    clearMaxDurationTimer();
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current = null;
     }
@@ -101,7 +124,9 @@ const useSpeechToTextExternal = (
         return;
       }
       audioStream.current = streamData ?? null;
-    } catch {
+      permissionErrorRef.current = null;
+    } catch (error) {
+      permissionErrorRef.current = (error as { name?: string } | null)?.name ?? 'Error';
       audioStream.current = null;
     }
   };
@@ -125,6 +150,7 @@ const useSpeechToTextExternal = (
       if (languageSTT) {
         formData.append('language', languageSTT);
       }
+      appendSpeechRouteFields(formData, routeFieldsRef.current);
       setIsRequestBeingMade(true);
       cleanup();
       const takeId = recordingTakeIdRef.current;
@@ -148,9 +174,12 @@ const useSpeechToTextExternal = (
             }, autoSendText * 1000);
           }
         },
-        onError: () => {
+        onError: (error: unknown) => {
+          if (!isMountedRef.current) {
+            return;
+          }
           showToast({
-            message: 'An error occurred while processing the audio, maybe the audio was too short',
+            message: localize(speechErrorKey(readSpeechErrorCode(error))),
             status: 'error',
           });
           setIsRequestBeingMade(false);
@@ -248,6 +277,23 @@ const useSpeechToTextExternal = (
           monitorSilence(audioStream.current, stopRecording);
         }
         setIsListening(true);
+        clearMaxDurationTimer();
+        if (maxDurationSeconds != null && maxDurationSeconds > 0) {
+          maxDurationTimerRef.current = setTimeout(() => {
+            maxDurationTimerRef.current = null;
+            if (mediaRecorderRef.current?.state !== 'recording') {
+              return;
+            }
+            showToast({
+              /** Digits in the page language (Persian digits in a Persian UI). */
+              message: localize('com_ui_speech_max_duration', {
+                0: maxDurationSeconds.toLocaleString(document.documentElement.lang || undefined),
+              }),
+              status: 'info',
+            });
+            stopRecording();
+          }, maxDurationSeconds * 1000);
+        }
       } catch (error) {
         /* The recorder never started, so nothing else will release the stream:
            `stopRecording` returns early without a recorder and unmount cleanup
@@ -258,7 +304,13 @@ const useSpeechToTextExternal = (
         showToast({ message: `Error starting recording: ${error}`, status: 'error' });
       }
     } else {
-      showToast({ message: 'Microphone permission not granted', status: 'error' });
+      const denied =
+        permissionErrorRef.current === 'NotAllowedError' ||
+        permissionErrorRef.current === 'SecurityError';
+      showToast({
+        message: localize(denied ? 'com_ui_speech_mic_denied' : 'com_ui_speech_mic_unavailable'),
+        status: 'error',
+      });
     }
   };
 
@@ -277,6 +329,7 @@ const useSpeechToTextExternal = (
     }
 
     if (mediaRecorderRef.current.state === 'recording') {
+      clearMaxDurationTimer();
       mediaRecorderRef.current.stop();
 
       audioStream.current?.getTracks().forEach((track) => track.stop());
@@ -320,6 +373,7 @@ const useSpeechToTextExternal = (
    * is what stops a discarded take from spending a transcription request.
    */
   const externalAbortRecording = () => {
+    clearMaxDurationTimer();
     abortedRef.current = true;
     audioChunksRef.current = [];
 
@@ -352,6 +406,10 @@ const useSpeechToTextExternal = (
       if (autoSendTimerRef.current) {
         clearTimeout(autoSendTimerRef.current);
         autoSendTimerRef.current = null;
+      }
+      if (maxDurationTimerRef.current != null) {
+        clearTimeout(maxDurationTimerRef.current);
+        maxDurationTimerRef.current = null;
       }
 
       abortedRef.current = true;

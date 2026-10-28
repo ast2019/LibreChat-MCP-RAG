@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { useRecoilState, useSetRecoilState } from 'recoil';
+import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import { useGetCustomConfigSpeechQuery } from 'librechat-data-provider/react-query';
 import { STTEndpoints, TTSEndpoints } from '~/common';
+import { prefersServerSpeech } from '~/utils/speech';
 import { logger } from '~/utils';
 import store from '~/store';
 
@@ -16,6 +17,7 @@ export default function useSpeechSettingsInit(isAuthenticated: boolean) {
   const [engineSTT, setEngineSTT] = useRecoilState<string>(store.engineSTT);
   const [engineTTS, setEngineTTS] = useRecoilState<string>(store.engineTTS);
   const setSpeechSettingsInitialized = useSetRecoilState(store.speechSettingsInitialized);
+  const uiLanguage = useRecoilValue<string>(store.lang);
 
   const setters = useRef({
     conversationMode: useSetRecoilState(store.conversationMode),
@@ -71,6 +73,16 @@ export default function useSpeechSettingsInit(isAuthenticated: boolean) {
       });
     }
 
+    /** Browsers rarely ship a Persian recognizer or voice: with server speech configured, a
+     *  Persian UI starts on it unless the user or the yaml `speechTab` chose an engine. */
+    const preferServer = prefersServerSpeech(uiLanguage);
+    if (!hasSavedEngineSTT && data?.engineSTT == null && data?.serverSpeech?.stt && preferServer) {
+      setEngineSTT(STTEndpoints.external);
+    }
+    if (!hasSavedEngineTTS && data?.engineTTS == null && data?.serverSpeech?.tts && preferServer) {
+      setEngineTTS(TTSEndpoints.external);
+    }
+
     const configuredEngineSTT = hasSavedEngineSTT ? engineSTT : data?.engineSTT;
     const configuredEngineTTS = hasSavedEngineTTS ? engineTTS : data?.engineTTS;
     const sttExternalUnavailable = data?.sttExternal != null && !data.sttExternal;
@@ -95,6 +107,7 @@ export default function useSpeechSettingsInit(isAuthenticated: boolean) {
     setEngineTTS,
     setSpeechSettingsInitialized,
     setters,
+    uiLanguage,
   ]);
 
   useEffect(() => {

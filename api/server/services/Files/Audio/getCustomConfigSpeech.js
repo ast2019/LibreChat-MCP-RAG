@@ -1,4 +1,5 @@
 const { logger } = require('@librechat/data-schemas');
+const { getServerSpeechClientConfig } = require('@librechat/api');
 const { getAppConfig } = require('~/server/services/Config');
 
 const LEGACY_EXTERNAL_STT_ENGINES = new Set(['openai', 'azureOpenAI']);
@@ -50,6 +51,10 @@ async function getCustomConfigSpeech(req, res) {
       sttExternal,
       ttsExternal,
     };
+    const serverSpeech = getServerSpeechClientConfig(appConfig);
+    if (serverSpeech) {
+      settings.serverSpeech = serverSpeech;
+    }
 
     if (!appConfig.speech?.speechTab) {
       return res.status(200).send(settings);

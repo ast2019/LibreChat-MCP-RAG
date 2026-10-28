@@ -18,7 +18,13 @@ describe('balance Prices', () => {
   });
 
   it('links to the purchase page when one is configured', () => {
-    render(<Prices packs={packs} currency={toman} purchaseUrl="https://t.me/support" />);
+    render(
+      <Prices
+        packs={packs}
+        currency={toman}
+        purchase={{ kind: 'external', href: 'https://t.me/support' }}
+      />,
+    );
     expect(screen.getByRole('link', { name: 'Buy a pack' })).toHaveAttribute(
       'href',
       'https://t.me/support',

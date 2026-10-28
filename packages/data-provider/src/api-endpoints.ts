@@ -551,8 +551,23 @@ export const adminBillingSummary = (days: number) =>
   `${adminBilling()}/summary${buildQuery({ days })}`;
 export const adminBillingPacks = () => `${adminBilling()}/packs`;
 export const adminBillingGrant = () => `${adminBilling()}/grant`;
+export const adminServiceStatus = () => `${BASE_URL}/api/admin/status`;
+export const adminServiceStatusRefresh = () => `${adminServiceStatus()}/refresh`;
 export const adminUserModelAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/model-access`;
+
+/* Payments */
+export const payments = () => `${BASE_URL}/api/payments`;
+export const paymentOptions = () => `${payments()}/options`;
+export const paymentCheckout = () => `${payments()}/checkout`;
+export const paymentOrder = (orderId: string) =>
+  `${payments()}/orders/${encodeURIComponent(orderId)}`;
+export const adminPayments = (params: Record<string, unknown> = {}) =>
+  `${payments()}/admin/orders${buildQuery(params)}`;
+export const adminPaymentsSummary = () => `${payments()}/admin/summary`;
+export const adminPaymentVerify = (orderId: string) =>
+  `${payments()}/admin/orders/${encodeURIComponent(orderId)}/verify`;
+export const adminPaymentsReconcile = () => `${payments()}/admin/reconcile`;
 
 /* Conversation traces */
 export const conversationTrace = (conversationId: string) =>
@@ -656,6 +671,12 @@ export const passkeyRegistrationOptions = () => `${passkeys()}/register/options`
 export const passkeyRegistrationVerify = () => `${passkeys()}/register/verify`;
 export const passkeyLoginOptions = () => `${passkeys()}/login/options`;
 export const passkeyLoginVerify = () => `${passkeys()}/login/verify`;
+
+export const phoneCodeRequest = () => `${BASE_URL}/api/auth/phone/request`;
+export const phoneCodeVerify = () => `${BASE_URL}/api/auth/phone/verify`;
+export const userPhone = () => `${user()}/phone`;
+export const userPhoneVerify = () => `${user()}/phone/verify`;
+export const userProfile = () => `${user()}/profile`;
 
 /* Memories */
 export const memories = () => `${BASE_URL}/api/memories`;

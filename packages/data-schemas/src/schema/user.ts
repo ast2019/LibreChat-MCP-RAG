@@ -35,9 +35,9 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       lowercase: true,
       default: '',
     },
+    /** Optional since phone registration; `validate` below requires email or phone. */
     email: {
       type: String,
-      required: [true, "can't be blank"],
       lowercase: true,
       match: [/\S+@\S+\.\S+/, 'is invalid'],
       index: true,
@@ -51,6 +51,16 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
      * address-less legacy tokens that a mixed-version deployment could still mint. */
     emailChangedAt: {
       type: Date,
+    },
+    /** E.164 mobile number, normalized before it reaches the schema (e.g. `+989121234567`). */
+    phone: {
+      type: String,
+      trim: true,
+      match: [/^\+[1-9]\d{7,14}$/, 'is invalid'],
+    },
+    phoneVerified: {
+      type: Boolean,
+      default: false,
     },
     password: {
       type: String,
@@ -246,7 +256,30 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
   { timestamps: true },
 );
 
-userSchema.index({ email: 1, tenantId: 1 }, { unique: true });
+/**
+ * Every account carries at least one identifier. Absent fields are left unset, never `null`
+ * or `''`, so the partial unique indexes below ignore them.
+ */
+userSchema.pre('validate', function (next) {
+  if (!this.email && !this.phone) {
+    this.invalidate('email', 'email or phone is required');
+  }
+  next();
+});
+
+/**
+ * Partial so phone-only accounts (no email) do not collide on a missing value. The key order
+ * differs from the legacy non-partial `email_1_tenantId_1` index so both can coexist while
+ * `migrateUserIdentityIndexes` swaps them; plain `email` lookups use the field's own index.
+ */
+userSchema.index(
+  { tenantId: 1, email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: 'string' } } },
+);
+userSchema.index(
+  { phone: 1, tenantId: 1 },
+  { unique: true, partialFilterExpression: { phone: { $type: 'string' } } },
+);
 userSchema.index({ role: 1, tenantId: 1 });
 userSchema.index({ idOnTheSource: 1, openidIssuer: 1, tenantId: 1 });
 /* Tenant first: the popular sort's only predicates are the caller's tenant and

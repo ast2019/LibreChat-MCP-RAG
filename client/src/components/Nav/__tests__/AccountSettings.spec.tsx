@@ -1,7 +1,8 @@
 import { RecoilRoot } from 'recoil';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { listenForInstallPrompt, resetInstallState } from '~/components/Pwa/install';
 import AccountSettings from '../AccountSettings';
 
 jest.mock('~/data-provider', () => ({
@@ -38,5 +39,32 @@ describe('AccountSettings', () => {
     const balance = screen.getByTestId('account-balance');
     expect(balance).toBeVisible();
     expect(email.compareDocumentPosition(balance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('offers "Install app" once the browser allows installing, and opens its dialog', async () => {
+    listenForInstallPrompt(window);
+    resetInstallState();
+    render(
+      <MemoryRouter>
+        <RecoilRoot>
+          <AccountSettings />
+        </RecoilRoot>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByTestId('nav-user'));
+    expect(screen.queryByTestId('nav-install')).not.toBeInTheDocument();
+
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: jest.fn(() => Promise.resolve()),
+      userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+    });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    await userEvent.click(await screen.findByTestId('nav-install'));
+
+    expect(await screen.findByTestId('pwa-install-confirm')).toBeInTheDocument();
+    resetInstallState();
   });
 });

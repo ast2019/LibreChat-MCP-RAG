@@ -117,7 +117,12 @@ export default function Users() {
                         </span>
                       )}
                     </div>
-                    <div className="text-text-secondary text-xs">{row.email}</div>
+                    {row.email && <div className="text-text-secondary text-xs">{row.email}</div>}
+                    {row.phone && (
+                      <div className="text-text-secondary text-xs" dir="ltr">
+                        <bdi>{row.phone}</bdi>
+                      </div>
+                    )}
                   </td>
                   <td className="text-text-secondary px-4 py-2">{row.balance?.packLabel || '—'}</td>
                   <td className="px-4 py-2">

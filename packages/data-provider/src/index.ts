@@ -3,6 +3,8 @@ export * from './azure';
 export * from './bedrock';
 export * from './balance';
 export * from './config';
+export * from './phone';
+export * from './payments';
 export * from './footer';
 export * from './theme';
 export * from './themes';
@@ -53,6 +55,7 @@ export * from './types/web';
 export * from './types/graph';
 export * from './types/insights';
 export * from './types/billing';
+export * from './types/status';
 export * from './types/traces';
 export * from './types/transport';
 export type {

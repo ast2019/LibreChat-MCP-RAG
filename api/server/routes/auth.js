@@ -38,6 +38,12 @@ const {
   acknowledge2FASetup,
   finalize2FASetup,
 } = require('~/server/controllers/auth/TwoFactorAuthController');
+const {
+  requestLoginCode,
+  verifyLoginCode,
+  phoneCodeRequestLimiter,
+  phoneCodeVerifyLimiter,
+} = require('~/server/controllers/auth/PhoneController');
 const { logoutController } = require('~/server/controllers/auth/LogoutController');
 const { loginController } = require('~/server/controllers/auth/LoginController');
 const { findBalanceByUser, upsertBalanceFields } = require('~/models');
@@ -193,6 +199,26 @@ router.post(
   loginController,
 );
 router.get('/passkey', middleware.requireJwtAuth, listPasskeys);
+
+/* Phone one-time codes (Kavenegar) */
+router.post(
+  '/phone/request',
+  middleware.logHeaders,
+  middleware.requireSameOrigin,
+  phoneCodeRequestLimiter,
+  middleware.checkBan,
+  requestLoginCode,
+);
+router.post(
+  '/phone/verify',
+  middleware.logHeaders,
+  middleware.requireSameOrigin,
+  phoneCodeVerifyLimiter,
+  middleware.checkBan,
+  verifyLoginCode,
+  setBalanceConfig,
+  loginController,
+);
 router.post(
   '/passkey/register/options',
   middleware.requireJwtAuth,

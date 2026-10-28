@@ -57,6 +57,7 @@ export {
   createMCPAuthorityCredentialRevision,
   createMCPAuthorityDatabaseSourceRevision,
   digestMCPAuthorityValue,
+  paymentLedgerMarker,
 } from './methods';
 export { FAVORITE_ITEM_TYPES } from './types/favorite';
 export {
@@ -119,8 +120,9 @@ export {
   backfillMCPServerNormalizedNames,
   backfillSearchTokens,
   warnOnMissingSearchTokens,
+  migrateUserIdentityIndexes,
 } from './migrations';
-export type { SearchTokenBackfillResult } from './migrations';
+export type { SearchTokenBackfillResult, UserIdentityIndexMigrationResult } from './migrations';
 
 export { createBrowserSetupStore, createBrowserSetupBackend } from './methods/browserSetup';
 export type * from './types/browserSetup';

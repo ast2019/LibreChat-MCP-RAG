@@ -6,8 +6,9 @@ import ModelAccess from '../ModelAccess';
 const mockMutate = jest.fn();
 const mockShowToast = jest.fn();
 
+/** Renders keys, not copy: these assertions name the localization key each string uses. */
 jest.mock('~/hooks', () => ({
-  useLocalize: jest.requireActual('~/hooks/useLocalize').default,
+  useLocalize: () => (key: string) => key,
 }));
 
 jest.mock('@librechat/client', () => ({

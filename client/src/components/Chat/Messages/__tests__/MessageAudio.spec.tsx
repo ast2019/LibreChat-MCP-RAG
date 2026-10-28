@@ -4,6 +4,12 @@ import { render, screen } from '@testing-library/react';
 import MessageAudio from '../MessageAudio';
 import store from '~/store';
 
+let mockLocal = false;
+jest.mock('~/hooks/Input/useSpeechRoute', () => ({
+  __esModule: true,
+  default: () => ({ fields: {}, local: mockLocal }),
+}));
+
 jest.mock('~/components/Audio/TTS', () => ({
   BrowserTTS: () => <div data-testid="browser-tts" />,
   ExternalTTS: () => <div data-testid="external-tts" />,
@@ -40,5 +46,14 @@ describe('MessageAudio speech settings initialization', () => {
 
     expect(screen.getByTestId('external-tts')).toBeInTheDocument();
     expect(screen.queryByTestId('browser-tts')).not.toBeInTheDocument();
+  });
+
+  it('keeps a local conversation on browser speech even when server speech is selected', () => {
+    mockLocal = true;
+    renderMessageAudio({ engineTTS: 'external', initialized: true });
+
+    expect(screen.getByTestId('browser-tts')).toBeInTheDocument();
+    expect(screen.queryByTestId('external-tts')).not.toBeInTheDocument();
+    mockLocal = false;
   });
 });

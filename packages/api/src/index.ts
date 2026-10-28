@@ -20,6 +20,7 @@ export * from './auth';
 export * from './apiKeys';
 /* Billing (credit packs, price multiplier) */
 export * from './billing';
+export * from './payments';
 /* MCP */
 export * from './mcp/mcpConfig';
 export * from './mcp/capabilities';
@@ -110,6 +111,8 @@ export * from './plugins';
 export * from './endpoints';
 /* Files */
 export * from './files';
+/* Server speech (billed, privacy-routed STT/TTS) */
+export * from './speech';
 /* Images */
 export * from './images';
 /* Storage */
@@ -118,6 +121,8 @@ export * from './storage';
 export * from './tools';
 /* web search */
 export * from './web';
+/* admin service status */
+export * from './status';
 /* Langfuse */
 export * from './langfuse';
 /* Traces */

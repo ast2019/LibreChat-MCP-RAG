@@ -25,6 +25,7 @@ import { createPluginAuthModel } from './pluginAuth';
 import { createSharedLinkModel } from './sharedLink';
 import { createAccessRoleModel } from './accessRole';
 import { createToolFavoriteModel } from './favorite';
+import { createPaymentOrderModel } from './payment';
 import { createMCPServerModel } from './mcpServer';
 import { createAssistantModel } from './assistant';
 import { createSkillFileModel } from './skillFile';
@@ -61,6 +62,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   Token: ReturnType<typeof createTokenModel>;
   Session: ReturnType<typeof createSessionModel>;
   Passkey: ReturnType<typeof createPasskeyModel>;
+  PaymentOrder: ReturnType<typeof createPaymentOrderModel>;
   Balance: ReturnType<typeof createBalanceModel>;
   Conversation: ReturnType<typeof createConversationModel>;
   ChatProject: ReturnType<typeof createChatProjectModel>;
@@ -116,6 +118,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
     Token: createTokenModel(mongoose),
     Session: createSessionModel(mongoose),
     Passkey: createPasskeyModel(mongoose),
+    PaymentOrder: createPaymentOrderModel(mongoose),
     Balance: createBalanceModel(mongoose),
     Conversation: createConversationModel(mongoose),
     ChatProject: createChatProjectModel(mongoose),

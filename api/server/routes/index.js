@@ -12,6 +12,7 @@ const adminSkills = require('./admin/skills');
 const adminUsers = require('./admin/users');
 const adminAuditLog = require('./admin/audit');
 const adminBalance = require('./admin/balance');
+const adminStatus = require('./admin/status');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
 const messages = require('./messages');
@@ -22,6 +23,7 @@ const prompts = require('./prompts');
 const schedules = require('./schedules');
 const skills = require('./skills');
 const balance = require('./balance');
+const payments = require('./payments');
 const actions = require('./actions');
 const apiKeys = require('./apiKeys');
 const banner = require('./banner');
@@ -62,6 +64,7 @@ module.exports = {
   adminUsers,
   adminAuditLog,
   adminBalance,
+  adminStatus,
   keys,
   apiKeys,
   user,
@@ -85,6 +88,7 @@ module.exports = {
   actions,
   presets,
   balance,
+  payments,
   messages,
   memories,
   endpoints,

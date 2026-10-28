@@ -14,6 +14,8 @@ export type TAdminBillingUser = {
   name: string;
   username: string;
   email: string;
+  /** E.164 mobile number; empty when the account has none. Older servers omit it. */
+  phone?: string;
   role: string;
   createdAt?: string;
   /** Local/private model override; an absent key follows the role. Older servers omit it. */

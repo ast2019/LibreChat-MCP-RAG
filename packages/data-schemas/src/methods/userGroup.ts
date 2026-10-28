@@ -914,7 +914,7 @@ export function createUserGroupMethods(
     return {
       id: user.id,
       type: PrincipalType.USER,
-      name: user.name || user.email,
+      name: user.name || user.email || user.username || '',
       email: user.email,
       username: user.username,
       avatar: user.avatar,

@@ -19,9 +19,13 @@ export interface IUser extends Document {
   id: string;
   name?: string;
   username?: string;
-  email: string;
+  /** Absent for accounts registered by phone only; at least one of `email` / `phone` is set. */
+  email?: string;
   emailVerified: boolean;
   emailChangedAt?: Date;
+  /** E.164 mobile number (e.g. `+989121234567`); unique per tenant when present. */
+  phone?: string;
+  phoneVerified?: boolean;
   password?: string;
   avatar?: string;
   provider: string;
@@ -142,9 +146,7 @@ export interface BalanceConfig {
   reservationTtlMs?: number;
 }
 
-export interface CreateUserRequest extends Partial<IUser> {
-  email: string;
-}
+export type CreateUserRequest = Partial<IUser> & ({ email: string } | { phone: string });
 
 /** A user's own fields, without Mongoose document members. */
 type UserFields = Omit<IUser, keyof Document>;
@@ -156,7 +158,7 @@ type UserFields = Omit<IUser, keyof Document>;
 export type UserRecord = UserFields & { _id: { toString(): string } };
 
 /** The fields a new user is created with, as plain data. */
-export type NewUserData = Partial<UserFields> & { email: string };
+export type NewUserData = Partial<UserFields> & ({ email: string } | { phone: string });
 
 /** The created user, or `user_exists` when an account already holds its email or provider identity. */
 export type CreateUserIfAbsentResult =

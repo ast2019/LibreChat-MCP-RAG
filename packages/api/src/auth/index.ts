@@ -14,6 +14,7 @@ export * from './hashing';
 export * from './recovery';
 export * from './passkey';
 export * from './passkey/handlers';
+export * from './phone';
 export * from './verification';
 export * from './invite';
 export * from './codeapi';

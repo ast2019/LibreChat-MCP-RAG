@@ -92,4 +92,38 @@ describe('getCustomConfigSpeech', () => {
 
     expect(res.send).toHaveBeenCalledWith(expect.objectContaining({ engineTTS }));
   });
+
+  it('reports the hive server speech block the client routes and labels by', async () => {
+    const res = createResponse();
+
+    await getCustomConfigSpeech(
+      {
+        config: {
+          endpoints: {
+            custom: [{ name: 'OpenRouter', apiKey: 'k', baseURL: 'https://openrouter.ai/api/v1' }],
+          },
+          speech: {
+            stt: {
+              hive: { public: { endpoint: 'OpenRouter', model: 'google/gemini-3.5-transcribe' } },
+            },
+            tts: {
+              hive: { public: { endpoint: 'OpenRouter', model: 'google/gemini-3.8-flash-tts' } },
+            },
+          },
+        },
+      },
+      res,
+    );
+
+    const settings = res.send.mock.calls[0][0];
+    expect(settings).toMatchObject({ sttExternal: true, ttsExternal: true });
+    expect(settings.serverSpeech).toEqual({
+      stt: { language: 'fa', maxDurationSeconds: 120, private: false },
+      tts: { voices: ['Kore', 'Charon', 'Leda', 'Puck'], private: false },
+      localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink'],
+      privateEndpoints: ['OpenRouterPrivate'],
+    });
+    /* Credentials and model ids stay on the server. */
+    expect(JSON.stringify(settings)).not.toContain('gemini');
+  });
 });
