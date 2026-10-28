@@ -22,6 +22,32 @@ export type TServiceUnit = 'searches' | 'credits' | 'usd' | 'rial';
 /** Why the search failover is skipping a provider. */
 export type TSearchSkipReason = 'exhausted' | 'rate_limited' | 'unauthorized';
 
+/** A model installed on the local Ollama server; `loaded` when it is in memory right now. */
+export type TLocalModel = {
+  name: string;
+  /**
+   * False when the model is loaded (`/api/ps`) but missing from the installed list (`/api/tags`),
+   * e.g. removed from disk while still in memory. Absent means installed.
+   */
+  installed?: boolean;
+  /** Size on disk in bytes; null when the model is not installed. */
+  sizeBytes?: number | null;
+  /** e.g. `4.3B`. */
+  parameterSize?: string | null;
+  /** e.g. `Q4_K_M`. */
+  quantization?: string | null;
+  family?: string | null;
+  modifiedAt?: string | null;
+  /** Loaded in memory at the last check; see `expiresAt` for whether it may have unloaded since. */
+  loaded: boolean;
+  /** Total memory the loaded model uses (RAM and GPU), in bytes. */
+  memoryBytes?: number | null;
+  /** The GPU share of `memoryBytes`, in bytes; 0 when the model runs on the CPU. */
+  vramBytes?: number | null;
+  /** When Ollama unloads the idle model. */
+  expiresAt?: string | null;
+};
+
 export type TServiceStatus = {
   id: TServiceId;
   configured: boolean;
@@ -47,6 +73,10 @@ export type TServiceStatus = {
   errorCode?: string | null;
   /** Gateways the payments service reports, by name. */
   details?: { name: string; healthy: boolean; errorCode?: string | null }[];
+  /** Ollama only: the installed models, loaded ones flagged and listed first. */
+  models?: TLocalModel[];
+  /** Ollama only: false when the loaded models could not be read, so `loaded` is unknown. */
+  loadedKnown?: boolean;
 };
 
 export type TServiceStatusResponse = {

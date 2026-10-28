@@ -13,6 +13,7 @@ import {
   formatDateTime,
 } from './format';
 import { useLocalize } from '~/hooks';
+import Models from './Models';
 import { cn } from '~/utils';
 
 const PILL: Record<TServiceHealth, { box: string; dot: string }> = {
@@ -202,6 +203,16 @@ export default function ServiceCard({
           </li>
         )}
       </ul>
+
+      {service.models != null && (
+        <Models
+          models={service.models}
+          loadedKnown={service.loadedKnown !== false}
+          locale={locale}
+          now={now}
+          titleId={`${titleId}-models`}
+        />
+      )}
 
       <footer className="text-text-tertiary mt-auto text-xs">
         {service.checkedAt != null ? (

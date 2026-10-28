@@ -14,6 +14,8 @@ export interface ServiceProbe {
   resetAt?: string | null;
   errorCode?: string | null;
   details?: TServiceStatus['details'];
+  models?: TServiceStatus['models'];
+  loadedKnown?: boolean;
 }
 
 export interface ProbeContext {
@@ -193,23 +195,109 @@ export async function probeSearxng(ctx: ProbeContext, instanceUrl?: string): Pro
   }
 }
 
-/** Ollama's `GET /api/tags` lists the installed models; an empty list is reported as an error. */
+type LocalModel = NonNullable<TServiceStatus['models']>[number];
+
+const MAX_MODEL_TEXT = 200;
+const MAX_MODELS = 200;
+
+/** Upstream text trimmed and capped, or null; never forwards anything but a short string. */
+const text = (value: unknown, max = MAX_MODEL_TEXT): string | null => {
+  const trimmed = str(value)?.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+};
+const size = (value: unknown): number | null => {
+  const bytes = num(value);
+  return bytes != null && bytes >= 0 ? bytes : null;
+};
+const date = (value: unknown): string | null => {
+  const raw = text(value, 64);
+  return raw && !Number.isNaN(Date.parse(raw)) ? raw : null;
+};
+const modelRows = (data: Json): Json[] =>
+  Array.isArray(data.models) ? data.models.slice(0, MAX_MODELS).map(obj) : [];
+const modelName = (row: Json): string | null => text(row.name) ?? text(row.model);
+
+/**
+ * Ollama: `GET /api/tags` lists the installed models (an empty list is reported as an error) and
+ * `GET /api/ps` the ones loaded in memory now. A failed `/api/ps` keeps the list and only marks
+ * the loaded state as unknown. A loaded model missing from `/api/tags` is listed with
+ * `installed: false`. Loaded models come first, then by name.
+ */
 export async function probeOllama(ctx: ProbeContext, baseUrl?: string): Promise<ServiceProbe> {
   if (!baseUrl) {
     return UNCONFIGURED;
   }
   const base = baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
-  try {
-    const data = await getJson(ctx, `${base}/api/tags`);
-    const models = Array.isArray(data.models) ? data.models.length : 0;
-    return {
-      configured: true,
-      reachable: true,
-      errorCode: models === 0 ? 'no_models' : null,
-    };
-  } catch (error) {
-    return failed(error);
+  const [tags, ps] = await Promise.allSettled([
+    getJson(ctx, `${base}/api/tags`),
+    getJson(ctx, `${base}/api/ps`),
+  ]);
+  if (tags.status === 'rejected') {
+    return failed(tags.reason);
   }
+
+  const models = new Map<string, LocalModel>();
+  for (const row of modelRows(tags.value)) {
+    const name = modelName(row);
+    if (!name || models.has(name)) {
+      continue;
+    }
+    const details = obj(row.details);
+    models.set(name, {
+      name,
+      sizeBytes: size(row.size),
+      parameterSize: text(details.parameter_size, 32),
+      quantization: text(details.quantization_level, 32),
+      family: text(details.family, 64),
+      modifiedAt: date(row.modified_at),
+      loaded: false,
+    });
+  }
+  const installed = models.size;
+
+  const loadedKnown = ps.status === 'fulfilled';
+  if (ps.status === 'fulfilled') {
+    for (const row of modelRows(ps.value)) {
+      const name = modelName(row);
+      if (!name) {
+        continue;
+      }
+      const known = models.get(name) ?? models.get(text(row.model) ?? '');
+      const details = obj(row.details);
+      /** In `/api/ps`, `size` is the memory the loaded model takes, not its size on disk. */
+      const loaded = {
+        memoryBytes: size(row.size),
+        vramBytes: size(row.size_vram),
+        expiresAt: date(row.expires_at),
+        loaded: true,
+      };
+      if (known) {
+        Object.assign(known, loaded);
+        continue;
+      }
+      models.set(name, {
+        name,
+        installed: false,
+        sizeBytes: null,
+        parameterSize: text(details.parameter_size, 32),
+        quantization: text(details.quantization_level, 32),
+        family: text(details.family, 64),
+        modifiedAt: null,
+        ...loaded,
+      });
+    }
+  }
+
+  const list = [...models.values()].sort(
+    (a, b) => Number(b.loaded) - Number(a.loaded) || a.name.localeCompare(b.name),
+  );
+  return {
+    configured: true,
+    reachable: true,
+    errorCode: installed === 0 ? 'no_models' : null,
+    models: list,
+    loadedKnown,
+  };
 }
 
 export type SmsBalance = { remainingRial: number } | null;
