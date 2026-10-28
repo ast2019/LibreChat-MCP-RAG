@@ -29,6 +29,24 @@ export const HEALTH_KEYS: Record<TServiceHealth, TranslationKeys> = {
 export const formatNumber = (value: number, locale: string, digits = 0): string =>
   new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value);
 
+const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
+
+/** Decimal sizes as Ollama reports them: «۴٫۷ گیگابایت» / "4.7 GB". */
+export function formatBytes(bytes: number, locale: string): string {
+  let value = Math.max(0, bytes);
+  let index = 0;
+  while (value >= 1000 && index < BYTE_UNITS.length - 1) {
+    value /= 1000;
+    index += 1;
+  }
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: BYTE_UNITS[index],
+    unitDisplay: 'short',
+    maximumFractionDigits: index === 0 ? 0 : 1,
+  }).format(value);
+}
+
 export const formatPercent = (value: number, locale: string): string =>
   new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(value / 100);
 

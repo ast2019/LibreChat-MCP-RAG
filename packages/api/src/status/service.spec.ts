@@ -65,7 +65,34 @@ const ACCOUNTS = {
     },
   },
   'http://searxng:8080/healthz': { status: 200, data: 'OK' },
-  'http://ollama:11434/api/tags': { status: 200, data: { models: [{ name: 'gemma3:4b' }] } },
+  'http://ollama:11434/api/tags': {
+    status: 200,
+    data: {
+      models: [
+        {
+          name: 'qwen2.5:7b',
+          modified_at: '2026-10-20T08:00:00Z',
+          size: 4_683_087_332,
+          details: { family: 'qwen2', parameter_size: '7.6B', quantization_level: 'Q4_K_M' },
+        },
+        { name: 'gemma3:4b' },
+      ],
+    },
+  },
+  'http://ollama:11434/api/ps': {
+    status: 200,
+    data: {
+      models: [
+        {
+          name: 'gemma3:4b',
+          model: 'gemma3:4b',
+          size: 6_000_000_000,
+          size_vram: 5_200_000_000,
+          expires_at: '2026-10-27T12:05:00Z',
+        },
+      ],
+    },
+  },
 };
 
 function setup(
@@ -200,6 +227,87 @@ describe('createServiceStatusService', () => {
       errorCode: 'network',
       health: 'error',
     });
+  });
+
+  it('lists the installed Ollama models and flags the loaded ones first', async () => {
+    const { service } = setup();
+    const { services } = await service.refresh();
+
+    expect(services.find((row) => row.id === 'ollama')).toMatchObject({
+      health: 'ok',
+      reachable: true,
+      loadedKnown: true,
+      models: [
+        {
+          name: 'gemma3:4b',
+          loaded: true,
+          sizeBytes: null,
+          vramBytes: 5_200_000_000,
+          expiresAt: '2026-10-27T12:05:00Z',
+        },
+        {
+          name: 'qwen2.5:7b',
+          loaded: false,
+          sizeBytes: 4_683_087_332,
+          parameterSize: '7.6B',
+          quantization: 'Q4_K_M',
+          family: 'qwen2',
+          modifiedAt: '2026-10-20T08:00:00Z',
+        },
+      ],
+    });
+  });
+
+  it('keeps the Ollama models when the loaded list fails, and sanitizes names', async () => {
+    const { service } = setup(undefined, {
+      ...ACCOUNTS,
+      'http://ollama:11434/api/tags': {
+        status: 200,
+        data: { models: [{ name: `  ${'x'.repeat(300)}  ` }, { size: 5 }, { model: 'llama3' }] },
+      },
+      'http://ollama:11434/api/ps': { error: { code: 'ECONNRESET' } },
+    });
+    const { services } = await service.refresh();
+    const ollama = services.find((row) => row.id === 'ollama');
+
+    expect(ollama).toMatchObject({ health: 'ok', loadedKnown: false, errorCode: null });
+    expect(ollama?.models?.map((model) => [model.name.length, model.loaded])).toEqual([
+      [6, false],
+      [200, false],
+    ]);
+  });
+
+  it('adds a loaded model missing from the installed list', async () => {
+    const { service } = setup(undefined, {
+      ...ACCOUNTS,
+      'http://ollama:11434/api/ps': {
+        status: 200,
+        data: { models: [{ model: 'phi4:latest', size_vram: 1024 }] },
+      },
+    });
+    const { services } = await service.refresh();
+    const models = services.find((row) => row.id === 'ollama')?.models ?? [];
+
+    expect(models[0]).toMatchObject({ name: 'phi4:latest', loaded: true, vramBytes: 1024 });
+    expect(models.filter((model) => model.loaded)).toHaveLength(1);
+  });
+
+  it('reports Ollama errors without models, and an empty install as no_models', async () => {
+    const down = setup(undefined, {
+      ...ACCOUNTS,
+      'http://ollama:11434/api/tags': { error: { code: 'ECONNREFUSED' } },
+    });
+    const ollama = (await down.service.refresh()).services.find((row) => row.id === 'ollama');
+    expect(ollama).toMatchObject({ reachable: false, health: 'error', errorCode: 'network' });
+    expect(ollama?.models).toBeUndefined();
+
+    const empty = setup(undefined, {
+      ...ACCOUNTS,
+      'http://ollama:11434/api/tags': { status: 200, data: { models: [] } },
+      'http://ollama:11434/api/ps': { status: 200, data: { models: [] } },
+    });
+    const none = (await empty.service.refresh()).services.find((row) => row.id === 'ollama');
+    expect(none).toMatchObject({ errorCode: 'no_models', models: [], loadedKnown: true });
   });
 
   it('caches the snapshot: get() does not call the providers again', async () => {

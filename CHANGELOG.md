@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-28
+
+### Added
+- **Ollama models in the admin status tab** (`admin?tab=status`). The «مدل محلی (Ollama)» card
+  lists every installed model (from `/api/tags`) with its parameter size, quantization and disk
+  size, and marks the ones loaded in memory right now (from `/api/ps`) as «فعال», with their GPU
+  memory and when they unload. It also says when no model is loaded, when none is installed,
+  and when the loaded state could not be read (a failed `/api/ps` does not mark Ollama as down).
+
 ## [0.16.0] - 2026-10-28
 
 ### Added

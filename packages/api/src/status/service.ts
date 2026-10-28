@@ -263,6 +263,8 @@ export function createServiceStatusService(deps: ServiceStatusDeps): ServiceStat
         checkedAt: probe ? new Date(probe.checkedAt).toISOString() : null,
         errorCode: probe?.errorCode ?? skip?.code ?? null,
         details: probe?.details,
+        models: probe?.models,
+        loadedKnown: probe?.loadedKnown,
       };
       status.health = computeHealth(status, settings);
       return status;
