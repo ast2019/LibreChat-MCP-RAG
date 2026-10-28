@@ -245,6 +245,56 @@ describe('StatusPanel', () => {
     expect(within(card()).queryByTestId('ollama-model-gemma3:4b')).not.toBeInTheDocument();
   });
 
+  it('does not show a model as active once its unload time has passed', () => {
+    const models = response.services.find((row) => row.id === 'ollama')?.models ?? [];
+    const stale = models.map((model) =>
+      model.loaded ? { ...model, expiresAt: iso(-60_000) } : model,
+    );
+    mockStatus = { data: withOllama({ models: stale }), isLoading: false, isError: false };
+    render(<StatusPanel />);
+
+    const card = screen.getByTestId('service-card-ollama');
+    const gemma = within(card).getByTestId('ollama-model-gemma3:4b');
+    expect(within(card).getByText('com_admin_status_models_summary(۲|۰)')).toBeInTheDocument();
+    expect(within(card).queryByText('com_admin_status_models_active')).not.toBeInTheDocument();
+    expect(within(gemma).queryByText(/com_admin_status_models_running/)).not.toBeInTheDocument();
+    expect(within(gemma).getByText('com_admin_status_models_was_loaded')).toBeInTheDocument();
+  });
+
+  it('shows memory use on CPU-only hosts and flags a loaded model that is not installed', () => {
+    const models = response.services.find((row) => row.id === 'ollama')?.models ?? [];
+    mockStatus = {
+      data: withOllama({
+        models: [
+          {
+            name: 'phi4:latest',
+            installed: false,
+            loaded: true,
+            sizeBytes: null,
+            memoryBytes: 9_000_000_000,
+            vramBytes: 0,
+            expiresAt: iso(365 * 86_400_000),
+          },
+          ...models.map((model) => ({ ...model, loaded: false })),
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+    };
+    render(<StatusPanel />);
+
+    const card = screen.getByTestId('service-card-ollama');
+    const phi = within(card).getByTestId('ollama-model-phi4:latest');
+    expect(within(card).getByText('com_admin_status_models_summary(۲|۱)')).toBeInTheDocument();
+    expect(within(phi).getByText('com_admin_status_models_active')).toBeInTheDocument();
+    expect(within(phi).getByText('com_admin_status_models_not_installed')).toBeInTheDocument();
+    const usage = within(phi).getByText(/com_admin_status_models_running/);
+    expect(usage).toHaveTextContent(/com_admin_status_models_memory\(۹/);
+    expect(usage).toHaveTextContent('com_admin_status_models_cpu');
+    expect(usage).toHaveTextContent('com_admin_status_models_kept_loaded');
+    expect(usage).not.toHaveTextContent('com_admin_status_models_vram');
+  });
+
   it('refreshes on demand and reports a failed refresh', async () => {
     const { rerender } = render(<StatusPanel />);
     await userEvent.click(screen.getByRole('button', { name: 'com_admin_status_refresh' }));

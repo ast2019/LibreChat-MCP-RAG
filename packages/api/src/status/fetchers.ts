@@ -220,7 +220,8 @@ const modelName = (row: Json): string | null => text(row.name) ?? text(row.model
 /**
  * Ollama: `GET /api/tags` lists the installed models (an empty list is reported as an error) and
  * `GET /api/ps` the ones loaded in memory now. A failed `/api/ps` keeps the list and only marks
- * the loaded state as unknown. Loaded models come first, then by name.
+ * the loaded state as unknown. A loaded model missing from `/api/tags` is listed with
+ * `installed: false`. Loaded models come first, then by name.
  */
 export async function probeOllama(ctx: ProbeContext, baseUrl?: string): Promise<ServiceProbe> {
   if (!baseUrl) {
@@ -263,7 +264,9 @@ export async function probeOllama(ctx: ProbeContext, baseUrl?: string): Promise<
       }
       const known = models.get(name) ?? models.get(text(row.model) ?? '');
       const details = obj(row.details);
+      /** In `/api/ps`, `size` is the memory the loaded model takes, not its size on disk. */
       const loaded = {
+        memoryBytes: size(row.size),
         vramBytes: size(row.size_vram),
         expiresAt: date(row.expires_at),
         loaded: true,
@@ -274,7 +277,8 @@ export async function probeOllama(ctx: ProbeContext, baseUrl?: string): Promise<
       }
       models.set(name, {
         name,
-        sizeBytes: size(row.size),
+        installed: false,
+        sizeBytes: null,
         parameterSize: text(details.parameter_size, 32),
         quantization: text(details.quantization_level, 32),
         family: text(details.family, 64),

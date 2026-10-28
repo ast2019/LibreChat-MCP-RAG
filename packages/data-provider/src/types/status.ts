@@ -25,7 +25,12 @@ export type TSearchSkipReason = 'exhausted' | 'rate_limited' | 'unauthorized';
 /** A model installed on the local Ollama server; `loaded` when it is in memory right now. */
 export type TLocalModel = {
   name: string;
-  /** Size on disk in bytes. */
+  /**
+   * False when the model is loaded (`/api/ps`) but missing from the installed list (`/api/tags`),
+   * e.g. removed from disk while still in memory. Absent means installed.
+   */
+  installed?: boolean;
+  /** Size on disk in bytes; null when the model is not installed. */
   sizeBytes?: number | null;
   /** e.g. `4.3B`. */
   parameterSize?: string | null;
@@ -33,8 +38,11 @@ export type TLocalModel = {
   quantization?: string | null;
   family?: string | null;
   modifiedAt?: string | null;
+  /** Loaded in memory at the last check; see `expiresAt` for whether it may have unloaded since. */
   loaded: boolean;
-  /** Memory the loaded model uses on the GPU, in bytes. */
+  /** Total memory the loaded model uses (RAM and GPU), in bytes. */
+  memoryBytes?: number | null;
+  /** The GPU share of `memoryBytes`, in bytes; 0 when the model runs on the CPU. */
   vramBytes?: number | null;
   /** When Ollama unloads the idle model. */
   expiresAt?: string | null;

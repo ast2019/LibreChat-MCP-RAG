@@ -242,6 +242,7 @@ describe('createServiceStatusService', () => {
           name: 'gemma3:4b',
           loaded: true,
           sizeBytes: null,
+          memoryBytes: 6_000_000_000,
           vramBytes: 5_200_000_000,
           expiresAt: '2026-10-27T12:05:00Z',
         },
@@ -282,13 +283,23 @@ describe('createServiceStatusService', () => {
       ...ACCOUNTS,
       'http://ollama:11434/api/ps': {
         status: 200,
-        data: { models: [{ model: 'phi4:latest', size_vram: 1024 }] },
+        data: { models: [{ model: 'phi4:latest', size: 9_000_000_000, size_vram: 0 }] },
       },
     });
     const { services } = await service.refresh();
-    const models = services.find((row) => row.id === 'ollama')?.models ?? [];
+    const ollama = services.find((row) => row.id === 'ollama');
+    const models = ollama?.models ?? [];
 
-    expect(models[0]).toMatchObject({ name: 'phi4:latest', loaded: true, vramBytes: 1024 });
+    expect(models[0]).toMatchObject({
+      name: 'phi4:latest',
+      installed: false,
+      loaded: true,
+      sizeBytes: null,
+      memoryBytes: 9_000_000_000,
+      vramBytes: 0,
+    });
+    expect(models.filter((model) => model.installed !== false)).toHaveLength(2);
+    expect(ollama?.errorCode).toBeNull();
     expect(models.filter((model) => model.loaded)).toHaveLength(1);
   });
 
