@@ -21,8 +21,11 @@ jest.mock('librechat-data-provider', () => ({
     AZURE_OPENAI: 'azureOpenAI',
     ELEVENLABS: 'elevenlabs',
     LOCALAI: 'localai',
+    HIVE: 'hive',
   },
 }));
+const mockHive = { respondTextToSpeech: jest.fn(), respondStreamAudio: jest.fn() };
+jest.mock('./hiveSpeech', () => ({ getHiveSpeech: () => mockHive }));
 jest.mock('./streamAudio', () => ({
   getRandomVoiceId: jest.fn(),
   createChunkProcessor: jest.fn(),
@@ -149,5 +152,48 @@ describe('TTSService input cap', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.send).toHaveBeenCalledWith('Missing text in request body');
     expect(ttsRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('TTSService hive provider wiring', () => {
+  const appConfig = {
+    speech: { tts: { hive: { public: { endpoint: 'OpenRouter', model: 'tts' } } } },
+  };
+  const createRes = () => ({
+    setHeader: jest.fn(),
+    status: jest.fn().mockReturnThis(),
+    send: jest.fn(),
+    end: jest.fn(),
+    headersSent: false,
+  });
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('hands manual speech to the hive service with the capped text', async () => {
+    const service = new TTSService();
+    const req = { config: appConfig, body: { input: 'سلام', voice: 'Kore' }, user: { id: 'u' } };
+    const res = createRes();
+
+    await service.processTextToSpeech(req, res);
+
+    expect(mockHive.respondTextToSpeech).toHaveBeenCalledWith(req, res, 'سلام');
+    /* The hive path chooses its own content type (WAV or MP3). */
+    expect(res.setHeader).not.toHaveBeenCalledWith('Content-Type', 'audio/mpeg');
+  });
+
+  it('streams automatic playback through the hive service', async () => {
+    const service = new TTSService();
+    const req = {
+      config: appConfig,
+      body: { messageId: 'm1', voice: 'Kore' },
+      user: { id: 'u' },
+      on: jest.fn(),
+    };
+    const res = createRes();
+
+    await service.streamAudio(req, res);
+
+    expect(mockHive.respondStreamAudio).toHaveBeenCalledWith(req, res, undefined);
+    expect(res.setHeader).not.toHaveBeenCalled();
   });
 });

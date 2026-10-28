@@ -1,6 +1,7 @@
 const { TTSProviders } = require('librechat-data-provider');
 const { getAppConfig } = require('~/server/services/Config');
 const { getProvider } = require('./TTSService');
+const { getHiveSpeech } = require('./hiveSpeech');
 
 /**
  * This function retrieves the available voices for the current TTS provider
@@ -42,6 +43,9 @@ async function getVoices(req, res) {
         break;
       case TTSProviders.LOCALAI:
         voices = ttsSchema.localai?.voices;
+        break;
+      case TTSProviders.HIVE:
+        voices = getHiveSpeech().getVoices(appConfig);
         break;
       default:
         throw new Error('Invalid provider');

@@ -7,6 +7,60 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-28
+
+### Added
+- **Persian voice on the server.** Speech-to-text and text-to-speech go through OpenRouter's audio
+  API instead of the browser, so every phone gets them:
+  - transcription with `google/gemini-3.5-transcribe`, and `elevenlabs/scribe-v2` (ZDR) in
+    confidential chats;
+  - speech with `google/gemini-3.8-flash-tts`, which has Persian voices.
+
+  Billed like chat (provider cost × `priceMultiplier`; contexts `stt`/`tts`). Local chats
+  keep browser speech, so audio never leaves the device. Microphone-denied, recording-limit and
+  iOS playback are handled. Configured under `speech.stt.hive` / `speech.tts.hive`.
+- **Sign-in with a mobile number (Kavenegar).**
+  - The login page offers «موبایل | ایمیل» next to the passkey button. A 6-digit SMS code signs
+    the user in, or creates the account for a new number when registration is open.
+  - Users are identified by email or mobile (`user.phone`, unique per tenant), and both can be
+    managed under Settings → Account.
+  - Codes are hashed, expire after 2 minutes, allow 5 attempts, have a resend cooldown and
+    per-number and per-IP limits, and never reveal whether a number is registered.
+  - Configured under `registration.phone`; on once `KAVENEGAR_API_KEY` and
+    `KAVENEGAR_TEMPLATE` are set.
+- **Buying packs online (ZarinPal and IDPay).**
+  - Drivers follow shetabit/payment. The amount is computed on the server from the pack's Toman
+    price, the gateway verifies it, and the order is credited exactly once (atomic pending→paid,
+    unique reference).
+  - Users get a result page in Persian. Admins get a «پرداخت‌ها» tab with orders, filters,
+    re-checks and reconciliation of pending orders.
+  - Configured under `payments`.
+- **Web search failover:** Serper → SerpApi → Tavily → SearXNG (`webSearch.providerChain`).
+  - A provider out of credit, rate-limited or rejecting its key is skipped for a cooldown shared
+    by all replicas.
+  - Transient errors move to the next provider without marking the failing one.
+  - SerpApi is a new provider (Google, `hl=fa`, `gl=ir`).
+- **Admin «وضعیت سرویس‌ها».** The panel shows the remaining credit, usage, reset date and
+  estimated days until each service runs out: OpenRouter, Serper, SerpApi, Tavily, Kavenegar, the
+  payment gateways, SearXNG and the local model.
+  - The search provider in use is marked.
+  - It is refreshed in the background every 10 minutes (`serviceStatus`).
+  - An alert appears on the dashboard when a service is low or used up.
+- **PWA**:
+  - installable, with Persian/RTL metadata, and a never-cached API with an offline page;
+  - an «نسخهٔ جدید آماده است» update prompt instead of a silent mid-session swap;
+  - «نصب برنامه» in the account menu (native prompt, or the iOS steps).
+
+### Fixed
+- Mobile:
+  - safe-area insets for the notch and home indicator;
+  - the iOS keyboard no longer pushes the header off screen;
+  - 44px touch targets for small controls;
+  - the status-bar text is readable again.
+- Accounts without an email (phone-only) no longer break admin exchange or social sign-in.
+- The user identity index migration builds indexes through the retrying helper, as DocumentDB
+  requires.
+
 ## [0.15.0] - 2026-10-27
 
 ### Added

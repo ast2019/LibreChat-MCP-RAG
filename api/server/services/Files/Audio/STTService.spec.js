@@ -5,7 +5,14 @@ jest.mock('https-proxy-agent');
 jest.mock('@librechat/data-schemas', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
+class MockSpeechError extends Error {
+  constructor(code) {
+    super(code);
+    this.code = code;
+  }
+}
 jest.mock('@librechat/api', () => ({
+  isSpeechError: (error) => error instanceof MockSpeechError,
   inspectContent: jest.fn(),
   extractFileContent: jest.fn((input) => [input]),
   hasActiveFileFieldPolicy: jest.fn((filters, candidates) => {
@@ -55,8 +62,10 @@ jest.mock('librechat-data-provider', () => ({
   /* Real selection logic: these tests are about which provider a schema resolves to. */
   listConfiguredSpeechProviders:
     jest.requireActual('librechat-data-provider').listConfiguredSpeechProviders,
-  STTProviders: {},
+  STTProviders: { HIVE: 'hive' },
 }));
+const mockHive = { transcribeUpload: jest.fn(), sendError: jest.fn() };
+jest.mock('./hiveSpeech', () => ({ getHiveSpeech: () => mockHive }));
 jest.mock('~/server/services/Config', () => ({ getAppConfig: jest.fn() }));
 
 const fs = require('fs').promises;
@@ -503,5 +512,61 @@ describe('STT transcript content filtering', () => {
       { type: 'Error', status: 503 },
     );
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain(rawProviderDetail);
+  });
+});
+
+describe('STT hive provider wiring', () => {
+  let unlinkSpy;
+  let readFileSpy;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    readFileSpy = jest.spyOn(fs, 'readFile').mockResolvedValue(Buffer.from('audio'));
+    unlinkSpy = jest.spyOn(fs, 'unlink').mockResolvedValue();
+    getBlockedUninspectableFileField.mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    readFileSpy.mockRestore();
+    unlinkSpy.mockRestore();
+  });
+
+  const req = () => ({
+    config: {},
+    file: { path: '/tmp/a.webm', originalname: 'a.webm', mimetype: 'audio/webm', size: 5 },
+    body: { conversationId: 'c1' },
+  });
+  const res = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn(),
+    sendStatus: jest.fn(),
+  });
+
+  it('delegates transcription to the hive speech service', async () => {
+    const service = new STTService();
+    jest.spyOn(service, 'getProviderSchema').mockResolvedValue(['hive', {}]);
+    const sttRequest = jest.spyOn(service, 'sttRequest');
+    mockHive.transcribeUpload.mockResolvedValue('سلام');
+    const response = res();
+
+    await service.processSpeechToText(req(), response);
+
+    expect(mockHive.transcribeUpload).toHaveBeenCalled();
+    expect(sttRequest).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith({ text: 'سلام' });
+    expect(unlinkSpy).toHaveBeenCalledWith('/tmp/a.webm');
+  });
+
+  it('answers a speech failure with its code, not a bare 500', async () => {
+    const service = new STTService();
+    jest.spyOn(service, 'getProviderSchema').mockResolvedValue(['hive', {}]);
+    const error = new MockSpeechError('insufficient_balance');
+    mockHive.transcribeUpload.mockRejectedValue(error);
+    const response = res();
+
+    await service.processSpeechToText(req(), response);
+
+    expect(mockHive.sendError).toHaveBeenCalledWith(response, error);
+    expect(response.sendStatus).not.toHaveBeenCalled();
   });
 });

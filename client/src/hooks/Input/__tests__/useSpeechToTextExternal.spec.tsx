@@ -27,6 +27,17 @@ jest.mock('@librechat/client', () => ({
   useToastContext: () => ({ showToast: mockShowToast }),
 }));
 
+let mockSpeechConfig: Record<string, unknown> | undefined;
+jest.mock('librechat-data-provider/react-query', () => ({
+  useGetCustomConfigSpeechQuery: () => ({ data: mockSpeechConfig }),
+}));
+
+jest.mock('~/hooks/useLocalize', () => ({
+  __esModule: true,
+  default: () => (key: string, values?: Record<string, string>) =>
+    values ? `${key}:${Object.values(values).join(',')}` : key,
+}));
+
 type RecorderListener = (event: BlobEvent) => void;
 
 class FakeMediaRecorder {
@@ -109,7 +120,10 @@ let originalRequestAnimationFrame: typeof window.requestAnimationFrame;
 let originalCancelAnimationFrame: typeof window.cancelAnimationFrame;
 let frameId = 0;
 
-function setup({ autoSendText = -1 }: { autoSendText?: number } = {}) {
+function setup({
+  autoSendText = -1,
+  routeFields,
+}: { autoSendText?: number; routeFields?: Record<string, string> } = {}) {
   const setText = jest.fn();
   const onTranscriptionComplete = jest.fn();
   const onTranscriptionSettled = jest.fn();
@@ -130,6 +144,7 @@ function setup({ autoSendText = -1 }: { autoSendText?: number } = {}) {
         onTranscriptionComplete,
         onTranscriptionSettled,
         autoSendText,
+        routeFields,
       ),
     { wrapper },
   );
@@ -145,6 +160,7 @@ const start = async (begin: () => void) => {
 describe('useSpeechToTextExternal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSpeechConfig = undefined;
     FakeMediaRecorder.instances = [];
     FakeMediaRecorder.supportedType = 'audio/webm';
     FakeAudioContext.instances = [];
@@ -236,6 +252,76 @@ describe('useSpeechToTextExternal', () => {
     const uploaded = formData.get('audio') as File;
     expect(uploaded.name).toBe('audio.m4a');
     expect(uploaded.type).toBe('audio/mp4');
+  });
+
+  it('sends the conversation route fields so the server routes the take like the chat', async () => {
+    const { result } = setup({
+      routeFields: { conversationId: 'c1', endpoint: 'OpenRouterPrivate', spec: 'private-fast' },
+    });
+    await start(result.current.externalStartRecording);
+
+    const recorder = FakeMediaRecorder.instances[0];
+    act(() => recorder.emitData(new Blob(['take'], { type: 'audio/webm' })));
+    act(() => result.current.externalStopRecording());
+
+    const formData: FormData = mockProcessAudio.mock.calls[0][0];
+    expect(formData.get('conversationId')).toBe('c1');
+    expect(formData.get('endpoint')).toBe('OpenRouterPrivate');
+    expect(formData.get('spec')).toBe('private-fast');
+  });
+
+  it('stops on its own at the server speech duration limit', async () => {
+    /** The silence monitor's frame loop stays the inert mock from `beforeEach`. */
+    jest.useFakeTimers({ doNotFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    mockSpeechConfig = { serverSpeech: { stt: { maxDurationSeconds: 30 } } };
+    const { result } = setup();
+    await start(result.current.externalStartRecording);
+    const recorder = FakeMediaRecorder.instances[0];
+    act(() => recorder.emitData(new Blob(['take'], { type: 'audio/webm' })));
+
+    act(() => {
+      jest.advanceTimersByTime(29_000);
+    });
+    expect(recorder.state).toBe('recording');
+    act(() => {
+      jest.advanceTimersByTime(1_000);
+    });
+
+    expect(recorder.state).toBe('inactive');
+    expect(result.current.isListening).toBe(false);
+    expect(mockProcessAudio).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'com_ui_speech_max_duration:30', status: 'info' }),
+    );
+  });
+
+  it('tells the user when microphone permission was refused', async () => {
+    mockGetUserMedia.mockImplementationOnce(() =>
+      Promise.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' })),
+    );
+    const { result } = setup();
+    await start(result.current.externalStartRecording);
+
+    expect(result.current.isListening).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'com_ui_speech_mic_denied', status: 'error' }),
+    );
+  });
+
+  it('maps a server speech failure code to its localized message', async () => {
+    mockProcessAudio.mockImplementationOnce((_data, options) =>
+      options.onError({ response: { data: { code: 'insufficient_balance' } } }),
+    );
+    const { result, onTranscriptionSettled } = setup();
+    await start(result.current.externalStartRecording);
+    const recorder = FakeMediaRecorder.instances[0];
+    act(() => recorder.emitData(new Blob(['take'], { type: 'audio/webm' })));
+    act(() => result.current.externalStopRecording());
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'com_ui_speech_error_balance', status: 'error' }),
+    );
+    expect(onTranscriptionSettled).toHaveBeenCalled();
   });
 
   it('stops the recorder, the microphone and the silence monitor on unmount', async () => {

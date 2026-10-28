@@ -4,10 +4,12 @@ import { ErrorTypes, registerPage } from 'librechat-data-provider';
 import { useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
 import type { TLoginLayoutContext } from '~/common';
 import type { TranslationKeys } from '~/hooks';
+import type { AuthMethod } from './Phone';
 import { getLoginError, persistRedirectToSession } from '~/utils';
 import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import SocialButton from '~/components/Auth/SocialButton';
 import { useAuthContext } from '~/hooks/AuthContext';
+import { MethodSwitch, PhoneSignIn } from './Phone';
 import { useLocalize } from '~/hooks';
 import LoginForm from './LoginForm';
 
@@ -33,6 +35,12 @@ function Login() {
   const disableAutoRedirect = searchParams.get('redirect') === 'false';
 
   const [isAutoRedirectDisabled, setIsAutoRedirectDisabled] = useState(disableAutoRedirect);
+  const [chosenMethod, setChosenMethod] = useState<AuthMethod | null>(null);
+  const phoneEnabled = startupConfig?.phoneLoginEnabled === true;
+  const emailEnabled = startupConfig?.emailLoginEnabled === true;
+  /** Mobile is the default whenever it is offered. */
+  const method: AuthMethod =
+    phoneEnabled && (chosenMethod !== 'email' || !emailEnabled) ? 'phone' : 'email';
 
   useEffect(() => {
     const redirectTo = searchParams.get('redirect_to');
@@ -113,8 +121,12 @@ function Login() {
 
   return (
     <>
-      {error != null && <ErrorMessage>{localize(getLoginError(error))}</ErrorMessage>}
-      {startupConfig?.emailLoginEnabled === true && (
+      {phoneEnabled && emailEnabled && <MethodSwitch value={method} onChange={setChosenMethod} />}
+      {method === 'phone' && startupConfig && <PhoneSignIn startupConfig={startupConfig} />}
+      {method === 'email' && error != null && (
+        <ErrorMessage>{localize(getLoginError(error))}</ErrorMessage>
+      )}
+      {method === 'email' && emailEnabled && (
         <LoginForm
           onSubmit={login}
           startupConfig={startupConfig}

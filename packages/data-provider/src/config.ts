@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ZodError } from 'zod';
 import type { TEndpointsConfig, TModelsConfig, TConfig } from './types';
+import type { TPaymentsStartupConfig } from './payments';
 import {
   MAX_SUBAGENTS,
   MAX_SUBAGENTS_CEILING,
@@ -39,6 +40,8 @@ import {
   scheduledMCPResourceBindingSchema,
   scheduledMCPReadOnlyPolicySchema,
 } from './types/scheduleConsent';
+import { paymentsConfigSchema } from './payments';
+import { phoneLoginConfigSchema } from './phone';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -2449,6 +2452,68 @@ const ttsLocalaiSchema = z.object({
   backend: z.string(),
 });
 
+/** A server speech target: a custom endpoint (its server key, base URL, `addParams.provider`
+ *  and `priceMultiplier`) and a model of that endpoint's OpenAI-compatible `/audio/*` API. */
+const hiveSpeechRouteSchema = z.object({
+  endpoint: z.string().min(1),
+  model: z.string().min(1),
+});
+
+/** Routing, limits and billing shared by the `hive` STT and TTS providers. */
+const hiveSpeechBaseSchema = z.object({
+  /** Conversations on these endpoints (or a spec with `privacy: 'local'`) never send audio or
+   *  text out: server speech refuses them and the client uses the browser engine. */
+  localEndpoints: z.array(z.string()).default(['Local', 'LocalUncensored', 'LocalUncensoredThink']),
+  /** Conversations on these endpoints (or a spec with `privacy: 'private'`) use `private`. */
+  privateEndpoints: z.array(z.string()).default(['OpenRouterPrivate']),
+  /** Per provider call. */
+  timeoutMs: z.number().int().min(1000).max(600000).default(60000),
+  public: hiveSpeechRouteSchema,
+  /** Should name a zero-data-retention endpoint; requests also send `provider.zdr: true`.
+   *  Without it, private conversations get no server speech. */
+  private: hiveSpeechRouteSchema.optional(),
+  /** USD per audio minute (before `priceMultiplier`) for balance holds, and the charge when the
+   *  provider reports no cost. */
+  estimateUsdPerMinute: z.number().min(0).max(100),
+});
+
+/** `speech.stt.hive`: billed, privacy-routed transcription (default language Persian). */
+export const hiveSttSchema = hiveSpeechBaseSchema.extend({
+  /** ISO-639-1 code sent when the request names none. */
+  language: z.string().default('fa'),
+  /** Largest accepted upload. */
+  maxBytes: z
+    .number()
+    .int()
+    .min(1024)
+    .max(25 * 1024 * 1024)
+    .default(10 * 1024 * 1024),
+  /** Recordings stop on their own after this many seconds. */
+  maxDurationSeconds: z.number().int().min(5).max(1800).default(120),
+  estimateUsdPerMinute: z.number().min(0).max(100).default(0.01),
+});
+
+/** `speech.tts.hive`: billed, privacy-routed speech synthesis with a Persian-capable model. */
+export const hiveTtsSchema = hiveSpeechBaseSchema.extend({
+  voices: z.array(z.string().min(1)).min(1).default(['Kore', 'Charon', 'Leda', 'Puck']),
+  /** Delivery instructions (tone, pace, language); omitted when empty. */
+  instructions: z.string().optional(),
+  /** `pcm` (16-bit mono, served as WAV) or `mp3`, as the model supports. */
+  responseFormat: z.enum(['pcm', 'mp3']).default('pcm'),
+  pcmSampleRate: z.number().int().min(8000).max(48000).default(24000),
+  /** Characters per provider call. */
+  chunkChars: z.number().int().min(100).max(5000).default(1500),
+  /** Speaking rate assumed for holds and for mp3 output without a reported cost. */
+  charsPerSecond: z.number().positive().max(100).default(14),
+  estimateUsdPerMinute: z.number().min(0).max(100).default(0.02),
+  /** Reads the provider's charged cost (`/generation?id=`) after each call. */
+  costLookupAttempts: z.number().int().min(0).max(10).default(4),
+  costLookupDelayMs: z.number().int().min(0).max(10000).default(750),
+});
+
+export type THiveSttConfig = z.infer<typeof hiveSttSchema>;
+export type THiveTtsConfig = z.infer<typeof hiveTtsSchema>;
+
 const ttsSchema = z.object({
   allowedAddresses: allowedAddressesSchema,
   /** Longest text one request may synthesize; each 1,000 characters is a separate paid call. */
@@ -2457,6 +2522,7 @@ const ttsSchema = z.object({
   azureOpenAI: ttsAzureOpenAISchema.optional(),
   elevenlabs: ttsElevenLabsSchema.optional(),
   localai: ttsLocalaiSchema.optional(),
+  hive: hiveTtsSchema.optional(),
 });
 
 const sttOpenaiSchema = z.object({
@@ -2478,6 +2544,7 @@ const sttSchema = z.object({
   allowedAddresses: allowedAddressesSchema,
   openai: sttOpenaiSchema.optional(),
   azureOpenAI: sttAzureOpenAISchema.optional(),
+  hive: hiveSttSchema.optional(),
 });
 
 /**
@@ -3547,6 +3614,8 @@ export type TStartupConfig = {
   interface?: TInterfaceConfig;
   turnstile?: TTurnstileConfig;
   balance?: TBalanceConfig;
+  /** In-app purchase is on: the buy-pack actions open `/payment` instead of `balance.purchaseUrl`. */
+  payments?: TPaymentsStartupConfig;
   /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
   currencyRate?: TCurrencyRateInfo;
   transactions?: TTransactionsConfig;
@@ -3558,6 +3627,10 @@ export type TStartupConfig = {
   appleLoginEnabled: boolean;
   samlLoginEnabled: boolean;
   passkeyLoginEnabled: boolean;
+  /** Mobile one-time-code sign-in is configured (`registration.phone` + provider key). */
+  phoneLoginEnabled?: boolean;
+  /** An unknown number may create an account through phone sign-in. */
+  phoneRegistrationEnabled?: boolean;
   /** Per-account passkey enrollment cap, from `passkeys.perUserMax`; post-login only. */
   maxPasskeysPerUser?: number;
   /** What one chat list filter request may name (`conversationList`), resolved from the
@@ -3721,6 +3794,48 @@ export function normalizeSearxngEngines(engines?: string | string[]): string | u
   return normalized.length ? normalized.join(',') : undefined;
 }
 
+/** A `${VAR}` reference: credentials read from the environment, never stored in config. */
+const envReferenceSchema = z.string().regex(/^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/);
+
+/**
+ * The admin «service status» panel: credit and health of the search providers, OpenRouter, SMS,
+ * payment gateways, SearXNG and the local model server. Without this block the panel still
+ * answers on demand; with it, a background refresh runs every `refreshIntervalSeconds`.
+ */
+export const serviceStatusSchema = z.object({
+  refreshIntervalSeconds: z.number().int().min(60).max(86_400).default(600),
+  /** A service at or under this share of its quota is flagged. */
+  warningPercent: z.number().min(0).max(100).default(20),
+  /** A service estimated to run out within this many days is flagged. */
+  warningDays: z.number().min(0).max(365).default(7),
+  /** Days of daily usage kept to estimate when each service runs out. */
+  historyDays: z.number().int().min(2).max(90).default(30),
+  timeoutMs: z.number().int().min(1000).max(60_000).default(8000),
+  openRouterApiKey: envReferenceSchema.default('${OPENROUTER_KEY}'),
+  /** Optional management key: OpenRouter's account credits endpoint accepts only those. */
+  openRouterManagementKey: envReferenceSchema.optional(),
+  /** Base URL of the local Ollama server (e.g. `http://ollama:11434`); unset hides it. */
+  ollamaUrl: z.string().url().optional(),
+});
+
+/** Search providers `webSearch.providerChain` can order. */
+export const SEARCH_CHAIN_PROVIDERS = ['serper', 'serpapi', 'tavily', 'searxng'] as const;
+export type TSearchChainProvider = (typeof SEARCH_CHAIN_PROVIDERS)[number];
+
+export const searchFailoverSchema = z.object({
+  /** How long a provider that hit its quota is skipped when its reset date is unknown. */
+  exhaustedCooldownSeconds: z.number().int().min(60).max(2_678_400).default(3600),
+  /** How long a rate-limited (throttled, not out of quota) provider is skipped without `Retry-After`. */
+  rateLimitCooldownSeconds: z.number().int().min(1).max(86_400).default(60),
+  /** How long a provider that rejected its key is skipped. */
+  unauthorizedCooldownSeconds: z.number().int().min(60).max(2_678_400).default(3600),
+  /** Per-provider request timeout. */
+  timeoutMs: z.number().int().min(1000).max(60_000).default(10_000),
+  /** Google interface language and country for SerpApi requests. */
+  serpapiHl: z.string().min(2).max(10).default('fa'),
+  serpapiGl: z.string().min(2).max(10).default('ir'),
+});
+
 export const webSearchSchema = z.object({
   allowedAddresses: allowedAddressesSchema,
   serperApiKey: z.string().optional().default('${SERPER_API_KEY}'),
@@ -3744,6 +3859,18 @@ export const webSearchSchema = z.object({
   jinaApiUrl: z.string().optional().default('${JINA_API_URL}'),
   cohereApiKey: z.string().optional().default('${COHERE_API_KEY}'),
   cohereApiKeyPreview: apiKeyPreviewSchema,
+  /**
+   * SerpApi (Google engine) key, read only by `providerChain`; an environment reference so a key
+   * is never stored in config. Unset reads `${SERPAPI_API_KEY}`.
+   */
+  serpapiApiKey: envReferenceSchema.optional(),
+  /**
+   * Ordered search providers tried per request: a provider without a key, or marked exhausted,
+   * is skipped; a quota error marks it exhausted and the next one answers. Unset keeps the single
+   * `searchProvider`. Uses deployment keys only (environment or admin config), never a user's.
+   */
+  providerChain: z.array(z.enum(SEARCH_CHAIN_PROVIDERS)).min(1).optional(),
+  providerFailover: searchFailoverSchema.optional(),
   searchProvider: z.nativeEnum(SearchProviders).optional(),
   scraperProvider: z.nativeEnum(ScraperProviders).optional(),
   rerankerType: z.nativeEnum(RerankerTypes).optional(),
@@ -4366,6 +4493,7 @@ export const configSchema = z.object({
   ocr: ocrSchema.optional(),
   documentOcr: documentOcrSchema.optional(),
   webSearch: webSearchSchema.optional(),
+  serviceStatus: serviceStatusSchema.optional(),
   githubCompare: z
     .object({
       enabled: z.boolean().default(false),
@@ -4573,6 +4701,8 @@ export const configSchema = z.object({
       oauthStateTtlMs: z.number().int().min(60_000).max(3_600_000).optional(),
       /** OpenID discovery retries; an unset field falls back to its `OPENID_DISCOVERY_RETRY_*` env var, then the schema default. */
       openidDiscovery: openIdDiscoverySchema.partial().optional(),
+      /** Mobile one-time-code sign-in (Kavenegar); off unless `enabled: true`. */
+      phone: phoneLoginConfigSchema.optional(),
     })
     .default({ socialLogins: defaultSocialLogins }),
   /** Changing the registered email address. An unset field falls back to its env var, then the
@@ -4594,6 +4724,8 @@ export const configSchema = z.object({
     })
     .default({}),
   balance: balanceSchema.optional(),
+  /** In-app pack purchase through payment gateways (Zarinpal, IDPay); off by default. */
+  payments: paymentsConfigSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({
@@ -5481,6 +5613,10 @@ export enum STTProviders {
    * Provider for Microsoft Azure STT
    */
   AZURE_OPENAI = 'azureOpenAI',
+  /**
+   * Billed, privacy-routed transcription through a configured endpoint (e.g. OpenRouter)
+   */
+  HIVE = 'hive',
 }
 
 export enum TTSProviders {
@@ -5500,6 +5636,10 @@ export enum TTSProviders {
    * Provider for LocalAI TTS
    */
   LOCALAI = 'localai',
+  /**
+   * Billed, privacy-routed speech synthesis through a configured endpoint (e.g. OpenRouter)
+   */
+  HIVE = 'hive',
 }
 
 /** Enum for app-wide constants */

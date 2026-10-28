@@ -11,6 +11,7 @@ let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
 let mockCurrency: { code: string; rate: number; priceStep?: number } | undefined;
+let mockStatus: Record<string, unknown>;
 
 jest.mock('~/hooks', () => ({
   useLocalize: jest.requireActual('~/hooks/useLocalize').default,
@@ -32,6 +33,12 @@ jest.mock('~/data-provider', () => ({
     data: { enabled: true, packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }] },
   }),
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
+  useAdminServiceStatusQuery: () => mockStatus,
+  useRefreshAdminServiceStatusMutation: () => ({
+    mutate: jest.fn(),
+    isLoading: false,
+    isError: false,
+  }),
   useGetRole: () => mockUserRole,
   useUpdateRolePermissionsMutation: () => ({ mutate: mockRoleMutate, isLoading: false }),
   useAdminUserModelAccessMutation: () => ({ mutate: mockModelAccessMutate, isLoading: false }),
@@ -92,6 +99,7 @@ describe('AdminView', () => {
     mockSummary = { data: summaryData, isError: false };
     mockUsers = { data: usersData, isLoading: false, isError: false };
     mockCurrency = undefined;
+    mockStatus = { isLoading: true };
     mockRoleMutate.mockReset();
     localStorage.removeItem('adminAdvancedMode');
     mockUserRole = {
@@ -229,5 +237,38 @@ describe('AdminView', () => {
       { userId: 'u1', credits: 2_500_000 },
       expect.any(Object),
     );
+  });
+
+  it('warns on the overview when a service is out of credit and opens the status tab', async () => {
+    mockStatus = {
+      isLoading: false,
+      data: {
+        services: [
+          { id: 'serper', configured: true, health: 'exhausted', reachable: true },
+          { id: 'tavily', configured: true, health: 'ok', reachable: true },
+        ],
+        chain: ['serper', 'tavily'],
+        activeSearchProvider: 'tavily',
+        lastServedBy: null,
+        warningPercent: 20,
+        warningDays: 7,
+        refreshIntervalSeconds: 600,
+        checkedAt: null,
+      },
+    };
+    renderView();
+
+    expect(screen.getByTestId('status-alert')).toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId('status-alert')).getByRole('button'));
+    expect(screen.getByRole('tab', { selected: true })).toHaveAttribute(
+      'id',
+      expect.stringContaining('status'),
+    );
+    expect(await screen.findByTestId('service-card-serper')).toBeInTheDocument();
+  });
+
+  it('shows no overview alert while the status loads', () => {
+    renderView();
+    expect(screen.queryByTestId('status-alert')).not.toBeInTheDocument();
   });
 });

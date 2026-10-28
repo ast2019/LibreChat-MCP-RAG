@@ -46,14 +46,15 @@ import { DeleteCache } from '../SettingsTabs/Data/DeleteCache';
 import { ManageFiles } from '../SettingsTabs/Data/ManageFiles';
 import { smoothStreamingAtom } from '~/store/smoothStreaming';
 import ChangeEmail from '../SettingsTabs/Account/ChangeEmail';
+import PhoneNumber from '../SettingsTabs/Account/PhoneNumber';
 import { RevokeKeys } from '../SettingsTabs/Data/RevokeKeys';
 import { ClearChats } from '../SettingsTabs/Data/ClearChats';
 import { TokenCredits, AutoRefill } from './BillingControls';
 import AdminPanel from '../SettingsTabs/General/AdminPanel';
+import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import SharedLinks from '../SettingsTabs/Data/SharedLinks';
 import ImageResize from '../SettingsTabs/Chat/ImageResize';
 import Passkeys from '../SettingsTabs/Account/Passkeys';
-import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import { showThinkingAtom } from '~/store/showThinking';
 import ProviderKeys from '../SettingsTabs/ProviderKeys';
 import { showLiaAtom } from '~/components/Lia/store';
@@ -806,6 +807,15 @@ export const registry: SettingEntry[] = [
     keywords: ['email', 'address', 'account'],
     show: (ctx) => ctx.isLocalProvider && ctx.emailEnabled && ctx.allowEmailChange,
     Component: ChangeEmail,
+  },
+  {
+    id: 'phoneNumber',
+    tab: ACCOUNT,
+    section: 'profile',
+    labelKey: 'com_nav_phone',
+    keywords: ['phone', 'mobile', 'sms', 'موبایل', 'تلفن'],
+    show: (ctx) => ctx.isLocalProvider && ctx.phoneLoginEnabled === true,
+    Component: PhoneNumber,
   },
   // Account · Security
   {

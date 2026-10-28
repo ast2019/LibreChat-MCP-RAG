@@ -76,6 +76,10 @@ export async function provisionSocialUser({
   finishNewUser: (user: UserRecord, appConfig: AppConfig) => Promise<UserRecord>;
   refreshExistingUser: (user: UserRecord, appConfig: AppConfig) => Promise<void>;
 }): Promise<UserRecord> {
+  /** Identity providers always return an email; phone-only accounts never come through here. */
+  if (!newUser.email) {
+    throw new Error(`[${lookup.provider}Login] The identity provider returned no email`);
+  }
   const result = await createUserOnce({
     newUser,
     email: newUser.email,

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useRecoilState } from 'recoil';
 import { Dropdown } from '@librechat/client';
 import type { Option } from '~/common';
 import { useLocalize, useTTSBrowser, useTTSExternal } from '~/hooks';
+import { voiceDescriptionKey } from '~/utils/speech';
 import { logger } from '~/utils';
 import store from '~/store';
 
@@ -43,6 +44,15 @@ export function ExternalVoiceDropdown({ disabled = false }: { disabled?: boolean
   const localize = useLocalize();
   const { voices = [] } = useTTSExternal();
   const [voice, setVoice] = useRecoilState(store.voice);
+  /** Server voices are names (Kore, Charon…); say whether each is a female or male voice. */
+  const options = useMemo(
+    () =>
+      voices.map((value) => {
+        const key = voiceDescriptionKey(value);
+        return { value, label: key ? `${value} — ${localize(key)}` : value };
+      }),
+    [voices, localize],
+  );
 
   const handleVoiceChange = (newValue?: string | Option) => {
     logger.log('External Voice changed:', newValue);
@@ -60,7 +70,7 @@ export function ExternalVoiceDropdown({ disabled = false }: { disabled?: boolean
       <Dropdown
         key={`external-voice-dropdown-${voices.length}`}
         value={voice ?? ''}
-        options={voices}
+        options={options}
         onChange={handleVoiceChange}
         sizeClasses="z-50 min-w-[min(12.5rem,90vw)] max-w-[min(25rem,90vw)]"
         testId="ExternalVoiceDropdown"

@@ -9,6 +9,18 @@ registration:
   # Email + password stays on. The OpenID button appears only once the OPENID_* variables
   # are set in Coolify (see docs/saas/DEPLOY_COOLIFY.md).
   socialLogins: ['openid']
+  # Sign-in with a mobile number: a 6-digit code by SMS through Kavenegar (Verify Lookup).
+  # Stays off until KAVENEGAR_API_KEY is set. A new number creates an account when
+  # registration is open (ALLOW_REGISTRATION). The template must have one %token% parameter.
+  phone:
+    enabled: true
+    provider: 'kavenegar'
+    template: '${KAVENEGAR_TEMPLATE}'
+    codeTtlSeconds: 120
+    resendCooldownSeconds: 60
+    maxAttempts: 5
+    maxRequestsPerPhonePerHour: 5
+    maxRequestsPerIpPerHour: 20
 
 interface:
   customWelcome: 'چطور می‌توانم کمکتان کنم؟'
@@ -147,6 +159,18 @@ memory:
       If nothing in the latest messages is worth remembering, end the turn without any tool call.
 
 webSearch:
+  # Paid Google results first; when one provider's plan runs out (or it rejects its key) the
+  # next answers, and the free self-hosted SearXNG is the last resort. Providers without a key
+  # are skipped. The admin page («وضعیت سرویس‌ها») shows each one's remaining credit.
+  providerChain: ['serper', 'serpapi', 'tavily', 'searxng']
+  serpapiApiKey: '${SERPAPI_API_KEY}'
+  providerFailover:
+    exhaustedCooldownSeconds: 3600
+    rateLimitCooldownSeconds: 60
+    unauthorizedCooldownSeconds: 3600
+    timeoutMs: 10000
+    serpapiHl: 'fa'
+    serpapiGl: 'ir'
   # Self-hosted SearXNG for results, Keenable (keyless) to read pages, no reranker.
   searchProvider: searxng
   searxngInstanceUrl: '${SEARXNG_INSTANCE_URL}'
@@ -215,6 +239,75 @@ documentOcr:
     languages: 'fas+eng'
     pricePerPage: 0.00025
   timeoutMs: 120000
+speech:
+  # Server speech (STT/TTS) through OpenRouter's OpenAI-compatible /audio/* API, billed like chat:
+  # credits = provider cost (OpenRouter usage.cost / generation total_cost) x the endpoint's
+  # priceMultiplier x 1,000,000. Local chats (localEndpoints / spec privacy: local) never send audio
+  # or text out: the client uses browser speech for them and the server refuses (409 local_route).
+  # Private chats (privateEndpoints / spec privacy: private) use `private` with provider.zdr: true.
+  stt:
+    hive:
+      public:
+        endpoint: 'OpenRouter'
+        model: 'google/gemini-3.5-transcribe' # $2/M audio-in, $12/M out (~$0.004/min)
+      private:
+        endpoint: 'OpenRouterPrivate'
+        model: 'elevenlabs/scribe-v2' # ZDR on OpenRouter, 90+ langs incl. Persian (~$0.0037/min)
+      language: 'fa'
+      maxBytes: 10485760 # 10 MB upload cap
+      maxDurationSeconds: 120 # client auto-stops the recording here
+      timeoutMs: 60000
+      estimateUsdPerMinute: 0.01 # balance hold / charge when no cost is reported
+  tts:
+    maxInputChars: 4096
+    hive:
+      public:
+        endpoint: 'OpenRouter'
+        model: 'google/gemini-3.8-flash-tts' # Gemini TTS supports fa-IR; ZDR on Google (Vertex)
+      private:
+        endpoint: 'OpenRouterPrivate'
+        model: 'google/gemini-3.8-flash-tts'
+      voices: ['Kore', 'Charon', 'Leda', 'Puck'] # first = default
+      instructions: 'Read aloud in natural, clear Persian (Farsi) with a warm, conversational tone.'
+      responseFormat: 'pcm' # Gemini TTS returns PCM only; served as WAV
+      pcmSampleRate: 24000
+      chunkChars: 1500
+      timeoutMs: 60000
+      estimateUsdPerMinute: 0.02
+      costLookupAttempts: 4
+      costLookupDelayMs: 750
+  speechTab:
+    speechToText:
+      languageSTT: 'fa-IR'
+    textToSpeech:
+      languageTTS: 'fa-IR'
+
+# In-app pack purchase. A gateway is offered once its key is set; the amount is always computed
+# on the server from the pack's Toman price, and a payment credits the account exactly once.
+payments:
+  enabled: true
+  orderTtlMinutes: 30
+  requestTimeoutMs: 15000
+  description: 'خرید {pack} در HiveGPT'
+  gateways:
+    zarinpal:
+      enabled: true
+      merchantId: '${ZARINPAL_MERCHANT_ID}'
+      sandbox: false
+      currency: 'IRR'
+    idpay:
+      enabled: true
+      apiKey: '${IDPAY_API_KEY}'
+      sandbox: false
+
+# Admin «وضعیت سرویس‌ها»: credit and health of OpenRouter, the search providers, Kavenegar,
+# the payment gateways, SearXNG and the local model, refreshed in the background.
+serviceStatus:
+  refreshIntervalSeconds: 600
+  warningPercent: 20
+  warningDays: 7
+  historyDays: 30
+  ollamaUrl: 'http://ollama:11434'
 
 endpoints:
   agents:

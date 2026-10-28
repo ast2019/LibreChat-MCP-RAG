@@ -75,6 +75,16 @@ services:
       # Reranking of web results (optional; Jina preferred when both are set).
       JINA_API_KEY: ${JINA_API_KEY:-}
       COHERE_API_KEY: ${COHERE_API_KEY:-}
+      # Web search in order Serper → SerpApi → Tavily → SearXNG; an empty key skips that provider.
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Mobile sign-in by SMS (Kavenegar Verify Lookup); off while the key is empty.
+      KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
+      KAVENEGAR_TEMPLATE: ${KAVENEGAR_TEMPLATE:-}
+      # Pack purchase; a gateway is offered once its key is set.
+      ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID:-}
+      IDPAY_API_KEY: ${IDPAY_API_KEY:-}
 
       # Accounts
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}

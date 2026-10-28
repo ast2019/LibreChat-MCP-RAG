@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
 import type { BalanceView } from '~/hooks/useBalanceSummary';
@@ -6,6 +7,7 @@ import Notice from '../Notice';
 
 let mockView: BalanceView;
 let mockPurchaseUrl: string | undefined;
+let mockPayments: { enabled: boolean; gateways: string[] } | undefined;
 
 jest.mock('~/hooks/useBalanceSummary', () => ({
   __esModule: true,
@@ -13,7 +15,9 @@ jest.mock('~/hooks/useBalanceSummary', () => ({
 }));
 
 jest.mock('~/data-provider', () => ({
-  useGetStartupConfig: () => ({ data: { balance: { purchaseUrl: mockPurchaseUrl } } }),
+  useGetStartupConfig: () => ({
+    data: { balance: { purchaseUrl: mockPurchaseUrl }, payments: mockPayments },
+  }),
 }));
 
 const viewFor = (tokenCredits: number): BalanceView => ({
@@ -30,6 +34,20 @@ const viewFor = (tokenCredits: number): BalanceView => ({
 describe('balance Notice', () => {
   beforeEach(() => {
     mockPurchaseUrl = 'https://shop.example.com/packs';
+    mockPayments = undefined;
+  });
+
+  it('links to the in-app purchase page when payments are enabled', () => {
+    mockPayments = { enabled: true, gateways: ['zarinpal'] };
+    mockView = viewFor(0);
+    render(
+      <MemoryRouter>
+        <Notice />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: 'Buy a pack' });
+    expect(link).toHaveAttribute('href', '/payment');
+    expect(link).not.toHaveAttribute('target');
   });
 
   it('renders nothing below 90% used', () => {

@@ -40,6 +40,7 @@ import {
 } from './refreshTokenBridge';
 import { createSessionMethods, DEFAULT_REFRESH_TOKEN_EXPIRY, type SessionMethods } from './session';
 import { createPasskeyMethods, type PasskeyMethods } from './passkey';
+import { createPaymentMethods, type PaymentMethods } from './payment';
 import { createUserMethods, DEFAULT_SESSION_EXPIRY, type UserMethods } from './user';
 import { createTokenMethods, type TokenMethods } from './token';
 import { createTokenListMethods, type TokenListMethods } from './tokenList';
@@ -285,6 +286,7 @@ export type AllMethods = SubagentContentMethods &
   OpenIDRefreshFlightMethods &
   ResourceLockMethods &
   PasskeyMethods &
+  PaymentMethods &
   RoleMethods &
   KeyMethods &
   FileMethods &
@@ -529,6 +531,7 @@ export function createMethods(
     ...createResourceLockMethods(mongoose),
     ...createSubagentContentMethods(mongoose),
     ...createPasskeyMethods(mongoose),
+    ...createPaymentMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
     ...createFileMethods(mongoose),
@@ -596,6 +599,7 @@ export {
 export type {
   UserMethods,
   PasskeyMethods,
+  PaymentMethods,
   SessionMethods,
   TokenMethods,
   RefreshTokenBridgeMethods,
@@ -689,3 +693,4 @@ export type {
 
 export { recordAgentEventActorReceiptMetric, setAgentEventActorReceiptMetricObserver };
 export type { BillingUserRow, BillingSummary, BillingModelSpend } from './billing';
+export { paymentLedgerMarker } from './payment';

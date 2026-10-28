@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { LockIcon, Trash } from 'lucide-react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { normalizeIranianMobile, toIranianNationalMobile } from 'librechat-data-provider';
 import {
   InputOTPSeparator,
   OGDialogContent,
@@ -53,11 +54,13 @@ const DeleteAccount = ({ disabled = false }: { title?: string; disabled?: boolea
 
   const handleInputChange = useCallback(
     (newEmailInput: string) => {
-      const isEmailCorrect =
-        newEmailInput.trim().toLowerCase() === user?.email.trim().toLowerCase();
+      /** A phone-only account confirms with its number, in any spelling. */
+      const isEmailCorrect = user?.email
+        ? newEmailInput.trim().toLowerCase() === user.email.trim().toLowerCase()
+        : user?.phone != null && normalizeIranianMobile(newEmailInput) === user.phone;
       setIsLocked(!isEmailCorrect);
     },
-    [user?.email],
+    [user?.email, user?.phone],
   );
 
   const otpReady = !needs2FA || (useBackup ? isBackupCode(otpToken) : otpToken.length === 6);
@@ -93,9 +96,13 @@ const DeleteAccount = ({ disabled = false }: { title?: string; disabled?: boolea
           <div className="flex-col items-center justify-center">
             <div className="mb-4">
               {renderInput(
-                localize('com_nav_delete_account_email_placeholder'),
+                localize(
+                  user?.email
+                    ? 'com_nav_delete_account_email_placeholder'
+                    : 'com_nav_delete_account_phone_placeholder',
+                ),
                 'email-confirm-input',
-                user?.email ?? '',
+                user?.email ?? (user?.phone ? toIranianNationalMobile(user.phone) : ''),
                 (e) => handleInputChange(e.target.value),
               )}
             </div>

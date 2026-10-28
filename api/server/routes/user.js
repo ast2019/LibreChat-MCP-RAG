@@ -23,6 +23,14 @@ const {
   requireJwtAuth,
 } = require('~/server/middleware');
 
+const {
+  removePhone,
+  updateProfile,
+  verifyLinkCode,
+  requestLinkCode,
+  phoneCodeVerifyLimiter,
+  phoneCodeRequestLimiter,
+} = require('~/server/controllers/auth/PhoneController');
 const settings = require('./settings');
 const { updateUserStatefulCodeEnvironment } = require('~/models');
 
@@ -53,6 +61,10 @@ router.post(
   confirmEmailChangeController,
 );
 router.post('/verify', verifyEmailSubmissionLimiter, verifyEmailController);
+router.patch('/profile', requireJwtAuth, updateProfile);
+router.post('/phone', requireJwtAuth, phoneCodeRequestLimiter, requestLinkCode);
+router.post('/phone/verify', requireJwtAuth, phoneCodeVerifyLimiter, verifyLinkCode);
+router.delete('/phone', requireJwtAuth, removePhone);
 router.post('/verify/resend', verifyEmailLimiter, resendVerificationController);
 
 module.exports = router;

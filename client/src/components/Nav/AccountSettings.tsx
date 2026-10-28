@@ -20,6 +20,7 @@ import {
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
+import { InstallDialog, InstallMenuItem } from '~/components/Pwa';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
@@ -111,6 +112,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const setFilesDialogTrigger = useSetAtom(filesDialogTriggerAtom);
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
@@ -197,12 +199,20 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <GearIcon className="icon-md" aria-hidden="true" />
           {localize('com_nav_settings')}
         </Menu.MenuItem>
+        <InstallMenuItem onSelect={() => setShowInstall(true)} />
         <DropdownMenuSeparator />
         <Menu.MenuItem onClick={() => logout()} className="select-item text-sm">
           <LogOut className="icon-md" aria-hidden="true" />
           {localize('com_nav_log_out')}
         </Menu.MenuItem>
       </Menu.Menu>
+      {showInstall && (
+        <InstallDialog
+          open={showInstall}
+          onOpenChange={setShowInstall}
+          triggerRef={accountSettingsButtonRef}
+        />
+      )}
       {showArchived && (
         <ArchivedChatsModal
           open={showArchived}

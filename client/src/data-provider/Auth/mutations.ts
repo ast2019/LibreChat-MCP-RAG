@@ -328,3 +328,71 @@ export const useFinalizeTwoFactorSetupMutation = (): UseMutationResult<
   unknown
 > =>
   useMutation((payload: t.TFinalize2FASetupRequest) => dataService.finalizeTwoFactorSetup(payload));
+
+/* Phone sign-in */
+export const useRequestPhoneCodeMutation = (): UseMutationResult<
+  t.TPhoneCodeRequestResponse,
+  unknown,
+  t.TPhoneCodeRequest,
+  unknown
+> =>
+  useMutation({
+    mutationKey: [MutationKeys.requestPhoneCode],
+    mutationFn: (payload: t.TPhoneCodeRequest) => dataService.requestPhoneCode(payload),
+  });
+
+export const useVerifyPhoneCodeMutation = (): UseMutationResult<
+  t.TLoginResponse,
+  unknown,
+  t.TPhoneCodeVerify,
+  unknown
+> =>
+  useMutation({
+    mutationKey: [MutationKeys.verifyPhoneCode],
+    mutationFn: (payload: t.TPhoneCodeVerify) => dataService.verifyPhoneCode(payload),
+  });
+
+export const useRequestUserPhoneCodeMutation = (): UseMutationResult<
+  t.TPhoneCodeRequestResponse,
+  unknown,
+  { phone: string; password?: string },
+  unknown
+> =>
+  useMutation({
+    mutationKey: [MutationKeys.requestUserPhoneCode],
+    mutationFn: (payload: { phone: string; password?: string }) =>
+      dataService.requestUserPhoneCode(payload),
+  });
+
+/** Links the number and refreshes the cached user, so every surface shows the new identifier. */
+export const useVerifyUserPhoneCodeMutation = (): UseMutationResult<
+  { phone: string; phoneVerified: boolean },
+  unknown,
+  { phone: string; code: string },
+  unknown
+> => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: [MutationKeys.verifyUserPhoneCode],
+    mutationFn: (payload: { phone: string; code: string }) =>
+      dataService.verifyUserPhoneCode(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.user]);
+    },
+  });
+};
+
+export const useRemoveUserPhoneMutation = (): UseMutationResult<
+  { phone: null },
+  unknown,
+  { password?: string },
+  unknown
+> => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { password?: string }) => dataService.removeUserPhone(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.user]);
+    },
+  });
+};

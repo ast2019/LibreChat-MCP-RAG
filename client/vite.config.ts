@@ -95,8 +95,11 @@ export default defineConfig(({ command }) => ({
     themeCacheVersion(),
     copyPublicAssets(),
     VitePWA({
-      injectRegister: 'auto', // 'auto' | 'manual' | 'disabled'
-      registerType: 'autoUpdate', // 'prompt' | 'autoUpdate'
+      /** `components/Pwa/Update.tsx` registers the worker through `virtual:pwa-register/react`
+       * and asks before activating a new build. `autoUpdate` swapped the worker mid-session,
+       * purging the precache that open tabs were still lazy-loading chunks from. */
+      injectRegister: false,
+      registerType: 'prompt',
       devOptions: {
         enabled: false, // disable service worker registration in development mode
       },
@@ -111,6 +114,10 @@ export default defineConfig(({ command }) => ({
           /** `manifest.webmanifest` is not listed: vite-plugin-pwa always appends it as an
            * additional manifest entry, so globbing it too duplicates the precache entry. */
           'assets/maskable-icon.png',
+          /** Persian UI font, so the shell and the offline page keep their typeface offline. */
+          'assets/fonts/Vazirmatn-Variable.woff2',
+          /** Served by the navigation fallback below when the network is unreachable. */
+          'offline.html',
         ],
         globIgnores: [
           'images/**/*',
@@ -138,6 +145,18 @@ export default defineConfig(({ command }) => ({
         importScripts: ['sw-heal.js'],
         runtimeCaching: [
           {
+            /** Navigations always go to the network (the server renders index.html per
+             * request); only a failed fetch gets the precached Persian offline page. API,
+             * OAuth and auth-callback navigations are excluded so they are never answered
+             * from the worker. Nothing under /api/ is cached: no other route matches it. */
+            urlPattern: ({ request, url }) =>
+              request.mode === 'navigate' && !/\/(?:api|oauth)(?:\/|$)/.test(url.pathname),
+            handler: 'NetworkOnly',
+            options: {
+              precacheFallback: { fallbackURL: 'offline.html' },
+            },
+          },
+          {
             urlPattern: ({ url }) => /\/assets\/locale-[^/]+\.js$/.test(url.pathname),
             handler: 'StaleWhileRevalidate',
             options: {
@@ -155,11 +174,32 @@ export default defineConfig(({ command }) => ({
       },
       includeAssets: [],
       manifest: {
+        id: './',
         name: 'HiveGPT',
         short_name: 'HiveGPT',
+        description: 'HiveGPT — دستیار هوش مصنوعی برای گفت‌وگو، جست‌وجو و کار با فایل‌ها',
+        lang: 'fa',
+        dir: 'rtl',
+        /** Relative to the manifest URL: `/` on a root deployment, and the mount path on a
+         * subpath deployment (the server rewrites `<base>` but serves this file as-is). */
+        start_url: './',
+        scope: './',
         display: 'standalone',
-        background_color: '#000000',
+        display_override: ['window-controls-overlay', 'standalone'],
+        orientation: 'any',
+        /** Light `surface-canvas` (gray-50), the chat page's background. The manifest has no
+         * dark variant; the splash only shows until index.html paints its own scheme. */
+        background_color: '#F7F7F8',
         theme_color: '#2563EB',
+        categories: ['productivity', 'utilities', 'education'],
+        shortcuts: [
+          {
+            name: 'چت جدید',
+            short_name: 'چت جدید',
+            url: 'c/new',
+            icons: [{ src: 'assets/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
+          },
+        ],
         icons: [
           {
             src: 'assets/favicon-32x32.png',
@@ -180,6 +220,12 @@ export default defineConfig(({ command }) => ({
             src: 'assets/icon-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+          },
+          {
+            src: 'assets/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
           },
           {
             src: 'assets/maskable-icon.png',
@@ -518,7 +564,8 @@ export function sourcemapExclude(opts?: SourcemapExclude): Plugin {
 /**
  * Production builds set `publicDir: false`, so nothing under public/ reaches dist on its
  * own. This copies what the server actually has to serve: all of public/assets (the PWA
- * icons plus the endpoint, tool and language logos referenced at runtime) and robots.txt.
+ * icons plus the endpoint, tool and language logos referenced at runtime), robots.txt and the
+ * service worker's offline page.
  * The font files live in the component library (`packages/client/src/theme/fonts`) and are
  * emitted as bundle assets through the `@font-face` rules `tokens.css` imports, so only their
  * licence texts are copied, next to them in assets/fonts: the SIL OFL lets a font be
@@ -545,9 +592,10 @@ export function copyPublicAssets(): Plugin {
       await fs.promises.cp(path.join(publicDir, 'assets'), path.join(outDir, 'assets'), {
         recursive: true,
       });
-      await fs.promises.copyFile(
-        path.join(publicDir, 'robots.txt'),
-        path.join(outDir, 'robots.txt'),
+      await Promise.all(
+        ['robots.txt', 'offline.html'].map((name) =>
+          fs.promises.copyFile(path.join(publicDir, name), path.join(outDir, name)),
+        ),
       );
       const licences = (await fs.promises.readdir(fontsDir)).filter((name) =>
         name.endsWith('.txt'),

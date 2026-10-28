@@ -8,11 +8,14 @@ import './style.css';
 import './mobile.css';
 import { ApiErrorBoundaryProvider } from './hooks/ApiErrorBoundaryContext';
 import { clearTTSCache } from './utils/ttscache';
+import { listenForInstallPrompt } from './components/Pwa/install';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/contrib/copy-tex.js';
 
 /** Read-aloud audio lives in memory now; drop what earlier versions persisted to disk. */
 void clearTTSCache();
+/** Before render: the browser offers its install prompt once, early in the page load. */
+listenForInstallPrompt();
 
 const container = document.getElementById('root');
 const root = createRoot(container);

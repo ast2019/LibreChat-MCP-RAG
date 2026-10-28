@@ -93,7 +93,14 @@ export default function StreamAudio({ index = 0 }) {
         const response = await fetch('/api/files/speech/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ messageId: latestMessage?.messageId, runId: activeRunId, voice }),
+          /** The conversation lets the server route speech like the chat (private stays ZDR,
+           *  local never leaves the server). */
+          body: JSON.stringify({
+            messageId: latestMessage?.messageId,
+            conversationId: latestMessage?.conversationId,
+            runId: activeRunId,
+            voice,
+          }),
         });
 
         if (!response.ok) {
@@ -105,7 +112,8 @@ export default function StreamAudio({ index = 0 }) {
 
         const reader = response.body.getReader();
 
-        const type = 'audio/mpeg';
+        /** Server speech may answer WAV, which MSE cannot append, so it is buffered below. */
+        const type = response.headers.get('Content-Type')?.split(';')[0].trim() || 'audio/mpeg';
         const browserSupportsType =
           typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported(type);
         if (browserSupportsType) {

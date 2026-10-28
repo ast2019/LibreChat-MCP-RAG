@@ -33,6 +33,11 @@ export enum QueryKeys {
   adminBillingUsers = 'adminBillingUsers',
   adminBillingSummary = 'adminBillingSummary',
   adminBillingPacks = 'adminBillingPacks',
+  adminServiceStatus = 'adminServiceStatus',
+  paymentOptions = 'paymentOptions',
+  paymentOrder = 'paymentOrder',
+  adminPayments = 'adminPayments',
+  adminPaymentsSummary = 'adminPaymentsSummary',
   assistants = 'assistants',
   assistant = 'assistant',
   agents = 'agents',
@@ -133,6 +138,8 @@ export const DynamicQueryKeys = {
 } as const;
 
 export enum MutationKeys {
+  refreshAdminServiceStatus = 'refreshAdminServiceStatus',
+  paymentCheckout = 'paymentCheckout',
   approveCodeSetup = 'approveCodeSetup',
   denyCodeSetup = 'denyCodeSetup',
   resetToolApprovalGrants = 'resetToolApprovalGrants',
@@ -174,6 +181,11 @@ export enum MutationKeys {
   renamePasskey = 'renamePasskey',
   deletePasskey = 'deletePasskey',
   passkeyLogin = 'passkeyLogin',
+  requestPhoneCode = 'requestPhoneCode',
+  verifyPhoneCode = 'verifyPhoneCode',
+  requestUserPhoneCode = 'requestUserPhoneCode',
+  verifyUserPhoneCode = 'verifyUserPhoneCode',
+  updateUserProfile = 'updateUserProfile',
   updateMemoryPreferences = 'updateMemoryPreferences',
   createProject = 'createProject',
   updateProject = 'updateProject',

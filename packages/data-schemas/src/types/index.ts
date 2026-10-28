@@ -13,6 +13,7 @@ export * from './convo';
 export * from './chatProject';
 export * from './session';
 export * from './passkey';
+export * from './payment';
 export * from './balance';
 export * from './banner';
 export * from './transaction';

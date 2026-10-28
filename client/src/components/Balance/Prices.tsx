@@ -1,19 +1,22 @@
 import { memo, useId } from 'react';
 import type { TBalancePack } from 'librechat-data-provider';
+import type { PurchaseTarget } from './Purchase';
 import type { CurrencyConfig } from '~/utils';
 import { formatPackPrice } from '~/utils/balance';
 import useLocalize from '~/hooks/useLocalize';
+import { PurchaseLink } from './Purchase';
 import cn from '~/utils/cn';
 
 interface PricesProps {
   packs: TBalancePack[];
   currency?: CurrencyConfig;
-  purchaseUrl?: string;
+  /** Where "Buy a pack" goes; omission shows no link */
+  purchase?: PurchaseTarget | null;
   className?: string;
 }
 
 /** The packs on sale and their price in the display currency, offered before a purchase. */
-function Prices({ packs, currency, purchaseUrl, className }: PricesProps) {
+function Prices({ packs, currency, purchase, className }: PricesProps) {
   const localize = useLocalize();
   const headingId = useId();
   const rows = packs
@@ -41,15 +44,13 @@ function Prices({ packs, currency, purchaseUrl, className }: PricesProps) {
           </li>
         ))}
       </ul>
-      {purchaseUrl != null && purchaseUrl !== '' && (
-        <a
-          href={purchaseUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+      {purchase != null && (
+        <PurchaseLink
+          target={purchase}
           className="text-text-primary inline-block text-xs font-medium underline underline-offset-2"
         >
           {localize('com_ui_balance_buy_pack')}
-        </a>
+        </PurchaseLink>
       )}
     </section>
   );

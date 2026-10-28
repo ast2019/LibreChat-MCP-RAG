@@ -64,6 +64,7 @@ import AskUserQuestionPopover from './AskUserQuestionPopover';
 import useComposerItems from '~/hooks/Input/useComposerItems';
 import useAttachTarget from '~/hooks/Input/useAttachTarget';
 import { chatDirectionAtom } from '~/store/chatDirection';
+import useSpeechRoute from '~/hooks/Input/useSpeechRoute';
 import Hints, { composerHintId } from './Composer/Hints';
 import PastedTextDialog from './Files/PastedTextDialog';
 import DuringRunSendButton from './DuringRunSendButton';
@@ -566,6 +567,7 @@ const ChatForm = memo(function ChatForm({
     },
     [dictationAnswerModeActive, submitAnswerText, submitMessage],
   );
+  const speechRoute = useSpeechRoute(conversation);
   const dictation = useDictation({
     ask: dictationAsk,
     duringRunSubmit: steering.duringRunActive ? steering.submitDuringRun : undefined,
@@ -582,6 +584,7 @@ const ChatForm = memo(function ChatForm({
     autoSendText,
     speechToText: SpeechToText,
     index,
+    speechRoute,
   });
   /** The waveform stands in for the placeholder until words arrive, and is
    *  then the only thing drawn on that line. */

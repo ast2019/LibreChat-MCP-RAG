@@ -75,7 +75,7 @@ export const hoverButtonClasses = ({
   className,
 }: HoverButtonStyleOptions = {}) =>
   cn(
-    'hover-button size-auto rounded-lg p-1.5 text-text-secondary-alt',
+    'hover-button touch-hit relative size-auto rounded-lg p-1.5 text-text-secondary-alt',
     'hover:text-text-primary hover:bg-surface-hover',
     'group-hover:visible group-focus-visible:visible group-has-[:focus-visible:not(:is(input,textarea,[contenteditable]))]:visible group-[.final-completion]:visible',
     !isLast && revealOnRowHoverClasses,

@@ -79,6 +79,8 @@ const PUBLIC_USER_RESPONSE_FIELDS = [
   'username',
   'email',
   'emailVerified',
+  'phone',
+  'phoneVerified',
   'avatar',
   'provider',
   'role',

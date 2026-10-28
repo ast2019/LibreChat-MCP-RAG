@@ -249,4 +249,66 @@ describe('useSpeechSettingsInit', () => {
       expect(result.current.speechSettingsInitialized).toBe(false);
     },
   );
+
+  describe('server speech for a Persian UI', () => {
+    const serverSpeech = {
+      stt: { language: 'fa', maxDurationSeconds: 120, private: true },
+      tts: { voices: ['Kore'], private: true },
+      localEndpoints: ['Local'],
+      privateEndpoints: ['OpenRouterPrivate'],
+    };
+    const wrapperFor =
+      (lang: string) =>
+      ({ children }: { children: React.ReactNode }) => (
+        <RecoilRoot initializeState={({ set }) => set(store.lang, lang)}>{children}</RecoilRoot>
+      );
+
+    it('starts a Persian UI on server speech when nothing was chosen', async () => {
+      mockUseGetCustomConfigSpeechQuery.mockReturnValue({
+        data: { sttExternal: true, ttsExternal: true, serverSpeech },
+        isFetched: true,
+      });
+
+      const { result } = renderHook(() => useSpeechSettingsHarness(), {
+        wrapper: wrapperFor('fa-IR'),
+      });
+
+      await waitFor(() => {
+        expect(result.current.engineSTT).toBe('external');
+        expect(result.current.engineTTS).toBe('external');
+      });
+    });
+
+    it('respects a saved browser engine', async () => {
+      localStorage.setItem('engineSTT', JSON.stringify('browser'));
+      localStorage.setItem('engineTTS', JSON.stringify('browser'));
+      mockUseGetCustomConfigSpeechQuery.mockReturnValue({
+        data: { sttExternal: true, ttsExternal: true, serverSpeech },
+        isFetched: true,
+      });
+
+      const { result } = renderHook(() => useSpeechSettingsHarness(), {
+        wrapper: wrapperFor('fa-IR'),
+      });
+
+      await waitFor(() => expect(result.current.speechSettingsInitialized).toBe(true));
+      expect(result.current.engineSTT).toBe('browser');
+      expect(result.current.engineTTS).toBe('browser');
+    });
+
+    it('leaves an English UI on the browser engine', async () => {
+      mockUseGetCustomConfigSpeechQuery.mockReturnValue({
+        data: { sttExternal: true, ttsExternal: true, serverSpeech },
+        isFetched: true,
+      });
+
+      const { result } = renderHook(() => useSpeechSettingsHarness(), {
+        wrapper: wrapperFor('en-US'),
+      });
+
+      await waitFor(() => expect(result.current.speechSettingsInitialized).toBe(true));
+      expect(result.current.engineSTT).toBe('browser');
+      expect(result.current.engineTTS).toBe('browser');
+    });
+  });
 });

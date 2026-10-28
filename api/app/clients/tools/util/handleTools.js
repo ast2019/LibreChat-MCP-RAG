@@ -13,6 +13,7 @@ const {
   selectMCPUpstreamTokenProvider,
   mcpToolPattern,
   loadWebSearchAuth,
+  createChainedSearchTool,
   splitMCPToolKey,
   buildServerNameAliases,
   findShadowedServerNames,
@@ -58,6 +59,7 @@ const {
   createGeminiImageTool,
   createOpenAIImageTools,
 } = require('../');
+const { getWebSearchChainStore } = require('~/server/services/ServiceStatus');
 const {
   createMCPTool,
   createMCPTools,
@@ -408,14 +410,21 @@ const loadTools = async ({
       requestedTools[tool] = async () => {
         toolContextMap[tool] = buildWebSearchContext();
         dynamicToolContextMap[tool] = buildWebSearchDynamicContext(options.req?.turnStartedAt);
-        return createSearchTool({
-          ...result.authResult,
+        const toolOptions = { onSearchResults, onGetHighlights, logger };
+        const chained = createChainedSearchTool({
+          webSearchConfig: webSearch,
+          authResult: result.authResult,
           httpAgent,
           httpsAgent,
-          onSearchResults,
-          onGetHighlights,
+          store: getWebSearchChainStore(webSearch),
           logger,
+          createSearchTool,
+          toolOptions,
         });
+        return (
+          chained ??
+          createSearchTool({ ...result.authResult, httpAgent, httpsAgent, ...toolOptions })
+        );
       };
       continue;
     } else if (tool === ASK_USER_QUESTION_TOOL_NAME) {

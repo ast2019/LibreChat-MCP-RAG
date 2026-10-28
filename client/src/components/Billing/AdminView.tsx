@@ -3,6 +3,8 @@ import { SystemRoles } from 'librechat-data-provider';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import { useAuthContext, useDocumentTitle, useLocalize } from '~/hooks';
+import { StatusAlert, StatusPanel } from '~/components/Admin/Status';
+import AdminPayments from '~/components/Payments/AdminPayments';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import Overview from './Overview';
 import Advanced from './Advanced';
@@ -13,12 +15,14 @@ const TABS: { id: string; label: TranslationKeys }[] = [
   { id: 'overview', label: 'com_admin_tab_overview' },
   { id: 'users', label: 'com_admin_tab_users' },
   { id: 'access', label: 'com_admin_tab_access' },
+  { id: 'payments', label: 'com_admin_payments_title' },
+  { id: 'status', label: 'com_admin_tab_status' },
   { id: 'advanced', label: 'com_admin_tab_advanced' },
 ];
 
 /**
- * The one place admin tools live: sales, users and credit, what users may use, and the admin's
- * advanced mode. The chat itself looks the same for admins and users.
+ * The one place admin tools live: sales, users and credit, what users may use, payments, the health and
+ * credit of external services, and the admin's advanced mode. The chat itself looks the same for admins and users.
  */
 export default function AdminView() {
   const localize = useLocalize();
@@ -64,7 +68,8 @@ export default function AdminView() {
                 </Tabs.Trigger>
               ))}
             </Tabs.List>
-            <Tabs.Content value="overview" className="focus-visible:outline-none">
+            <Tabs.Content value="overview" className="space-y-6 focus-visible:outline-none">
+              <StatusAlert onOpen={() => setParams({ tab: 'status' }, { replace: true })} />
               <Overview />
             </Tabs.Content>
             <Tabs.Content value="users" className="focus-visible:outline-none">
@@ -72,6 +77,12 @@ export default function AdminView() {
             </Tabs.Content>
             <Tabs.Content value="access" className="focus-visible:outline-none">
               <Access />
+            </Tabs.Content>
+            <Tabs.Content value="payments" className="focus-visible:outline-none">
+              <AdminPayments />
+            </Tabs.Content>
+            <Tabs.Content value="status" className="focus-visible:outline-none">
+              <StatusPanel />
             </Tabs.Content>
             <Tabs.Content value="advanced" className="focus-visible:outline-none">
               <Advanced />

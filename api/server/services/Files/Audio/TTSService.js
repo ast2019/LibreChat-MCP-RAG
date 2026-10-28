@@ -17,6 +17,7 @@ const {
 } = require('librechat-data-provider');
 const { getRandomVoiceId, createChunkProcessor, splitTextIntoChunks } = require('./streamAudio');
 const { getAppConfig } = require('~/server/services/Config');
+const { getHiveSpeech } = require('./hiveSpeech');
 
 /**
  * Service class for handling Text-to-Speech (TTS) operations.
@@ -310,8 +311,12 @@ class TTSService {
       return res.status(400).send('Missing text in request body');
     }
     try {
-      res.setHeader('Content-Type', 'audio/mpeg');
       const provider = this.getProvider(appConfig);
+      if (provider === TTSProviders.HIVE) {
+        await getHiveSpeech().respondTextToSpeech(req, res, text);
+        return;
+      }
+      res.setHeader('Content-Type', 'audio/mpeg');
       const ttsSchema = appConfig?.speech?.tts?.[provider];
       const allowedAddresses = appConfig?.speech?.tts?.allowedAddresses;
       const voice = await this.getVoice(ttsSchema, requestVoice);
@@ -381,7 +386,6 @@ class TTSService {
    * @returns {Promise<void>}
    */
   async streamAudio(req, res) {
-    res.setHeader('Content-Type', 'audio/mpeg');
     const appConfig =
       req.config ??
       (await getAppConfig({
@@ -390,6 +394,16 @@ class TTSService {
         tenantId: req.user?.tenantId,
       }));
     const provider = this.getProvider(appConfig);
+    if (provider === TTSProviders.HIVE) {
+      const nextUpdates = createChunkProcessor(
+        req.user.id,
+        req.body.messageId,
+        appConfig?.speech?.tts?.maxInputChars,
+      );
+      await getHiveSpeech().respondStreamAudio(req, res, nextUpdates);
+      return;
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
     const ttsSchema = appConfig?.speech?.tts?.[provider];
     const allowedAddresses = appConfig?.speech?.tts?.allowedAddresses;
     const voice = await this.getVoice(ttsSchema, req.body.voice);

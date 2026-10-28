@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
-const { logger, warnOnMissingSearchTokens } = require('@librechat/data-schemas');
+const {
+  logger,
+  warnOnMissingSearchTokens,
+  migrateUserIdentityIndexes,
+} = require('@librechat/data-schemas');
 const {
   logAgentMigrationWarning,
   logPromptMigrationWarning,
@@ -15,6 +19,10 @@ const { findRoleByIdentifier } = require('~/models');
 async function checkMigrations() {
   /** Started first so it overlaps the permission checks; it logs its own failures. */
   const searchTokens = warnOnMissingSearchTokens(mongoose.connection);
+  /** Phone-only accounts need the partial email index; logs and continues on failure. */
+  const identityIndexes = migrateUserIdentityIndexes(mongoose.connection).catch((error) =>
+    logger.error('Failed to migrate user identity indexes:', error),
+  );
   try {
     const agentMigrationResult = await checkAgentPermissionsMigration({
       mongoose,
@@ -39,7 +47,7 @@ async function checkMigrations() {
   } catch (error) {
     logger.error('Failed to check prompt permissions migration:', error);
   }
-  await searchTokens;
+  await Promise.all([searchTokens, identityIndexes]);
 }
 
 module.exports = {

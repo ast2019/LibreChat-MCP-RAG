@@ -69,12 +69,17 @@ export default function ChangeEmail() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorKey(undefined);
-    if (newEmail.trim().toLowerCase() === user?.email.trim().toLowerCase()) {
+    if (newEmail.trim().toLowerCase() === user?.email?.trim().toLowerCase()) {
       setErrorKey('com_ui_email_change_error_same');
       return;
     }
     mutation.mutate({ newEmail, currentPassword });
   };
+
+  /** Changing the address takes the account password, which a phone-only account lacks. */
+  if (user != null && !user.email) {
+    return null;
+  }
 
   return (
     <OGDialog open={isOpen} onOpenChange={handleOpenChange}>

@@ -72,7 +72,7 @@ export function serializeUserForExchange(user: IUser): AdminExchangeUser {
   return {
     _id: userId,
     id: userId,
-    email: user.email,
+    email: user.email ?? '',
     name: user.name ?? '',
     username: user.username ?? '',
     role: user.role ?? 'USER',

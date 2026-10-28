@@ -23,6 +23,7 @@ export { default as resourceLockSchema } from './resourceLock';
 export { default as refreshTokenBridgeSchema } from './refreshTokenBridge';
 export { default as roleSchema } from './role';
 export { default as passkeySchema } from './passkey';
+export { default as paymentOrderSchema } from './payment';
 export { default as sessionSchema } from './session';
 export { default as shareSchema } from './share';
 export { default as skillSyncCredentialSchema } from './skillSyncCredential';

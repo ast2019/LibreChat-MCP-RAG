@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Alert, Button } from '@librechat/client';
+import { PurchaseLink, usePurchaseTarget } from './Purchase';
 import useBalanceSummary from '~/hooks/useBalanceSummary';
-import { useGetStartupConfig } from '~/data-provider';
 import useLocalize from '~/hooks/useLocalize';
 
 /**
  * Warns above the composer once the user has spent 90% of their allotment, and again when
- * credits run out. Links to the deployment's `balance.purchaseUrl` when one is configured.
+ * credits run out. Links to the in-app purchase page when a gateway is usable, else to the
+ * deployment's `balance.purchaseUrl` when one is configured.
  * Dismissing hides the current warning until the tone changes (e.g. low → empty).
  */
 function Notice() {
   const localize = useLocalize();
-  const { data: startupConfig } = useGetStartupConfig();
+  const purchase = usePurchaseTarget();
   const { enabled, state } = useBalanceSummary();
   const [dismissedTone, setDismissedTone] = useState<string | null>(null);
 
@@ -24,7 +25,6 @@ function Notice() {
     return null;
   }
 
-  const purchaseUrl = startupConfig?.balance?.purchaseUrl;
   const empty = tone === 'danger';
   const message = empty
     ? localize('com_ui_balance_notice_empty')
@@ -39,11 +39,9 @@ function Notice() {
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="min-w-0 flex-1">{message}</span>
-          {purchaseUrl != null && purchaseUrl !== '' && (
+          {purchase != null && (
             <Button asChild size="compact" variant="outline">
-              <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">
-                {localize('com_ui_balance_buy_pack')}
-              </a>
+              <PurchaseLink target={purchase}>{localize('com_ui_balance_buy_pack')}</PurchaseLink>
             </Button>
           )}
           <Button

@@ -65,6 +65,8 @@ export interface PasskeyAccount extends AppConfigUserLike {
   name?: string;
   username?: string;
   emailVerified?: boolean;
+  /** A verified phone is an identifier too: phone-only accounts carry no email to verify. */
+  phoneVerified?: boolean;
   expiresAt?: Date | null;
   provider?: string;
   password?: string;
@@ -661,7 +663,7 @@ export function createPasskeyHandlers(deps: PasskeyHandlersDeps): PasskeyHandler
       if (user.expiresAt && unverifiedAllowed) {
         await updateUser(user._id, {});
       }
-      if (!user.emailVerified && !unverifiedAllowed) {
+      if (!user.emailVerified && !user.phoneVerified && !unverifiedAllowed) {
         logger.warn('[authenticatePasskey] Rejected unverified email login');
         return failure();
       }

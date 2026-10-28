@@ -32,6 +32,8 @@ module.exports = {
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$':
       'jest-file-loader',
     '^test/(.*)$': '<rootDir>/test/$1',
+    /** vite-plugin-pwa's virtual module only exists inside a Vite build. */
+    '^virtual:pwa-register/react$': '<rootDir>/test/pwaRegister.ts',
     '^~/(.*)$': '<rootDir>/src/$1',
     '^@librechat/client$': '<rootDir>/../packages/client/dist/index.cjs',
     '^@librechat/chat$': '<rootDir>/../packages/chat/dist/index.cjs',

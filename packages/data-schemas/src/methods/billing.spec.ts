@@ -102,6 +102,27 @@ describe('billing methods', () => {
     expect(found.users.map((u) => u.id)).toEqual([saraId.toString()]);
   });
 
+  it('lists phone-only users and finds them by any mobile spelling', async () => {
+    const phoneUser = await mongoose.models.User.create({
+      name: 'Mina',
+      phone: '+989121234567',
+      provider: 'local',
+    });
+    try {
+      const found = await billing.listUsersWithBalances({ search: '۰۹۱۲ ۱۲۳ ۴۵۶۷' });
+      expect(found.users).toHaveLength(1);
+      expect(found.users[0]).toMatchObject({
+        id: phoneUser._id.toString(),
+        email: '',
+        phone: '+989121234567',
+      });
+      const all = await billing.listUsersWithBalances({});
+      expect(all.users.find((u) => u.email === 'sara@example.com')?.phone).toBe('');
+    } finally {
+      await mongoose.models.User.deleteOne({ _id: phoneUser._id });
+    }
+  });
+
   it('summarizes grants, spend and outstanding credits for a window', async () => {
     const summary = await billing.getBillingSummary({ since: new Date('2026-10-01T00:00:00Z') });
     expect(summary).toEqual({

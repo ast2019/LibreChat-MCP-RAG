@@ -46,6 +46,16 @@ const loadAdminView = () =>
     Component: m.default,
   }));
 
+const loadPaymentCheckout = () =>
+  importWithRecovery(() => import('~/components/Payments')).then((m) => ({
+    Component: m.CheckoutView,
+  }));
+
+const loadPaymentResult = () =>
+  importWithRecovery(() => import('~/components/Payments')).then((m) => ({
+    Component: m.ResultView,
+  }));
+
 const loadInsightsView = () =>
   importWithRecovery(() => import('~/components/Insights')).then((m) => ({
     Component: m.default,
@@ -176,6 +186,14 @@ export const router = createBrowserRouter(
                 {
                   path: 'admin',
                   lazy: loadAdminView,
+                },
+                {
+                  path: 'payment',
+                  lazy: loadPaymentCheckout,
+                },
+                {
+                  path: 'payment/result',
+                  lazy: loadPaymentResult,
                 },
                 {
                   path: 'skills/new',

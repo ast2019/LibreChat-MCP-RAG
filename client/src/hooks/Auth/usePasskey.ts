@@ -83,7 +83,7 @@ export const passkeysSupported = (): boolean =>
  * Resolves where to send the user after a successful passkey login.
  * Mirrors password-flow sessionStorage + query handling without needing a router.
  */
-function resolvePostLoginHref(): string {
+export function resolvePostLoginHref(): string {
   try {
     const params = new URLSearchParams(window.location.search);
     const fromQuery = params.get(REDIRECT_PARAM);

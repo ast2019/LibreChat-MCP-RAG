@@ -1,6 +1,14 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useToastContext } from '@librechat/client';
+import type { SpeechRouteFields } from '~/utils/speech';
+import {
+  sniffAudioType,
+  speechErrorKey,
+  primeAudioElement,
+  readSpeechErrorCode,
+  appendSpeechRouteFields,
+} from '~/utils/speech';
 import {
   getTTSCacheKey,
   setCachedTTSAudio,
@@ -11,10 +19,11 @@ import { useTextToSpeechMutation, useVoicesQuery } from '~/data-provider';
 import { useLocalize, useAuthContext } from '~/hooks';
 import store from '~/store';
 
-const createFormData = (text: string, voice: string) => {
+const createFormData = (text: string, voice: string, routeFields?: SpeechRouteFields) => {
   const formData = new FormData();
   formData.append('input', text);
   formData.append('voice', voice);
+  appendSpeechRouteFields(formData, routeFields);
   return formData;
 };
 
@@ -24,6 +33,8 @@ type TUseTTSExternal = {
   messageId?: string;
   isLast: boolean;
   index?: number;
+  /** The message's conversation, so the server routes speech like that conversation. */
+  routeFields?: SpeechRouteFields;
 };
 
 function useTextToSpeechExternal({
@@ -32,6 +43,7 @@ function useTextToSpeechExternal({
   messageId,
   isLast,
   index = 0,
+  routeFields,
 }: TUseTTSExternal) {
   const localize = useLocalize();
   const { user } = useAuthContext();
@@ -50,13 +62,19 @@ function useTextToSpeechExternal({
   const globalIsFetching = useRecoilValue(store.globalAudioFetchingFamily(index));
   const globalIsPlaying = useRecoilValue(store.globalAudioPlayingFamily(index));
 
-  const autoPlayAudio = (blobUrl: string) => {
-    const newAudio = new Audio(blobUrl);
-    audioRef.current = newAudio;
+  /** Created and primed inside the tap that asked for speech, so iOS lets it play the audio
+   *  that arrives after the request. */
+  const playerRef = useRef<HTMLAudioElement | null>(null);
+  const getPlayer = () => {
+    if (playerRef.current == null && typeof Audio !== 'undefined') {
+      playerRef.current = new Audio();
+    }
+    return playerRef.current;
   };
 
   const playAudioPromise = (blobUrl: string) => {
-    const newAudio = new Audio(blobUrl);
+    const newAudio = getPlayer() ?? new Audio();
+    newAudio.src = blobUrl;
     const initializeAudio = () => {
       if (playbackRate != null && playbackRate !== 1 && playbackRate > 0) {
         newAudio.playbackRate = playbackRate;
@@ -91,10 +109,10 @@ function useTextToSpeechExternal({
     promiseAudioRef.current = newAudio;
   };
 
-  const downloadAudio = (blobUrl: string) => {
+  const downloadAudio = (blobUrl: string, type = 'audio/mpeg') => {
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = 'audio.mp3';
+    a.download = type === 'audio/wav' ? 'audio.wav' : 'audio.mp3';
     a.click();
     setDownloadFile(false);
   };
@@ -112,7 +130,8 @@ function useTextToSpeechExternal({
     onSuccess: async (data: ArrayBuffer, variables) => {
       try {
         const inputText = (variables.get('input') ?? '') as string;
-        const audioBlob = new Blob([data], { type: 'audio/mpeg' });
+        const audioType = sniffAudioType(data);
+        const audioBlob = new Blob([data], { type: audioType });
 
         const generation = requestGenerations.current.get(variables);
         if (cacheTTS && inputText && generation != null) {
@@ -124,9 +143,10 @@ function useTextToSpeechExternal({
 
         const blobUrl = URL.createObjectURL(audioBlob);
         if (downloadFile) {
-          downloadAudio(blobUrl);
+          downloadAudio(blobUrl, audioType);
+          return;
         }
-        autoPlayAudio(blobUrl);
+        playAudioPromise(blobUrl);
       } catch (error) {
         showToast({
           message: `Error processing audio: ${(error as Error).message}`,
@@ -135,21 +155,28 @@ function useTextToSpeechExternal({
       }
     },
     onError: (error: unknown) => {
+      const code = readSpeechErrorCode(error);
       showToast({
-        message: localize('com_nav_audio_process_error', { 0: (error as Error).message }),
+        message: code
+          ? localize(speechErrorKey(code))
+          : localize('com_nav_audio_process_error', { 0: (error as Error).message }),
         status: 'error',
       });
     },
   });
 
   const startMutation = (text: string, download: boolean) => {
-    const formData = createFormData(text, voice ?? '');
+    const formData = createFormData(text, voice ?? '', routeFields);
     requestGenerations.current.set(formData, getTTSCacheGeneration());
     setDownloadFile(download);
     processAudio(formData);
   };
 
   const generateSpeechExternal = (text: string, download: boolean) => {
+    const player = download ? null : getPlayer();
+    if (player) {
+      primeAudioElement(player);
+    }
     if (cacheTTS) {
       handleCachedResponse(text, download);
     } else {
@@ -165,7 +192,7 @@ function useTextToSpeechExternal({
     }
     const blobUrl = URL.createObjectURL(cachedAudio);
     if (download) {
-      downloadAudio(blobUrl);
+      downloadAudio(blobUrl, cachedAudio.type);
     } else {
       playAudioPromise(blobUrl);
     }

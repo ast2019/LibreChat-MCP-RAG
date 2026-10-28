@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import Direction, { ToastSwipeProvider } from '~/Providers/Direction';
 import { ScreenshotProvider, useApiErrorBoundary } from './hooks';
 import WakeLockManager from '~/components/System/WakeLockManager';
+import { UpdatePrompt } from '~/components/Pwa';
 import QueryDevtoolsGate from '~/components/QueryDevtoolsGate';
 import LanguageSync from '~/components/System/LanguageSync';
 import DeploymentTheme from '~/Providers/DeploymentTheme';
@@ -82,6 +83,7 @@ const App = () => {
                       Worth revisiting once that state has moved to Jotai. */}
                     <RouterProvider router={router} useTransitions={false} />
                     <WakeLockManager />
+                    <UpdatePrompt />
                     <QueryDevtoolsGate />
                     <Toast />
                     <ToastViewport />

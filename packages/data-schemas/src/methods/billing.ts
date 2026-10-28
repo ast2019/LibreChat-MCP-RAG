@@ -1,3 +1,4 @@
+import { normalizeIranianMobile } from 'librechat-data-provider';
 import type { TUserModelAccess } from 'librechat-data-provider';
 import type { Model } from 'mongoose';
 import type { ITransaction } from '~/schema/transaction';
@@ -11,6 +12,8 @@ export interface BillingUserRow {
   name: string;
   username: string;
   email: string;
+  /** E.164 mobile number; empty when the account has none */
+  phone: string;
   role: string;
   createdAt?: string;
   /** The user's own local/private model override; empty when the user follows the role */
@@ -81,13 +84,19 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
     offset?: number;
   }): Promise<{ users: BillingUserRow[]; total: number }> {
     const trimmed = typeof search === 'string' ? search.trim().slice(0, 200) : '';
-    const filter = trimmed ? (buildUserSearchFilter(trimmed, { legacyPrefix: true }) ?? {}) : {};
+    const tokenFilter = trimmed ? buildUserSearchFilter(trimmed, { legacyPrefix: true }) : null;
+    /** A search that reads as a mobile number also matches the stored E.164 phone exactly. */
+    const phone = trimmed ? normalizeIranianMobile(trimmed) : null;
+    let filter: Record<string, unknown> = tokenFilter ?? {};
+    if (phone) {
+      filter = tokenFilter ? { $or: [tokenFilter, { phone }] } : { phone };
+    }
     const pageSize = Math.min(Math.max(Math.trunc(limit) || 25, 1), MAX_PAGE_SIZE);
     const skip = Math.max(Math.trunc(offset) || 0, 0);
 
     const [docs, total] = await Promise.all([
       users()
-        .find(filter, '_id name username email role createdAt modelAccess')
+        .find(filter, '_id name username email phone role createdAt modelAccess')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -114,6 +123,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           name: doc.name ?? '',
           username: doc.username ?? '',
           email: doc.email ?? '',
+          phone: doc.phone ?? '',
           role: doc.role ?? 'USER',
           createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : undefined,
           modelAccess: {

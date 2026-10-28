@@ -1,5 +1,6 @@
 import useBalanceSummary from '~/hooks/useBalanceSummary';
 import { useGetStartupConfig } from '~/data-provider';
+import { usePurchaseTarget } from './Purchase';
 import Summary from './Summary';
 import Prices from './Prices';
 
@@ -7,6 +8,7 @@ import Prices from './Prices';
 export default function Balance({ className }: { className?: string }) {
   const { data: startupConfig } = useGetStartupConfig();
   const { enabled, state, currency } = useBalanceSummary();
+  const purchase = usePurchaseTarget();
   if (!enabled) {
     return null;
   }
@@ -21,7 +23,7 @@ export default function Balance({ className }: { className?: string }) {
       <Prices
         packs={packs}
         currency={currency}
-        purchaseUrl={startupConfig?.balance?.purchaseUrl}
+        purchase={purchase}
         className="border-border-light mt-3 border-t pt-3"
       />
     </div>

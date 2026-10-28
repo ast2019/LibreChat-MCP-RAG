@@ -139,7 +139,7 @@ function SocialLoginRender({
 
   return (
     <>
-      {startupConfig.emailLoginEnabled && (
+      {(startupConfig.emailLoginEnabled || startupConfig.phoneLoginEnabled === true) && (
         <>
           <div className="border-border-medium relative mt-6 flex w-full items-center justify-center border border-t uppercase">
             <div className="bg-surface-primary text-text-primary absolute px-3 text-xs">

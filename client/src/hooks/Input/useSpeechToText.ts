@@ -1,3 +1,4 @@
+import type { SpeechRoute } from './useSpeechRoute';
 import useSpeechToTextExternal from './useSpeechToTextExternal';
 import useSpeechToTextBrowser from './useSpeechToTextBrowser';
 import useGetAudioSettings from './useGetAudioSettings';
@@ -8,6 +9,8 @@ const useSpeechToText = (
   onTranscriptionSettled: (takeId?: number) => void,
   /** Host-owned Auto Send Text preference. */
   autoSendText: number,
+  /** The composer's conversation; a local one keeps audio on the device (browser engine). */
+  route?: SpeechRoute,
 ): {
   isLoading?: boolean;
   isListening?: boolean;
@@ -17,7 +20,7 @@ const useSpeechToText = (
   abortRecording: () => void;
 } => {
   const { speechToTextEndpoint } = useGetAudioSettings();
-  const externalSpeechToText = speechToTextEndpoint === 'external';
+  const externalSpeechToText = speechToTextEndpoint === 'external' && route?.local !== true;
 
   const {
     isListening: speechIsListeningBrowser,
@@ -43,6 +46,7 @@ const useSpeechToText = (
     onTranscriptionComplete,
     onTranscriptionSettled,
     autoSendText,
+    route?.fields,
   );
 
   const isListening = externalSpeechToText ? speechIsListeningExternal : speechIsListeningBrowser;

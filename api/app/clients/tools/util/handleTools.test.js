@@ -1068,6 +1068,26 @@ describe('Tool Handlers', () => {
       ).resolves.toBeDefined();
     });
 
+    it('routes a configured providerChain through chain markers, keeping the real agents out', async () => {
+      process.env.SERPAPI_API_KEY = 'serpapi-test-key';
+      try {
+        const config = await loadWebSearchConfig({ providerChain: ['serpapi', 'searxng'] });
+
+        expect(config.searchProvider).toBe('serper');
+        expect(config.serperApiKey).toBe('librechat-search-chain');
+        expect(config.httpAgent.options.keepAlive).not.toBe(true);
+      } finally {
+        delete process.env.SERPAPI_API_KEY;
+      }
+    });
+
+    it('keeps the single-provider tool when the chain has no credentials', async () => {
+      const config = await loadWebSearchConfig({ providerChain: ['serpapi'] });
+
+      expect(config.serperApiKey).not.toBe('librechat-search-chain');
+      expect(config.httpAgent.options.keepAlive).toBe(true);
+    });
+
     it('does not construct web search when authentication is incomplete', async () => {
       mockLoadWebSearchAuth.mockResolvedValueOnce({
         authenticated: false,

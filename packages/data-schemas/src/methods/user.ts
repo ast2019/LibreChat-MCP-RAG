@@ -86,6 +86,7 @@ export function createUserMethods(
     options?: { preserveExpiresAt?: boolean },
   ) => Promise<IUser | null>;
   awaitAuthUserDocEviction: (userId: string) => Promise<void>;
+  unsetUserPhone: (userId: string) => Promise<IUser | null>;
   consumeBackupCode: (userId: string, codeHash: string) => Promise<boolean>;
   claimSamlIdentity: (
     userId: string,
@@ -113,8 +114,10 @@ export function createUserMethods(
       id: string;
       name?: string;
       username?: string;
-      email: string;
+      email?: string;
       emailVerified: boolean;
+      phone?: string;
+      phoneVerified?: boolean;
       password?: string;
       avatar?: string;
       provider: string;
@@ -434,6 +437,21 @@ export function createUserMethods(
         new: true,
         runValidators: true,
       },
+    ).lean<IUser>();
+    await invalidateAuthUserDocCache(userId);
+    return updated;
+  }
+
+  /**
+   * Removes the account's phone number. Refuses (returns null) when the account has no email,
+   * since every account keeps at least one identifier.
+   */
+  async function unsetUserPhone(userId: string): Promise<IUser | null> {
+    const User = mongoose.models.User;
+    const updated = await User.findOneAndUpdate(
+      { _id: userId, email: { $type: 'string' } },
+      { $unset: { phone: '', phoneVerified: '' } },
+      { new: true },
     ).lean<IUser>();
     await invalidateAuthUserDocCache(userId);
     return updated;
@@ -911,8 +929,10 @@ export function createUserMethods(
       id: string;
       name?: string;
       username?: string;
-      email: string;
+      email?: string;
       emailVerified: boolean;
+      phone?: string;
+      phoneVerified?: boolean;
       password?: string;
       avatar?: string;
       provider: string;
@@ -1039,6 +1059,7 @@ export function createUserMethods(
     createUserIfAbsent,
     updateUser,
     awaitAuthUserDocEviction,
+    unsetUserPhone,
     consumeBackupCode,
     claimSamlIdentity,
     updateTwoFactorEnrollment,

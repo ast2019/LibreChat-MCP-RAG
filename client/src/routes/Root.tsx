@@ -33,6 +33,7 @@ import {
   CodeHighlightThrottleContext,
   normalizeCodeHighlightThrottleMs,
 } from '~/components/Chat/Messages/Content/Parts/useLazyHighlight';
+import useKeyboardViewport, { APP_HEIGHT_VAR } from '~/hooks/Nav/useKeyboardViewport';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import { SteerHostProvider, appSteerHost } from '~/Providers/SteerHostContext';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
@@ -122,6 +123,7 @@ function RootLayout() {
   /** Releases feature-catalog queries after first paint on browser idle. */
   useCatalogWarmup(isAuthenticated);
 
+  useKeyboardViewport(isSmallScreen && isAuthenticated);
   useDrawerSwipe({
     paneRef,
     /** Auth gates the whole tree below (`return null`), so the swipe surfaces
@@ -183,7 +185,13 @@ function RootLayout() {
             <AgentsMapContext.Provider value={agentsMap}>
               <PromptGroupsProvider>
                 <Banner onHeightChange={setBannerHeight} />
-                <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
+                {/* `viewport-fit=cover` lets the page run under the notch and the home
+                    indicator; the shell keeps clear of the top and side insets here, and
+                    the composer band and the drawer's bottom bar clear the bottom one. */}
+                <div
+                  className="pt-safe px-safe flex"
+                  style={{ height: `calc(var(${APP_HEIGHT_VAR}, 100dvh) - ${bannerHeight}px)` }}
+                >
                   <div
                     className="relative z-0 flex h-full w-full overflow-hidden"
                     /** Drawer width also defines the uncovered dismiss strip. */

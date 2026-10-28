@@ -251,6 +251,9 @@ function ChatView({
                             ref={composerBandRef}
                             className={cn(
                               'bg-surface-canvas relative z-10 w-full [view-transition-name:chat-form]',
+                              /* Clears the home indicator; iOS keeps reporting that inset while
+                                 the keyboard covers it, so a focused composer drops it. */
+                              'pb-safe has-[textarea:focus]:pb-0',
                               !isLandingPage && 'scrollbar-gutter-spacer',
                               isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
                             )}

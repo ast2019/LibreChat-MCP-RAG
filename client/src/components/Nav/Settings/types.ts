@@ -50,6 +50,8 @@ export interface SettingsContextValue {
   emailEnabled: boolean;
   allowEmailChange: boolean;
   passkeyLoginEnabled: boolean;
+  /** Mobile sign-in is configured, so the account can add or change its number. */
+  phoneLoginEnabled?: boolean;
   hasPullRequestConnect: boolean;
   isTwoFactorPolicyProvider: boolean;
   twoFactorEnabled: boolean;
