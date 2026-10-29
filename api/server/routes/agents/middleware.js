@@ -7,9 +7,12 @@ const {
   createAgentManagementAuth,
   createCheckAgentTriggerAccess,
   createCheckRemoteAgentAccess,
+  createCheckApiAccess,
+  createRequireApiBalance,
 } = require('@librechat/api');
 const { getEffectivePermissions } = require('~/server/services/PermissionService');
 const { getAppConfig } = require('~/server/services/Config');
+const checkBan = require('~/server/middleware/checkBan');
 const db = require('~/models');
 
 const apiKeyMiddleware = createRequireApiKeyAuth({
@@ -34,10 +37,18 @@ const requireAgentManagementAuth = createAgentManagementAuth({
   getAppConfig,
 });
 
-const checkRemoteAgentsFeature = generateCheckAccess({
+const checkRemoteAgentsRole = generateCheckAccess({
   permissionType: PermissionTypes.REMOTE_AGENTS,
   permissions: [Permissions.USE],
   getRoleByName: db.getRoleByName,
+});
+
+/** A banned account is refused like in chat; then the user's own API switch, then the role. */
+const checkRemoteAgentsFeature = [checkBan, createCheckApiAccess(checkRemoteAgentsRole)];
+
+/** No credit, no call: refused before any provider is reached. */
+const requireApiBalance = createRequireApiBalance({
+  findBalanceByUser: db.findBalanceByUser,
 });
 
 const agentAccessDependencies = {
@@ -55,4 +66,5 @@ module.exports = {
   requireRemoteAgentAuth,
   requireAgentManagementAuth,
   checkRemoteAgentsFeature,
+  requireApiBalance,
 };

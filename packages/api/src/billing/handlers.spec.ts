@@ -131,7 +131,17 @@ describe('createAdminBalanceHandlers.listPacks / getUserBalance', () => {
     expect(res.body).toEqual({
       enabled: true,
       packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }],
+      startBalance: 0,
     });
+  });
+
+  it('reports the welcome gift new accounts get', async () => {
+    const res = mockRes();
+    const deps = createDeps({
+      getBalanceConfig: jest.fn().mockResolvedValue({ enabled: true, startBalance: 200_000 }),
+    });
+    await createAdminBalanceHandlers(deps).listPacks(req(), res);
+    expect(res.body).toMatchObject({ startBalance: 200_000 });
   });
 
   it('reports a user balance with the share of the pack used', async () => {

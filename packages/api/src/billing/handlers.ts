@@ -122,7 +122,13 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     try {
       const config = await deps.getBalanceConfig(req);
       const packs: TBalancePack[] = config?.packs ?? [];
-      return res.status(200).json({ enabled: config?.enabled === true, packs });
+      const enabled = config?.enabled === true;
+      /** The welcome gift every new account gets, shown on the admin page so it is never a surprise */
+      const startBalance =
+        enabled && typeof config?.startBalance === 'number' && config.startBalance > 0
+          ? config.startBalance
+          : 0;
+      return res.status(200).json({ enabled, packs, startBalance });
     } catch (error) {
       logger.error('[adminBalance] listPacks error:', error);
       return res.status(500).json({ error: 'Failed to list packs' });
@@ -261,7 +267,9 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
       const now = (deps.now ?? (() => new Date()))();
       const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
       const usage = await deps.getUserUsageByContext({ userId: target.user.id, since });
-      return res.status(200).json({ user: target.user, days, since: since.toISOString(), ...usage });
+      return res
+        .status(200)
+        .json({ user: target.user, days, since: since.toISOString(), ...usage });
     } catch (error) {
       logger.error('[adminBalance] userUsage error:', error);
       return res.status(500).json({ error: 'Failed to read user usage' });

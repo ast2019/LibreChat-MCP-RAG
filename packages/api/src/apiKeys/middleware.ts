@@ -6,10 +6,11 @@ import {
   TWO_FACTOR_ENROLLMENT_REQUIRED_CODE,
 } from 'librechat-data-provider';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import type { IUser } from '@librechat/data-schemas';
+import type { IUser, AppConfig } from '@librechat/data-schemas';
 import type { Types } from 'mongoose';
 import { isTwoFactorEnrollmentRequired } from '~/auth/twoFactor';
 import { getRemoteAgentPermissions } from './service';
+import { findApiModelSpec } from './models';
 
 export interface ApiKeyAuthDependencies {
   validateAgentApiKey: (apiKey: string) => Promise<{
@@ -41,6 +42,8 @@ export interface ApiKeyAuthRequest extends Request {
 export interface RemoteAgentAccessRequest extends ApiKeyAuthRequest {
   agent?: { _id: Types.ObjectId; [key: string]: unknown };
   agentPermissions?: number;
+  /** Set when `model` named a model spec the user can see instead of an agent id */
+  apiModelSpec?: string;
 }
 
 type AgentIdResolver = (req: RemoteAgentAccessRequest) => string | undefined;
@@ -144,6 +147,7 @@ export function createRequireApiKeyAuth(deps: ApiKeyAuthDependencies) {
 function createAgentAccessMiddleware(
   deps: RemoteAgentAccessDependencies,
   resolveAgentId: AgentIdResolver,
+  options: { allowModelSpecs?: boolean } = {},
 ): RequestHandler {
   return async (baseReq, res, next): Promise<void> => {
     const req = baseReq as RemoteAgentAccessRequest;
@@ -157,6 +161,17 @@ function createAgentAccessMiddleware(
           code: 'missing_model',
         },
       });
+      return;
+    }
+
+    /** A model spec the user can already chat with needs no agent share: the config the request
+     *  carries is narrowed to the specs this user may use. */
+    if (
+      options.allowModelSpecs === true &&
+      findApiModelSpec(req as { config?: AppConfig }, agentId) != null
+    ) {
+      req.apiModelSpec = agentId;
+      next();
       return;
     }
 
@@ -207,7 +222,9 @@ function createAgentAccessMiddleware(
 }
 
 export function createCheckRemoteAgentAccess(deps: RemoteAgentAccessDependencies): RequestHandler {
-  return createAgentAccessMiddleware(deps, (req) => req.body?.model || req.params?.model);
+  return createAgentAccessMiddleware(deps, (req) => req.body?.model || req.params?.model, {
+    allowModelSpecs: true,
+  });
 }
 
 export function createCheckAgentTriggerAccess(deps: RemoteAgentAccessDependencies): RequestHandler {

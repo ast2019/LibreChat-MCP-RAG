@@ -20,6 +20,8 @@ export type TAdminBillingUser = {
   createdAt?: string;
   /** Local/private model override; an absent key follows the role. Older servers omit it. */
   modelAccess?: TUserModelAccess;
+  /** Programming API override; absent follows the role. Older servers omit it. */
+  apiAccess?: boolean;
   balance: TAdminBillingBalance | null;
   /** Whole percent of the last pack used; null when nothing measures it */
   usedPercent: number | null;
@@ -58,7 +60,12 @@ export type TAdminBillingPack = {
   description?: string;
 };
 
-export type TAdminBillingPacksResponse = { enabled: boolean; packs: TAdminBillingPack[] };
+export type TAdminBillingPacksResponse = {
+  enabled: boolean;
+  packs: TAdminBillingPack[];
+  /** Credits every new account gets on sign-up (the welcome gift); 0 when there is none */
+  startBalance?: number;
+};
 
 export type TAdminBillingGrantRequest =
   | { userId: string; packId: string }
@@ -96,6 +103,11 @@ export type TAdminModelAccessRequest = {
 };
 
 export type TAdminModelAccessResponse = { id: string; modelAccess: TUserModelAccess };
+
+/** `PATCH /api/admin/users/:id/api-access`: `true`/`false` sets the override, `null` follows the role */
+export type TAdminApiAccessRequest = { userId: string; apiAccess: boolean | null };
+
+export type TAdminApiAccessResponse = { id: string; apiAccess: boolean | null };
 
 /** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
 export interface TAdminBillingUserUsage {

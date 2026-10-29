@@ -5,6 +5,7 @@ import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { formatLocal, formatUsd } from './format';
 import { Kpi, Money, RateNote } from './parts';
 import { useLocalize } from '~/hooks';
+import GiftNote from './GiftNote';
 
 const WINDOWS = [7, 30, 90] as const;
 
@@ -37,6 +38,8 @@ export default function Overview() {
           ))}
         </div>
       </div>
+
+      <GiftNote />
 
       {summary.isError ? (
         <p role="alert" className="text-text-destructive text-sm">

@@ -14,6 +14,8 @@ import type {
   TAdminCreateUserRequest,
   TAdminSetUserRoleRequest,
   TAdminCreateUserResponse,
+  TAdminApiAccessRequest,
+  TAdminApiAccessResponse,
 } from 'librechat-data-provider';
 import type {
   QueryKey,
@@ -155,6 +157,53 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
       },
       onSuccess: (data) => {
         setUserAccess(data.id, () => data.modelAccess);
+      },
+      onError: (_error, _payload, context) => {
+        for (const [key, data] of context?.snapshots ?? []) {
+          queryClient.setQueryData(key, data);
+        }
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+      },
+    },
+  );
+};
+
+/** Sets or clears one user's programming API override; the lists show it at once and roll back
+ *  if the server refuses. */
+export const useAdminUserApiAccessMutation = (): UseMutationResult<
+  TAdminApiAccessResponse,
+  unknown,
+  TAdminApiAccessRequest,
+  ModelAccessContext
+> => {
+  const queryClient = useQueryClient();
+  const setUserApiAccess = (userId: string, apiAccess: boolean | null) =>
+    queryClient.setQueriesData<TAdminBillingUsersResponse>(
+      [QueryKeys.adminBillingUsers],
+      (data) =>
+        data && {
+          ...data,
+          users: data.users.map((user) => {
+            if (user.id !== userId) {
+              return user;
+            }
+            const { apiAccess: _previous, ...rest } = user;
+            return apiAccess == null ? rest : { ...rest, apiAccess };
+          }),
+        },
+    );
+  return useMutation(
+    (payload: TAdminApiAccessRequest) => dataService.updateAdminUserApiAccess(payload),
+    {
+      onMutate: async (payload) => {
+        await queryClient.cancelQueries([QueryKeys.adminBillingUsers]);
+        const snapshots = queryClient.getQueriesData<TAdminBillingUsersResponse>([
+          QueryKeys.adminBillingUsers,
+        ]);
+        setUserApiAccess(payload.userId, payload.apiAccess);
+        return { snapshots };
       },
       onError: (_error, _payload, context) => {
         for (const [key, data] of context?.snapshots ?? []) {

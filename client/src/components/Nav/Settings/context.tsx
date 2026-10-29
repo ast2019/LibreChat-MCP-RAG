@@ -63,7 +63,9 @@ export function useSettingsContext(): SettingsContextValue {
   const replyNotificationSoundAllowed =
     replyConfigLoaded && replyNotificationsConfig?.sound !== false;
   const analyticsConfigured = hasAnalyticsGtmId(startupConfig?.analyticsGtmId);
-  const hasRemoteAgentsBool = hasRemoteAgents === true;
+  /** The user's own API switch, set by an admin, wins over the role. */
+  const hasRemoteAgentsBool =
+    typeof user?.apiAccess === 'boolean' ? user.apiAccess : hasRemoteAgents === true;
   const hasMultiConvoBool = hasMultiConvo === true;
   const hasPromptsBool = hasPrompts === true;
   const engineTTS = useRecoilValue<string>(store.engineTTS);

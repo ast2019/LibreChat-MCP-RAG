@@ -13,6 +13,8 @@ import type {
   TAdminCreateUserRequest,
   TAdminSetUserRoleRequest,
   TAdminCreateUserResponse,
+  TAdminApiAccessRequest,
+  TAdminApiAccessResponse,
 } from './types/billing';
 import type {
   TPaymentOrder,
@@ -168,6 +170,13 @@ export function updateAdminUserModelAccess({
   ...body
 }: TAdminModelAccessRequest): Promise<TAdminModelAccessResponse> {
   return request.patch(endpoints.adminUserModelAccess(userId), body);
+}
+
+export function updateAdminUserApiAccess({
+  userId,
+  apiAccess,
+}: TAdminApiAccessRequest): Promise<TAdminApiAccessResponse> {
+  return request.patch(endpoints.adminUserApiAccess(userId), { apiAccess });
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {

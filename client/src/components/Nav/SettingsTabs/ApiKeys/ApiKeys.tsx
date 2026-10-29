@@ -13,6 +13,7 @@ import {
 import CreateKeyDialog from './CreateKeyDialog';
 import { useLocalize } from '~/hooks';
 import Admin from './Admin';
+import Guide from './Guide';
 import List from './List';
 
 export default function ApiKeys() {
@@ -42,7 +43,7 @@ export default function ApiKeys() {
           ref={contentRef}
           tabIndex={-1}
           onOpenAutoFocus={handleOpenAutoFocus}
-          className="text-text-primary w-11/12 max-w-2xl shadow-2xl"
+          className="text-text-primary max-h-[90vh] w-11/12 max-w-2xl overflow-y-auto shadow-2xl"
           aria-describedby={undefined}
         >
           <OGDialogHeader className="space-y-0 pe-8 text-start">
@@ -58,6 +59,9 @@ export default function ApiKeys() {
               <Plus className="h-4 w-4" aria-hidden="true" />
               {localize('com_ui_create_api_key')}
             </Button>
+          </div>
+          <div className="border-border-light border-t pt-4">
+            <Guide />
           </div>
           <CreateKeyDialog open={createOpen} onOpenChange={setCreateOpen} />
         </OGDialogContent>

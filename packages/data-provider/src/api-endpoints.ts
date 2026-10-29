@@ -560,6 +560,8 @@ export const adminRoleMembers = (role: string, userId?: string) =>
   }`;
 export const adminServiceStatus = () => `${BASE_URL}/api/admin/status`;
 export const adminServiceStatusRefresh = () => `${adminServiceStatus()}/refresh`;
+export const adminUserApiAccess = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/api-access`;
 export const adminUserModelAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/model-access`;
 
