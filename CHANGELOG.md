@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-10-29
+
+### Fixed
+- **API calls no longer get the image, video and speech tools.** A file made through the API was
+  delivered to the chat UI only (a link behind the session cookie), so the caller was charged for
+  something it could not fetch.
+
+### Added
+- `docs/saas/ARCHITECTURE.md`: system, application, and user/admin logical architecture with
+  diagrams, the access-control layers, and the findings of an architecture review.
+
 ## [0.24.0] - 2026-10-29
 
 ### Added

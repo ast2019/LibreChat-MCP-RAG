@@ -1,3 +1,4 @@
+import { MEDIA_TOOL_NAMES } from 'librechat-data-provider';
 import type { TModelSpec } from 'librechat-data-provider';
 import type { Agent } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
@@ -82,7 +83,7 @@ export async function resolveApiAgent(
       model_parameters[key] = value;
     }
   }
-  return loadEphemeralAgent(
+  const agent = await loadEphemeralAgent(
     {
       req,
       spec: spec.name,
@@ -91,4 +92,10 @@ export async function resolveApiAgent(
     },
     deps,
   );
+  /** Media tools answer the chat UI (an inline attachment, a site-relative link behind the
+   *  session cookie); an API caller would be charged for a file it cannot fetch. */
+  if (agent?.tools) {
+    agent.tools = agent.tools.filter((tool) => !MEDIA_TOOL_NAMES.includes(tool));
+  }
+  return agent;
 }
