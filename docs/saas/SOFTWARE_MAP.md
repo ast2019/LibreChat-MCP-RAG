@@ -1,5 +1,7 @@
 # نقشه نرم‌افزار
 
+معماری سیستم، لایه‌ها، دسترسی کاربر و ادمین و نتیجه بازبینی در [ARCHITECTURE.md](./ARCHITECTURE.md) است.
+
 این سند نشان می‌دهد هر بخش از پروژه کجاست و یک درخواست چت از کدام لایه‌ها عبور می‌کند. مسیرها نسبت به ریشه مخزن هستند.
 
 ## نمای کلی
@@ -7,11 +9,12 @@
 ```mermaid
 flowchart LR
   U[کاربر / مرورگر] -->|HTTPS| P[Coolify proxy]
-  P --> API["api :3080<br/>Express + React SPA"]
+  P --> API["api :80<br/>Express + React SPA"]
   API --> M[(MongoDB<br/>کاربر، گفتگو، موجودی، تراکنش)]
   API --> MS[(Meilisearch<br/>جستجو در گفتگوها)]
   API --> R[rag_api :8000] --> V[(pgvector<br/>بردار فایل‌ها)]
   API --> S[SearXNG :8080<br/>جستجوی وب]
+  API --> OL[Ollama :11434<br/>مدل لوکال]
   API -->|مدل‌ها + قیمت‌ها| OR[OpenRouter API]
   R -->|embeddings| OR
 ```
