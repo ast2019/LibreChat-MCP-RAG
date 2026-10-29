@@ -1,3 +1,4 @@
+import { captureReferralCode } from '~/utils/referral';
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import type { TStartupConfig } from 'librechat-data-provider';
@@ -61,6 +62,12 @@ export default function StartupLayout({ isAuthenticated }: { isAuthenticated?: b
       setStartupConfig(data);
     }
   }, [data]);
+
+  /** An invite link (`/register?ref=CODE`) leaves its code here for the new account to claim
+   *  once signed in, whichever way it signs up. */
+  useEffect(() => {
+    captureReferralCode();
+  }, []);
 
   useEffect(() => {
     setDocumentTitle(startupConfig?.appTitle || getBootAppTitle(), true);

@@ -35,6 +35,7 @@ export enum QueryKeys {
   adminBillingPacks = 'adminBillingPacks',
   adminServiceStatus = 'adminServiceStatus',
   paymentOptions = 'paymentOptions',
+  referral = 'referral',
   paymentOrder = 'paymentOrder',
   adminPayments = 'adminPayments',
   adminPaymentsSummary = 'adminPaymentsSummary',

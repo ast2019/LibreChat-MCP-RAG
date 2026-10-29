@@ -114,6 +114,20 @@ type TAnchorProps = {
   children: React.ReactNode;
 };
 
+/** An `https` link straight to a video file, as image/video tools (e.g. Higgsfield over MCP)
+ *  return their results. Only the path is read, so a signed query string still matches. */
+export function getVideoLinkSource(href?: string | null): string | null {
+  if (!href) {
+    return null;
+  }
+  try {
+    const url = new URL(href);
+    return url.protocol === 'https:' && /\.(mp4|webm|mov|m4v)$/i.test(url.pathname) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
 export const a: React.ElementType = memo(function MarkdownAnchor({ href, children }: TAnchorProps) {
   const { useUser, useToast } = useMessagePartsHost();
   const user = useUser();
@@ -139,6 +153,27 @@ export const a: React.ElementType = memo(function MarkdownAnchor({ href, childre
 
   const { refetch: downloadFile } = useFileDownload(user?.id ?? '', file_id, { direct: false });
   const props: { target?: string; onClick?: React.MouseEventHandler } = { target: '_blank' };
+
+  const videoSource = getVideoLinkSource(href);
+  if (videoSource != null) {
+    /** Played in place; the link below still opens or saves it, and covers a deployment whose
+     *  `media-src` does not allow the video's host (`CSP_MEDIA_SRC_EXTRA`). */
+    return (
+      <span className="my-2 flex max-w-xl flex-col gap-1">
+        <video
+          controls
+          playsInline
+          preload="metadata"
+          src={videoSource}
+          data-testid="markdown-video"
+          className="border-border-light bg-surface-media-overlay max-h-112 w-full rounded-lg border"
+        />
+        <a href={href} {...props}>
+          {children}
+        </a>
+      </span>
+    );
+  }
 
   if (!file_id || !filename) {
     return (

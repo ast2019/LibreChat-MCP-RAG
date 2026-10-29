@@ -68,6 +68,22 @@ export interface LoadAgentParams {
   model_parameters?: AgentModelParameters & { model?: string };
 }
 
+/** Whether a spec keeps its conversations off third-party services (`privacy` set). */
+export function isDataContainedSpec(spec?: Pick<TModelSpec, 'privacy'> | null): boolean {
+  return spec?.privacy === 'private' || spec?.privacy === 'local';
+}
+
+/** The request's own tool picks removed, keeping everything else it carries. */
+function containEphemeralAgent(agent: TEphemeralAgent): TEphemeralAgent {
+  return {
+    ...agent,
+    mcp: Array.isArray(agent.mcp) ? [] : agent.mcp,
+    web_search: false,
+    file_search: false,
+    execute_code: false,
+  };
+}
+
 /**
  * Load an ephemeral agent based on the request parameters.
  */
@@ -81,7 +97,17 @@ export async function loadEphemeralAgent(
   if (spec != null && spec !== '') {
     modelSpec = modelSpecs?.list?.find((s) => s.name === spec) ?? null;
   }
-  const ephemeralAgent: TEphemeralAgent | undefined = req.body?.ephemeralAgent;
+  /** A confidential (`private`) or `local` spec promises that the conversation reaches no
+   *  third party, so what the request picks for itself — MCP servers, web search, file search,
+   *  code — is dropped and only the operator's own spec settings apply. The composer hides
+   *  those controls for these specs; this holds even for a request that sends them anyway. */
+  const keepsDataInside = isDataContainedSpec(modelSpec);
+  const requested: TEphemeralAgent | undefined = req.body?.ephemeralAgent;
+  const ephemeralAgent: TEphemeralAgent | undefined =
+    keepsDataInside && requested != null ? containEphemeralAgent(requested) : requested;
+  if (keepsDataInside && requested != null && req.body != null) {
+    req.body.ephemeralAgent = ephemeralAgent;
+  }
   const userId = req.user?.id ?? '';
   const capabilityProfile = resolveMCPClientCapabilityProfile(
     resolveMCPAppsPolicy(req.config?.mcpSettings?.apps),

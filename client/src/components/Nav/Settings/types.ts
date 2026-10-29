@@ -39,6 +39,8 @@ export type SectionId =
 
 export interface SettingsContextValue {
   balanceEnabled: boolean;
+  /** Invite rewards are on (`referral.enabled`) */
+  referralEnabled: boolean;
   hasAnyPersonalizationFeature: boolean;
   hasMemoryOptOut: boolean;
   hasStatefulCodeSessions: boolean;

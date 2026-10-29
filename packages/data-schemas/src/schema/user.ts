@@ -62,6 +62,20 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    /** The user's own invite code (`/register?ref=…`), made the first time they open it. */
+    referralCode: {
+      type: String,
+      trim: true,
+    },
+    /** Who invited this user; set once, within a few days of signing up. */
+    referredBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    /** When the invite reward for this user was paid, to both sides; set once. */
+    referralRewardedAt: {
+      type: Date,
+    },
     password: {
       type: String,
       trim: true,
@@ -280,6 +294,11 @@ userSchema.index(
   { phone: 1, tenantId: 1 },
   { unique: true, partialFilterExpression: { phone: { $type: 'string' } } },
 );
+userSchema.index(
+  { referralCode: 1, tenantId: 1 },
+  { unique: true, partialFilterExpression: { referralCode: { $type: 'string' } } },
+);
+userSchema.index({ referredBy: 1 }, { partialFilterExpression: { referredBy: { $exists: true } } });
 userSchema.index({ role: 1, tenantId: 1 });
 userSchema.index({ idOnTheSource: 1, openidIssuer: 1, tenantId: 1 });
 /* Tenant first: the popular sort's only predicates are the caller's tenant and

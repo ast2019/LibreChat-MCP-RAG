@@ -21,6 +21,7 @@ import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/Archiv
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
 import { InstallDialog, InstallMenuItem } from '~/components/Pwa';
+import { InviteDialog, InviteMenuItem } from '~/components/Referral';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
@@ -113,6 +114,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
@@ -199,6 +201,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <GearIcon className="icon-md" aria-hidden="true" />
           {localize('com_nav_settings')}
         </Menu.MenuItem>
+        <InviteMenuItem onSelect={() => setShowInvite(true)} />
         <InstallMenuItem onSelect={() => setShowInstall(true)} />
         <DropdownMenuSeparator />
         <Menu.MenuItem onClick={() => logout()} className="select-item text-sm">
@@ -206,6 +209,13 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           {localize('com_nav_log_out')}
         </Menu.MenuItem>
       </Menu.Menu>
+      {showInvite && (
+        <InviteDialog
+          open={showInvite}
+          onOpenChange={setShowInvite}
+          triggerRef={accountSettingsButtonRef}
+        />
+      )}
       {showInstall && (
         <InstallDialog
           open={showInstall}

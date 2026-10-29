@@ -186,6 +186,7 @@ describe('applyAutoDiscoveredSpecs — public', () => {
       iconURL: 'openai',
       webSearch: true,
       fileSearch: true,
+      discoveredAt: 25,
       preset: {
         endpoint: 'OpenRouter',
         model: '~openai/gpt-terra-latest',
@@ -195,6 +196,35 @@ describe('applyAutoDiscoveredSpecs — public', () => {
     /** Only a spec opening a new group carries the group icon */
     expect(byName(result, 'auto-openai-gpt-terra')?.groupIcon).toBeUndefined();
     expect(byName(result, 'auto-x-ai-grok')?.groupIcon).toBe('xai');
+  });
+
+  it('adds an unlisted provider’s alias in its own group only when otherProviders is on', () => {
+    const list = [spec('sonnet', 'Claude', '~anthropic/claude-sonnet-latest')];
+    const off = applyAutoDiscoveredSpecs(makeConfig(list), snap());
+    expect(byName(off, 'auto-moonshotai-kimi')).toBeUndefined();
+
+    const on = applyAutoDiscoveredSpecs(makeConfig(list, { otherProviders: true }), snap());
+    expect(byName(on, 'auto-moonshotai-kimi')).toMatchObject({
+      label: 'Kimi',
+      group: 'MoonshotAI',
+      discoveredAt: 40,
+      preset: { endpoint: 'OpenRouter', model: '~moonshotai/kimi-latest' },
+    });
+    /** No icon is known for it, so the group carries none */
+    expect(byName(on, 'auto-moonshotai-kimi')?.groupIcon).toBeUndefined();
+    /** After every listed provider's group */
+    const groups = on.modelSpecs?.list?.map((s) => s.group) ?? [];
+    expect(groups.lastIndexOf('MoonshotAI')).toBeGreaterThan(groups.lastIndexOf('Grok'));
+  });
+
+  it('never folds an unlisted provider into a listed brand’s group by name', () => {
+    const list = [spec('sonnet', 'Claude', '~anthropic/claude-sonnet-latest')];
+    const impostor: CatalogueModel = { id: '~clone/claude-latest', name: 'Claude: X Latest', created: 50 };
+    const result = applyAutoDiscoveredSpecs(
+      makeConfig(list, { otherProviders: true }),
+      snap([...catalogue, impostor]),
+    );
+    expect(byName(result, 'auto-clone-claude')).toBeUndefined();
   });
 
   it('skips covered (any endpoint), excluded, and unlisted-provider aliases', () => {

@@ -1,3 +1,4 @@
+import type { TReferralInfo, TReferralClaimResponse } from './referral';
 import type { AxiosResponse } from 'axios';
 import type {
   TAdminBillingSummary,
@@ -93,6 +94,14 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function getReferral(): Promise<TReferralInfo> {
+  return request.get(endpoints.referral());
+}
+
+export function claimReferral(code: string): Promise<TReferralClaimResponse> {
+  return request.post(endpoints.referralClaim(), { code });
 }
 
 export function getPaymentOptions(): Promise<TPaymentOptions> {

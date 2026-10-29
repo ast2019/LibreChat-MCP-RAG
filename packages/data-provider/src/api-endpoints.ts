@@ -557,6 +557,8 @@ export const adminUserModelAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/model-access`;
 
 /* Payments */
+export const referral = () => `${BASE_URL}/api/referral`;
+export const referralClaim = () => `${referral()}/claim`;
 export const payments = () => `${BASE_URL}/api/payments`;
 export const paymentOptions = () => `${payments()}/options`;
 export const paymentCheckout = () => `${payments()}/checkout`;

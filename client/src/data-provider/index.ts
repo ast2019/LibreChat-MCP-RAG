@@ -7,6 +7,7 @@ export * from './Insights';
 export * from './Billing';
 export * from './Status';
 export * from './Payments';
+export * from './Referral';
 /* Memories */
 export * from './Memories';
 export * from './Messages';

@@ -59,6 +59,11 @@ export type TModelSpec = {
    * and per user.
    */
   privacy?: 'private' | 'local';
+  /**
+   * Set on specs the catalogue added (`autoDiscover`): when the provider published the model,
+   * in Unix seconds. The selector marks a spec published in the last two weeks as new.
+   */
+  discoveredAt?: number;
   iconURL?: string | EModelEndpoint; // Allow using project-included icons
   authType?: AuthType;
   /** Hide the chat input tool badge row while this model spec is active. */
@@ -205,6 +210,7 @@ export const tModelSpecSchema = z.object({
   showInMenu: z.boolean().optional(),
   adminOnly: z.boolean().optional(),
   privacy: z.enum(['private', 'local']).optional(),
+  discoveredAt: z.number().optional(),
   iconURL: z.union([z.string(), eModelEndpointSchema]).optional(),
   authType: authTypeSchema.optional(),
   hideBadgeRow: z.boolean().optional(),
@@ -247,6 +253,12 @@ export const autoDiscoverConfigSchema = z.object({
   /** Per-request timeout for each catalogue fetch. */
   timeoutMs: z.number().int().positive().default(15000),
   providers: z.record(autoDiscoverProviderSchema).default({}),
+  /**
+   * Also add the `-latest` aliases of providers missing from `providers`, each in a group named
+   * after the provider as OpenRouter writes it (`Moonshot AI: Kimi Latest` → `Moonshot AI`), so a
+   * new AI company's models appear without a config change. Off by default.
+   */
+  otherProviders: z.boolean().default(false),
   /** Model or alias ids never added (and never chosen as a private upgrade). */
   exclude: z.array(z.string()).default([]),
   /** Group new providers' groups are inserted before; else after the last provider group. */

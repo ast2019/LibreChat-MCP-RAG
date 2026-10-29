@@ -21,6 +21,7 @@ export * from './apiKeys';
 /* Billing (credit packs, price multiplier) */
 export * from './billing';
 export * from './payments';
+export * from './referral';
 /* MCP */
 export * from './mcp/mcpConfig';
 export * from './mcp/capabilities';
