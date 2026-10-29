@@ -80,6 +80,23 @@ export type TAdminBillingGrantResponse = {
   pack: { id: string; label: string } | null;
 };
 
+/** `GET|PUT /api/admin/balance/gifts`: amounts in credits ($1 = 1,000,000) */
+export type TAdminGiftSettings = {
+  startBalance: number;
+  referral: {
+    enabled: boolean;
+    referrerCredits: number;
+    inviteeCredits: number;
+    maxRewardsPerReferrer: number;
+  };
+  changedAt?: string;
+};
+
+export type TAdminGiftUpdate = {
+  startBalance?: number;
+  referral?: Partial<TAdminGiftSettings['referral']>;
+};
+
 /** `POST /api/admin/balance/users`: an email account needs a password, a phone-only one does not. */
 export type TAdminCreateUserRequest = {
   name: string;

@@ -10,6 +10,7 @@ const mockModelAccessMutate = jest.fn();
 const mockSetRoleMutate = jest.fn();
 const mockApiAccessMutate = jest.fn();
 const mockMediaAccessMutate = jest.fn();
+const mockGiftsMutate = jest.fn();
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -52,6 +53,20 @@ jest.mock('~/data-provider', () => ({
   useAdminSetUserRoleMutation: () => ({ mutate: mockSetRoleMutate, isLoading: false }),
   useAdminUserApiAccessMutation: () => ({ mutate: mockApiAccessMutate, isLoading: false }),
   useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
+  useAdminGiftsQuery: () => ({
+    data: {
+      startBalance: 200_000,
+      referral: {
+        enabled: true,
+        referrerCredits: 500_000,
+        inviteeCredits: 200_000,
+        maxRewardsPerReferrer: 20,
+      },
+      changedAt: '2026-10-29T10:00:00.000Z',
+    },
+    isError: false,
+  }),
+  useAdminGiftsMutation: () => ({ mutate: mockGiftsMutate, isLoading: false }),
   useAdminCreateUserMutation: () => ({ mutate: jest.fn(), isLoading: false }),
   useGetStartupConfig: () => ({
     data: {
@@ -264,6 +279,27 @@ describe('AdminView', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
     expect(mockMediaAccessMutate).toHaveBeenCalledWith(
       { userId: 'u1', mediaAccess: true },
+      expect.any(Object),
+    );
+  });
+
+  it('lets the admin set the invite reward, applied from now on', async () => {
+    renderView('/admin?tab=gifts');
+    const inviter = screen.getByLabelText('Reward for the inviter');
+    expect(inviter).toHaveValue('0.5');
+    await userEvent.clear(inviter);
+    await userEvent.type(inviter, '0.75');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(mockGiftsMutate).toHaveBeenCalledWith(
+      {
+        startBalance: 200_000,
+        referral: {
+          enabled: true,
+          referrerCredits: 750_000,
+          inviteeCredits: 200_000,
+          maxRewardsPerReferrer: 20,
+        },
+      },
       expect.any(Object),
     );
   });

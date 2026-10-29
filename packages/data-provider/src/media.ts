@@ -95,3 +95,44 @@ export const mediaGenerationSchema = z.object({
 
 export type TMediaGenerationConfig = z.infer<typeof mediaGenerationSchema>;
 export type THiggsfieldModel = z.infer<typeof higgsfieldModelSchema>;
+
+/** `GET /api/media/status`: why each way to make images and videos is, or is not, usable. */
+export type TMediaWayState =
+  | 'active'
+  | 'needs_pack'
+  | 'disabled_by_admin'
+  | 'not_configured'
+  | 'needs_connection'
+  | 'owner_not_connected'
+  | 'not_allowed';
+
+export type TMediaWayId =
+  | 'image'
+  | 'video'
+  | 'speech'
+  | 'higgsfield_api'
+  | 'higgsfield_shared'
+  | 'higgsfield_own';
+
+export interface TMediaAvailability {
+  paidOnly: boolean;
+  hasPack: boolean;
+  userSwitch: boolean | null;
+  ways: Array<{ id: TMediaWayId; state: TMediaWayState; models?: string[] }>;
+  higgsfieldServer?: string;
+}
+
+/** `GET /api/media/jobs/:id`: a background generation shown as a card in the chat. */
+export interface TMediaJobView {
+  id: string;
+  kind: 'video';
+  status: 'pending' | 'completed' | 'failed';
+  label?: string;
+  errorCode?: string;
+  filepath?: string;
+  type?: string;
+  createdAt?: string;
+}
+
+/** The chat link of a background generation; the client renders it as a live card. */
+export const MEDIA_JOB_LINK_PATTERN = /^\/api\/media\/jobs\/([a-f0-9]{24})$/i;

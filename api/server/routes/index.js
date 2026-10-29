@@ -27,6 +27,7 @@ const payments = require('./payments');
 const referral = require('./referral');
 const actions = require('./actions');
 const apiKeys = require('./apiKeys');
+const media = require('./media');
 const banner = require('./banner');
 const openapi = require('./openapi');
 const search = require('./search');
@@ -68,6 +69,7 @@ module.exports = {
   adminStatus,
   keys,
   apiKeys,
+  media,
   user,
   tags,
   roles,

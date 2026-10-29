@@ -7,6 +7,7 @@ import {
 import type { TMediaGenerationConfig, TModelSpec } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { resolveSpeechEndpoint } from '~/speech/config';
+import { readConfigSection } from '~/app/config';
 import type { MediaEndpoint, MediaUser } from './types';
 
 const envVarPattern = /^\$\{.+\}$/;
@@ -14,7 +15,7 @@ const envVarPattern = /^\$\{.+\}$/;
 /** The deployment's `mediaGeneration` settings, or null when off or invalid. Secrets are read
  *  from the environment; a Higgsfield block whose keys do not resolve is dropped. */
 export function getMediaConfig(appConfig?: AppConfig | null): TMediaGenerationConfig | null {
-  const raw = (appConfig?.config as { mediaGeneration?: unknown } | undefined)?.mediaGeneration;
+  const raw = readConfigSection(appConfig, 'mediaGeneration');
   if (raw == null) {
     return null;
   }

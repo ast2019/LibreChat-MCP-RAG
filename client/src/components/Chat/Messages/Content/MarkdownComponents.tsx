@@ -1,5 +1,10 @@
 import React, { memo, useMemo, useRef, useEffect } from 'react';
-import { PermissionTypes, Permissions, apiBaseUrl } from 'librechat-data-provider';
+import {
+  Permissions,
+  apiBaseUrl,
+  PermissionTypes,
+  MEDIA_JOB_LINK_PATTERN,
+} from 'librechat-data-provider';
 import type { Element, ElementContent } from 'hast';
 import {
   handleDoubleClick,
@@ -14,6 +19,7 @@ import CodeBlock from '~/components/Messages/Content/CodeBlock';
 import useHasAccess from '~/hooks/Roles/useHasAccess';
 import { strongDirection } from '~/utils/direction';
 import { useFileDownload } from '~/data-provider';
+import MediaJob from './MediaJob';
 import { useLocalize } from '~/hooks';
 
 type TCodeProps = {
@@ -163,6 +169,11 @@ export const a: React.ElementType = memo(function MarkdownAnchor({ href, childre
 
   const { refetch: downloadFile } = useFileDownload(user?.id ?? '', file_id, { direct: false });
   const props: { target?: string; onClick?: React.MouseEventHandler } = { target: '_blank' };
+
+  const mediaJobId = href?.match(MEDIA_JOB_LINK_PATTERN)?.[1];
+  if (mediaJobId) {
+    return <MediaJob jobId={mediaJobId} />;
+  }
 
   const audioSource = getAudioLinkSource(href);
   if (audioSource != null) {

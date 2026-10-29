@@ -7,6 +7,35 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-29
+
+### Changed
+- **Videos are made in the background.** `generate_video` and Higgsfield videos start the job and
+  answer at once. The chat shows a «در حال ساخت ویدیو…» card that turns into the player when the
+  video is ready, so a closed page or a dropped connection loses nothing.
+  - A server worker polls the jobs (`MediaJob`, leased so two workers never poll the same job),
+    saves the file to «فایل‌های من», and charges the real cost only then.
+  - A failed, blocked or overdue video costs nothing, and the card says why.
+
+### Added
+- **«ساخت تصویر و ویدیو» in the account menu.** It lists every way to make images, videos and
+  audio: images, video, voice, Higgsfield paid from HiveGPT credit, the team's shared Higgsfield
+  account, and your own Higgsfield account.
+  - Each way shows whether it is on for you and what turns it on (buy a pack, ask an admin,
+    connect Higgsfield from the chat's tools menu, wait for the account owner).
+  - Admins also see what to set for a way that is not configured.
+  - `GET /api/media/status`.
+- **Admins set the gifts.** A new «هدیه‌ها» tab on the admin page sets the sign-up gift, the
+  reward for the inviter, the gift for the invited friend, and the cap on rewarded invites.
+  - New values apply to sign-ups and invites from the moment they are saved. Accounts and
+    rewards already paid keep what they got.
+  - The tab shows when the gifts last changed.
+  - Stored as deployment-wide config overrides. `librechat.yaml` keeps the defaults.
+
+### Fixed
+- Admin-page config overrides of `referral` (and `mediaGeneration`) were ignored, because the
+  readers looked at the file's values only. They now read the override on top of the file.
+
 ## [0.24.1] - 2026-10-29
 
 ### Fixed
