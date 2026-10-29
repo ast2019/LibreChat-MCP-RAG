@@ -36,7 +36,7 @@ export interface BillingSummary {
   totalUsers: number;
   /** Users with any chat spend in the window */
   activeUsers: number;
-  /** Credits added by admins (packs and manual grants), all time and in the window */
+  /** Credits added to balances (packs, manual grants, invite rewards), all time and in the window */
   creditsGranted: number;
   creditsGrantedInWindow: number;
   packGrantsInWindow: number;
@@ -50,7 +50,8 @@ export interface BillingSummary {
 }
 
 const MAX_PAGE_SIZE = 100;
-const GRANT_CONTEXTS = ['pack', 'admin'];
+/** Credits added to balances: packs, manual grants and invite rewards (both sides). */
+const GRANT_CONTEXTS = ['pack', 'admin', 'referral', 'referral_welcome'];
 const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
 /** `credits` transactions that are usage, not grants: on-server OCR pages (no provider cost). */
 const LOCAL_SPEND_CONTEXTS = ['ocr_local'];

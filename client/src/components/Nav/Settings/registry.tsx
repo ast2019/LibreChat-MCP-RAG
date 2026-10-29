@@ -50,6 +50,7 @@ import PhoneNumber from '../SettingsTabs/Account/PhoneNumber';
 import { RevokeKeys } from '../SettingsTabs/Data/RevokeKeys';
 import { ClearChats } from '../SettingsTabs/Data/ClearChats';
 import { TokenCredits, AutoRefill } from './BillingControls';
+import { InviteCard } from '~/components/Referral';
 import AdminPanel from '../SettingsTabs/General/AdminPanel';
 import { passkeysSupported } from '~/hooks/Auth/usePasskey';
 import SharedLinks from '../SettingsTabs/Data/SharedLinks';
@@ -870,6 +871,15 @@ export const registry: SettingEntry[] = [
     labelKey: 'com_ui_settings_label_auto_refill',
     show: (ctx) => ctx.balanceEnabled,
     Component: AutoRefill,
+  },
+  {
+    id: 'referral',
+    tab: ACCOUNT,
+    section: 'billing',
+    labelKey: 'com_ui_referral_title',
+    keywords: ['invite', 'referral', 'friends', 'gift', 'دعوت', 'هدیه'],
+    show: (ctx) => ctx.referralEnabled,
+    Component: InviteCard,
   },
   // Account · Danger zone
   {

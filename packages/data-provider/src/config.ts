@@ -41,6 +41,8 @@ import {
   scheduledMCPReadOnlyPolicySchema,
 } from './types/scheduleConsent';
 import { paymentsConfigSchema } from './payments';
+import { referralConfigSchema } from './referral';
+import type { TReferralStartupConfig } from './referral';
 import { phoneLoginConfigSchema } from './phone';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
@@ -3616,6 +3618,8 @@ export type TStartupConfig = {
   balance?: TBalanceConfig;
   /** In-app purchase is on: the buy-pack actions open `/payment` instead of `balance.purchaseUrl`. */
   payments?: TPaymentsStartupConfig;
+  /** Present while invite rewards are on */
+  referral?: TReferralStartupConfig;
   /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
   currencyRate?: TCurrencyRateInfo;
   transactions?: TTransactionsConfig;
@@ -4726,6 +4730,7 @@ export const configSchema = z.object({
   balance: balanceSchema.optional(),
   /** In-app pack purchase through payment gateways (Zarinpal, IDPay); off by default. */
   payments: paymentsConfigSchema.optional(),
+  referral: referralConfigSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({

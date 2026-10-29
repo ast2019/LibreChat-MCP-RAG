@@ -1,3 +1,4 @@
+import useReferralClaim from '~/hooks/useReferralClaim';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRecoilCallback, useRecoilValue } from 'recoil';
@@ -80,6 +81,7 @@ export default function ChatRoute() {
     setRouteState({ conversationId, pending: false });
   }
   useAppStartup({ startupConfig, user });
+  useReferralClaim(startupConfig);
   const { newConversation } = useNewConvo();
   const { showToast } = useToastContext();
   const localize = useLocalize();

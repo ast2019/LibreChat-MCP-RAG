@@ -24,6 +24,7 @@ const schedules = require('./schedules');
 const skills = require('./skills');
 const balance = require('./balance');
 const payments = require('./payments');
+const referral = require('./referral');
 const actions = require('./actions');
 const apiKeys = require('./apiKeys');
 const banner = require('./banner');
@@ -89,6 +90,7 @@ module.exports = {
   presets,
   balance,
   payments,
+  referral,
   messages,
   memories,
   endpoints,

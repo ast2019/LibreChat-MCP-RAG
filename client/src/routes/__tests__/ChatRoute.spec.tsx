@@ -52,6 +52,7 @@ jest.mock('~/data-provider', () => ({
     });
   },
 }));
+jest.mock('~/hooks/useReferralClaim', () => ({ __esModule: true, default: () => undefined }));
 jest.mock('~/hooks', () => ({
   useAssistantListMap: () => mockAssistantListMap,
   useIdChangeEffect: () => {},

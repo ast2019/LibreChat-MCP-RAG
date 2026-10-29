@@ -7,6 +7,54 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-29
+
+### Added
+- **Invite friends (referral rewards).** Every user has an invite link
+  (`/register?ref=CODE`), reached from the account menu («دعوت از دوستان») and Settings → Account.
+  It shows the link with copy and share buttons, what each invite pays, and how many friends
+  signed up, were rewarded and how much credit that earned.
+  - When someone signs up through the link and has a verified mobile number, the new account
+    gets `inviteeCredits` and the inviter gets `referrerCredits`, once.
+  - Anti-abuse rules:
+    - a mobile is unique per account;
+    - self-invites are refused;
+    - an account can be linked only within `claimWindowDays` of signing up;
+    - an inviter is paid for at most `maxRewardsPerReferrer` invites;
+    - the payout is an atomic claim, so concurrent requests cannot pay twice, and it is undone
+      if the ledger write fails.
+  - Rewards go through the transaction ledger (`referral` for the inviter, `referral_welcome`
+    for the invitee) and count as granted credits in the admin summary.
+  - The code waits in the browser for up to 30 days. A reward waiting on a mobile number is
+    paid on the next visit after the number is verified.
+  - Configured under `referral` (on in `config/librechat.saas.yaml`: 500,000 / 200,000 credits,
+    20 invites).
+- **Higgsfield image and video generation over MCP.** Higgsfield's official remote server
+  (`https://mcp.higgsfield.ai/mcp`) is configured, and each user connects their own Higgsfield
+  account from the composer's MCP picker (OAuth, no API key).
+  - Generations use that account's Higgsfield credits, not HiveGPT balance.
+  - The server instructions ask the model to confirm model, length and Higgsfield credit cost
+    before generating, and to return a direct link.
+  - Links to `.mp4`/`.webm`/`.mov` files now play inline in chat. Add Higgsfield's storage host
+    to `CSP_MEDIA_SRC_EXTRA` to allow that.
+  - `interface.mcpServers.use` is on so users see the picker. With `permissionSync: 'seed'`, an
+    existing deployment also turns it on for USER on the admin page.
+- **New AI companies appear on their own.** `modelSpecs.autoDiscover.otherProviders` adds the
+  `-latest` models of providers missing from `providers` in a group named after the provider,
+  with no config change (on in the saas config; Kimi has its own group).
+  - Specs the catalogue adds carry their publish date (`discoveredAt`). The model menu marks
+    them «جدید» for two weeks, beside their price.
+
+### Changed
+- **Confidential and local chats never use third-party tools.** For a `privacy: 'private'` or
+  `'local'` spec, the server drops the MCP servers, web search, file search and code a request
+  picks for itself. Only the spec's own settings apply. Before, only the hidden composer
+  controls stood in the way.
+- **No per-chat money figures.** The composer ring shows only how full the context window is
+  (`contextCost: false`). Its cost left out background work (memory, titles, OCR, speech), so
+  it read less than what was deducted. With `balance.display: pack`, the balance reads as the
+  share of the pack used, also after a pack is bought; money appears only as pack prices.
+
 ## [0.18.0] - 2026-10-29
 
 ### Fixed

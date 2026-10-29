@@ -26,6 +26,12 @@ export interface IUser extends Document {
   /** E.164 mobile number (e.g. `+989121234567`); unique per tenant when present. */
   phone?: string;
   phoneVerified?: boolean;
+  /** The user's own invite code, made the first time they open it. */
+  referralCode?: string;
+  /** Who invited this user. */
+  referredBy?: Types.ObjectId | string;
+  /** When the invite reward for this user was paid. */
+  referralRewardedAt?: Date;
   password?: string;
   avatar?: string;
   provider: string;

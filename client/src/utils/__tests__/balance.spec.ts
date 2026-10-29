@@ -136,7 +136,7 @@ describe('pack display', () => {
     expect(summary.showPrices).toBe(true);
   });
 
-  it('reads as the remaining money once a pack is granted, without prices', () => {
+  it('reads as the share of the pack used once a pack is granted, without money or prices', () => {
     const summary = summarizeBalance(
       {
         tokenCredits: 1_500_000,
@@ -146,10 +146,9 @@ describe('pack display', () => {
       },
       { display: 'pack', startBalance: 200_000 },
     );
-    expect(summary.display).toBe('currency');
+    expect(summary.display).toBe('percent');
     expect(summary.usedPercent).toBe(25);
     expect(summary.showPrices).toBe(false);
-    expect(formatBalanceAmount(summary.credits, summary.display, toman)).toBe('۴۰۴٬۲۵۰ تومان');
   });
 
   it('offers the prices again once the pack is spent', () => {

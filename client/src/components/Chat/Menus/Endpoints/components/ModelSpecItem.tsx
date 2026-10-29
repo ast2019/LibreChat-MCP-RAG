@@ -21,6 +21,17 @@ interface ModelSpecItemProps {
   setSize?: number;
 }
 
+/** How long a model the catalogue added is marked as new, from when its provider published it. */
+const NEW_SPEC_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function isNewSpec(spec: Pick<TModelSpec, 'discoveredAt'>, now = Date.now()): boolean {
+  if (spec.discoveredAt == null || !Number.isFinite(spec.discoveredAt)) {
+    return false;
+  }
+  const age = now - spec.discoveredAt * 1000;
+  return age >= 0 && age < NEW_SPEC_WINDOW_MS;
+}
+
 export function ModelSpecItem({ spec, isSelected, posInSet, setSize }: ModelSpecItemProps) {
   const localize = useLocalize();
   const { handleSelectSpec, endpointsConfig, agentsMap } = useModelSelectorContext();
@@ -67,6 +78,14 @@ export function ModelSpecItem({ spec, isSelected, posInSet, setSize }: ModelSpec
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-start">{spec.label}</span>
+            {isNewSpec(spec) && (
+              <span
+                data-testid="spec-new-badge"
+                className="border-brand-purple/40 text-brand-purple shrink-0 rounded-full border px-1.5 text-xs font-semibold"
+              >
+                {localize('com_ui_new')}
+              </span>
+            )}
             <CostBadge tier={pricing.tier} title={price ?? undefined} />
           </span>
           <SpecDescription description={spec.description} />

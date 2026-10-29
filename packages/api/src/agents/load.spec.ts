@@ -100,3 +100,51 @@ describe('loadEphemeralAgent → resolveSender parity', () => {
     expect(sender).toBe(parseEphemeralAgentId(agent?.id ?? '')?.sender);
   });
 });
+
+describe('loadEphemeralAgent on a confidential or local spec', () => {
+  const picks = {
+    mcp: ['higgsfield'],
+    web_search: true,
+    file_search: true,
+    execute_code: true,
+  };
+  const reqFor = (privacy?: 'private' | 'local') =>
+    ({
+      user: { id: 'user-1' },
+      config: {
+        modelSpecs: { list: [{ name: 'spec', label: 'Spec', ...(privacy ? { privacy } : {}) }] },
+      },
+      body: { ephemeralAgent: { ...picks, mcp: [...picks.mcp] } },
+    }) as unknown as Parameters<typeof loadEphemeralAgent>[0]['req'];
+  const containedDeps: LoadAgentDeps = {
+    ...deps,
+    getAccessibleMCPServers: async () => ({ higgsfield: {} }) as never,
+  };
+  const load = (req: Parameters<typeof loadEphemeralAgent>[0]['req']) =>
+    loadEphemeralAgent(
+      { req, spec: 'spec', endpoint: 'my-custom-endpoint', model_parameters: { model: 'm' } as never },
+      containedDeps,
+    );
+
+  test.each(['private', 'local'] as const)(
+    'drops the tools a %s request picks for itself',
+    async (privacy) => {
+      const req = reqFor(privacy);
+      const agent = await load(req);
+
+      expect(agent?.tools ?? []).toEqual([]);
+      expect(req.body?.ephemeralAgent).toMatchObject({
+        mcp: [],
+        web_search: false,
+        file_search: false,
+        execute_code: false,
+      });
+    },
+  );
+
+  test('keeps an ordinary spec’s picks', async () => {
+    const agent = await load(reqFor());
+
+    expect(agent?.tools).toEqual(expect.arrayContaining(['file_search', 'web_search']));
+  });
+});

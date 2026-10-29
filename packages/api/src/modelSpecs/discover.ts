@@ -93,6 +93,20 @@ function compareVersions(a: number[], b: number[]): number {
 }
 
 /** Catalogue name without the `Provider: ` prefix (and an alias's trailing ` Latest`). */
+/**
+ * The menu group for a provider missing from `providers`: the provider as the catalogue names
+ * it (`Moonshot AI: Kimi Latest` → `Moonshot AI`), else the prefix title-cased
+ * (`moonshotai` → `Moonshotai`).
+ */
+export function providerGroupName(model: CatalogueModel, provider: string): string {
+  const raw = model.name?.trim() ?? '';
+  const separator = raw.indexOf(': ');
+  if (separator > 0) {
+    return raw.slice(0, separator).trim();
+  }
+  return provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
 export function prettyModelName(model: CatalogueModel): string {
   const raw = model.name?.trim() || model.id.replace(/^~/, '').split('/').pop() || model.id;
   const separator = raw.indexOf(': ');
@@ -169,9 +183,22 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
     .filter((model) => model.id.startsWith('~'))
     .sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id));
 
+  /** Groups of providers missing from `settings.providers`, in the order first met. */
+  const otherGroups: string[] = [];
+  const listedGroups = new Set(Object.values(settings.providers).map((p) => p.group));
   for (const model of aliases) {
     const parsed = parseAliasFamily(model.id);
-    const provider = parsed ? settings.providers[parsed.provider] : undefined;
+    let provider = parsed ? settings.providers[parsed.provider] : undefined;
+    if (parsed && !provider && settings.otherProviders === true) {
+      const group = providerGroupName(model, parsed.provider);
+      /** Never folded into a configured brand's group or the confidential one by name alone. */
+      if (!listedGroups.has(group) && group !== privateGroup) {
+        provider = { group };
+        if (!otherGroups.includes(group)) {
+          otherGroups.push(group);
+        }
+      }
+    }
     /** A public spec never joins the confidential group. */
     if (!parsed || !provider || provider.group === privateGroup) {
       continue;
@@ -192,6 +219,7 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
       ...(provider.icon && { iconURL: provider.icon }),
       webSearch: true,
       fileSearch: true,
+      ...(model.created != null && { discoveredAt: model.created }),
       preset: { endpoint, model: model.id, modelLabel: label } as Spec['preset'],
     };
     const additions = byGroup.get(provider.group) ?? [];
@@ -230,6 +258,15 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
     if (isNewGroup && icon) {
       additions[0] = { ...additions[0], groupIcon: icon };
     }
+    insertIntoGroup(list, group, additions, fallbackIndex);
+  }
+  /** Then providers nobody listed, after the listed ones. */
+  for (const group of otherGroups) {
+    const additions = byGroup.get(group);
+    if (!additions) {
+      continue;
+    }
+    byGroup.delete(group);
     insertIntoGroup(list, group, additions, fallbackIndex);
   }
   return true;

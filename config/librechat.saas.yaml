@@ -56,10 +56,11 @@ interface:
   fileCitations: true
   runCode: false
   # The composer ring shows how full the model's context window is, with the share in percent
-  # and what the chat has cost so far (in `currency`) beside it; the card adds the token
-  # breakdown and the pack balance.
+  # beside it; the card adds the token breakdown and the share of the pack used. Per-chat cost
+  # stays hidden (`contextCost: false`): it left out background work (memory, titles, OCR,
+  # speech) and read as less than the pack actually lost.
   contextUsage: true
-  contextCost: true
+  contextCost: false
   prompts:
     use: false
     create: false
@@ -80,10 +81,13 @@ interface:
   feedback: true
   # Lia is LibreChat's welcome-screen mascot; it does not belong to the HiveGPT brand.
   mascot: false
-  # Builder / operator features stay off for end users: connecting MCP servers (external tools),
-  # authoring Skills, the build-info panel. Agent API keys are already off (remoteAgents).
+  # Builder / operator features stay off for end users: adding their own MCP servers, authoring
+  # Skills, the build-info panel. Agent API keys are already off (remoteAgents). `use` is on so
+  # users can pick the servers configured below (`mcpServers:`, e.g. Higgsfield) in the composer.
+  # With `permissionSync: 'seed'` an existing deployment also turns it on for the USER role on the
+  # admin page («دسترسی کاربران» → MCP).
   mcpServers:
-    use: false
+    use: true
     create: false
     share: false
     public: false
@@ -134,6 +138,40 @@ transactions:
 # Long-term memory. A small, cheap model reads the last messages after each turn and saves
 # stable facts. It runs on the ZDR endpoint, so memory processing never goes to a provider
 # that keeps data. Chats on the local model are excluded entirely (nothing leaves the server).
+# Image and video generation with Higgsfield (https://higgsfield.ai) over its official remote MCP
+# server. Each user connects their own Higgsfield account from the composer's MCP picker (OAuth
+# with dynamic client registration, no API key); generations use that account's Higgsfield credits,
+# not HiveGPT balance. The OAuth redirect is `${DOMAIN_SERVER}/api/mcp/higgsfield/oauth/callback`,
+# so DOMAIN_SERVER must be the public https origin. Confidential and local chats never reach it:
+# their specs hide the picker and the server drops tools a request picks for itself.
+# Finished videos are links to Higgsfield's storage; to play them inline, add that host to
+# CSP_MEDIA_SRC_EXTRA (otherwise the link still opens them).
+mcpSettings:
+  allowedDomains:
+    - 'mcp.higgsfield.ai'
+    - 'higgsfield.ai'
+    - '*.higgsfield.ai'
+mcpServers:
+  higgsfield:
+    type: streamable-http
+    url: 'https://mcp.higgsfield.ai/mcp'
+    title: 'Higgsfield'
+    description: 'ساخت تصویر و ویدیو با حساب Higgsfield خودتان (Kling، Veo، Seedance، Flux و …)'
+    iconPath: '/assets/higgsfield.svg'
+    startup: false
+    requiresOAuth: true
+    chatMenu: true
+    timeout: 300000
+    initTimeout: 30000
+    serverInstructions: |
+      Higgsfield generates images and videos with the user's own Higgsfield account and credits.
+      Before any generation, tell the user in Persian which model, length and resolution you will
+      use and how many Higgsfield credits it costs, and wait for their confirmation. Write the
+      generation prompt in English for the best result, keeping the user's intent. When the result
+      is ready, give its direct link on its own line so the chat can show it, plus a one-line
+      Persian description. Images attached to the chat cannot be passed to Higgsfield; offer its
+      upload window instead.
+
 memory:
   personalize: true
   messageWindowSize: 5
@@ -286,6 +324,19 @@ speech:
 
 # In-app pack purchase. A gateway is offered once its key is set; the amount is always computed
 # on the server from the pack's Toman price, and a payment credits the account exactly once.
+# Invite rewards. Each user has a link (account menu → «دعوت از دوستان», or Settings → Account):
+# when someone signs up through it and verifies a mobile number, the inviter gets
+# `referrerCredits` and the new account `inviteeCredits` on top of its start balance, once.
+# 1,000,000 credits = $1 at list price. A mobile is unique per account, so throwaway emails
+# cannot farm rewards; an inviter is paid for at most `maxRewardsPerReferrer` invites.
+referral:
+  enabled: true
+  referrerCredits: 500000
+  inviteeCredits: 200000
+  maxRewardsPerReferrer: 20
+  claimWindowDays: 7
+  requirePhone: true
+
 payments:
   enabled: true
   orderTtlMinutes: 30
@@ -472,6 +523,12 @@ modelSpecs:
       x-ai: { group: 'Grok', icon: 'xai' }
       z-ai: { group: 'GLM', icon: 'zhipu' }
       qwen: { group: 'Qwen', icon: 'qwen' }
+      moonshotai: { group: 'Kimi' }
+    # A provider not listed above still gets its `-latest` models, in a group named after it
+    # (as OpenRouter writes it), after the listed groups: a new AI company shows up without a
+    # config change. New specs carry their publish date and read «جدید» in the menu for two
+    # weeks, with their price.
+    otherProviders: true
     # Older families that would duplicate a menu entry: GPT Mini (ChatGPT Mini is GPT Luna) and
     # DeepSeek V4 Flash (DeepSeek Flash follows the newest Flash).
     exclude:

@@ -82,11 +82,11 @@ export function summarizeBalance(
       ? balance.packLabel.trim()
       : null;
   const usedPercent = getUsedPercent(credits, allotment);
-  /** `pack` reads as a money balance once a pack was granted, and as a share of the free
-   *  allowance before that, so the trial never shows a figure the user did not buy */
+  /** `pack` reads as the share of the current allowance used — the free trial before a pack,
+   *  the pack after — never as a money amount; money appears only as the packs' prices when
+   *  there is one to buy */
   const hasPack = positive(balance.packAllotment) != null;
-  const packDisplay: BalanceDisplay = hasPack ? 'currency' : 'percent';
-  const shownDisplay = display === 'pack' ? packDisplay : display;
+  const shownDisplay: BalanceDisplay = display === 'pack' ? 'percent' : display;
 
   let tone: BalanceTone = 'normal';
   if (credits <= 0) {

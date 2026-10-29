@@ -35,6 +35,7 @@ export function useSettingsContext(): SettingsContextValue {
   });
 
   const balanceEnabled = startupConfig?.balance?.enabled === true;
+  const referralEnabled = startupConfig?.referral?.enabled === true;
   const adminPanelURL = startupConfig?.adminPanelURL ?? '';
   const isLocalProvider = user?.provider === 'local';
   const emailEnabled = startupConfig?.emailEnabled === true;
@@ -73,6 +74,7 @@ export function useSettingsContext(): SettingsContextValue {
   return useMemo(
     () => ({
       balanceEnabled,
+      referralEnabled,
       hasAnyPersonalizationFeature,
       hasMemoryOptOut,
       hasStatefulCodeSessions,
@@ -100,6 +102,7 @@ export function useSettingsContext(): SettingsContextValue {
     }),
     [
       balanceEnabled,
+      referralEnabled,
       hasAnyPersonalizationFeature,
       hasMemoryOptOut,
       hasStatefulCodeSessions,

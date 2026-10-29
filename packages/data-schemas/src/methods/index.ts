@@ -142,6 +142,7 @@ import {
 } from './tx';
 import { createTransactionMethods, type TransactionMethods } from './transaction';
 import { createBillingMethods, type BillingMethods } from './billing';
+import { createReferralMethods, type ReferralMethods } from './referral';
 import { createSpendTokensMethods, type SpendTokensMethods } from './spendTokens';
 import {
   createPromptMethods,
@@ -277,6 +278,7 @@ export {
 
 export type AllMethods = SubagentContentMethods &
   BillingMethods &
+  ReferralMethods &
   ToolApprovalGrantStorage &
   UserMethods &
   SessionMethods &
@@ -568,6 +570,7 @@ export function createMethods(
     ...txMethods,
     ...transactionMethods,
     ...createBillingMethods(mongoose),
+    ...createReferralMethods(mongoose),
     ...spendTokensMethods,
     ...promptMethods,
     ...skillMethods,
@@ -653,6 +656,7 @@ export type {
   TxMethods,
   TransactionMethods,
   BillingMethods,
+  ReferralMethods,
   SpendTokensMethods,
   PromptMethods,
   SkillMethods,
