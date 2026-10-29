@@ -3,7 +3,12 @@ import { CreditCard, Package } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, EmptyState, Radio, Skeleton, Spinner } from '@librechat/client';
 import type { TPaymentGateway } from 'librechat-data-provider';
-import { usePaymentCheckoutMutation, usePaymentOptionsQuery } from '~/data-provider';
+import {
+  useGetStartupConfig,
+  usePaymentCheckoutMutation,
+  usePaymentOptionsQuery,
+} from '~/data-provider';
+import { formatPackPrice } from '~/utils/balance';
 import { GATEWAY_LABELS, errorLabel, formatRial, readErrorCode } from './format';
 import useLocalize from '~/hooks/useLocalize';
 import cn from '~/utils/cn';
@@ -25,6 +30,7 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
   const gatewayId = useId();
   const [params] = useSearchParams();
   const options = usePaymentOptionsQuery();
+  const { data: startupConfig } = useGetStartupConfig();
   const checkout = usePaymentCheckoutMutation();
   const [packId, setPackId] = useState<string | null>(params.get('pack'));
   const [gateway, setGateway] = useState<TPaymentGateway | null>(null);
@@ -71,7 +77,46 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
       </div>
     );
   } else if (options.data?.enabled !== true) {
-    body = <EmptyState icon={CreditCard} title={localize('com_ui_payment_unavailable')} />;
+    /** No gateway yet: still the one place that lists every pack and its price, with how to buy
+     *  it (the deployment's purchase page, when it has one). */
+    const currency = startupConfig?.interface?.currency;
+    const configured = (startupConfig?.balance?.packs ?? []).flatMap((pack) => {
+      const price = formatPackPrice(pack.credits, currency);
+      return price == null ? [] : [{ pack, price }];
+    });
+    const purchaseUrl = startupConfig?.balance?.purchaseUrl;
+    body =
+      configured.length === 0 ? (
+        <EmptyState icon={CreditCard} title={localize('com_ui_payment_unavailable')} />
+      ) : (
+        <div className="space-y-4">
+          <ul className="space-y-2" data-testid="payment-pack-list">
+            {configured.map(({ pack, price }) => (
+              <li
+                key={pack.id}
+                data-testid="payment-pack"
+                className="border-border-light bg-surface-secondary flex items-center gap-3 rounded-xl border p-4"
+              >
+                <Package className="text-text-secondary size-5 shrink-0" aria-hidden="true" />
+                <span className="text-text-primary min-w-0 flex-1 text-sm font-medium">
+                  {pack.label}
+                </span>
+                <span className="text-text-primary text-sm font-semibold whitespace-nowrap">
+                  {price}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-text-secondary text-sm">{localize('com_ui_payment_offline_note')}</p>
+          {purchaseUrl != null && purchaseUrl !== '' && (
+            <Button asChild className="w-full sm:w-auto">
+              <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">
+                {localize('com_ui_balance_buy_pack')}
+              </a>
+            </Button>
+          )}
+        </div>
+      );
   } else if (packs.length === 0) {
     body = <EmptyState icon={Package} title={localize('com_ui_payment_no_packs')} />;
   } else {

@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-29
+
+### Changed
+- **Pack prices live on the packs page only.** The «قیمت بسته‌ها» list no longer appears in the
+  balance card (composer ring, account menu, Settings → Account). While there is a reason to
+  buy (the free trial, or credit run out), the card shows one «خرید بسته» link instead.
+  - The account menu has a «خرید بسته» item.
+  - `/payment` («خرید اعتبار») always lists every pack with its Toman price. Without a usable
+    gateway, it says online payment is not on yet and links to `balance.purchaseUrl` when set.
+    With a gateway, it pays online as before.
+
 ## [0.20.0] - 2026-10-29
 
 ### Added

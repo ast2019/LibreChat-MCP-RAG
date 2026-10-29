@@ -2,13 +2,15 @@ import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useGetStartupConfig } from '~/data-provider';
 
-/** Where "Buy a pack" goes: the in-app purchase page when a payment gateway is usable, else
- *  the deployment's `balance.purchaseUrl`; null when neither exists. */
+/** Where "Buy a pack" goes: the in-app packs page (`/payment`), which lists every pack with its
+ *  price and pays online when a gateway is usable; the deployment's `balance.purchaseUrl` when
+ *  no pack is defined; null when there is nothing to buy. */
 export type PurchaseTarget = { kind: 'internal'; to: string } | { kind: 'external'; href: string };
 
 export function usePurchaseTarget(): PurchaseTarget | null {
   const { data: startupConfig } = useGetStartupConfig();
-  if (startupConfig?.payments?.enabled === true) {
+  const hasPacks = (startupConfig?.balance?.packs?.length ?? 0) > 0;
+  if (startupConfig?.payments?.enabled === true || hasPacks) {
     return { kind: 'internal', to: '/payment' };
   }
   const href = startupConfig?.balance?.purchaseUrl;
