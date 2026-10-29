@@ -298,6 +298,7 @@ export type RolePermissionKey =
   | 'mcp-servers'
   | 'marketplace'
   | 'skills'
+  | 'remote-agents'
   | 'bookmarks'
   | 'web-search'
   | 'file-search'

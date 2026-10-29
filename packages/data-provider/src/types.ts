@@ -331,6 +331,8 @@ export type TUser = {
   plugins?: string[];
   twoFactorEnabled?: boolean;
   backupCodes?: TBackupCode[];
+  /** Per-user programming API override; absent follows the role. */
+  apiAccess?: boolean;
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;

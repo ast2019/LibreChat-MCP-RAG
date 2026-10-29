@@ -95,6 +95,7 @@ const {
   getModelEndUsage,
   hasEntityEmbeddings,
 } = require('@librechat/api');
+const { loadApiAgent, listApiModelSpecs } = require('./apiAgent');
 const {
   createResponsesToolEndCallback,
   buildSummarizationHandlers,
@@ -682,7 +683,7 @@ const executeResponse = async (envelope, { req, res }) => {
       return handleExecutionError({ error, res, appConfig });
     },
     execute: async (execution) => {
-      const agentPromise = db.getAgent({ id: agentId });
+      const agentPromise = loadApiAgent(req, agentId);
       // Validation may return before this promise is awaited; preserve the original
       // promise for the later await while avoiding an unhandled speculative rejection.
       agentPromise.catch(() => {});
@@ -1810,6 +1811,8 @@ const listModels = async (req, res) => {
       description: agent.description,
       provider: agent.provider,
     }));
+    // The model specs this user can chat with are callable by name too.
+    models.unshift(...listApiModelSpecs(req));
 
     res.json({
       object: 'list',

@@ -18,6 +18,8 @@ export interface BillingUserRow {
   createdAt?: string;
   /** The user's own local/private model override; empty when the user follows the role */
   modelAccess: TUserModelAccess;
+  /** The user's own programming API override; absent when the user follows the role */
+  apiAccess?: boolean;
   balance: {
     tokenCredits: number;
     packId?: string;
@@ -111,7 +113,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
 
     const [docs, total] = await Promise.all([
       users()
-        .find(filter, '_id name username email phone role createdAt modelAccess')
+        .find(filter, '_id name username email phone role createdAt modelAccess apiAccess')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -147,6 +149,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
               private: doc.modelAccess.private,
             }),
           },
+          ...(typeof doc.apiAccess === 'boolean' && { apiAccess: doc.apiAccess }),
           balance: balance
             ? {
                 tokenCredits: balance.tokenCredits ?? 0,

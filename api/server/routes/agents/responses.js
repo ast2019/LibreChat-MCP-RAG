@@ -31,6 +31,7 @@ const {
   preAuthTenantMiddleware,
   requireRemoteAgentAuth,
   checkRemoteAgentsFeature,
+  requireApiBalance,
 } = require('./middleware');
 
 const router = express.Router();
@@ -82,7 +83,7 @@ router.use(checkRemoteAgentsFeature);
  *   "usage": { ... }
  * }
  */
-router.post('/', checkAgentPermission, createResponse);
+router.post('/', checkAgentPermission, requireApiBalance, createResponse);
 
 /**
  * @route GET /v1/responses/models

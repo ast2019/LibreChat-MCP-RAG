@@ -1,5 +1,9 @@
 const express = require('express');
-const { generateCheckAccess, createApiKeyHandlers } = require('@librechat/api');
+const {
+  generateCheckAccess,
+  createApiKeyHandlers,
+  createCheckApiAccess,
+} = require('@librechat/api');
 const { PermissionTypes, Permissions } = require('librechat-data-provider');
 const {
   getAgentApiKeyById,
@@ -19,11 +23,14 @@ const handlers = createApiKeyHandlers({
   getAgentApiKeyById,
 });
 
-const checkRemoteAgentsUse = generateCheckAccess({
-  permissionType: PermissionTypes.REMOTE_AGENTS,
-  permissions: [Permissions.USE],
-  getRoleByName,
-});
+/** The user's own API switch (set on the admin page) wins over the role. */
+const checkRemoteAgentsUse = createCheckApiAccess(
+  generateCheckAccess({
+    permissionType: PermissionTypes.REMOTE_AGENTS,
+    permissions: [Permissions.USE],
+    getRoleByName,
+  }),
+);
 
 router.post('/', requireJwtAuth, checkRemoteAgentsUse, handlers.createApiKey);
 

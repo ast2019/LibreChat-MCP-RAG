@@ -7,6 +7,7 @@ const {
   createErasureResolver,
   createAdminUsersHandlers,
   createAdminModelAccessHandlers,
+  createAdminApiAccessHandlers,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
 const { SystemCapabilities, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
@@ -88,11 +89,17 @@ const modelAccess = createAdminModelAccessHandlers({
     db.updateUser(id, { modelAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
+const apiAccess = createAdminApiAccessHandlers({
+  saveUserApiAccess: (id, value) =>
+    db.updateUser(id, { apiAccess: value }, {}, { preserveExpiresAt: true }),
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/', requireReadUsers, handlers.listUsers);
 router.get('/search', requireReadUsers, handlers.searchUsers);
 router.patch('/:id/model-access', requireManageUsers, modelAccess.updateModelAccess);
+router.patch('/:id/api-access', requireManageUsers, apiAccess.updateApiAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;

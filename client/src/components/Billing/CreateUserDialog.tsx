@@ -14,6 +14,7 @@ import type { TranslationKeys } from '~/hooks';
 import { useAdminCreateUserMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
+import GiftNote from './GiftNote';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -231,6 +232,8 @@ export default function CreateUserDialog({
                 ))}
               </div>
             </fieldset>
+
+            <GiftNote compact />
 
             {error != null && (
               <p role="alert" className="text-text-destructive text-sm">

@@ -82,7 +82,8 @@ interface:
   # Lia is LibreChat's welcome-screen mascot; it does not belong to the HiveGPT brand.
   mascot: false
   # Builder / operator features stay off for end users: adding their own MCP servers, authoring
-  # Skills, the build-info panel. Agent API keys are already off (remoteAgents). `use` is on so
+  # Skills, the build-info panel. The programming API (remoteAgents) is off for the role; turn it on
+  # for everyone on the admin page («دسترسی کاربران» → API) or per user in the users list. `use` is on so
   # users can pick the servers configured below (`mcpServers:`, e.g. Higgsfield) in the composer.
   # With `permissionSync: 'seed'` an existing deployment also turns it on for the USER role on the
   # admin page («دسترسی کاربران» → MCP).

@@ -73,3 +73,46 @@ export function createAdminModelAccessHandlers(deps: AdminModelAccessDeps): {
 
   return { updateModelAccess };
 }
+
+export interface AdminApiAccessDeps {
+  /**
+   * Sets (`true`/`false`) or clears (`null`) the user's programming API override and evicts their
+   * cached auth document; `null` when the user does not exist.
+   */
+  saveUserApiAccess: (
+    userId: string,
+    apiAccess: boolean | null,
+  ) => Promise<{ apiAccess?: boolean } | null>;
+}
+
+/**
+ * `PATCH /api/admin/users/:id/api-access`: lets one user use the programming API (`true`), stops
+ * them (`false`) or returns them to their role's permission (`null`).
+ */
+export function createAdminApiAccessHandlers(deps: AdminApiAccessDeps): {
+  updateApiAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  async function updateApiAccess(req: ServerRequest, res: Response): Promise<Response> {
+    const { id } = (req.params ?? {}) as { id?: string };
+    if (!id || !isValidObjectIdString(id)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+    const value = (req.body as { apiAccess?: unknown } | undefined)?.apiAccess;
+    if (value !== null && typeof value !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid API access' });
+    }
+    try {
+      const saved = await deps.saveUserApiAccess(id, value);
+      if (!saved) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const apiAccess = typeof saved.apiAccess === 'boolean' ? saved.apiAccess : null;
+      return res.status(200).json({ id, apiAccess });
+    } catch (error) {
+      logger.error('[adminApiAccess] update error:', error);
+      return res.status(500).json({ error: 'Failed to update API access' });
+    }
+  }
+
+  return { updateApiAccess };
+}

@@ -11,6 +11,8 @@ import CreateUserDialog from './CreateUserDialog';
 import { Money, UsageCell } from './parts';
 import UserActions from './UserActions';
 import ModelAccess from './ModelAccess';
+import ApiAccess from './ApiAccess';
+import GiftNote from './GiftNote';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
 import RoleDialog from './RoleDialog';
@@ -163,6 +165,8 @@ export default function Users() {
           </Button>
         </div>
 
+        <GiftNote />
+
         <div className="border-border-light overflow-hidden rounded-xl border">
           <div
             aria-hidden="true"
@@ -217,7 +221,10 @@ export default function Users() {
                   </div>
                   <div className={cn('order-4 col-span-2 md:order-none', COL.access)}>
                     <CellLabel>{localize('com_admin_col_model_access')}</CellLabel>
-                    <ModelAccess user={row} />
+                    <div className="flex flex-col gap-1">
+                      <ModelAccess user={row} />
+                      <ApiAccess user={row} />
+                    </div>
                   </div>
                   <div
                     className={cn(

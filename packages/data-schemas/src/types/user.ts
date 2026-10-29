@@ -89,6 +89,8 @@ export interface IUser extends Document {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
   };
+  /** Per-user programming API override; unset follows the role. */
+  apiAccess?: boolean;
   /** Per-user grant (`true`) or denial (`false`) of local/private model specs; unset follows the role. */
   modelAccess?: TUserModelAccess;
   favorites?: TUserFavorite[];

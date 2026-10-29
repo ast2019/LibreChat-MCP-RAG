@@ -29,6 +29,7 @@ export const PUBLIC_USER_RESPONSE_FIELDS = [
   'createdAt',
   'updatedAt',
   'tenantId',
+  'apiAccess',
 ] as const;
 
 type PublicUserField = (typeof PUBLIC_USER_RESPONSE_FIELDS)[number];

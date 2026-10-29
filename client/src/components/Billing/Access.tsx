@@ -102,6 +102,12 @@ const FEATURES: Feature[] = [
     description: 'com_admin_access_skills_desc',
     create: true,
   },
+  {
+    key: 'remote-agents',
+    type: PermissionTypes.REMOTE_AGENTS,
+    label: 'com_admin_access_api',
+    description: 'com_admin_access_api_desc',
+  },
 ];
 
 function Toggle({

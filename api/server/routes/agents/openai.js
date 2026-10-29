@@ -45,6 +45,7 @@ const {
   preAuthTenantMiddleware,
   requireRemoteAgentAuth,
   checkRemoteAgentsFeature,
+  requireApiBalance,
 } = require('./middleware');
 const db = require('~/models');
 
@@ -125,7 +126,12 @@ router.get('/events/:id', eventHandlers.getEvent);
  * Response (non-streaming):
  * - Standard OpenAI chat.completion format
  */
-router.post('/chat/completions', checkAgentPermission, OpenAIChatCompletionController);
+router.post(
+  '/chat/completions',
+  checkAgentPermission,
+  requireApiBalance,
+  OpenAIChatCompletionController,
+);
 
 /**
  * @route GET /v1/models

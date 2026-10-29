@@ -218,6 +218,11 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       },
       default: {},
     },
+    /** Per-user grant (`true`) or denial (`false`) of the programming API; unset follows the role. */
+    apiAccess: {
+      type: Boolean,
+      default: undefined,
+    },
     /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
     modelAccess: {
       type: {

@@ -8,6 +8,7 @@ const mockMutate = jest.fn();
 const mockRoleMutate = jest.fn();
 const mockModelAccessMutate = jest.fn();
 const mockSetRoleMutate = jest.fn();
+const mockApiAccessMutate = jest.fn();
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -31,7 +32,11 @@ jest.mock('~/data-provider', () => ({
   useAdminBillingSummaryQuery: () => mockSummary,
   useAdminBillingUsersQuery: () => mockUsers,
   useAdminBillingPacksQuery: () => ({
-    data: { enabled: true, packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }] },
+    data: {
+      enabled: true,
+      packs: [{ id: 'starter', label: 'Starter', credits: 2_000_000 }],
+      startBalance: 200_000,
+    },
   }),
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
   useAdminServiceStatusQuery: () => mockStatus,
@@ -44,6 +49,7 @@ jest.mock('~/data-provider', () => ({
   useUpdateRolePermissionsMutation: () => ({ mutate: mockRoleMutate, isLoading: false }),
   useAdminUserModelAccessMutation: () => ({ mutate: mockModelAccessMutate, isLoading: false }),
   useAdminSetUserRoleMutation: () => ({ mutate: mockSetRoleMutate, isLoading: false }),
+  useAdminUserApiAccessMutation: () => ({ mutate: mockApiAccessMutate, isLoading: false }),
   useAdminCreateUserMutation: () => ({ mutate: jest.fn(), isLoading: false }),
   useGetStartupConfig: () => ({
     data: {
@@ -233,6 +239,21 @@ describe('AdminView', () => {
     await userEvent.click(within(row).getByRole('button', { name: 'Actions for Sara' }));
     expect(await screen.findByRole('menuitem', { name: 'Usage' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Make admin' })).toBeInTheDocument();
+  });
+
+  it('tells admins about the welcome gift new accounts get', () => {
+    renderView('/admin?tab=users');
+    expect(screen.getByTestId('admin-gift-note')).toHaveTextContent('$0.20');
+  });
+
+  it('turns the API on for one user', async () => {
+    renderView('/admin?tab=users');
+    await userEvent.click(screen.getByTestId('api-access-u1'));
+    await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
+    expect(mockApiAccessMutate).toHaveBeenCalledWith(
+      { userId: 'u1', apiAccess: true },
+      expect.any(Object),
+    );
   });
 
   it('makes a user an admin after confirming', async () => {

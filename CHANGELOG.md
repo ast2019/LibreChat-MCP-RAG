@@ -7,6 +7,24 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-29
+
+### Added
+- **The welcome gift is on the admin page.** The overview, the users list and the «کاربر جدید»
+  form say how much credit every new account gets on sign-up (`balance.startBalance`, $0.20 in
+  the saas config), in dollars and Toman.
+- **A programming API users can be given.** The OpenAI-compatible API
+  (`/api/agents/v1/chat/completions`, `/v1/responses`, `/v1/models`) now works as a product:
+  - `model` can be a model spec name (`smart`, `gpt`, `fast`…), the same models and tools as
+    in chat; agent ids still work. `GET /v1/models` lists the specs the key's user can use.
+  - Per-user switch in the users list («API»: «طبق نقش / مجاز / غیرمجاز»), and a role switch on
+    «دسترسی کاربران» («API برنامه‌نویسی»). The user's own switch wins over the role.
+  - Keys keep their titles (Settings → «کلیدهای API»); the dialog now has a Persian guide with
+    the base URL, the model names, and curl and Python examples.
+  - Calls are charged to the user's credit like chat; a user with no credit gets
+    `402 insufficient_balance` before any provider is called. Banned accounts are refused, as in
+    chat; a user switched off gets `403 api_access_disabled`.
+
 ## [0.21.1] - 2026-10-29
 
 ### Changed
