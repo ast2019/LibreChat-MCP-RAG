@@ -6,6 +6,7 @@ export * from './config';
 export * from './phone';
 export * from './payments';
 export * from './referral';
+export * from './media';
 export * from './footer';
 export * from './theme';
 export * from './themes';

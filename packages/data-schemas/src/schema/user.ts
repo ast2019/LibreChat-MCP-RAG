@@ -223,6 +223,12 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Boolean,
       default: undefined,
     },
+    /** Per-user grant (`true`) or denial (`false`) of image/video/speech generation; unset follows
+     *  the deployment rule (paid packs only by default). */
+    mediaAccess: {
+      type: Boolean,
+      default: undefined,
+    },
     /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
     modelAccess: {
       type: {

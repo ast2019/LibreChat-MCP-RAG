@@ -20,6 +20,9 @@ const CONTEXT_LABELS: Record<string, TranslationKeys> = {
   stt: 'com_admin_spend_stt',
   tts: 'com_admin_spend_tts',
   image_generation: 'com_admin_spend_image',
+  video_generation: 'com_admin_spend_video',
+  speech_generation: 'com_admin_spend_speech',
+  higgsfield_generation: 'com_admin_spend_higgsfield',
   subagent: 'com_admin_spend_subagent',
   reasoning: 'com_admin_spend_reasoning',
   other: 'com_admin_spend_misc',
@@ -82,11 +85,7 @@ export default function UsageDialog({
               <tr key={row.context} className="border-border-light border-t">
                 <td className="py-2">
                   <span className="text-text-primary">{label(row.context)}</span>
-                  <Progress
-                    aria-hidden="true"
-                    value={share(row.credits)}
-                    className="mt-1 h-1.5"
-                  />
+                  <Progress aria-hidden="true" value={share(row.credits)} className="mt-1 h-1.5" />
                 </td>
                 <td className="text-text-secondary py-2 text-end tabular-nums">{row.count}</td>
                 <td className="text-text-primary py-2 text-end">

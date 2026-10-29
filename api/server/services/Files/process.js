@@ -1784,6 +1784,59 @@ async function saveBase64Image(
 }
 
 /**
+ * Saves generated media (video, audio, or an image kept as made) for the request's user, like
+ * `saveBase64Image` but without re-encoding, and records it so it appears in the user's files.
+ * Stored beside images, so the chat can play it from the same public path.
+ */
+async function saveGeneratedMedia(req, { buffer, type, filename: _filename, context }) {
+  const retentionExpiryPromise = getRetentionExpiry(req);
+  const appConfig = req.config;
+  const file_id = v4();
+  const filename = `${file_id}-${_filename}`;
+  const source = getFileStrategy(appConfig, { isImage: true });
+  const { saveBuffer } = getStrategyFunctions(source);
+  const filepath = await saveBuffer({
+    userId: req.user.id,
+    fileName: filename,
+    buffer,
+    tenantId: req.user.tenantId,
+  });
+  const storageMetadata = getStorageMetadata({ filepath, source });
+  const stored = { file_id, filepath, source, ...storageMetadata };
+  const file = await withStoredUploadCleanup(
+    {
+      req,
+      logger,
+      recordExists: fileRecordExists,
+      resolveDeleteFile: () => getStrategyFunctions(source).deleteFile,
+      stored,
+      trackWrite: true,
+    },
+    async (beginWrite) => {
+      const retentionExpiry = await retentionExpiryPromise;
+      beginWrite();
+      return db.createFile(
+        {
+          type,
+          source,
+          context,
+          file_id,
+          filepath,
+          ...storageMetadata,
+          filename,
+          user: req.user.id,
+          bytes: buffer.length,
+          ...retentionExpiry,
+          tenantId: req.user.tenantId,
+        },
+        true,
+      );
+    },
+  );
+  return { file_id, filepath: file?.filepath ?? filepath, filename, type, bytes: buffer.length };
+}
+
+/**
  * Filters a file based on its size and the endpoint origin.
  *
  * @param {Object} params - The parameters for the function.
@@ -1889,6 +1942,7 @@ module.exports = {
   filterFile,
   processFileURL,
   saveBase64Image,
+  saveGeneratedMedia,
   processImageFile,
   uploadImageBuffer,
   sweepExpiredFiles,

@@ -22,6 +22,8 @@ export type TAdminBillingUser = {
   modelAccess?: TUserModelAccess;
   /** Programming API override; absent follows the role. Older servers omit it. */
   apiAccess?: boolean;
+  /** Media generation override; absent follows the deployment rule. Older servers omit it. */
+  mediaAccess?: boolean;
   balance: TAdminBillingBalance | null;
   /** Whole percent of the last pack used; null when nothing measures it */
   usedPercent: number | null;
@@ -108,6 +110,11 @@ export type TAdminModelAccessResponse = { id: string; modelAccess: TUserModelAcc
 export type TAdminApiAccessRequest = { userId: string; apiAccess: boolean | null };
 
 export type TAdminApiAccessResponse = { id: string; apiAccess: boolean | null };
+
+/** `PATCH /api/admin/users/:id/media-access`: `true`/`false` sets the override, `null` clears it */
+export type TAdminMediaAccessRequest = { userId: string; mediaAccess: boolean | null };
+
+export type TAdminMediaAccessResponse = { id: string; mediaAccess: boolean | null };
 
 /** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
 export interface TAdminBillingUserUsage {

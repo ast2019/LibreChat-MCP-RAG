@@ -74,15 +74,47 @@ export function createAdminModelAccessHandlers(deps: AdminModelAccessDeps): {
   return { updateModelAccess };
 }
 
+/** Stores one boolean per-user switch, or clears it with `null`; `null` when the user is gone. */
+type SaveUserSwitch<K extends string> = (
+  userId: string,
+  value: boolean | null,
+) => Promise<Partial<Record<K, boolean>> | null>;
+
+/** `PATCH` handler for one per-user boolean switch (`true`, `false`, or `null` to clear). */
+function createUserSwitchHandler<K extends string>(
+  field: K,
+  save: SaveUserSwitch<K>,
+  label: string,
+): (req: ServerRequest, res: Response) => Promise<Response> {
+  return async (req, res) => {
+    const { id } = (req.params ?? {}) as { id?: string };
+    if (!id || !isValidObjectIdString(id)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+    const value = (req.body as Record<string, unknown> | undefined)?.[field];
+    if (value !== null && typeof value !== 'boolean') {
+      return res.status(400).json({ error: `Invalid ${label}` });
+    }
+    try {
+      const saved = await save(id, value);
+      if (!saved) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const stored = saved[field];
+      return res.status(200).json({ id, [field]: typeof stored === 'boolean' ? stored : null });
+    } catch (error) {
+      logger.error(`[admin ${label}] update error:`, error);
+      return res.status(500).json({ error: `Failed to update ${label}` });
+    }
+  };
+}
+
 export interface AdminApiAccessDeps {
   /**
    * Sets (`true`/`false`) or clears (`null`) the user's programming API override and evicts their
    * cached auth document; `null` when the user does not exist.
    */
-  saveUserApiAccess: (
-    userId: string,
-    apiAccess: boolean | null,
-  ) => Promise<{ apiAccess?: boolean } | null>;
+  saveUserApiAccess: SaveUserSwitch<'apiAccess'>;
 }
 
 /**
@@ -92,27 +124,28 @@ export interface AdminApiAccessDeps {
 export function createAdminApiAccessHandlers(deps: AdminApiAccessDeps): {
   updateApiAccess: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
-  async function updateApiAccess(req: ServerRequest, res: Response): Promise<Response> {
-    const { id } = (req.params ?? {}) as { id?: string };
-    if (!id || !isValidObjectIdString(id)) {
-      return res.status(400).json({ error: 'Invalid user ID format' });
-    }
-    const value = (req.body as { apiAccess?: unknown } | undefined)?.apiAccess;
-    if (value !== null && typeof value !== 'boolean') {
-      return res.status(400).json({ error: 'Invalid API access' });
-    }
-    try {
-      const saved = await deps.saveUserApiAccess(id, value);
-      if (!saved) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      const apiAccess = typeof saved.apiAccess === 'boolean' ? saved.apiAccess : null;
-      return res.status(200).json({ id, apiAccess });
-    } catch (error) {
-      logger.error('[adminApiAccess] update error:', error);
-      return res.status(500).json({ error: 'Failed to update API access' });
-    }
-  }
+  return {
+    updateApiAccess: createUserSwitchHandler('apiAccess', deps.saveUserApiAccess, 'API access'),
+  };
+}
 
-  return { updateApiAccess };
+export interface AdminMediaAccessDeps {
+  /** Sets or clears the user's media generation override and evicts their cached auth document. */
+  saveUserMediaAccess: SaveUserSwitch<'mediaAccess'>;
+}
+
+/**
+ * `PATCH /api/admin/users/:id/media-access`: lets one user generate images, video and speech
+ * (`true`, even without a pack), stops them (`false`) or follows the deployment rule (`null`).
+ */
+export function createAdminMediaAccessHandlers(deps: AdminMediaAccessDeps): {
+  updateMediaAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  return {
+    updateMediaAccess: createUserSwitchHandler(
+      'mediaAccess',
+      deps.saveUserMediaAccess,
+      'media access',
+    ),
+  };
 }

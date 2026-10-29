@@ -175,6 +175,45 @@ mcpServers:
       Persian description. Images attached to the chat cannot be passed to Higgsfield; offer its
       upload window instead.
 
+# Image, video and speech generation the chat model calls on its own when a user asks, also in
+# the middle of a conversation (no special mode). Charged to the user's HiveGPT credit: the
+# estimate is held first, the real provider cost x the endpoint's priceMultiplier is charged
+# after, and a failed generation costs nothing. Only users with a pack (bought or granted) may
+# generate; others are told how to unlock it. An admin can switch it on or off per user
+# («رسانه» in the users list). Confidential and local chats never get these tools.
+mediaGeneration:
+  enabled: true
+  paidOnly: true
+  endpoint: 'OpenRouter'
+  image:
+    model: 'google/gemini-3.1-flash-image' # Nano Banana 2
+    estimateUsd: 0.08
+  video:
+    model: 'google/veo-3.1-lite' # 4, 6 or 8 seconds, with audio
+    resolution: '720p'
+    defaultDuration: 4
+    maxDuration: 8
+    estimateUsdPerSecond: 0.25
+  speech:
+    model: 'google/gemini-3.8-flash-tts'
+    voice: 'Kore'
+    voices: ['Charon', 'Leda', 'Puck']
+    format: 'pcm' # Gemini TTS returns PCM only; saved as WAV
+    instructions: 'Speak naturally and clearly in the language of the text, with a warm tone.'
+    estimateUsd: 0.03
+  # Higgsfield's own API (https://console.higgsfield.ai): a separate option from the MCP server
+  # above, paid from the deployment's Higgsfield balance and charged to users at `priceUsd`
+  # (set it to Higgsfield's list price, times your markup). Off until both keys are set.
+  higgsfield:
+    apiKeyId: '${HIGGSFIELD_API_KEY_ID}'
+    apiKeySecret: '${HIGGSFIELD_API_KEY_SECRET}'
+    models:
+      - id: 'higgsfield-ai/soul/v2/standard'
+        kind: 'image'
+        label: 'SOUL V2'
+        description: 'Fashion and portrait photos with a strong style'
+        priceUsd: 0.12
+
 memory:
   personalize: true
   messageWindowSize: 5

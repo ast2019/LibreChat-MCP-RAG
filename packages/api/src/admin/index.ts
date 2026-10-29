@@ -4,7 +4,11 @@ export { createAdminGroupsHandlers } from './groups';
 export { createAdminRolesHandlers, createRolePermissionsUpdateHandler } from './roles';
 export { createAdminSkillsSyncAccess, createAdminSkillsSyncHandlers } from './skills';
 export { createAdminUsersHandlers } from './users';
-export { createAdminModelAccessHandlers, createAdminApiAccessHandlers } from './access';
+export {
+  createAdminModelAccessHandlers,
+  createAdminApiAccessHandlers,
+  createAdminMediaAccessHandlers,
+} from './access';
 export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminCodeEnvironmentHandlers } from './code';
 export { buildAuditContext } from './context';
@@ -26,7 +30,7 @@ export type {
 } from './roles';
 export type { AdminSkillSyncAccessDeps, AdminSkillSyncDeps } from './skills';
 export type { AdminUsersDeps } from './users';
-export type { AdminModelAccessDeps, AdminApiAccessDeps } from './access';
+export type { AdminModelAccessDeps, AdminApiAccessDeps, AdminMediaAccessDeps } from './access';
 export type { AdminAuditLogDeps } from './auditLog';
 export type { CascadeStep, CascadeOutcome } from './cascade';
 export type { AdminCodeEnvironmentDeps } from './code';

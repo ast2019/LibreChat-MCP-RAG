@@ -7,6 +7,31 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-29
+
+### Added
+- **Images, video and speech in any chat, like ChatGPT.** The chat model calls the generators by
+  itself when the user asks, in the middle of a conversation too. There is no mode to switch.
+  - `generate_image` makes or edits an image through the OpenRouter Image API (Nano Banana 2 in
+    the saas config). The image appears in the reply and in «فایل‌های من». A follow-up such as
+    «پس‌زمینه‌اش را آبی کن» edits it.
+  - `generate_video` makes a clip through the OpenRouter Video API (Veo 3.1 Lite, 4–8 s, with
+    sound). The tool waits for the job and saves the file, and the clip plays in the chat.
+  - `generate_speech` turns text into an audio file (Gemini TTS). The file plays in the chat.
+  - `higgsfield_generate` uses Higgsfield's own API (SOUL, Kling, Seedance…) with the
+    deployment's keys (`HIGGSFIELD_API_KEY_ID` / `_SECRET`). It is separate from the Higgsfield MCP
+    server, which stays as it is.
+  - **Billing.** Everything is charged to the user's HiveGPT credit. The estimate is held first,
+    then the real cost × the endpoint's markup is charged. A failed, blocked or cancelled
+    generation costs nothing. Spend shows in the admin usage dialog as «ساخت تصویر / ویدیو /
+    صدا» and «Higgsfield (API)».
+  - **Who can use it.** Paid packs only (`mediaGeneration.paidOnly`). Users on the free trial are
+    told how to unlock it. Admins can always use it. A new «رسانه» switch in the users list
+    allows or blocks one user. Confidential and local chats never get these tools.
+  - Configured under `mediaGeneration` in `librechat.yaml`.
+- Links to audio files (`.mp3`, `.wav`, …) play in the chat, and so do video and audio paths on
+  this site.
+
 ## [0.22.0] - 2026-10-29
 
 ### Added
