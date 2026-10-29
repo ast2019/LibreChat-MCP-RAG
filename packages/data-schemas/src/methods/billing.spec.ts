@@ -89,6 +89,51 @@ describe('billing methods', () => {
     ]);
   });
 
+  it('splits one user’s spend by what it paid for, leaving grants and other users out', async () => {
+    const tx = mongoose.connection.collection('transactions');
+    await tx.insertMany([
+      {
+        user: saraId,
+        tokenType: 'prompt',
+        context: 'memory',
+        model: 'flash',
+        rawAmount: -100,
+        tokenValue: -30_000,
+        createdAt: now,
+      },
+      {
+        user: saraId,
+        tokenType: 'credits',
+        context: 'ocr_local',
+        rawAmount: -250,
+        tokenValue: -250,
+        createdAt: now,
+      },
+      {
+        user: saraId,
+        tokenType: 'credits',
+        context: 'tts',
+        rawAmount: -2_000,
+        tokenValue: -2_000,
+        createdAt: now,
+      },
+    ]);
+    const usage = await billing.getUserUsageByContext({
+      userId: saraId.toString(),
+      since: new Date('2026-10-01T00:00:00Z'),
+    });
+    /** The m1 prompt and completion rows have no context: one call under `other` */
+    expect(usage.byContext).toEqual([
+      { context: 'other', credits: 500_000, count: 1 },
+      { context: 'memory', credits: 30_000, count: 1 },
+      { context: 'tts', credits: 2_000, count: 1 },
+      { context: 'ocr_local', credits: 250, count: 1 },
+    ]);
+    expect(usage.totalCredits).toBe(532_250);
+    expect(usage.byModel[0]).toEqual({ model: 'm1', credits: 500_000 });
+    await tx.deleteMany({ context: { $in: ['memory', 'ocr_local', 'tts'] } });
+  });
+
   it('lists users with their balance, newest first, and searches', async () => {
     const all = await billing.listUsersWithBalances({});
     expect(all.total).toBe(2);

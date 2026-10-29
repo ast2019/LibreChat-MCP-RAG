@@ -530,3 +530,9 @@ function createCitationProcessor(searchResults: { [key: string]: SearchResultDat
 
   return { process, citations };
 }
+
+/** The message as Copy would put it on the clipboard (markdown, citations resolved), for other
+ *  ways of taking it out of the app, such as saving it as a PDF. */
+export function getMessageExportText(message?: TMessage | null): string {
+  return buildClipboardText(getMessageClipboardSource(message));
+}

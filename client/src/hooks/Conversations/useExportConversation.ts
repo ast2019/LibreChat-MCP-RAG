@@ -16,6 +16,8 @@ import { isUnacknowledgedUserMessage } from '~/utils/messages';
 import { NotificationSeverity } from '~/common';
 import { formatMessageText } from './format';
 import { cleanupPreset } from '~/utils';
+import { printAsPdf } from '~/utils/pdf';
+import { getBootAppTitle, hasRealTitle } from '~/utils/documentTitle';
 import { useLocalize } from '~/hooks';
 
 type ExportValues = {
@@ -248,6 +250,30 @@ export default function useExportConversation({
     });
   };
 
+  /** The conversation as a printable page with Persian set right; the print dialog saves it. */
+  const exportPdf = async () => {
+    const tree = await buildMessageTree({
+      messageId: conversation?.conversationId,
+      message: null,
+      messages: await getMessageTree(),
+      branches: false,
+      recursive: false,
+    });
+    const messages = Array.isArray(tree) ? tree : [tree];
+    const markdown = messages
+      .filter((message) => message != null && !message.error)
+      .map((message) => formatMessageText({ message, format: 'md', localize }))
+      .join('\n\n---\n\n');
+    const date = new Intl.DateTimeFormat(document.documentElement.lang || undefined, {
+      dateStyle: 'medium',
+    }).format(new Date());
+    await printAsPdf({
+      title: hasRealTitle(conversation?.title) ? conversation.title.trim() : getBootAppTitle(),
+      subtitle: `${getBootAppTitle()} · ${date}`,
+      markdown,
+    });
+  };
+
   const exportText = async () => {
     let data =
       'Conversation\n' +
@@ -350,6 +376,8 @@ export default function useExportConversation({
         await exportCSV();
       } else if (type == 'screenshot') {
         await exportScreenshot();
+      } else if (type == 'pdf') {
+        await exportPdf();
       }
     } catch {
       showToast({

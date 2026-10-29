@@ -204,3 +204,45 @@ describe('createAdminBalanceHandlers.listUsers / summary', () => {
     expect(res.body).toMatchObject({ days: 30 });
   });
 });
+
+describe('createAdminBalanceHandlers.userUsage', () => {
+  const usage = {
+    totalCredits: 530_000,
+    byContext: [
+      { context: 'message', credits: 500_000, count: 12 },
+      { context: 'memory', credits: 30_000, count: 12 },
+    ],
+    byModel: [{ model: 'm1', credits: 530_000 }],
+  };
+
+  it('reports one user’s spend for an allowed window', async () => {
+    const getUserUsageByContext = jest.fn().mockResolvedValue(usage);
+    const handlers = createAdminBalanceHandlers(createDeps({ getUserUsageByContext }));
+    const res = mockRes();
+    await handlers.userUsage(req({}, { userId: USER_ID, days: '7' }), res);
+
+    expect(getUserUsageByContext).toHaveBeenCalledWith({
+      userId: USER_ID,
+      since: new Date('2026-10-18T00:00:00.000Z'),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ days: 7, ...usage });
+  });
+
+  it('falls back to 30 days and refuses a missing or malformed user', async () => {
+    const getUserUsageByContext = jest.fn().mockResolvedValue(usage);
+    const handlers = createAdminBalanceHandlers(createDeps({ getUserUsageByContext }));
+
+    const ok = mockRes();
+    await handlers.userUsage(req({}, { userId: USER_ID, days: '365' }), ok);
+    expect(ok.body).toMatchObject({ days: 30 });
+
+    const missing = mockRes();
+    await handlers.userUsage(req({}, {}), missing);
+    expect(missing.statusCode).toBe(400);
+
+    const bad = mockRes();
+    await handlers.userUsage(req({}, { userId: 'nope' }), bad);
+    expect(bad.statusCode).toBe(400);
+  });
+});

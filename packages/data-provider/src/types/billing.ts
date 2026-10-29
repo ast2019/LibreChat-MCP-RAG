@@ -80,3 +80,16 @@ export type TAdminModelAccessRequest = {
 };
 
 export type TAdminModelAccessResponse = { id: string; modelAccess: TUserModelAccess };
+
+/** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
+export interface TAdminBillingUserUsage {
+  user: { id: string; email?: string };
+  days: number;
+  since: string;
+  /** Positive credits spent in the window */
+  totalCredits: number;
+  /** Ledger context (`message`, `memory`, `title`, `ocr`, `tts`…), largest first */
+  byContext: Array<{ context: string; credits: number; count: number }>;
+  /** Model, largest first */
+  byModel: Array<{ model: string; credits: number }>;
+}

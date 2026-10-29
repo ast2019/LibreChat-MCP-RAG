@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Copy, Check } from 'lucide';
+import { FileDown } from 'lucide-react';
 import { useAtomValue } from 'jotai';
 import { useRecoilState } from 'recoil';
 import { revealedQueuedTurnFamily } from '@librechat/chat/react';
@@ -16,6 +17,9 @@ import type { TConversation, TMessage, TFeedback } from 'librechat-data-provider
 import { useMessagesIsSubmitting, useOptionalMessagesOperations } from '~/Providers';
 import { useGenerationsByLatest, useLocalize } from '~/hooks';
 import { hasEditablePart } from './Content/editableParts';
+import { getMessageExportText } from '~/hooks/Messages/useCopyToClipboard';
+import { printAsPdf } from '~/utils/pdf';
+import { getBootAppTitle, hasRealTitle } from '~/utils/documentTitle';
 import { Fork } from '~/components/Conversations';
 import { hoverButtonClasses } from './styles';
 import MessageAudio from './MessageAudio';
@@ -194,6 +198,18 @@ const HoverButtons = ({
   };
 
   const handleCopy = () => copyToClipboard(setIsCopied);
+  /** Beside Copy, never instead of it: the same text, laid out as a printable page. */
+  const handleSavePdf = () => {
+    const markdown = getMessageExportText(message);
+    if (markdown.trim().length === 0) {
+      return;
+    }
+    const title = hasRealTitle(conversation.title) ? conversation.title.trim() : getBootAppTitle();
+    const date = new Intl.DateTimeFormat(document.documentElement.lang || undefined, {
+      dateStyle: 'medium',
+    }).format(message.createdAt ? new Date(message.createdAt) : new Date());
+    void printAsPdf({ title, subtitle: `${getBootAppTitle()} · ${date}`, markdown });
+  };
   const speechText = getSpeechText(message);
 
   return (
@@ -234,6 +250,21 @@ const HoverButtons = ({
             isSubmitting && isCreatedByUser ? 'no-touch:opacity-0 group-hover:opacity-100' : '',
           )}
           dataTestId={!isCreatedByUser ? 'copy-response-button' : undefined}
+        />
+      )}
+
+      {/* Save as PDF */}
+      {!isActiveStreamingMessage && !error && (
+        <HoverButton
+          onClick={handleSavePdf}
+          title={localize('com_ui_save_as_pdf')}
+          icon={<FileDown size="1.1875rem" aria-hidden="true" />}
+          isLast={isLast}
+          disabled={!canCopy}
+          className={
+            isSubmitting && isCreatedByUser ? 'no-touch:opacity-0 group-hover:opacity-100' : ''
+          }
+          dataTestId={!isCreatedByUser ? 'save-pdf-button' : undefined}
         />
       )}
 

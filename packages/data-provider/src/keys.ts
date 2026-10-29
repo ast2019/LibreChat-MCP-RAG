@@ -32,6 +32,7 @@ export enum QueryKeys {
   insightsAccess = 'insightsAccess',
   adminBillingUsers = 'adminBillingUsers',
   adminBillingSummary = 'adminBillingSummary',
+  adminBillingUserUsage = 'adminBillingUserUsage',
   adminBillingPacks = 'adminBillingPacks',
   adminServiceStatus = 'adminServiceStatus',
   paymentOptions = 'paymentOptions',

@@ -7,6 +7,7 @@ import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { Money, UsageCell } from './parts';
 import ModelAccess from './ModelAccess';
 import GrantDialog from './GrantDialog';
+import UsageDialog from './UsageDialog';
 import { useLocalize } from '~/hooks';
 
 const PAGE_SIZE = 25;
@@ -20,6 +21,7 @@ export default function Users() {
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
   const [granting, setGranting] = useState<TAdminBillingUser | null>(null);
+  const [viewingUsage, setViewingUsage] = useState<TAdminBillingUser | null>(null);
   const { currency } = useBalanceDisplay();
 
   useEffect(() => {
@@ -135,9 +137,19 @@ export default function Users() {
                     <Money credits={row.balance?.tokenCredits ?? 0} currency={currency} />
                   </td>
                   <td className="px-4 py-2 text-end">
-                    <Button size="compact" variant="outline" onClick={() => setGranting(row)}>
-                      {localize('com_admin_grant')}
-                    </Button>
+                    <span className="inline-flex gap-2">
+                      <Button
+                        size="compact"
+                        variant="outline"
+                        onClick={() => setViewingUsage(row)}
+                        data-testid="admin-user-usage"
+                      >
+                        {localize('com_admin_spend_button')}
+                      </Button>
+                      <Button size="compact" variant="outline" onClick={() => setGranting(row)}>
+                        {localize('com_admin_grant')}
+                      </Button>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -172,6 +184,13 @@ export default function Users() {
           </nav>
         )}
       </section>
+      {viewingUsage != null && (
+        <UsageDialog
+          user={viewingUsage}
+          currency={currency}
+          onClose={() => setViewingUsage(null)}
+        />
+      )}
       {granting != null && (
         <GrantDialog
           user={granting}

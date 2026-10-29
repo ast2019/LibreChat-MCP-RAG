@@ -19,6 +19,7 @@ const TYPE_OPTIONS = [
   { value: 'json', label: 'json (.json)' },
   { value: 'csv', label: 'csv (.csv)' },
   { value: 'screenshot', label: 'screenshot (.png)' },
+  { value: 'pdf', label: 'PDF (.pdf)' },
 ];
 
 const DEFAULT_TYPE = 'markdown';
@@ -61,14 +62,17 @@ export default function ExportModal({
 
   const handleTypeChange = useCallback((newType: string) => {
     const branches = newType === 'json' || newType === 'csv';
-    const options = newType !== 'csv' && newType !== 'screenshot';
+    const options = newType !== 'csv' && newType !== 'screenshot' && newType !== 'pdf';
     setExportBranches(branches);
     setIncludeOptions(options);
     setType(newType);
   }, []);
 
   const exportBranchesSupport = useMemo(() => type === 'json' || type === 'csv', [type]);
-  const exportOptionsSupport = useMemo(() => type !== 'csv' && type !== 'screenshot', [type]);
+  const exportOptionsSupport = useMemo(
+    () => type !== 'csv' && type !== 'screenshot' && type !== 'pdf',
+    [type],
+  );
 
   const { exportConversation } = useExportConversation({
     conversation,

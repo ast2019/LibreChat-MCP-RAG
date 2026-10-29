@@ -112,22 +112,24 @@ balance:
   # Free trial for every new account: $0.20 of usage.
   startBalance: 200000
   autoRefillEnabled: false
-  # Before a pack is bought: the share of the free trial used, plus the pack prices in Toman.
-  # Once a pack is granted: the remaining credit in Toman. Users never see raw credits.
+  # The share of the current allowance used: the free trial before a pack, the pack after. Money
+  # appears only as the pack prices when there is one to buy; users never see raw credits.
   display: pack
+  # Twice the earlier sizes (2M / 5M / 15M), so a pack lasts twice as long. The price follows
+  # the credits (credits / 1,000,000 x the Toman rate), so it doubles too.
   packs:
     - id: starter
       label: 'بسته پایه'
-      credits: 2000000
-      description: '$2 of usage at marketed prices'
+      credits: 4000000
+      description: '$4 of usage at marketed prices'
     - id: standard
       label: 'بسته استاندارد'
-      credits: 5000000
-      description: '$5 of usage at marketed prices'
+      credits: 10000000
+      description: '$10 of usage at marketed prices'
     - id: pro
       label: 'بسته حرفه‌ای'
-      credits: 15000000
-      description: '$15 of usage at marketed prices'
+      credits: 30000000
+      description: '$30 of usage at marketed prices'
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'
