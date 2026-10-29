@@ -33,6 +33,7 @@ import useSidebarToggle from '~/hooks/Nav/useSidebarToggle';
 import { Conversations } from '~/components/Conversations';
 import { cn, collectPinnedConversations } from '~/utils';
 import SearchBar from '~/components/Nav/SearchBar';
+import NewChatWideButton from './NewChatWideButton';
 import store from '~/store';
 
 const chatsHeaderTrailing = <ChatFilterMenu />;
@@ -227,6 +228,11 @@ const ConversationsSection = memo(() => {
         {/* The search field owns this row alone; filtering and ordering moved beside the
           Chats heading, where the list they act on is labelled. On mobile the field
           itself lives in the drawer's bottom bar, within thumb reach. */}
+        {!isSmallScreen && (
+          <div className="px-3 pb-3">
+            <NewChatWideButton />
+          </div>
+        )}
         {!isSmallScreen && search.enabled && (
           <div className="flex items-center px-3">
             <SearchBar isSmallScreen={isSmallScreen} />

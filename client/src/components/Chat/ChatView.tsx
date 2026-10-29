@@ -218,7 +218,7 @@ function ChatView({
                           }
                           className={cn(
                             'flex flex-col',
-                            isLandingPage && 'relative',
+                            isLandingPage && 'landing-canvas relative',
                             isLandingPage
                               ? /* The gutter is reserved once per state, wherever the
                                centring happens. A conversation centres the composer

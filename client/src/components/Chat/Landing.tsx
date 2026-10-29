@@ -27,7 +27,7 @@ function getTextSizeClass(text: string | undefined | null) {
   }
 
   if (text.length < 56) {
-    return 'text-2xl sm:text-4xl';
+    return 'text-2xl sm:text-4xl sm:leading-tight';
   }
 
   if (text.length < 70) {
@@ -187,7 +187,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               <SplitText
                 key={`split-text-${name}`}
                 text={name}
-                className={`${getTextSizeClass(name)} text-text-primary font-medium`}
+                className={`${getTextSizeClass(name)} text-text-primary font-bold`}
                 delay={50}
                 textAlign="center"
                 animationFrom={greetingAnimationFrom}
@@ -202,7 +202,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
             <SplitText
               key={`split-text-${greetingText}${user?.name ? '-user' : ''}`}
               text={greetingText}
-              className={`${getTextSizeClass(greetingText)} text-text-primary font-medium`}
+              className={`${getTextSizeClass(greetingText)} text-text-primary font-bold`}
               delay={50}
               textAlign="center"
               animationFrom={greetingAnimationFrom}
@@ -220,7 +220,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
           className={
             descriptionIsHTML
               ? 'animate-fadeIn text-text-primary mt-4 flex max-w-md items-center justify-center gap-2 text-center text-sm font-normal [&_img]:inline-block [&_img]:h-4 [&_img]:w-4'
-              : `animate-fadeIn mt-4 max-w-md text-center text-sm font-normal ${isTemporary ? 'text-text-secondary' : 'text-text-primary'}`
+              : 'animate-fadeIn text-text-secondary mt-4 max-w-md text-center text-base font-normal'
           }
         />
         {selectedAgent && !isTemporary && (

@@ -6,110 +6,110 @@ import type { IThemeRGB } from './types';
  */
 export const darkTheme: IThemeRGB = {
   // Text colors
-  'rgb-text-primary': '236 236 236', // #ececec (gray-100)
-  'rgb-text-secondary': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-text-secondary-alt': '153 150 150', // #999696 (gray-400)
-  'rgb-text-tertiary': '153 150 150', // #999696 (gray-400)
+  'rgb-text-primary': '237 236 239', // #edecef (gray-100)
+  'rgb-text-secondary': '207 206 214', // #cfced6 (gray-300)
+  'rgb-text-secondary-alt': '155 154 162', // #9b9aa2 (gray-400)
+  'rgb-text-tertiary': '155 154 162', // #9b9aa2 (gray-400)
   'rgb-text-muted': '179 182 189', // #b3b6bd (Click UI text.muted)
-  'rgb-badge-label': '236 236 236', // #ececec (gray-100, matching text-primary)
+  'rgb-badge-label': '237 236 239', // #edecef (gray-100, matching text-primary)
   'rgb-text-warning': '245 158 11', // #f59e0b (amber-500)
   'rgb-text-destructive': '248 113 113', // #f87171 (red-400)
   'rgb-shimmer-base': '255 255 255', // #ffffff, carried at 0.8 alpha
   'rgb-shimmer-dip': '179 179 179', // #b3b3b3
 
   // Link and accent colors
-  'rgb-link': '96 165 250', // #60a5fa (blue-400)
-  'rgb-link-hover': '147 197 253', // #93c5fd (blue-300)
+  'rgb-link': '139 129 255', // #8b81ff (NexGap indigo, dark)
+  'rgb-link-hover': '167 159 255', // #a79fff (NexGap indigo hover, dark)
   'rgb-link-visited': '192 132 252', // #c084fc (purple-400)
-  'rgb-link-prose': '236 236 236', // #ececec (gray-100, matching text-primary)
-  'rgb-accent-primary': '65 167 157', // #41a79d
-  'rgb-accent-primary-hover': '109 200 185', // #6dc8b9
+  'rgb-link-prose': '237 236 239', // #edecef (gray-100, matching text-primary)
+  'rgb-accent-primary': '139 129 255', // #8b81ff (NexGap indigo, dark)
+  'rgb-accent-primary-hover': '167 159 255', // #a79fff (NexGap indigo hover, dark)
 
   // Ring colors (not defined in dark mode, using default)
-  'rgb-ring-primary': '89 89 89', // #595959 (gray-500)
+  'rgb-ring-primary': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-focus-outline': '255 255 255', // #ffffff
-  'rgb-focus-control': '236 236 236', // #ececec (gray-100)
+  'rgb-focus-control': '237 236 239', // #edecef (gray-100)
 
   // Header colors
-  'rgb-header-primary': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-header-hover': '66 66 66', // #424242 (gray-600)
-  'rgb-header-button-hover': '47 47 47', // #2f2f2f (gray-700)
+  'rgb-header-primary': '48 47 55', // #302f37 (gray-700)
+  'rgb-header-hover': '66 65 75', // #42414b (gray-600)
+  'rgb-header-button-hover': '48 47 55', // #302f37 (gray-700)
 
   // Surface colors
-  'rgb-surface-active': '89 89 89', // #595959 (gray-500)
-  'rgb-surface-active-alt': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-surface-hover': '57 57 57', // #393939 (gray-650)
-  'rgb-surface-hover-alt': '66 66 66', // #424242 (gray-600)
-  'rgb-surface-pressed': '57 57 57', // #393939 (gray-650), the hover fill
-  'rgb-surface-composer-hover': '66 66 66', // #424242 (gray-600)
-  'rgb-surface-primary': '13 13 13', // #0d0d0d (gray-900)
+  'rgb-surface-active': '92 91 102', // #5c5b66 (gray-500)
+  'rgb-surface-active-alt': '48 47 55', // #302f37 (gray-700)
+  'rgb-surface-hover': '58 57 66', // #3a3942 (gray-650)
+  'rgb-surface-hover-alt': '66 65 75', // #42414b (gray-600)
+  'rgb-surface-pressed': '58 57 66', // #3a3942 (gray-650), the hover fill
+  'rgb-surface-composer-hover': '66 65 75', // #42414b (gray-600)
+  'rgb-surface-primary': '16 15 21', // #100f15 (gray-900)
   'rgb-chart-widget-surface': '40 40 40', // #282828 (Click UI chart widget)
   'rgb-chart-widget-stroke': '50 50 50', // #323232 (Click UI chart widget)
-  'rgb-surface-primary-alt': '23 23 23', // #171717 (gray-850)
-  'rgb-surface-primary-contrast': '23 23 23', // #171717 (gray-850)
-  'rgb-surface-secondary': '33 33 33', // #212121 (gray-800)
-  'rgb-surface-secondary-alt': '33 33 33', // #212121 (gray-800)
-  'rgb-surface-tertiary': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-surface-tertiary-alt': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-surface-dialog': '18 18 18', // #121212 (legacy dark dialog)
-  'rgb-dialog-title': '236 236 236', // #ececec (gray-100, matching text-primary)
+  'rgb-surface-primary-alt': '23 22 28', // #17161c (gray-850)
+  'rgb-surface-primary-contrast': '23 22 28', // #17161c (gray-850)
+  'rgb-surface-secondary': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-surface-secondary-alt': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-surface-tertiary': '48 47 55', // #302f37 (gray-700)
+  'rgb-surface-tertiary-alt': '48 47 55', // #302f37 (gray-700)
+  'rgb-surface-dialog': '20 19 25', // #141319 (legacy dark dialog)
+  'rgb-dialog-title': '237 236 239', // #edecef (gray-100, matching text-primary)
   'rgb-surface-overlay': '0 0 0', // #000 (black)
   'rgb-surface-media-overlay': '0 0 0', // #000 (black, over the user's media in both modes)
   'rgb-text-on-media': '255 255 255', // #fff (white)
-  'rgb-surface-submit': '4 120 87', // #047857 (green-700)
-  'rgb-surface-submit-hover': '6 95 70', // #065f46 (green-800)
+  'rgb-surface-submit': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-surface-submit-hover': '109 98 240', // #6d62f0 (NexGap indigo hover)
   'rgb-surface-destructive': '153 27 27', // #991b1b (red-800)
   'rgb-surface-destructive-hover': '127 29 29', // #7f1d1d (red-900)
-  'rgb-surface-chat': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-surface-code': '33 33 33', // #212121 (gray-800)
-  'rgb-surface-code-body': '23 23 23', // #171717 (gray-850)
-  'rgb-surface-code-inline': '66 66 66', // #424242 (gray-600)
-  'rgb-prose-bullet': '57 57 57', // #393939 (gray-650)
-  'rgb-prose-quote-bar': '57 57 57', // #393939 (gray-650)
+  'rgb-surface-chat': '48 47 55', // #302f37 (gray-700)
+  'rgb-surface-code': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-surface-code-body': '23 22 28', // #17161c (gray-850)
+  'rgb-surface-code-inline': '66 65 75', // #42414b (gray-600)
+  'rgb-prose-bullet': '58 57 66', // #3a3942 (gray-650)
+  'rgb-prose-quote-bar': '58 57 66', // #3a3942 (gray-650)
   'rgb-surface-qr': '255 255 255', // #fff (white, so the code stays scannable)
-  'rgb-surface-inverted': '255 255 255', // #fff (white)
-  'rgb-surface-inverted-hover': '236 236 236', // #ececec (gray-100)
-  'rgb-surface-inverted-pressed': '236 236 236', // #ececec (gray-100), the hover fill
-  'rgb-button-primary': '255 255 255', // #fff (white, matching surface-inverted)
-  'rgb-button-primary-hover': '236 236 236', // #ececec (gray-100, matching surface-inverted-hover)
-  'rgb-text-inverted': '23 23 23', // #171717 (gray-850)
+  'rgb-surface-inverted': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-surface-inverted-hover': '109 98 240', // #6d62f0 (NexGap indigo hover)
+  'rgb-surface-inverted-pressed': '109 98 240', // #6d62f0 (NexGap indigo hover)
+  'rgb-button-primary': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-button-primary-hover': '109 98 240', // #6d62f0 (NexGap indigo hover)
+  'rgb-text-inverted': '255 255 255', // #ffffff (gray-850)
   'rgb-surface-fixed': '255 255 255', // #fff (white) — same in light + dark
-  'rgb-surface-fixed-hover': '236 236 236', // #ececec (gray-100) — same in light + dark
-  'rgb-text-fixed': '33 33 33', // #212121 (gray-800) — same in light + dark
+  'rgb-surface-fixed-hover': '237 236 239', // #edecef (gray-100) — same in light + dark
+  'rgb-text-fixed': '28 28 34', // #1c1c22 (gray-800) — same in light + dark
 
   // Border colors
-  'rgb-border-light': '33 33 33', // #212121 (gray-800)
-  'rgb-border-medium': '57 57 57', // #393939 (gray-650)
-  'rgb-border-medium-alt': '57 57 57', // #393939 (gray-650)
-  'rgb-border-heavy': '89 89 89', // #595959 (gray-500)
-  'rgb-border-xheavy': '153 150 150', // #999696 (gray-400)
-  'rgb-drawer-edge': '153 150 150', // #999696 (gray-400, matching border-xheavy)
+  'rgb-border-light': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-border-medium': '58 57 66', // #3a3942 (gray-650)
+  'rgb-border-medium-alt': '58 57 66', // #3a3942 (gray-650)
+  'rgb-border-heavy': '92 91 102', // #5c5b66 (gray-500)
+  'rgb-border-xheavy': '155 154 162', // #9b9aa2 (gray-400)
+  'rgb-drawer-edge': '155 154 162', // #9b9aa2 (gray-400, matching border-xheavy)
   'rgb-border-destructive': '239 68 68', // #ef4444 (red-500)
-  'rgb-border-control': '33 33 33', // #212121 (gray-800), the stock field edge
-  'rgb-border-field-focus': '236 236 236', // #ececec (gray-100, matching focus-control)
-  'rgb-focus-subtle': '89 89 89', // #595959 (gray-500, matching border-heavy)
-  'rgb-field-fill': '13 13 13', // #0d0d0d (gray-900, matching surface-primary)
-  'rgb-field-text': '236 236 236', // #ececec (gray-100, matching text-primary)
-  'rgb-surface-tooltip': '13 13 13', // matching surface-primary
-  'rgb-text-tooltip': '236 236 236', // matching text-primary
+  'rgb-border-control': '28 28 34', // #1c1c22 (gray-800), the stock field edge
+  'rgb-border-field-focus': '237 236 239', // #edecef (gray-100, matching focus-control)
+  'rgb-focus-subtle': '92 91 102', // #5c5b66 (gray-500, matching border-heavy)
+  'rgb-field-fill': '16 15 21', // #100f15 (gray-900, matching surface-primary)
+  'rgb-field-text': '237 236 239', // #edecef (gray-100, matching text-primary)
+  'rgb-surface-tooltip': '16 15 21', // matching surface-primary
+  'rgb-text-tooltip': '237 236 239', // matching text-primary
   'rgb-alert-error-fill': '69 10 10', // matching status-error-subtle
   'rgb-alert-error-border': '153 27 27', // matching status-error-border
-  'rgb-surface-canvas': '23 23 23', // matching surface-primary-alt
-  'rgb-surface-user-message': '47 47 47', // matching surface-tertiary
-  'rgb-surface-card': '33 33 33', // matching surface-secondary
-  'rgb-surface-card-hover': '47 47 47', // matching surface-tertiary
-  'rgb-surface-nav-hover': '47 47 47', // matching surface-active-alt
-  'rgb-surface-nav-selected': '47 47 47', // matching surface-active-alt
-  'rgb-surface-tab-selected': '47 47 47', // matching surface-tertiary
-  'rgb-surface-menu': '33 33 33', // matching presentation
-  'rgb-surface-popover': '33 33 33', // matching surface-secondary
-  'rgb-border-menu': '33 33 33', // matching border-light
-  'rgb-surface-composer': '47 47 47', // matching surface-chat
-  'rgb-surface-search': '33 33 33', // matching surface-secondary
-  'rgb-surface-sidebar': '23 23 23', // matching surface-primary-alt
-  'rgb-surface-disabled': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-text-disabled': '153 150 150', // #999696 (gray-400)
-  'rgb-border-disabled': '57 57 57', // #393939 (gray-650)
+  'rgb-surface-canvas': '23 22 28', // matching surface-primary-alt
+  'rgb-surface-user-message': '48 47 55', // matching surface-tertiary
+  'rgb-surface-card': '28 28 34', // matching surface-secondary
+  'rgb-surface-card-hover': '48 47 55', // matching surface-tertiary
+  'rgb-surface-nav-hover': '48 47 55', // matching surface-active-alt
+  'rgb-surface-nav-selected': '48 47 55', // matching surface-active-alt
+  'rgb-surface-tab-selected': '48 47 55', // matching surface-tertiary
+  'rgb-surface-menu': '28 28 34', // matching presentation
+  'rgb-surface-popover': '28 28 34', // matching surface-secondary
+  'rgb-border-menu': '28 28 34', // matching border-light
+  'rgb-surface-composer': '48 47 55', // matching surface-chat
+  'rgb-surface-search': '28 28 34', // matching surface-secondary
+  'rgb-surface-sidebar': '23 22 28', // matching surface-primary-alt
+  'rgb-surface-disabled': '48 47 55', // #302f37 (gray-700)
+  'rgb-text-disabled': '155 154 162', // #9b9aa2 (gray-400)
+  'rgb-border-disabled': '58 57 66', // #3a3942 (gray-650)
 
   // Status colors
   'rgb-status-success': '110 231 183', // #6ee7b7 (green-300)
@@ -124,7 +124,7 @@ export const darkTheme: IThemeRGB = {
   'rgb-status-info': '147 197 253', // #93c5fd (blue-300)
   'rgb-status-info-subtle': '23 37 84', // #172554 (blue-950)
   'rgb-status-info-border': '30 64 175', // #1e40af (blue-800)
-  'rgb-status-info-strong': '66 66 66', // #424242 (gray-600)
+  'rgb-status-info-strong': '66 65 75', // #42414b (gray-600)
   'rgb-status-warning': '252 211 77', // #fcd34d (amber-300)
   'rgb-status-warning-subtle': '69 26 3', // #451a03 (amber-950)
   'rgb-status-warning-border': '146 64 14', // #92400e (amber-800)
@@ -133,9 +133,9 @@ export const darkTheme: IThemeRGB = {
   'rgb-status-error-subtle': '69 10 10', // #450a0a (red-950)
   'rgb-status-error-border': '153 27 27', // #991b1b (red-800)
   'rgb-status-error-strong': '153 27 27', // #991b1b (red-800)
-  'rgb-status-neutral': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-status-neutral-subtle': '33 33 33', // #212121 (gray-800)
-  'rgb-status-neutral-border': '47 47 47', // #2f2f2f (gray-700)
+  'rgb-status-neutral': '207 206 214', // #cfced6 (gray-300)
+  'rgb-status-neutral-subtle': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-status-neutral-border': '48 47 55', // #302f37 (gray-700)
   /** Verified mark. Not `status-info`'s `blue-300`, which is a text hue and
    *  leaves a white check at 1.35:1. The card it sits on is `surface-dialog`
    *  at rest and `surface-tertiary` (#2f2f2f) on hover, and that hover is the
@@ -144,28 +144,28 @@ export const darkTheme: IThemeRGB = {
    *  hover surface, 4.52:1 against the resting dialog, and 4.14:1 under the
    *  white `text-on-status` check. No hue clears 3:1 on #2f2f2f and 4.5:1
    *  under a white check at once — the check would have to stop being white. */
-  'rgb-status-verified': '26 127 216', // #1a7fd8
+  'rgb-status-verified': '139 129 255', // #8b81ff (NexGap indigo, dark)
   'rgb-text-on-status': '255 255 255', // #fff (white)
 
   // Brand colors
-  'rgb-brand-purple': '171 104 255', // #ab68ff
-  'rgb-avatar-fill': '121 137 255', // #7989ff (the default avatar fill in every bundled theme)
+  'rgb-brand-purple': '139 129 255', // #8b81ff (NexGap indigo, dark)
+  'rgb-avatar-fill': '124 114 240', // #7c72f0 (NexGap indigo tint)
   /** White, not the #ececec primary text: the glyph is a graphical object (WCAG 1.4.11) and
    *  #ececec held only 2.6:1 on the #7989ff fill, where white reaches 3.07:1. */
   'rgb-avatar-text': '255 255 255', // #ffffff
-  'rgb-avatar-placeholder': '47 47 47', // #2f2f2f (gray-700, matching surface-tertiary)
+  'rgb-avatar-placeholder': '48 47 55', // #302f37 (gray-700, matching surface-tertiary)
   'rgb-avatar-edge': '240 246 252', // #f0f6fc at 10%, a hairline that only shows against a dark page
   'rgb-illustration-subtle': '175 193 255', // #afc1ff
-  'rgb-illustration': '121 137 255', // #7989ff
-  'rgb-illustration-strong': '60 70 255', // #3c46ff
+  'rgb-illustration': '124 114 240', // #7c72f0 (NexGap indigo tint)
+  'rgb-illustration-strong': '139 129 255', // #8b81ff (NexGap indigo, dark)
   'rgb-scrollbar-thumb': '255 255 255', // #ffffff
-  'rgb-page-canvas': '23 23 23', // #171717 (gray-850)
+  'rgb-page-canvas': '23 22 28', // #17161c (gray-850)
   'rgb-select-fill': '255 255 255', // #ffffff
-  'rgb-select-edge': '142 142 160', // #8e8ea0
-  'rgb-button-neutral-border': '66 66 66', // #424242 (gray-600)
-  'rgb-button-neutral-text': '255 255 240', // #fffff0
-  'rgb-button-neutral-hover': '66 66 66', // #424242 (gray-600)
-  'rgb-link-inline': '82 160 255', // #52a0ff
+  'rgb-select-edge': '154 153 165', // #9a99a5
+  'rgb-button-neutral-border': '66 65 75', // #42414b (gray-600)
+  'rgb-button-neutral-text': '237 236 239', // #edecef
+  'rgb-button-neutral-hover': '66 65 75', // #42414b (gray-600)
+  'rgb-link-inline': '139 129 255', // #8b81ff (NexGap indigo, dark)
   'rgb-toast-edge': '67 90 111', // #435a6f
   'rgb-stroke-ink': '255 255 255', // #ffffff at 30%
   'rgb-file-document': '255 85 136', // #ff5588
@@ -214,11 +214,11 @@ export const darkTheme: IThemeRGB = {
   /** Unchecked switch track. 3.38:1 against the page and the `surface-primary`
    *  thumb, 5.74:1 against the checked `surface-inverted` track. */
   'rgb-switch-unchecked': '102 102 102', // #666666
-  'rgb-switch-thumb': '13 13 13', // #0d0d0d (gray-900, matching surface-primary)
-  'rgb-checkbox-fill': '13 13 13', // #0d0d0d (gray-900, matching surface-primary)
-  'rgb-table-header-text': '205 205 205', // #cdcdcd (gray-300, matching text-secondary)
-  'rgb-table-header-fill': '18 18 18', // #121212 (matching surface-dialog)
+  'rgb-switch-thumb': '255 255 255', // #ffffff (gray-900, matching surface-primary)
+  'rgb-checkbox-fill': '16 15 21', // #100f15 (gray-900, matching surface-primary)
+  'rgb-table-header-text': '207 206 214', // #cfced6 (gray-300, matching text-secondary)
+  'rgb-table-header-fill': '20 19 25', // #141319 (matching surface-dialog)
 
   // Presentation
-  'rgb-presentation': '33 33 33', // #212121 (gray-800)
+  'rgb-presentation': '28 28 34', // #1c1c22 (gray-800)
 };

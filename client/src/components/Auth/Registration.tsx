@@ -251,7 +251,7 @@ const Registration: React.FC = () => {
                   type="submit"
                   aria-label="Submit registration"
                   variant="submit"
-                  shape="soft"
+                  shape="round"
                   size="auth"
                   className="w-full"
                 >

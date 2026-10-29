@@ -87,43 +87,66 @@ function AuthLayout({
     return null;
   };
 
-  return (
-    <div className="bg-surface-primary relative flex min-h-screen flex-col">
-      <Banner />
-      <BlinkAnimation active={isFetching}>
-        <div className="mt-6 h-10 w-full bg-cover">
-          <img
-            src="assets/logo.svg"
-            className="h-full w-full object-contain"
-            alt={localize('com_ui_logo', { 0: startupConfig?.appTitle ?? 'LibreChat' })}
-          />
-        </div>
-      </BlinkAnimation>
-      <DisplayError />
-      <div className="absolute inset-s-0 bottom-0 md:m-4">
-        <ThemeSelector />
-      </div>
+  const appTitle = startupConfig?.appTitle ?? 'LibreChat';
+  const logo = (
+    <img
+      src="assets/logo.svg"
+      className="h-full w-full object-contain"
+      alt={localize('com_ui_logo', { 0: appTitle })}
+    />
+  );
 
-      <main className="flex grow items-center justify-center">
-        <div
-          className={cn(
-            'bg-surface-primary overflow-hidden px-6 py-4 sm:rounded-lg',
-            isTwoFactorSetup ? 'w-11/12 max-w-lg' : 'w-authPageWidth sm:max-w-md',
-          )}
-        >
-          {!hasStartupConfigError && !isFetching && header && (
-            <h1 className="text-text-primary mb-4 text-center text-3xl font-semibold select-none">
-              {header}
-            </h1>
-          )}
-          {children}
-          {showsSocialLogin && (
-            <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
-          )}
-          {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
+  return (
+    <div className="bg-surface-primary flex min-h-screen">
+      {/* The brand side: decorative apart from the title and tagline it states, and only
+          on screens wide enough to give the form a full column beside it. */}
+      <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-10 lg:flex">
+        <div className="auth-brand-orbit relative flex size-72 items-center justify-center">
+          <div className="bg-surface-primary/80 border-border-light flex size-28 items-center justify-center rounded-3xl border p-5 shadow-lg backdrop-blur-sm">
+            <BlinkAnimation active={isFetching}>
+              <div className="h-16 w-16">
+                <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
+              </div>
+            </BlinkAnimation>
+          </div>
         </div>
-      </main>
-      {!statesConsent && <Footer startupConfig={startupConfig} />}
+        <p className="text-text-primary mt-10 text-4xl font-bold">{appTitle}</p>
+        <p className="text-text-secondary mt-4 max-w-sm text-center text-lg">
+          {localize('com_auth_brand_tagline')}
+        </p>
+      </aside>
+
+      <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
+        <Banner />
+        <BlinkAnimation active={isFetching}>
+          <div className="mt-6 h-10 w-full bg-cover lg:hidden">{logo}</div>
+        </BlinkAnimation>
+        <DisplayError />
+        <div className="absolute inset-s-0 bottom-0 md:m-4">
+          <ThemeSelector />
+        </div>
+
+        <main className="flex grow items-center justify-center">
+          <div
+            className={cn(
+              'bg-surface-primary overflow-hidden px-6 py-4 sm:rounded-lg',
+              isTwoFactorSetup ? 'w-11/12 max-w-lg' : 'w-authPageWidth sm:max-w-md',
+            )}
+          >
+            {!hasStartupConfigError && !isFetching && header && (
+              <h1 className="text-text-primary mb-6 text-center text-3xl font-bold select-none">
+                {header}
+              </h1>
+            )}
+            {children}
+            {showsSocialLogin && (
+              <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
+            )}
+            {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
+          </div>
+        </main>
+        {!statesConsent && <Footer startupConfig={startupConfig} />}
+      </div>
     </div>
   );
 }

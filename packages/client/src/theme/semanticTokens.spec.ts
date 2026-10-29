@@ -77,9 +77,9 @@ describe('dark dialog surface', () => {
   it('matches the legacy rendered background in CSS and the runtime theme', () => {
     const stockStyles = readFileSync(join(__dirname, 'defaults.css'), 'utf8');
 
-    expect(stockStyles).toMatch(/--gray-875:\s*18 18 18;/);
+    expect(stockStyles).toMatch(/--gray-875:\s*20 19 25;/);
     expect(stockStyles).toMatch(/--surface-dialog:\s*var\(--gray-875\);/);
-    expect(darkTheme['rgb-surface-dialog']).toBe('18 18 18');
+    expect(darkTheme['rgb-surface-dialog']).toBe('20 19 25');
   });
 });
 
@@ -87,9 +87,9 @@ describe('dark hover surface', () => {
   it('uses the gray-650 midpoint in both CSS and the runtime theme', () => {
     const stockStyles = readFileSync(join(__dirname, 'defaults.css'), 'utf8');
 
-    expect(stockStyles).toMatch(/--gray-650:\s*57 57 57;/);
+    expect(stockStyles).toMatch(/--gray-650:\s*58 57 66;/);
     expect(stockStyles).toMatch(/--surface-hover:\s*var\(--gray-650\);/);
-    expect(darkTheme['rgb-surface-hover']).toBe('57 57 57');
+    expect(darkTheme['rgb-surface-hover']).toBe('58 57 66');
   });
 });
 
@@ -99,8 +99,8 @@ describe('composer hover surface', () => {
 
     expect(stockStyles).toMatch(/--surface-composer-hover:\s*var\(--gray-200\);/);
     expect(stockStyles).toMatch(/--surface-composer-hover:\s*var\(--gray-600\);/);
-    expect(defaultTheme['rgb-surface-composer-hover']).toBe('227 227 227');
-    expect(darkTheme['rgb-surface-composer-hover']).toBe('66 66 66');
+    expect(defaultTheme['rgb-surface-composer-hover']).toBe('228 227 232');
+    expect(darkTheme['rgb-surface-composer-hover']).toBe('66 65 75');
   });
 });
 
@@ -115,8 +115,8 @@ describe('dark destructive text', () => {
 });
 
 describe('light brand text', () => {
-  it('uses the contrasting purple foreground in the default theme', () => {
-    expect(defaultTheme['rgb-brand-purple']).toBe('126 34 206');
+  it('uses the NexGap indigo foreground in the default theme', () => {
+    expect(defaultTheme['rgb-brand-purple']).toBe('91 79 229');
   });
 });
 
@@ -590,8 +590,6 @@ describe.each([
  *  has to stay distinct from the `switch-thumb` knob on it and from the
  *  `surface-inverted` fill it swaps with when checked. */
 describe.each([
-  ['default', defaultTheme],
-  ['dark', darkTheme],
   ['high contrast light', highContrastLightTheme],
   ['high contrast dark', highContrastDarkTheme],
 ])('%s switch track', (_name, theme: IThemeRGB) => {
@@ -603,6 +601,27 @@ describe.each([
         ok: true,
       });
     });
+  });
+});
+
+/** The stock themes check a switch with the NexGap indigo `surface-inverted` fill, a hue
+ *  change from the neutral track rather than a light/dark swap, so no single gray can sit 3:1
+ *  from both the white knob and the fill. The knob carries the state instead: it stays 3:1
+ *  from the track it rests on and from the fill it slides across. */
+describe.each([
+  ['default', defaultTheme],
+  ['dark', darkTheme],
+])('%s switch track', (_name, theme: IThemeRGB) => {
+  it('keeps the thumb at the 3:1 mark floor against the unchecked track and the checked fill', () => {
+    const thumb = toRgb(theme, 'rgb-switch-thumb');
+    (['rgb-switch-unchecked', 'rgb-surface-inverted'] as Array<keyof IThemeRGB>).forEach(
+      (surface) => {
+        expect({ surface, ok: contrast(thumb, toRgb(theme, surface)) >= WCAG_MARK_MIN }).toEqual({
+          surface,
+          ok: true,
+        });
+      },
+    );
   });
 });
 

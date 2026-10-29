@@ -171,6 +171,11 @@ jest.mock('~/components/Conversations/PinnedSection', () => {
   return { __esModule: true, default: PinnedSectionStub };
 });
 
+jest.mock('../NewChatWideButton', () => ({
+  __esModule: true,
+  default: () => <a data-testid="sidebar-new-chat-button" href="/c/new" />,
+}));
+
 jest.mock('~/components/Nav/SearchBar', () => ({
   __esModule: true,
   default: () => <div data-testid="searchbar-stub" />,
