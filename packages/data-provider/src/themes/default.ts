@@ -6,120 +6,120 @@ import type { IThemeRGB } from './types';
  */
 export const defaultTheme: IThemeRGB = {
   // Text colors
-  'rgb-text-primary': '33 33 33', // #212121 (gray-800)
-  'rgb-text-secondary': '66 66 66', // #424242 (gray-600)
-  'rgb-text-secondary-alt': '89 89 89', // #595959 (gray-500)
-  'rgb-text-tertiary': '89 89 89', // #595959 (gray-500)
+  'rgb-text-primary': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-text-secondary': '66 65 75', // #42414b (gray-600)
+  'rgb-text-secondary-alt': '92 91 102', // #5c5b66 (gray-500)
+  'rgb-text-tertiary': '92 91 102', // #5c5b66 (gray-500)
   'rgb-text-muted': '105 110 121', // #696e79 (Click UI text.muted)
-  'rgb-badge-label': '33 33 33', // #212121 (gray-800, matching text-primary)
+  'rgb-badge-label': '28 28 34', // #1c1c22 (gray-800, matching text-primary)
   'rgb-text-warning': '180 83 9', // #b45309 (amber-700)
   'rgb-text-destructive': '220 38 38', // #dc2626 (red-600)
-  'rgb-shimmer-base': '33 33 33', // #212121 (gray-800), matching text-primary
+  'rgb-shimmer-base': '28 28 34', // #1c1c22 (gray-800), matching text-primary
   'rgb-shimmer-dip': '129 130 134', // #818286
 
   // Link and accent colors
-  'rgb-link': '37 99 235', // #2563eb (blue-600)
-  'rgb-link-hover': '29 78 216', // #1d4ed8 (blue-700)
+  'rgb-link': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-link-hover': '74 62 205', // #4a3ecd (NexGap indigo hover)
   'rgb-link-visited': '147 51 234', // #9333ea (purple-600)
-  'rgb-link-prose': '37 99 235', // #2563eb (blue-600, matching link)
-  'rgb-accent-primary': '18 110 107', // #126e6b
-  'rgb-accent-primary-hover': '10 79 83', // #0a4f53
+  'rgb-link-prose': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-accent-primary': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-accent-primary-hover': '74 62 205', // #4a3ecd (NexGap indigo hover)
 
   // Ring colors
-  'rgb-ring-primary': '89 89 89', // #595959 (gray-500)
+  'rgb-ring-primary': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-focus-outline': '0 0 0', // #000000
-  'rgb-focus-control': '33 33 33', // #212121 (gray-800)
+  'rgb-focus-control': '28 28 34', // #1c1c22 (gray-800)
 
   // Header colors
   'rgb-header-primary': '255 255 255', // #fff (white)
-  'rgb-header-hover': '247 247 248', // #f7f7f8 (gray-50)
-  'rgb-header-button-hover': '247 247 248', // #f7f7f8 (gray-50)
+  'rgb-header-hover': '248 247 249', // #f8f7f9 (gray-50)
+  'rgb-header-button-hover': '248 247 249', // #f8f7f9 (gray-50)
 
   // Surface colors
-  'rgb-surface-active': '236 236 236', // #ececec (gray-100)
-  'rgb-surface-active-alt': '227 227 227', // #e3e3e3 (gray-200)
-  'rgb-surface-hover': '227 227 227', // #e3e3e3 (gray-200)
-  'rgb-surface-hover-alt': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-surface-pressed': '227 227 227', // #e3e3e3 (gray-200), the hover fill
-  'rgb-surface-composer-hover': '227 227 227', // #e3e3e3 (gray-200)
+  'rgb-surface-active': '237 236 239', // #edecef (gray-100)
+  'rgb-surface-active-alt': '228 227 232', // #e4e3e8 (gray-200)
+  'rgb-surface-hover': '228 227 232', // #e4e3e8 (gray-200)
+  'rgb-surface-hover-alt': '207 206 214', // #cfced6 (gray-300)
+  'rgb-surface-pressed': '228 227 232', // #e4e3e8 (gray-200), the hover fill
+  'rgb-surface-composer-hover': '228 227 232', // #e4e3e8 (gray-200)
   'rgb-surface-primary': '255 255 255', // #fff (white)
   'rgb-chart-widget-surface': '255 255 255', // #fff (matching surface-primary)
-  'rgb-chart-widget-stroke': '227 227 227', // #e3e3e3 (gray-200, matching border-light)
-  'rgb-surface-primary-alt': '247 247 248', // #f7f7f8 (gray-50)
-  'rgb-surface-primary-contrast': '236 236 236', // #ececec (gray-100)
-  'rgb-surface-secondary': '247 247 248', // #f7f7f8 (gray-50)
-  'rgb-surface-secondary-alt': '227 227 227', // #e3e3e3 (gray-200)
-  'rgb-surface-tertiary': '236 236 236', // #ececec (gray-100)
+  'rgb-chart-widget-stroke': '228 227 232', // #e4e3e8 (gray-200, matching border-light)
+  'rgb-surface-primary-alt': '248 247 249', // #f8f7f9 (gray-50)
+  'rgb-surface-primary-contrast': '237 236 239', // #edecef (gray-100)
+  'rgb-surface-secondary': '248 247 249', // #f8f7f9 (gray-50)
+  'rgb-surface-secondary-alt': '228 227 232', // #e4e3e8 (gray-200)
+  'rgb-surface-tertiary': '237 236 239', // #edecef (gray-100)
   'rgb-surface-tertiary-alt': '255 255 255', // #fff (white)
   'rgb-surface-dialog': '255 255 255', // #fff (white)
-  'rgb-dialog-title': '33 33 33', // #212121 (gray-800, matching text-primary)
+  'rgb-dialog-title': '28 28 34', // #1c1c22 (gray-800, matching text-primary)
   'rgb-surface-overlay': '89 89 89', // #595959 (gray-500)
   'rgb-surface-media-overlay': '0 0 0', // #000 (black, over the user's media in both modes)
   'rgb-text-on-media': '255 255 255', // #fff (white)
-  'rgb-surface-submit': '4 120 87', // #047857 (green-700)
-  'rgb-surface-submit-hover': '6 95 70', // #065f46 (green-800)
+  'rgb-surface-submit': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-surface-submit-hover': '74 62 205', // #4a3ecd (NexGap indigo hover)
   'rgb-surface-destructive': '185 28 28', // #b91c1c (red-700)
   'rgb-surface-destructive-hover': '153 27 27', // #991b1b (red-800)
   'rgb-surface-chat': '255 255 255', // #fff (white)
-  'rgb-surface-code': '247 247 248', // #f7f7f8 (gray-50)
+  'rgb-surface-code': '248 247 249', // #f8f7f9 (gray-50)
   'rgb-surface-code-body': '255 255 255', // #fff (white)
-  'rgb-surface-code-inline': '227 227 227', // #e3e3e3 (gray-200)
-  'rgb-prose-bullet': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-prose-quote-bar': '205 205 205', // #cdcdcd (gray-300)
+  'rgb-surface-code-inline': '228 227 232', // #e4e3e8 (gray-200)
+  'rgb-prose-bullet': '207 206 214', // #cfced6 (gray-300)
+  'rgb-prose-quote-bar': '207 206 214', // #cfced6 (gray-300)
   'rgb-surface-qr': '255 255 255', // #fff (white)
-  'rgb-surface-inverted': '23 23 23', // #171717 (gray-850)
-  'rgb-surface-inverted-hover': '47 47 47', // #2f2f2f (gray-700)
-  'rgb-surface-inverted-pressed': '47 47 47', // #2f2f2f (gray-700), the hover fill
-  'rgb-button-primary': '23 23 23', // #171717 (gray-850, matching surface-inverted)
-  'rgb-button-primary-hover': '47 47 47', // #2f2f2f (gray-700, matching surface-inverted-hover)
+  'rgb-surface-inverted': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-surface-inverted-hover': '74 62 205', // #4a3ecd (NexGap indigo hover)
+  'rgb-surface-inverted-pressed': '74 62 205', // #4a3ecd (NexGap indigo hover)
+  'rgb-button-primary': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-button-primary-hover': '74 62 205', // #4a3ecd (NexGap indigo hover)
   'rgb-text-inverted': '255 255 255', // #fff (white)
   'rgb-surface-fixed': '255 255 255', // #fff (white) — same in light + dark
-  'rgb-surface-fixed-hover': '236 236 236', // #ececec (gray-100) — same in light + dark
-  'rgb-text-fixed': '33 33 33', // #212121 (gray-800) — same in light + dark
+  'rgb-surface-fixed-hover': '237 236 239', // #edecef (gray-100) — same in light + dark
+  'rgb-text-fixed': '28 28 34', // #1c1c22 (gray-800) — same in light + dark
 
   // Border colors
-  'rgb-border-light': '227 227 227', // #e3e3e3 (gray-200)
-  'rgb-border-medium': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-border-medium-alt': '205 205 205', // #cdcdcd (gray-300)
-  'rgb-border-heavy': '153 150 150', // #999696 (gray-400)
-  'rgb-border-xheavy': '89 89 89', // #595959 (gray-500)
-  'rgb-drawer-edge': '247 247 248', // #f7f7f8 (gray-50, the drawer's own fill)
+  'rgb-border-light': '228 227 232', // #e4e3e8 (gray-200)
+  'rgb-border-medium': '207 206 214', // #cfced6 (gray-300)
+  'rgb-border-medium-alt': '207 206 214', // #cfced6 (gray-300)
+  'rgb-border-heavy': '155 154 162', // #9b9aa2 (gray-400)
+  'rgb-border-xheavy': '92 91 102', // #5c5b66 (gray-500)
+  'rgb-drawer-edge': '248 247 249', // #f8f7f9 (gray-50, the drawer's own fill)
   'rgb-border-destructive': '220 38 38', // #dc2626 (red-600)
-  'rgb-border-control': '227 227 227', // #e3e3e3 (gray-200), the stock field edge
-  'rgb-border-field-focus': '33 33 33', // #212121 (gray-800, matching focus-control)
-  'rgb-focus-subtle': '153 150 150', // #999696 (gray-400, matching border-heavy)
+  'rgb-border-control': '228 227 232', // #e4e3e8 (gray-200), the stock field edge
+  'rgb-border-field-focus': '28 28 34', // #1c1c22 (gray-800, matching focus-control)
+  'rgb-focus-subtle': '155 154 162', // #9b9aa2 (gray-400, matching border-heavy)
   'rgb-field-fill': '255 255 255', // #fff (white, matching surface-primary)
-  'rgb-field-text': '33 33 33', // #212121 (gray-800, matching text-primary)
+  'rgb-field-text': '28 28 34', // #1c1c22 (gray-800, matching text-primary)
   'rgb-surface-tooltip': '255 255 255', // matching surface-primary
-  'rgb-text-tooltip': '33 33 33', // matching text-primary
+  'rgb-text-tooltip': '28 28 34', // matching text-primary
   'rgb-alert-error-fill': '254 242 242', // matching status-error-subtle
   'rgb-alert-error-border': '252 165 165', // matching status-error-border
-  'rgb-surface-canvas': '247 247 248', // matching surface-primary-alt
-  'rgb-surface-user-message': '236 236 236', // matching surface-tertiary
-  'rgb-surface-card': '247 247 248', // matching surface-secondary
-  'rgb-surface-card-hover': '236 236 236', // matching surface-tertiary
-  'rgb-surface-nav-hover': '227 227 227', // matching surface-active-alt
-  'rgb-surface-nav-selected': '227 227 227', // matching surface-active-alt
-  'rgb-surface-tab-selected': '236 236 236', // matching surface-tertiary
+  'rgb-surface-canvas': '248 247 249', // matching surface-primary-alt
+  'rgb-surface-user-message': '237 236 239', // matching surface-tertiary
+  'rgb-surface-card': '248 247 249', // matching surface-secondary
+  'rgb-surface-card-hover': '237 236 239', // matching surface-tertiary
+  'rgb-surface-nav-hover': '228 227 232', // matching surface-active-alt
+  'rgb-surface-nav-selected': '228 227 232', // matching surface-active-alt
+  'rgb-surface-tab-selected': '237 236 239', // matching surface-tertiary
   'rgb-surface-menu': '255 255 255', // matching presentation
   'rgb-surface-popover': '255 255 255', // matching surface-primary
-  'rgb-border-menu': '227 227 227', // matching border-light
+  'rgb-border-menu': '228 227 232', // matching border-light
   'rgb-surface-composer': '255 255 255', // matching surface-chat
-  'rgb-surface-search': '247 247 248', // matching surface-secondary
-  'rgb-surface-sidebar': '247 247 248', // matching surface-primary-alt
-  'rgb-surface-disabled': '236 236 236', // #ececec (gray-100)
-  'rgb-text-disabled': '153 150 150', // #999696 (gray-400)
-  'rgb-border-disabled': '227 227 227', // #e3e3e3 (gray-200)
+  'rgb-surface-search': '248 247 249', // matching surface-secondary
+  'rgb-surface-sidebar': '248 247 249', // matching surface-primary-alt
+  'rgb-surface-disabled': '237 236 239', // #edecef (gray-100)
+  'rgb-text-disabled': '155 154 162', // #9b9aa2 (gray-400)
+  'rgb-border-disabled': '228 227 232', // #e4e3e8 (gray-200)
 
   // Status colors
   'rgb-status-success': '4 120 87', // #047857 (green-700)
   'rgb-status-success-subtle': '236 253 245', // #ecfdf5 (green-50)
   'rgb-status-success-border': '110 231 183', // #6ee7b7 (green-300)
   'rgb-status-success-strong': '2 133 94', // #02855e
-  'rgb-status-info': '37 99 235', // #2563eb (blue-600)
+  'rgb-status-info': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-status-info-subtle': '239 246 255', // #eff6ff (blue-50)
   'rgb-status-info-border': '147 197 253', // #93c5fd (blue-300)
-  'rgb-status-info-strong': '89 89 89', // #595959 (gray-500)
+  'rgb-status-info-strong': '92 91 102', // #5c5b66 (gray-500)
   'rgb-status-warning': '180 83 9', // #b45309 (amber-700)
   'rgb-status-warning-subtle': '255 251 235', // #fffbeb (amber-50)
   'rgb-status-warning-border': '252 211 77', // #fcd34d (amber-300)
@@ -128,32 +128,32 @@ export const defaultTheme: IThemeRGB = {
   'rgb-status-error-subtle': '254 242 242', // #fef2f2 (red-50)
   'rgb-status-error-border': '252 165 165', // #fca5a5 (red-300)
   'rgb-status-error-strong': '224 47 31', // #e02f1f
-  'rgb-status-neutral': '66 66 66', // #424242 (gray-600)
-  'rgb-status-neutral-subtle': '236 236 236', // #ececec (gray-100)
-  'rgb-status-neutral-border': '205 205 205', // #cdcdcd (gray-300)
+  'rgb-status-neutral': '66 65 75', // #42414b (gray-600)
+  'rgb-status-neutral-subtle': '237 236 239', // #edecef (gray-100)
+  'rgb-status-neutral-border': '207 206 214', // #cfced6 (gray-300)
   /** Verified mark. `blue-600` doubles as `status-info` here, and that is the
    *  point: one blue for "this is informational/first-party", 5.17:1 under the
    *  white label and 4.83:1 against the panel. */
-  'rgb-status-verified': '37 99 235', // #2563eb (blue-600)
+  'rgb-status-verified': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-text-on-status': '255 255 255', // #fff (white)
 
   // Brand colors
-  'rgb-brand-purple': '126 34 206', // #7e22ce (purple-700)
-  'rgb-avatar-fill': '121 137 255', // #7989ff (the default avatar fill in every bundled theme)
-  'rgb-avatar-text': '33 33 33', // #212121 (gray-800, matching text-primary)
-  'rgb-avatar-placeholder': '247 247 248', // #f7f7f8 (gray-50, matching surface-secondary)
+  'rgb-brand-purple': '91 79 229', // #5b4fe5 (NexGap indigo)
+  'rgb-avatar-fill': '124 114 240', // #7c72f0 (NexGap indigo tint)
+  'rgb-avatar-text': '28 28 34', // #1c1c22 (gray-800, matching text-primary)
+  'rgb-avatar-placeholder': '248 247 249', // #f8f7f9 (gray-50, matching surface-secondary)
   'rgb-avatar-edge': '240 246 252', // #f0f6fc at 10%, a hairline that only shows against a dark page
-  'rgb-illustration-subtle': '175 193 255', // #afc1ff
-  'rgb-illustration': '121 137 255', // #7989ff
-  'rgb-illustration-strong': '60 70 255', // #3c46ff
+  'rgb-illustration-subtle': '190 184 250', // #beb8fa (NexGap indigo tint)
+  'rgb-illustration': '124 114 240', // #7c72f0 (NexGap indigo tint)
+  'rgb-illustration-strong': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-scrollbar-thumb': '0 0 0', // #000000
-  'rgb-page-canvas': '247 247 248', // #f7f7f8 (gray-50, matching surface-primary-alt)
+  'rgb-page-canvas': '248 247 249', // #f8f7f9 (gray-50, matching surface-primary-alt)
   'rgb-select-fill': '255 255 255', // #ffffff
-  'rgb-select-edge': '142 142 160', // #8e8ea0
+  'rgb-select-edge': '154 153 165', // #9a99a5
   'rgb-button-neutral-border': '0 0 0', // #000000 at 10%
-  'rgb-button-neutral-text': '64 65 79', // #40414f
-  'rgb-button-neutral-hover': '236 236 241', // #ececf1 (gray-20)
-  'rgb-link-inline': '0 102 204', // #0066cc
+  'rgb-button-neutral-text': '66 65 75', // #42414b
+  'rgb-button-neutral-hover': '240 239 243', // #f0eff3 (gray-20)
+  'rgb-link-inline': '91 79 229', // #5b4fe5 (NexGap indigo)
   'rgb-toast-edge': '67 90 111', // #435a6f
   'rgb-stroke-ink': '0 0 0', // #000000 at 10%
   'rgb-file-document': '255 85 136', // #ff5588
@@ -166,9 +166,9 @@ export const defaultTheme: IThemeRGB = {
   'rgb-file-ink': '255 255 255', // #ffffff
 
   /** Code syntax highlighting, measured against the `surface-code` and `surface-code-body` fills. */
-  'rgb-syntax-text': '33 33 33', // #212121 (gray-800)
-  'rgb-syntax-comment': '89 89 89', // #595959 (gray-500)
-  'rgb-syntax-meta': '66 66 66', // #424242 (gray-600)
+  'rgb-syntax-text': '28 28 34', // #1c1c22 (gray-800)
+  'rgb-syntax-comment': '92 91 102', // #5c5b66 (gray-500)
+  'rgb-syntax-meta': '66 65 75', // #42414b (gray-600)
   'rgb-syntax-builtin': '154 103 0', // #9a6700
   'rgb-syntax-keyword': '5 80 174', // #0550ae
   'rgb-syntax-string': '10 123 98', // #0a7b62
@@ -201,7 +201,7 @@ export const defaultTheme: IThemeRGB = {
   'rgb-switch-unchecked': '148 148 148', // #949494
   'rgb-switch-thumb': '255 255 255', // #fff (white, matching surface-primary)
   'rgb-checkbox-fill': '255 255 255', // #fff (white, matching surface-primary)
-  'rgb-table-header-text': '66 66 66', // #424242 (gray-600, matching text-secondary)
+  'rgb-table-header-text': '66 65 75', // #42414b (gray-600, matching text-secondary)
   'rgb-table-header-fill': '255 255 255', // #fff (white, matching surface-dialog)
 
   // Presentation

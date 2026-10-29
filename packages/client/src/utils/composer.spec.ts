@@ -4,7 +4,7 @@ describe('composerSurfaceClasses', () => {
   it('draws the composer surface from semantic roles', () => {
     const classes = composerSurfaceClasses();
 
-    expect(classes).toContain('border-border-light');
+    expect(classes).toContain('border-border-medium');
     expect(classes).toContain('bg-surface-composer');
     expect(classes).toContain('text-text-primary');
   });

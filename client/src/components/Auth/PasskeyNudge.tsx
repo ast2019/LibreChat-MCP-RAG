@@ -103,7 +103,13 @@ function PasskeyNudge({ onVisibilityChange }: { onVisibilityChange?: (visible: b
               >
                 {localize('com_ui_passkey_add')}
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={handleLater}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-text-primary"
+                onClick={handleLater}
+              >
                 {localize('com_ui_passkey_nudge_later')}
               </Button>
             </div>

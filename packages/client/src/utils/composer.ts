@@ -9,16 +9,17 @@ import { cn } from './utils';
  */
 export const composerSurfaceClasses = (): string =>
   cn(
-    'border border-border-light bg-surface-composer text-text-primary transition-all duration-200',
+    'border border-border-medium bg-surface-composer text-text-primary transition-all duration-200',
   );
 
 /** Elevation states for the composer surface. `within` is the CSS-only
  *  equivalent of the managed focused/blurred pair for surfaces that do not
- *  track focus in state. */
+ *  track focus in state. The composer sits nearly flat on the page, its edge
+ *  doing the separating, and lifts slightly while it holds focus. */
 export const composerSurfaceShadow = {
-  focused: 'shadow-lg',
-  blurred: 'shadow-md',
-  within: 'shadow-md focus-within:shadow-lg',
+  focused: 'shadow-md',
+  blurred: 'shadow-xs',
+  within: 'shadow-xs focus-within:shadow-md',
 } as const;
 
 /**

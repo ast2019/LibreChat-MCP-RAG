@@ -7,6 +7,24 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-29
+
+### Changed
+- **NexGap-style look.** The app's one theme (light and dark) now follows nexgap.ir's style. The
+  logo and brand stay ours.
+  - Primary color is indigo `#5B4FE5`. Primary buttons, send, switches, checkboxes, sliders,
+    selected options and links use it, with white text in both modes.
+  - Neutrals are NexGap's slightly violet grays: text `#1C1C22`, dark page `#1C1C22`, dark
+    composer `#302F37`.
+  - The chat history panel opens with a full-width «چت جدید» button.
+  - The welcome screen has a bolder, larger greeting, a softer subtitle, a faint dot grid, and an
+    amber glow in dark mode.
+  - The composer is flatter, with a clearer edge and only a light shadow until it has focus.
+  - Sign-in and registration are a split screen: a brand panel (logo, app name, tagline on an
+    indigo-to-amber wash) beside the form, and pill-shaped submit buttons. Below `lg` the panel
+    is hidden and the page looks as before.
+  - High-contrast modes are unchanged and drop the decorative backgrounds.
+
 ## [0.16.1] - 2026-10-28
 
 ### Added

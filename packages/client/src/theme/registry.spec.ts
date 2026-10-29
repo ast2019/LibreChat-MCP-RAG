@@ -131,7 +131,7 @@ describe('theme registry', () => {
     expect(resolveTheme(libreChatTheme, 'light').colors['rgb-surface-code-body']).toBe(
       '255 255 255',
     );
-    expect(resolveTheme(libreChatTheme, 'dark').colors['rgb-surface-code-body']).toBe('23 23 23');
+    expect(resolveTheme(libreChatTheme, 'dark').colors['rgb-surface-code-body']).toBe('23 22 28');
   });
 
   it('keeps the bundled code surfaces unchanged for the default appearances', () => {
