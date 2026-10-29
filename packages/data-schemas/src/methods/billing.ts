@@ -49,17 +49,30 @@ export interface BillingSummary {
   topModels: BillingModelSpend[];
 }
 
+/** One user's spend in a window, split by what it paid for and by model. */
+export interface BillingUserUsage {
+  /** Positive credits spent in the window */
+  totalCredits: number;
+  /** Ledger context (`message`, `memory`, `title`, `ocr`…), largest first */
+  byContext: Array<{ context: string; credits: number; count: number }>;
+  /** Model, largest first (at most 10) */
+  byModel: Array<{ model: string; credits: number }>;
+}
+
 const MAX_PAGE_SIZE = 100;
 /** Credits added to balances: packs, manual grants and invite rewards (both sides). */
 const GRANT_CONTEXTS = ['pack', 'admin', 'referral', 'referral_welcome'];
 const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
-/** `credits` transactions that are usage, not grants: on-server OCR pages (no provider cost). */
+/** `credits` transactions that are usage with no provider cost: on-server OCR pages. */
 const LOCAL_SPEND_CONTEXTS = ['ocr_local'];
-/** Every spend transaction: token usage (chat, vision OCR) and credit-priced local usage. */
+/** Every `credits` transaction that is usage, not a grant: on-server OCR pages and server
+ *  speech (transcription and read-aloud are priced in credits from the provider's cost). */
+const CREDIT_SPEND_CONTEXTS = [...LOCAL_SPEND_CONTEXTS, 'stt', 'tts'];
+/** Every spend transaction: token usage (chat, vision OCR) and credit-priced usage. */
 const SPEND_MATCH = {
   $or: [
     { tokenType: { $in: SPEND_TOKEN_TYPES } },
-    { tokenType: 'credits', context: { $in: LOCAL_SPEND_CONTEXTS } },
+    { tokenType: 'credits', context: { $in: CREDIT_SPEND_CONTEXTS } },
   ],
 };
 
@@ -70,6 +83,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
     offset?: number;
   }) => Promise<{ users: BillingUserRow[]; total: number }>;
   getBillingSummary: (params: { since: Date; topModels?: number }) => Promise<BillingSummary>;
+  getUserUsageByContext: (params: { userId: string; since: Date }) => Promise<BillingUserUsage>;
 } {
   const users = () => mongoose.models.User as Model<IUser>;
   const balances = () => mongoose.models.Balance as Model<IBalance>;
@@ -228,7 +242,54 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
     };
   }
 
-  return { listUsersWithBalances, getBillingSummary };
+  async function getUserUsageByContext({
+    userId,
+    since,
+  }: {
+    userId: string;
+    since: Date;
+  }): Promise<BillingUserUsage> {
+    const match = {
+      ...SPEND_MATCH,
+      user: new mongoose.Types.ObjectId(userId),
+      createdAt: { $gte: since },
+    };
+    const [contexts, models] = await Promise.all([
+      transactions().aggregate<{ _id: string | null; credits: number; count: number }>([
+        { $match: match },
+        {
+          $group: {
+            _id: '$context',
+            credits: { $sum: '$tokenValue' },
+            /** A model call writes a prompt and a completion row; count calls, not rows */
+            count: { $sum: { $cond: [{ $eq: ['$tokenType', 'completion'] }, 0, 1] } },
+          },
+        },
+        { $sort: { credits: 1 } },
+      ]),
+      transactions().aggregate<{ _id: string | null; credits: number }>([
+        { $match: match },
+        { $group: { _id: '$model', credits: { $sum: '$tokenValue' } } },
+        { $sort: { credits: 1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+    const byContext = contexts.map((row) => ({
+      context: row._id ?? 'other',
+      credits: Math.abs(row.credits ?? 0),
+      count: row.count ?? 0,
+    }));
+    return {
+      totalCredits: byContext.reduce((sum, row) => sum + row.credits, 0),
+      byContext,
+      byModel: models.map((row) => ({
+        model: row._id ?? 'unknown',
+        credits: Math.abs(row.credits ?? 0),
+      })),
+    };
+  }
+
+  return { listUsersWithBalances, getBillingSummary, getUserUsageByContext };
 }
 
 export type BillingMethods = ReturnType<typeof createBillingMethods>;

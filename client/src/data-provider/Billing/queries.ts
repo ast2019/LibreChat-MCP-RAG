@@ -10,6 +10,7 @@ import type {
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
+  TAdminBillingUserUsage,
 } from 'librechat-data-provider';
 import type {
   QueryKey,
@@ -134,3 +135,14 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
     },
   );
 };
+
+/** Where one user's credits went in the window, for the admin users table. */
+export const useAdminBillingUserUsageQuery = (
+  userId: string | null | undefined,
+  days: number,
+): QueryObserverResult<TAdminBillingUserUsage> =>
+  useQuery<TAdminBillingUserUsage>(
+    [QueryKeys.adminBillingUserUsage, userId, days],
+    () => dataService.getAdminBillingUserUsage(userId as string, days),
+    { enabled: userId != null && userId !== '', refetchOnWindowFocus: false, retry: false },
+  );

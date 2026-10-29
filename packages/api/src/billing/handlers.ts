@@ -1,5 +1,10 @@
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
-import type { IUser, BillingSummary, BillingUserRow } from '@librechat/data-schemas';
+import type {
+  IUser,
+  BillingSummary,
+  BillingUserRow,
+  BillingUserUsage,
+} from '@librechat/data-schemas';
 import type { TBalancePack, TBalanceConfig } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import type { GrantBalanceDeps } from './packs';
@@ -34,6 +39,8 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
     offset?: number;
   }) => Promise<{ users: BillingUserRow[]; total: number }>;
   getBillingSummary: (params: { since: Date }) => Promise<BillingSummary>;
+  /** One user's spend in a window, by ledger context and by model. */
+  getUserUsageByContext?: (params: { userId: string; since: Date }) => Promise<BillingUserUsage>;
   /** Markup applied to provider prices; the summary divides spend by it to estimate cost. */
   getPriceMultiplier: (req: BillingRequest) => Promise<number | undefined>;
   now?: () => Date;
@@ -109,6 +116,7 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
   grant: (req: BillingRequest, res: Response) => Promise<Response>;
   listUsers: (req: BillingRequest, res: Response) => Promise<Response>;
   summary: (req: BillingRequest, res: Response) => Promise<Response>;
+  userUsage: (req: BillingRequest, res: Response) => Promise<Response>;
 } {
   async function listPacks(req: BillingRequest, res: Response) {
     try {
@@ -234,5 +242,31 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     }
   }
 
-  return { listPacks, getUserBalance, grant, listUsers, summary };
+  /** Where one user's credits went in the last 7, 30 or 90 days, to answer "why did my balance
+   *  drop": chat messages, background memory, titles, OCR, speech and so on. */
+  async function userUsage(req: BillingRequest, res: Response) {
+    try {
+      if (deps.getUserUsageByContext == null) {
+        return res.status(404).json({ error: 'usage_unavailable' });
+      }
+      const query = (req.query ?? {}) as Record<string, unknown>;
+      const target = await resolveTarget(deps, query);
+      if (!target.ok) {
+        return res.status(target.status).json({ error: target.error });
+      }
+      const requested = readInt(query.days, 30);
+      const days = (BILLING_SUMMARY_WINDOWS as readonly number[]).includes(requested)
+        ? requested
+        : 30;
+      const now = (deps.now ?? (() => new Date()))();
+      const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const usage = await deps.getUserUsageByContext({ userId: target.user.id, since });
+      return res.status(200).json({ user: target.user, days, since: since.toISOString(), ...usage });
+    } catch (error) {
+      logger.error('[adminBalance] userUsage error:', error);
+      return res.status(500).json({ error: 'Failed to read user usage' });
+    }
+  }
+
+  return { listPacks, getUserBalance, grant, listUsers, summary, userUsage };
 }

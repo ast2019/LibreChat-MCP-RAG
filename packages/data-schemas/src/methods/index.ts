@@ -696,5 +696,10 @@ export type {
 };
 
 export { recordAgentEventActorReceiptMetric, setAgentEventActorReceiptMetricObserver };
-export type { BillingUserRow, BillingSummary, BillingModelSpend } from './billing';
+export type {
+  BillingUserRow,
+  BillingSummary,
+  BillingModelSpend,
+  BillingUserUsage,
+} from './billing';
 export { paymentLedgerMarker } from './payment';

@@ -9,6 +9,7 @@ import type {
   TAdminBillingGrantResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
+  TAdminBillingUserUsage,
 } from './types/billing';
 import type {
   TPaymentOrder,
@@ -102,6 +103,13 @@ export function getReferral(): Promise<TReferralInfo> {
 
 export function claimReferral(code: string): Promise<TReferralClaimResponse> {
   return request.post(endpoints.referralClaim(), { code });
+}
+
+export function getAdminBillingUserUsage(
+  userId: string,
+  days: number,
+): Promise<TAdminBillingUserUsage> {
+  return request.get(endpoints.adminBillingUserUsage(userId, days));
 }
 
 export function getPaymentOptions(): Promise<TPaymentOptions> {

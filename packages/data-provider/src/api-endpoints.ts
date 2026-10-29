@@ -547,6 +547,8 @@ export const insightsAccess = () => `${insights()}/access`;
 export const adminBilling = () => `${BASE_URL}/api/admin/balance`;
 export const adminBillingUsers = (params: Record<string, unknown> = {}) =>
   `${adminBilling()}/users${buildQuery(params)}`;
+export const adminBillingUserUsage = (userId: string, days: number) =>
+  `${adminBilling()}/usage${buildQuery({ userId, days })}`;
 export const adminBillingSummary = (days: number) =>
   `${adminBilling()}/summary${buildQuery({ days })}`;
 export const adminBillingPacks = () => `${adminBilling()}/packs`;

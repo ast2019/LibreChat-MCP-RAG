@@ -34,6 +34,7 @@ const handlers = createAdminBalanceHandlers({
   upsertBalanceFields: db.upsertBalanceFields,
   listUsersWithBalances: db.listUsersWithBalances,
   getBillingSummary: db.getBillingSummary,
+  getUserUsageByContext: db.getUserUsageByContext,
   getPriceMultiplier: async (req) =>
     getPrimaryPriceMultiplier(
       await getAppConfig({
@@ -51,5 +52,6 @@ router.get('/user', requireReadUsers, handlers.getUserBalance);
 router.post('/grant', requireManageUsers, handlers.grant);
 router.get('/users', requireReadUsers, handlers.listUsers);
 router.get('/summary', requireReadUsers, handlers.summary);
+router.get('/usage', requireReadUsers, handlers.userUsage);
 
 module.exports = router;
