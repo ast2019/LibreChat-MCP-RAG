@@ -7,6 +7,31 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-29
+
+### Added
+- **Save as PDF, with Persian set right.** Each message has a «ذخیره به صورت PDF» button next
+  to Copy, and the conversation export dialog offers «PDF (.pdf)».
+  - The PDF is made from the same text Copy uses, laid out by the browser: Vazirmatn, right to
+    left, joined letters, tables, and code kept left to right. The print dialog's «Save as PDF»
+    writes it, and the text in it stays selectable.
+  - Copy works as before; the PDF is only an extra way out.
+  - Raw HTML in a message is escaped, as in rich-text copy.
+- **Where a user's credit went (admin).** Each row on the admin users page has a «مصرف»
+  button. It shows the last 7, 30 or 90 days split by what the credit paid for: chat replies,
+  background memory, titles, summaries, OCR, voice to text, read-aloud, images, and so on. Each
+  line shows the amount, its share and how many calls, plus the top models.
+  (`GET /api/admin/balance/usage?userId=&days=`, `READ_USERS`).
+  - Server speech (`stt`/`tts`) now counts as spend in the admin summary too.
+
+### Changed
+- **Bigger packs.** Starter 4,000,000 credits (was 2,000,000), standard 10,000,000 (was
+  5,000,000), pro 30,000,000 (was 15,000,000). The Toman price follows the credits, so it
+  doubles too. Each pack lasts twice as long.
+- `docs/saas/BILLING.md` explains the real margin. The 1.3 multiplier is 30% on top of cost
+  (about 23% of revenue). OpenRouter's 5.5% fee on buying credit and the gateway fee come out
+  of that, leaving about 17–18% of revenue for cloud models.
+
 ## [0.19.0] - 2026-10-29
 
 ### Added
