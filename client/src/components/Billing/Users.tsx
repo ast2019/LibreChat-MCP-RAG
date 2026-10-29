@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { UserPlus } from 'lucide-react';
 import { SystemRoles } from 'librechat-data-provider';
 import { Button, Input, Skeleton } from '@librechat/client';
 import type { TAdminBillingUser } from 'librechat-data-provider';
@@ -8,13 +9,16 @@ import { Money, UsageCell } from './parts';
 import ModelAccess from './ModelAccess';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
-import { useLocalize } from '~/hooks';
+import RoleDialog from './RoleDialog';
+import CreateUserDialog from './CreateUserDialog';
+import { useLocalize, useAuthContext } from '~/hooks';
 
 const PAGE_SIZE = 25;
 const SEARCH_DELAY_MS = 300;
 const COLUMN_COUNT = 6;
 
-/** Every user with their pack, usage, model access and credit, and the dialog that adds credit. */
+/** Every user with their pack, usage, model access and credit, with dialogs to add a user,
+ *  add credit and change who is an admin. */
 export default function Users() {
   const localize = useLocalize();
   const [searchInput, setSearchInput] = useState('');
@@ -22,6 +26,9 @@ export default function Users() {
   const [offset, setOffset] = useState(0);
   const [granting, setGranting] = useState<TAdminBillingUser | null>(null);
   const [viewingUsage, setViewingUsage] = useState<TAdminBillingUser | null>(null);
+  const [changingRole, setChangingRole] = useState<TAdminBillingUser | null>(null);
+  const [creating, setCreating] = useState(false);
+  const { user: currentUser } = useAuthContext();
   const { currency } = useBalanceDisplay();
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export default function Users() {
           <h2 id="admin-users" className="text-text-primary flex-1 text-sm font-medium">
             {localize('com_admin_user_list')}
           </h2>
-          <div className="w-full max-w-xs">
+          <div className="w-full sm:max-w-xs">
             <Input
               type="search"
               value={searchInput}
@@ -56,6 +63,10 @@ export default function Users() {
               aria-label={localize('com_admin_search')}
             />
           </div>
+          <Button onClick={() => setCreating(true)} data-testid="admin-create-user">
+            <UserPlus className="size-4" aria-hidden="true" />
+            <span className="ms-2">{localize('com_admin_create_user')}</span>
+          </Button>
         </div>
 
         <div className="border-border-light overflow-x-auto rounded-xl border">
@@ -137,7 +148,7 @@ export default function Users() {
                     <Money credits={row.balance?.tokenCredits ?? 0} currency={currency} />
                   </td>
                   <td className="px-4 py-2 text-end">
-                    <span className="inline-flex gap-2">
+                    <span className="inline-flex flex-wrap justify-end gap-2">
                       <Button
                         size="compact"
                         variant="outline"
@@ -149,6 +160,30 @@ export default function Users() {
                       <Button size="compact" variant="outline" onClick={() => setGranting(row)}>
                         {localize('com_admin_grant')}
                       </Button>
+                      {row.id === currentUser?.id ? (
+                        <Button
+                          size="compact"
+                          variant="outline"
+                          disabled
+                          title={localize('com_admin_role_self')}
+                          aria-label={`${localize('com_admin_role_demote')}, ${localize('com_admin_role_self')}`}
+                        >
+                          {localize('com_admin_role_demote')}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="compact"
+                          variant="outline"
+                          onClick={() => setChangingRole(row)}
+                          data-testid="admin-user-role"
+                        >
+                          {localize(
+                            row.role === SystemRoles.ADMIN
+                              ? 'com_admin_role_demote'
+                              : 'com_admin_role_promote',
+                          )}
+                        </Button>
+                      )}
                     </span>
                   </td>
                 </tr>
@@ -191,6 +226,10 @@ export default function Users() {
           onClose={() => setViewingUsage(null)}
         />
       )}
+      {changingRole != null && (
+        <RoleDialog user={changingRole} onClose={() => setChangingRole(null)} />
+      )}
+      {creating && <CreateUserDialog open onClose={() => setCreating(false)} />}
       {granting != null && (
         <GrantDialog
           user={granting}

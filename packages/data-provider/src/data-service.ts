@@ -10,6 +10,9 @@ import type {
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
   TAdminBillingUserUsage,
+  TAdminCreateUserRequest,
+  TAdminSetUserRoleRequest,
+  TAdminCreateUserResponse,
 } from './types/billing';
 import type {
   TPaymentOrder,
@@ -95,6 +98,22 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function createAdminUser(
+  payload: TAdminCreateUserRequest,
+): Promise<TAdminCreateUserResponse> {
+  return request.post(endpoints.adminBillingCreateUser(), payload);
+}
+
+/** Makes a user an admin, or a regular user again; the server keeps at least one admin. */
+export function setAdminUserRole({
+  userId,
+  admin,
+}: TAdminSetUserRoleRequest): Promise<{ success: boolean }> {
+  return admin
+    ? request.post(endpoints.adminRoleMembers('ADMIN'), { userId })
+    : request.delete(endpoints.adminRoleMembers('ADMIN', userId));
 }
 
 export function getReferral(): Promise<TReferralInfo> {

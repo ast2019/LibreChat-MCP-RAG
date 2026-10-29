@@ -553,6 +553,11 @@ export const adminBillingSummary = (days: number) =>
   `${adminBilling()}/summary${buildQuery({ days })}`;
 export const adminBillingPacks = () => `${adminBilling()}/packs`;
 export const adminBillingGrant = () => `${adminBilling()}/grant`;
+export const adminBillingCreateUser = () => `${adminBilling()}/users`;
+export const adminRoleMembers = (role: string, userId?: string) =>
+  `${BASE_URL}/api/admin/roles/${encodeURIComponent(role)}/members${
+    userId != null ? `/${encodeURIComponent(userId)}` : ''
+  }`;
 export const adminServiceStatus = () => `${BASE_URL}/api/admin/status`;
 export const adminServiceStatusRefresh = () => `${adminServiceStatus()}/refresh`;
 export const adminUserModelAccess = (userId: string) =>
