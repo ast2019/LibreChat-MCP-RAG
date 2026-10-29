@@ -9,6 +9,7 @@ const mockRoleMutate = jest.fn();
 const mockModelAccessMutate = jest.fn();
 const mockSetRoleMutate = jest.fn();
 const mockApiAccessMutate = jest.fn();
+const mockMediaAccessMutate = jest.fn();
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -50,6 +51,7 @@ jest.mock('~/data-provider', () => ({
   useAdminUserModelAccessMutation: () => ({ mutate: mockModelAccessMutate, isLoading: false }),
   useAdminSetUserRoleMutation: () => ({ mutate: mockSetRoleMutate, isLoading: false }),
   useAdminUserApiAccessMutation: () => ({ mutate: mockApiAccessMutate, isLoading: false }),
+  useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
   useAdminCreateUserMutation: () => ({ mutate: jest.fn(), isLoading: false }),
   useGetStartupConfig: () => ({
     data: {
@@ -252,6 +254,16 @@ describe('AdminView', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
     expect(mockApiAccessMutate).toHaveBeenCalledWith(
       { userId: 'u1', apiAccess: true },
+      expect.any(Object),
+    );
+  });
+
+  it('lets one user generate media without a pack', async () => {
+    renderView('/admin?tab=users');
+    await userEvent.click(screen.getByTestId('media-access-u1'));
+    await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
+    expect(mockMediaAccessMutate).toHaveBeenCalledWith(
+      { userId: 'u1', mediaAccess: true },
       expect.any(Object),
     );
   });

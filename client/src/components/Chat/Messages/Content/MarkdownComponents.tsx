@@ -114,18 +114,28 @@ type TAnchorProps = {
   children: React.ReactNode;
 };
 
-/** An `https` link straight to a video file, as image/video tools (e.g. Higgsfield over MCP)
- *  return their results. Only the path is read, so a signed query string still matches. */
-export function getVideoLinkSource(href?: string | null): string | null {
+/** A link straight to a media file whose path ends in one of `extensions`: an `https` link (as
+ *  Higgsfield over MCP returns), or a path on this site (as the in-chat generators save). Only
+ *  the path is read, so a signed query string still matches. */
+function getMediaLinkSource(href: string | null | undefined, extensions: RegExp): string | null {
   if (!href) {
     return null;
   }
   try {
-    const url = new URL(href);
-    return url.protocol === 'https:' && /\.(mp4|webm|mov|m4v)$/i.test(url.pathname) ? href : null;
+    const sameSite = href.startsWith('/') && !href.startsWith('//');
+    const url = sameSite ? new URL(href, window.location.origin) : new URL(href);
+    return (sameSite || url.protocol === 'https:') && extensions.test(url.pathname) ? href : null;
   } catch {
     return null;
   }
+}
+
+export function getVideoLinkSource(href?: string | null): string | null {
+  return getMediaLinkSource(href, /\.(mp4|webm|mov|m4v)$/i);
+}
+
+export function getAudioLinkSource(href?: string | null): string | null {
+  return getMediaLinkSource(href, /\.(mp3|wav|ogg|oga|m4a|aac|flac)$/i);
 }
 
 export const a: React.ElementType = memo(function MarkdownAnchor({ href, children }: TAnchorProps) {
@@ -153,6 +163,26 @@ export const a: React.ElementType = memo(function MarkdownAnchor({ href, childre
 
   const { refetch: downloadFile } = useFileDownload(user?.id ?? '', file_id, { direct: false });
   const props: { target?: string; onClick?: React.MouseEventHandler } = { target: '_blank' };
+
+  const audioSource = getAudioLinkSource(href);
+  if (audioSource != null) {
+    return (
+      <span className="my-2 flex max-w-xl flex-col gap-1">
+        {/* Generated speech has no caption file; the words are in the message itself. */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <audio
+          controls
+          preload="metadata"
+          src={audioSource}
+          data-testid="markdown-audio"
+          className="w-full"
+        />
+        <a href={href} {...props}>
+          {children}
+        </a>
+      </span>
+    );
+  }
 
   const videoSource = getVideoLinkSource(href);
   if (videoSource != null) {

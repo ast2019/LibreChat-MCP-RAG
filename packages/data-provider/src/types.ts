@@ -333,6 +333,8 @@ export type TUser = {
   backupCodes?: TBackupCode[];
   /** Per-user programming API override; absent follows the role. */
   apiAccess?: boolean;
+  /** Per-user media generation override; absent follows the deployment rule. */
+  mediaAccess?: boolean;
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;

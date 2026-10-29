@@ -77,6 +77,7 @@ const {
   appendAssistantMCPAppArtifact,
   resolveMCPClientCapabilityProfile,
   getOutboundTimeoutMs,
+  buildMediaToolContext,
 } = require('@librechat/api');
 const {
   Time,
@@ -103,6 +104,7 @@ const {
   defaultAgentCapabilities,
   validateAndParseOpenAPISpec,
   resolveMCPAppsPolicy,
+  MEDIA_TOOL_NAMES,
 } = require('librechat-data-provider');
 const {
   createActionTool,
@@ -780,6 +782,7 @@ const nativeTools = new Set([
   Tools.file_search,
   Tools.web_search,
   Tools.memory,
+  ...MEDIA_TOOL_NAMES,
 ]);
 
 const mcpServerPinPrefix = `${Constants.mcp_server}${Constants.mcp_delimiter}`;
@@ -1608,6 +1611,8 @@ async function loadToolDefinitionsWrapper({
       );
     }
   }
+
+  Object.assign(dynamicToolContextMap, buildMediaToolContext(req.config, filteredTools));
 
   const imageFiles = tool_resources?.[EToolResources.image_edit]?.files ?? [];
   if (imageFiles.length > 0) {

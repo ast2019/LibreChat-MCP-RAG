@@ -8,6 +8,7 @@ const {
   createAdminUsersHandlers,
   createAdminModelAccessHandlers,
   createAdminApiAccessHandlers,
+  createAdminMediaAccessHandlers,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
 const { SystemCapabilities, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
@@ -94,12 +95,18 @@ const apiAccess = createAdminApiAccessHandlers({
     db.updateUser(id, { apiAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
+const mediaAccess = createAdminMediaAccessHandlers({
+  saveUserMediaAccess: (id, value) =>
+    db.updateUser(id, { mediaAccess: value }, {}, { preserveExpiresAt: true }),
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/', requireReadUsers, handlers.listUsers);
 router.get('/search', requireReadUsers, handlers.searchUsers);
 router.patch('/:id/model-access', requireManageUsers, modelAccess.updateModelAccess);
 router.patch('/:id/api-access', requireManageUsers, apiAccess.updateApiAccess);
+router.patch('/:id/media-access', requireManageUsers, mediaAccess.updateMediaAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;

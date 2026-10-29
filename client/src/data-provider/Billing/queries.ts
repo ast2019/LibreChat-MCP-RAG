@@ -16,6 +16,8 @@ import type {
   TAdminCreateUserResponse,
   TAdminApiAccessRequest,
   TAdminApiAccessResponse,
+  TAdminMediaAccessRequest,
+  TAdminMediaAccessResponse,
 } from 'librechat-data-provider';
 import type {
   QueryKey,
@@ -170,16 +172,15 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
   );
 };
 
-/** Sets or clears one user's programming API override; the lists show it at once and roll back
- *  if the server refuses. */
-export const useAdminUserApiAccessMutation = (): UseMutationResult<
-  TAdminApiAccessResponse,
-  unknown,
-  TAdminApiAccessRequest,
-  ModelAccessContext
-> => {
+type UserSwitchField = 'apiAccess' | 'mediaAccess';
+
+/** Sets or clears one per-user switch; the lists show it at once and roll back if refused. */
+function useAdminUserSwitchMutation<P extends { userId: string }, R>(
+  field: UserSwitchField,
+  send: (payload: P) => Promise<R>,
+): UseMutationResult<R, unknown, P, ModelAccessContext> {
   const queryClient = useQueryClient();
-  const setUserApiAccess = (userId: string, apiAccess: boolean | null) =>
+  const setUserSwitch = (userId: string, value: boolean | null) =>
     queryClient.setQueriesData<TAdminBillingUsersResponse>(
       [QueryKeys.adminBillingUsers],
       (data) =>
@@ -189,33 +190,48 @@ export const useAdminUserApiAccessMutation = (): UseMutationResult<
             if (user.id !== userId) {
               return user;
             }
-            const { apiAccess: _previous, ...rest } = user;
-            return apiAccess == null ? rest : { ...rest, apiAccess };
+            const next = { ...user };
+            delete next[field];
+            return value == null ? next : { ...next, [field]: value };
           }),
         },
     );
-  return useMutation(
-    (payload: TAdminApiAccessRequest) => dataService.updateAdminUserApiAccess(payload),
-    {
-      onMutate: async (payload) => {
-        await queryClient.cancelQueries([QueryKeys.adminBillingUsers]);
-        const snapshots = queryClient.getQueriesData<TAdminBillingUsersResponse>([
-          QueryKeys.adminBillingUsers,
-        ]);
-        setUserApiAccess(payload.userId, payload.apiAccess);
-        return { snapshots };
-      },
-      onError: (_error, _payload, context) => {
-        for (const [key, data] of context?.snapshots ?? []) {
-          queryClient.setQueryData(key, data);
-        }
-      },
-      onSettled: () => {
-        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
-      },
+  return useMutation(send, {
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries([QueryKeys.adminBillingUsers]);
+      const snapshots = queryClient.getQueriesData<TAdminBillingUsersResponse>([
+        QueryKeys.adminBillingUsers,
+      ]);
+      const value = (payload as unknown as Record<UserSwitchField, boolean | null>)[field];
+      setUserSwitch(payload.userId, value);
+      return { snapshots };
     },
-  );
-};
+    onError: (_error, _payload, context) => {
+      for (const [key, data] of context?.snapshots ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+    },
+  });
+}
+
+/** One user's programming API override (`null` follows the role). */
+export const useAdminUserApiAccessMutation = (): UseMutationResult<
+  TAdminApiAccessResponse,
+  unknown,
+  TAdminApiAccessRequest,
+  ModelAccessContext
+> => useAdminUserSwitchMutation('apiAccess', dataService.updateAdminUserApiAccess);
+
+/** One user's media generation override (`null` follows the paid-pack rule). */
+export const useAdminUserMediaAccessMutation = (): UseMutationResult<
+  TAdminMediaAccessResponse,
+  unknown,
+  TAdminMediaAccessRequest,
+  ModelAccessContext
+> => useAdminUserSwitchMutation('mediaAccess', dataService.updateAdminUserMediaAccess);
 
 /** Where one user's credits went in the window, for the admin users table. */
 export const useAdminBillingUserUsageQuery = (

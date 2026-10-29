@@ -11,7 +11,7 @@ import CreateUserDialog from './CreateUserDialog';
 import { Money, UsageCell } from './parts';
 import UserActions from './UserActions';
 import ModelAccess from './ModelAccess';
-import ApiAccess from './ApiAccess';
+import UserSwitch from './UserSwitch';
 import GiftNote from './GiftNote';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
@@ -223,7 +223,8 @@ export default function Users() {
                     <CellLabel>{localize('com_admin_col_model_access')}</CellLabel>
                     <div className="flex flex-col gap-1">
                       <ModelAccess user={row} />
-                      <ApiAccess user={row} />
+                      <UserSwitch user={row} field="apiAccess" />
+                      <UserSwitch user={row} field="mediaAccess" />
                     </div>
                   </div>
                   <div

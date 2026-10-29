@@ -42,6 +42,7 @@ const {
   EToolResources,
   PermissionTypes,
   AgentCapabilities,
+  MEDIA_TOOL_NAMES,
   resolveMCPAppsPolicy,
 } = require('librechat-data-provider');
 const {
@@ -190,6 +191,12 @@ const loadTools = async ({
         imageFiles,
       });
     },
+    ...Object.fromEntries(
+      MEDIA_TOOL_NAMES.map((name) => [
+        name,
+        async () => require('~/server/services/Media').loadMediaTools(options.req, [name]),
+      ]),
+    ),
     gemini_image_gen: async (_toolContextMap, dynamicToolContextMap) => {
       const authFields = getAuthFields('gemini_image_gen');
       const authValues = await loadAuthValues({ userId: user, authFields, throwError: false });

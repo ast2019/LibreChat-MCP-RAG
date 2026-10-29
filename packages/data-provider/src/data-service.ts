@@ -15,6 +15,8 @@ import type {
   TAdminCreateUserResponse,
   TAdminApiAccessRequest,
   TAdminApiAccessResponse,
+  TAdminMediaAccessRequest,
+  TAdminMediaAccessResponse,
 } from './types/billing';
 import type {
   TPaymentOrder,
@@ -177,6 +179,13 @@ export function updateAdminUserApiAccess({
   apiAccess,
 }: TAdminApiAccessRequest): Promise<TAdminApiAccessResponse> {
   return request.patch(endpoints.adminUserApiAccess(userId), { apiAccess });
+}
+
+export function updateAdminUserMediaAccess({
+  userId,
+  mediaAccess,
+}: TAdminMediaAccessRequest): Promise<TAdminMediaAccessResponse> {
+  return request.patch(endpoints.adminUserMediaAccess(userId), { mediaAccess });
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {

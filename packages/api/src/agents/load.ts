@@ -29,6 +29,7 @@ import { synthesizeBackgroundToolOptions } from '~/agents/background';
 import { mergeSynthesizedToolOptions } from '~/agents/selection';
 import { synthesizeIntentToolOptions } from '~/agents/intent';
 import { getCustomEndpointConfig } from '~/app/config';
+import { getChatMediaTools } from '~/media/config';
 
 const { mcp_all, mcp_delimiter } = Constants;
 type ModelParametersWithPromptPrefix = AgentModelParameters & { promptPrefix?: string | null };
@@ -55,7 +56,7 @@ export interface LoadAgentDeps {
 
 export interface LoadAgentParams {
   req: {
-    user?: { id?: string; role?: string };
+    user?: { id?: string; role?: string; mediaAccess?: boolean | null };
     config?: AppConfig;
     body?: {
       promptPrefix?: string;
@@ -153,6 +154,9 @@ export async function loadEphemeralAgent(
   if (ephemeralAgent?.ask_user_question === true || modelSpec?.askUserQuestion === true) {
     tools.push(ASK_USER_QUESTION_TOOL_NAME);
   }
+  /** Image, video and speech generation the model can call in any chat; whether the user may
+   *  generate (a pack, or an admin's switch) is checked when a tool runs. */
+  tools.push(...getChatMediaTools(req.config, req.user, modelSpec));
 
   const addedServers = new Set<string>();
   if (mcpServers.size > 0) {

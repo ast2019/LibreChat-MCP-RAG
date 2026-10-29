@@ -20,6 +20,8 @@ export interface BillingUserRow {
   modelAccess: TUserModelAccess;
   /** The user's own programming API override; absent when the user follows the role */
   apiAccess?: boolean;
+  /** The user's own media generation override; absent follows the deployment rule */
+  mediaAccess?: boolean;
   balance: {
     tokenCredits: number;
     packId?: string;
@@ -113,7 +115,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
 
     const [docs, total] = await Promise.all([
       users()
-        .find(filter, '_id name username email phone role createdAt modelAccess apiAccess')
+        .find(filter, '_id name username email phone role createdAt modelAccess apiAccess mediaAccess')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -150,6 +152,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
             }),
           },
           ...(typeof doc.apiAccess === 'boolean' && { apiAccess: doc.apiAccess }),
+          ...(typeof doc.mediaAccess === 'boolean' && { mediaAccess: doc.mediaAccess }),
           balance: balance
             ? {
                 tokenCredits: balance.tokenCredits ?? 0,

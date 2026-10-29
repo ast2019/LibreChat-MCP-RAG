@@ -42,6 +42,7 @@ import {
 } from './types/scheduleConsent';
 import { paymentsConfigSchema } from './payments';
 import { referralConfigSchema } from './referral';
+import { mediaGenerationSchema } from './media';
 import type { TReferralStartupConfig } from './referral';
 import { phoneLoginConfigSchema } from './phone';
 
@@ -4731,6 +4732,8 @@ export const configSchema = z.object({
   /** In-app pack purchase through payment gateways (Zarinpal, IDPay); off by default. */
   payments: paymentsConfigSchema.optional(),
   referral: referralConfigSchema.optional(),
+  /** In-chat image, video and speech generation billed to the user's credit. */
+  mediaGeneration: mediaGenerationSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({
