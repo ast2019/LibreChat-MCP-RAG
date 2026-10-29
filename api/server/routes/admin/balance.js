@@ -1,11 +1,13 @@
 const express = require('express');
 const {
+  hashSecret,
   getBalanceConfig,
   getPrimaryPriceMultiplier,
   createAdminBalanceHandlers,
+  createAdminCreateUserHandler,
 } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
-const { requireCapability } = require('~/server/middleware/roles/capabilities');
+const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
 const { getAppConfig } = require('~/server/services/Config');
 const { requireJwtAuth } = require('~/server/middleware');
 const db = require('~/models');
@@ -45,12 +47,21 @@ const handlers = createAdminBalanceHandlers({
     ),
 });
 
+const createUser = createAdminCreateUserHandler({
+  getAppConfig,
+  createUserIfAbsent: db.createUserIfAbsent,
+  hashSecret,
+  canAssignAdmin: (req) => hasCapability(req.user, SystemCapabilities.MANAGE_ROLES),
+  minPasswordLength: parseInt(process.env.MIN_PASSWORD_LENGTH, 10) || 8,
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/packs', requireReadUsers, handlers.listPacks);
 router.get('/user', requireReadUsers, handlers.getUserBalance);
 router.post('/grant', requireManageUsers, handlers.grant);
 router.get('/users', requireReadUsers, handlers.listUsers);
+router.post('/users', requireManageUsers, createUser);
 router.get('/summary', requireReadUsers, handlers.summary);
 router.get('/usage', requireReadUsers, handlers.userUsage);
 

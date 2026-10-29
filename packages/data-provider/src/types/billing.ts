@@ -71,6 +71,22 @@ export type TAdminBillingGrantResponse = {
   pack: { id: string; label: string } | null;
 };
 
+/** `POST /api/admin/balance/users`: an email account needs a password, a phone-only one does not. */
+export type TAdminCreateUserRequest = {
+  name: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  role: 'USER' | 'ADMIN';
+};
+
+export type TAdminCreateUserResponse = {
+  user: { id: string; name: string; email: string; phone: string; role: string };
+};
+
+/** `POST|DELETE /api/admin/roles/ADMIN/members`: make a user an admin, or a regular user again. */
+export type TAdminSetUserRoleRequest = { userId: string; admin: boolean };
+
 /** `PATCH /api/admin/users/:id/model-access` */
 export type TAdminModelAccessRequest = {
   userId: string;

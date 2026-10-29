@@ -25,17 +25,17 @@ export const FILE_VIEWS: Array<{ value: FileView; labelKey: TranslationKeys }> =
 
 const NO_FILES: TFile[] = [];
 
-const isImage = (file: TFile) => file.type?.startsWith('image/') === true;
+export const isImage = (file: TFile) => file.type?.startsWith('image/') === true;
 
 /** Images, audio and video are media; everything else is a document. */
-const isDocument = (file: TFile) =>
+export const isDocument = (file: TFile) =>
   !isImage(file) &&
   file.type?.startsWith('audio/') !== true &&
   file.type?.startsWith('video/') !== true;
 
 /** What a card's preview button opens, if anything: images in the message
  *  image viewer, PDFs in the message file preview. */
-function previewOf(file: TFile): 'image' | 'pdf' | null {
+export function previewOf(file: TFile): 'image' | 'pdf' | null {
   if (isImage(file)) {
     return 'image';
   }
@@ -240,69 +240,6 @@ export default function FileGrid({
     [files, query, view],
   );
 
-  const previewKind = previewing != null ? previewOf(previewing) : null;
-
-  /* The image is fetched through the backend by id, as the PDF preview is,
-     rather than from its stored link: a signed storage link can expire between
-     the list refreshing it and the preview opening. The link is the fallback. */
-  const { user } = useAuthContext();
-  const { refetch: fetchPreview } = useFilePreviewBlob(user?.id, previewing?.file_id);
-  const { showToast } = useToastContext();
-  /* Read through a ref: `showToast` is a new function each render, and the
-     preview effect must not refetch because of it. */
-  const previewFailedRef = useRef<(file: TFile) => void>(() => undefined);
-  previewFailedRef.current = (file: TFile) => {
-    showToast({
-      message: localize('com_ui_composer_preview_failed', { 0: file.filename ?? '' }),
-      status: 'error',
-    });
-    setPreviewing(null);
-  };
-  const [imageUrl, setImageUrl] = useState<string>();
-  useEffect(() => {
-    if (previewKind !== 'image' || previewing == null) {
-      return;
-    }
-    let objectUrl: string | undefined;
-    let cancelled = false;
-    void fetchPreview().then(({ data }) => {
-      if (cancelled) {
-        return;
-      }
-      if (data != null) {
-        objectUrl = URL.createObjectURL(data);
-        setImageUrl(objectUrl);
-        return;
-      }
-      /* Nothing to show: stay on the grid and say so, rather than open an
-         empty viewer or let the click appear to do nothing. */
-      const fail = () => previewFailedRef.current(previewing);
-      if (!previewing.filepath) {
-        fail();
-        return;
-      }
-      /* A stored link can be expired: open only once it actually loads. */
-      const fallback = toAbsoluteFilePath(previewing.filepath, apiBaseUrl());
-      const probe = new Image();
-      probe.onload = () => !cancelled && setImageUrl(fallback);
-      probe.onerror = () => !cancelled && fail();
-      probe.src = fallback;
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl != null) {
-        URL.revokeObjectURL(objectUrl);
-      }
-      setImageUrl(undefined);
-    };
-  }, [previewKind, previewing, fetchPreview]);
-
-  const closePreview = (open: boolean) => {
-    if (!open) {
-      setPreviewing(null);
-    }
-  };
-
   return (
     <>
       {visible.length === 0 ? (
@@ -336,30 +273,116 @@ export default function FileGrid({
           </ul>
         </>
       )}
+      <FilePreviewer
+        file={previewing}
+        triggerRef={previewTriggerRef}
+        onClose={() => setPreviewing(null)}
+      />
+    </>
+  );
+}
+
+/** The viewer for one library file: images in the message image viewer, PDFs
+ *  in the message file preview. Renders nothing for other kinds. */
+export function FilePreviewer({
+  file,
+  triggerRef,
+  onClose,
+}: {
+  file: TFile | null;
+  triggerRef: React.RefObject<HTMLButtonElement>;
+  onClose: () => void;
+}) {
+  const localize = useLocalize();
+  const previewKind = file != null ? previewOf(file) : null;
+
+  /* The image is fetched through the backend by id, as the PDF preview is,
+     rather than from its stored link: a signed storage link can expire between
+     the list refreshing it and the preview opening. The link is the fallback. */
+  const { user } = useAuthContext();
+  const { refetch: fetchPreview } = useFilePreviewBlob(user?.id, file?.file_id);
+  const { showToast } = useToastContext();
+  /* Read through a ref: `showToast` is a new function each render, and the
+     preview effect must not refetch because of it. */
+  const previewFailedRef = useRef<(file: TFile) => void>(() => undefined);
+  previewFailedRef.current = (failed: TFile) => {
+    showToast({
+      message: localize('com_ui_composer_preview_failed', { 0: failed.filename ?? '' }),
+      status: 'error',
+    });
+    onClose();
+  };
+  const [imageUrl, setImageUrl] = useState<string>();
+  useEffect(() => {
+    if (previewKind !== 'image' || file == null) {
+      return;
+    }
+    let objectUrl: string | undefined;
+    let cancelled = false;
+    void fetchPreview().then(({ data }) => {
+      if (cancelled) {
+        return;
+      }
+      if (data != null) {
+        objectUrl = URL.createObjectURL(data);
+        setImageUrl(objectUrl);
+        return;
+      }
+      /* Nothing to show: stay on the grid and say so, rather than open an
+         empty viewer or let the click appear to do nothing. */
+      const fail = () => previewFailedRef.current(file);
+      if (!file.filepath) {
+        fail();
+        return;
+      }
+      /* A stored link can be expired: open only once it actually loads. */
+      const fallback = toAbsoluteFilePath(file.filepath, apiBaseUrl());
+      const probe = new Image();
+      probe.onload = () => !cancelled && setImageUrl(fallback);
+      probe.onerror = () => !cancelled && fail();
+      probe.src = fallback;
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl != null) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setImageUrl(undefined);
+    };
+  }, [previewKind, file, fetchPreview]);
+
+  const closePreview = (open: boolean) => {
+    if (!open) {
+      onClose();
+    }
+  };
+
+  return (
+    <>
       <DialogImage
         isOpen={previewKind === 'image' && imageUrl != null}
         onOpenChange={closePreview}
         src={imageUrl}
-        triggerRef={previewTriggerRef}
+        triggerRef={triggerRef}
         showDetails={false}
-        title={previewing?.filename ?? undefined}
+        title={file?.filename ?? undefined}
         downloadImage={() => {
           if (imageUrl != null) {
-            triggerDownload(imageUrl, previewing?.filename ?? 'image');
+            triggerDownload(imageUrl, file?.filename ?? 'image');
           }
         }}
       />
       <FilePreviewDialog
         open={previewKind === 'pdf'}
         onOpenChange={closePreview}
-        fileName={previewing?.filename ?? ''}
-        fileId={previewing?.file_id}
-        filePath={previewing?.filepath}
-        fileType={previewing?.type ?? undefined}
-        fileSource={previewing?.source}
-        fileSize={previewing?.bytes}
-        deliveryPath={previewing?.llmDeliveryPath}
-        triggerRef={previewTriggerRef}
+        fileName={file?.filename ?? ''}
+        fileId={file?.file_id}
+        filePath={file?.filepath}
+        fileType={file?.type ?? undefined}
+        fileSource={file?.source}
+        fileSize={file?.bytes}
+        deliveryPath={file?.llmDeliveryPath}
+        triggerRef={triggerRef}
       />
     </>
   );

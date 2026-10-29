@@ -11,6 +11,9 @@ import type {
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
   TAdminBillingUserUsage,
+  TAdminCreateUserRequest,
+  TAdminSetUserRoleRequest,
+  TAdminCreateUserResponse,
 } from 'librechat-data-provider';
 import type {
   QueryKey,
@@ -64,6 +67,35 @@ export const useAdminBillingGrantMutation = (): UseMutationResult<
       },
     },
   );
+};
+
+/** Creates an account from the users tab, then refreshes the user list and the summary. */
+export const useAdminCreateUserMutation = (): UseMutationResult<
+  TAdminCreateUserResponse,
+  unknown,
+  TAdminCreateUserRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((payload: TAdminCreateUserRequest) => dataService.createAdminUser(payload), {
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+      queryClient.invalidateQueries([QueryKeys.adminBillingSummary]);
+    },
+  });
+};
+
+/** Makes a user an admin or a regular user, then refreshes the user list. */
+export const useAdminSetUserRoleMutation = (): UseMutationResult<
+  { success: boolean },
+  unknown,
+  TAdminSetUserRoleRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((payload: TAdminSetUserRoleRequest) => dataService.setAdminUserRole(payload), {
+    onSettled: () => {
+      queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+    },
+  });
 };
 
 /** Applies a model-access change to a stored override: `null` clears a key, `undefined` keeps it. */

@@ -122,11 +122,6 @@
       "count": 3
     }
   },
-  "client/src/components/Chat/Input/Files/MyFilesModal.tsx": {
-    "shadcn/no-restyle": {
-      "count": 2
-    }
-  },
   "client/src/components/Chat/Input/Files/PastedTextDialog.tsx": {
     "shadcn/no-restyle": {
       "count": 2
@@ -143,24 +138,6 @@
   "client/src/components/Chat/Input/Files/SourceIcon.tsx": {
     "shadcn/no-arbitrary-values": {
       "count": 1
-    }
-  },
-  "client/src/components/Chat/Input/Files/Table/ColumnVisibilityDropdown.tsx": {
-    "design/disabled-recipe": {
-      "count": 1
-    }
-  },
-  "client/src/components/Chat/Input/Files/Table/Columns.tsx": {
-    "shadcn/no-restyle": {
-      "count": 18
-    }
-  },
-  "client/src/components/Chat/Input/Files/Table/DataTable.tsx": {
-    "design/disabled-recipe": {
-      "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 13
     }
   },
   "client/src/components/Chat/Input/MCPConfigDialog.tsx": {

@@ -7,6 +7,35 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-29
+
+### Added
+- **Add users and admins from the admin page.** The users tab («کاربران و اعتبار») has a
+  «کاربر جدید» button. The form takes a name, an email and/or an Iranian mobile number, a
+  password and a role («کاربر عادی» or «مدیر»).
+  - An email account needs a password; a mobile-only account signs in with the SMS code.
+  - The admin vouches for the contact details: they are stored verified and nothing is sent.
+  - The account gets its role's start balance, like a self-registered one.
+  - Creating an admin also needs the role-management capability; a taken email or mobile
+    number answers «حسابی با این ایمیل یا شماره موبایل از قبل وجود دارد».
+  - New endpoint: `POST /api/admin/balance/users` (`manage:users`).
+- **Make or remove admins from the users table.** Each row has «مدیر کردن» or «برداشتن
+  مدیریت», with a confirmation. It uses the existing `/api/admin/roles/ADMIN/members` routes,
+  which keep at least one admin. Your own row explains that you can't change your own role.
+
+### Changed
+- **My Files («فایل‌های من») redesigned.** The old table is replaced by a card grid in a wider
+  dialog.
+  - Images show as thumbnails; other files show a large type tile.
+  - Header with the file count and total size.
+  - Search, kind filter with counts (all, images, documents) and sort (newest, oldest, name,
+    largest).
+  - Each card has preview (images and PDFs), download and delete.
+  - Select several files to delete them together. Every delete asks for confirmation first.
+  - Loading skeletons, an empty library message, a no-results state with «پاک کردن
+    جست‌وجو و فیلترها», a load error with retry, and «نمایش بیشتر» after 48 files.
+  - Dates use the UI language's calendar (Persian dates in `fa`), and sizes use its digits.
+
 ## [0.20.2] - 2026-10-29
 
 ### Changed
