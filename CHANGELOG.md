@@ -7,6 +7,20 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-29
+
+### Added
+- **A shared Higgsfield connection.** Set `HIGGSFIELD_SHARED_OWNER_EMAIL` and that account
+  connects Higgsfield once from the composer's MCP picker. After that, users with a pack (and
+  admins) run on its connection and its Higgsfield credits, and they see Higgsfield as already
+  connected.
+  - The «رسانه» switch in the users list allows or blocks one user.
+  - Users who may not use it, and the owner, connect their own account as before.
+  - A user on the shared connection is never asked to authorize the owner's account. If the
+    owner's sign-in expires, the owner reconnects.
+  - Configured as `mcpServers.<name>.sharedOAuth: { ownerEmail, allow: all | paid | admins }`,
+    so it works for any OAuth MCP server.
+
 ## [0.23.0] - 2026-10-29
 
 ### Added

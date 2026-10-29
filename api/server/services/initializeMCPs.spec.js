@@ -95,6 +95,8 @@ jest.mock('~/models', () => ({
 
 jest.mock('@librechat/api', () => ({
   createMCPAppBindingCodec: jest.fn(() => mockAppBindingCodec),
+
+  createSharedMCPPrincipalResolver: jest.fn(() => jest.fn()),
   get createMCPPolicyResolver() {
     return mockCreateMCPPolicyResolver;
   },
@@ -371,6 +373,7 @@ describe('initializeMCPs', () => {
           catalogRecoveryMaxStateEntries: undefined,
           catalogRecoveryMaxDetachedDiscoveries: undefined,
           appBindingCodec: mockAppBindingCodec,
+          sharedPrincipal: expect.any(Function),
         },
       );
     });
@@ -388,6 +391,7 @@ describe('initializeMCPs', () => {
         catalogRecoveryMaxStateEntries: undefined,
         catalogRecoveryMaxDetachedDiscoveries: undefined,
         appBindingCodec: mockAppBindingCodec,
+        sharedPrincipal: expect.any(Function),
       });
     });
 
@@ -413,6 +417,7 @@ describe('initializeMCPs', () => {
           catalogRecoveryMaxStateEntries: 2500,
           catalogRecoveryMaxDetachedDiscoveries: 8,
           appBindingCodec: mockAppBindingCodec,
+          sharedPrincipal: expect.any(Function),
         },
       );
       expect(mockStartMCPAuthorizationFenceRetryWorker).toHaveBeenCalledWith(
@@ -604,6 +609,7 @@ describe('initializeMCPs', () => {
           catalogRecoveryMaxStateEntries: undefined,
           catalogRecoveryMaxDetachedDiscoveries: undefined,
           appBindingCodec: mockAppBindingCodec,
+          sharedPrincipal: expect.any(Function),
         },
       );
     });

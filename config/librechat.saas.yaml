@@ -149,6 +149,10 @@ transactions:
 # their specs hide the picker and the server drops tools a request picks for itself.
 # Finished videos are links to Higgsfield's storage; to play them inline, add that host to
 # CSP_MEDIA_SRC_EXTRA (otherwise the link still opens them).
+# Shared connection: the account with HIGGSFIELD_SHARED_OWNER_EMAIL connects once from the picker;
+# then users with a pack (and admins) run on that connection and its Higgsfield credits without
+# connecting their own. «رسانه» in the admin users list allows or blocks one user. Users who may
+# not use it, and the owner, connect their own account as before. Unset, nothing is shared.
 mcpSettings:
   allowedDomains:
     - 'mcp.higgsfield.ai'
@@ -163,11 +167,15 @@ mcpServers:
     iconPath: '/assets/higgsfield.svg'
     startup: false
     requiresOAuth: true
+    sharedOAuth:
+      ownerEmail: '${HIGGSFIELD_SHARED_OWNER_EMAIL}'
+      allow: 'paid'
     chatMenu: true
     timeout: 300000
     initTimeout: 30000
     serverInstructions: |
-      Higgsfield generates images and videos with the user's own Higgsfield account and credits.
+      Higgsfield generates images and videos with a Higgsfield account and its credits (the
+      user's own, or the team account shared with them).
       Before any generation, tell the user in Persian which model, length and resolution you will
       use and how many Higgsfield credits it costs, and wait for their confirmation. Write the
       generation prompt in English for the best result, keeping the user's intent. When the result

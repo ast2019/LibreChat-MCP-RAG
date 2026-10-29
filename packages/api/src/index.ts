@@ -26,6 +26,7 @@ export * from './referral';
 /* MCP */
 export * from './mcp/mcpConfig';
 export * from './mcp/capabilities';
+export * from './mcp/shared';
 export * from './mcp/authority';
 export * from './mcp/registry/MCPServersRegistry';
 export * from './mcp/registry/policy';
