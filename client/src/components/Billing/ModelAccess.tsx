@@ -77,10 +77,10 @@ export default function ModelAccess({ user }: { user: TAdminBillingUser }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:flex-col md:items-stretch">
         {CLASSES.map(({ key, label }) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <span className="text-text-secondary text-xs" aria-hidden="true">
+          <div key={key} className="flex items-center justify-between gap-1.5">
+            <span className="text-text-secondary truncate text-xs" aria-hidden="true">
               {localize(label)}
             </span>
             <Dropdown

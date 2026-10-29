@@ -3806,6 +3806,8 @@
   "com_admin_no_users": "No users found",
   "com_admin_grant": "Add credit",
   "com_admin_pagination": "Pages",
+  "com_admin_user_actions": "Actions for {{0}}",
+  "com_admin_pagination_range": "{{0}}–{{1}} of {{2}}",
   "com_admin_grant_title": "Add credit",
   "com_admin_grant_choose": "Choose a pack or an amount",
   "com_admin_grant_custom": "Custom amount",
