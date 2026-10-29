@@ -21,6 +21,7 @@ import {
   applyAxiosProxyConfig,
 } from '~/utils';
 import { getModelCacheTokenConfigKey, isScopedTokenConfigKey } from '~/endpoints/keys';
+import { aliasTargetsCacheKey, extractAliasTargets } from '~/endpoints/resolved';
 import { createSSRFSafeAgents, validateEndpointURL } from '~/auth';
 import { standardCache, tokenConfigCache } from '~/cache';
 
@@ -153,6 +154,12 @@ async function backfillTokenConfigFromModelCache(
   }
 
   await tokenConfigCache().set(tokenKey, cachedTokenConfig, getTokenConfigTtl());
+  const cachedAliases = await tokenConfigCache().get(
+    aliasTargetsCacheKey(getModelCacheTokenConfigKey(cacheKey)),
+  );
+  if (cachedAliases != null) {
+    await tokenConfigCache().set(aliasTargetsCacheKey(tokenKey), cachedAliases, getTokenConfigTtl());
+  }
   return true;
 }
 
@@ -333,6 +340,19 @@ export async function fetchModels({
       await cache.set(tokenKey ?? name, endpointTokenConfig, tokenConfigTtl);
       if (modelsCache && cacheKey) {
         await cache.set(getModelCacheTokenConfigKey(cacheKey), endpointTokenConfig, tokenConfigTtl);
+      }
+      /** Which concrete model each catalogue alias points to, for the version shown in the
+       *  model selector; only stored when the catalogue lists any. */
+      const aliasTargets = extractAliasTargets(input.data);
+      if (Object.keys(aliasTargets).length > 0) {
+        await cache.set(aliasTargetsCacheKey(tokenKey ?? name), aliasTargets, tokenConfigTtl);
+        if (modelsCache && cacheKey) {
+          await cache.set(
+            aliasTargetsCacheKey(getModelCacheTokenConfigKey(cacheKey)),
+            aliasTargets,
+            tokenConfigTtl,
+          );
+        }
       }
     }
     fetchedModels = input.data.map((item: { id: string }) => item.id);

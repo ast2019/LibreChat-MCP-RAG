@@ -7,6 +7,38 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-29
+
+### Fixed
+- **The stock name no longer flashes before the app's own.** The server writes `APP_TITLE` into
+  the page's `<title>` and app-name meta tags, and hands it to the first render
+  (`window.__LIBRECHAT_CONFIG__.appTitle`). The tab, the sign-in brand panel and the logo's
+  alt text name the deployment from the first frame instead of showing «LibreChat» until
+  `/api/config` answers. The PWA manifest name is still fixed at build time (`HiveGPT`).
+
+### Added
+- **A look for each private mode.** Choosing a confidential, local or admin model now marks
+  the chat the way Temporary Chat does, each in its own color:
+  - confidential (`privacy: 'private'`) is teal, with a shield;
+  - local (`privacy: 'local'`) is green, with a server icon;
+  - admin (`adminOnly`) is gold, with a crown, the strongest look: a two-tone composer with a
+    ring, a warm glow and a gold band across the top of the welcome screen.
+
+  The header shows a chip for the mode for the whole chat. The welcome screen states the mode
+  under the greeting and glows in its color, and the composer takes the mode's tint. Temporary
+  Chat's look wins when both apply. High-contrast modes keep solid edges and drop the glows.
+- **The model version, before anyone has chatted on it.** OpenRouter's catalogue names the
+  model each `~…-latest` alias points to (`alias_target`). It is now kept with the fetched
+  prices, so «نسخهٔ فعلی» in the model menu and a new version label on the model button show
+  it right after a restart. A version seen on a real reply still wins. A spec that names a
+  concrete model id (the confidential ones) shows that id as its version.
+
+### Changed
+- **The composer ring shows the context window.** It fills with the share of the model's
+  context used. The percentage and what the chat has cost so far (in Toman) are written beside
+  it, and the card holds the token breakdown and the pack balance
+  (`interface.contextUsage: true`, `contextCost: true`). Usage under one percent reads «<1%».
+
 ## [0.17.0] - 2026-10-29
 
 ### Changed

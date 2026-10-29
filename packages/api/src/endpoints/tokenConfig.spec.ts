@@ -107,7 +107,11 @@ describe('resolveTokenConfigMap', () => {
       );
 
       expect(mockCacheGet).toHaveBeenCalledWith('MyProxy');
-      expect(mockCacheGet.mock.calls.every(([key]) => key === 'MyProxy')).toBe(true);
+      expect(
+        mockCacheGet.mock.calls.every(
+          ([key]) => key === 'MyProxy' || key === 'MyProxy:alias-targets',
+        ),
+      ).toBe(true);
       expect(map.MyProxy['custom-model'].context).toBe(8000);
     }
   });
@@ -182,5 +186,31 @@ describe('resolveTokenConfigMap', () => {
 
     expect(map.MyProxy['~vendor/family-latest'].resolved).toBe('vendor/family-5.5');
     expect(map.MyProxy.other.resolved).toBeUndefined();
+  });
+
+  it('names the version a catalogue alias points to, and prefers an observed one', async () => {
+    const resolvedModels = createResolvedModelRegistry();
+    resolvedModels.record('~vendor/pro-latest', 'vendor/pro-6.1');
+    mockCacheGet.mockImplementation(async (key: string) =>
+      key === 'MyProxy:alias-targets'
+        ? { '~vendor/family-latest': 'vendor/family-5.5', '~vendor/pro-latest': 'vendor/pro-6.0' }
+        : { '~vendor/family-latest': { prompt: 1, completion: 2, context: 1000 } },
+    );
+    const appConfig = appConfigWith([{ name: 'MyProxy', models: { fetch: true } }], false);
+
+    const map = await resolveTokenConfigMap(
+      {
+        appConfig,
+        modelsConfig: { MyProxy: ['~vendor/family-latest', '~vendor/pro-latest', 'other'] },
+        userId: 'user-1',
+        resolvedModels,
+      },
+      deps,
+    );
+
+    expect(map.MyProxy['~vendor/family-latest'].resolved).toBe('vendor/family-5.5');
+    expect(map.MyProxy['~vendor/pro-latest'].resolved).toBe('vendor/pro-6.1');
+    expect(map.MyProxy.other.resolved).toBeUndefined();
+    mockCacheGet.mockReset();
   });
 });

@@ -2625,3 +2625,50 @@ html.high-contrast .auth-brand-orbit::before,
 html.high-contrast .auth-brand-orbit::after {
   display: none;
 }
+
+/* A confidential, local or admin model gives the welcome canvas a glow in the mode's own
+   series hue behind the greeting (see `chatModeLooks` in Chat/ChatMode.tsx). The welcome
+   screen names the mode on a hidden marker, and the canvas paints the glow on its second
+   pseudo-element, above the dot grid and below the greeting and composer. Admin, the most
+   distinct, adds a second warm wash and a thin gold band across the top of the pane. */
+.landing-canvas:has(.landing-mode-marker)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+.landing-canvas:has(.landing-mode-marker[data-chat-mode='confidential'])::after {
+  background-image: radial-gradient(
+    55% 60% at 50% 38%,
+    rgb(var(--series-3) / 0.12) 0%,
+    rgb(var(--series-3) / 0) 72%
+  );
+}
+.landing-canvas:has(.landing-mode-marker[data-chat-mode='local'])::after {
+  background-image: radial-gradient(
+    58% 62% at 50% 38%,
+    rgb(var(--series-7) / 0.16) 0%,
+    rgb(var(--series-7) / 0) 72%
+  );
+}
+.landing-canvas:has(.landing-mode-marker[data-chat-mode='admin'])::after {
+  background-image:
+    linear-gradient(
+      to left,
+      rgb(var(--series-4) / 0),
+      rgb(var(--series-4)),
+      rgb(var(--series-2)),
+      rgb(var(--series-4) / 0)
+    ),
+    radial-gradient(60% 65% at 50% 36%, rgb(var(--series-4) / 0.2) 0%, rgb(var(--series-4) / 0) 70%),
+    radial-gradient(40% 45% at 30% 70%, rgb(var(--series-2) / 0.1) 0%, rgb(var(--series-2) / 0) 70%);
+  background-size:
+    100% 3px,
+    100% 100%,
+    100% 100%;
+}
+html.high-contrast .landing-canvas::after {
+  display: none;
+}

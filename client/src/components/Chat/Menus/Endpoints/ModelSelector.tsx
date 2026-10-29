@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Lock } from 'lucide-react';
 import { TooltipAnchor } from '@librechat/client';
 import { getConfigDefaults } from 'librechat-data-provider';
+import type { TModelSpec } from 'librechat-data-provider';
 import type { ModelSelectorProps } from '~/common';
 import {
   renderModelSpecs,
@@ -15,10 +16,14 @@ import { ModelSelectorChatProvider } from './ModelSelectorChatContext';
 import { getSelectedIcon, getDisplayValue } from './utils';
 import { CustomMenu as Menu } from './CustomMenu';
 import DialogManager from './DialogManager';
+import useSpecPricing from '~/components/Pricing/useSpecPricing';
+import { formatModelName } from '~/components/Pricing/name';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
 const defaultInterface = getConfigDefaults().interface;
+/** Stable stand-in while no spec is chosen, so the pricing memo does not rerun every render. */
+const noSpec = {} as Pick<TModelSpec, 'preset'>;
 
 function ModelSelectorContent() {
   const localize = useLocalize();
@@ -69,6 +74,15 @@ function ModelSelectorContent() {
     [localize, agentsMap, modelSpecs, selectedValues, mappedEndpoints],
   );
 
+  /** The exact model version the chosen spec runs, beside its label, so a `…-latest` spec
+   *  says which model it is today. */
+  const selectedSpec = useMemo(
+    () => modelSpecs?.find((spec) => spec.name === selectedValues.modelSpec) ?? noSpec,
+    [modelSpecs, selectedValues.modelSpec],
+  );
+  const { resolved: selectedVersion } = useSpecPricing(selectedSpec);
+  const selectedVersionName = selectedVersion != null ? formatModelName(selectedVersion) : null;
+
   /** Screen readers read the button's own label, so the lock is announced there too. */
   const triggerLabel = specLocked
     ? `${localize('com_ui_select_model')} (${localize('com_ui_private_chat_model_locked_label')})`
@@ -103,6 +117,15 @@ function ModelSelectorContent() {
             </div>
           )}
           <span className="truncate text-start">{selectedDisplayValue}</span>
+          {selectedVersionName != null && selectedVersionName !== selectedDisplayValue && (
+            <span
+              title={selectedVersion}
+              data-testid="model-selector-version"
+              className="text-text-secondary hidden max-w-32 shrink-0 truncate text-xs sm:inline"
+            >
+              {selectedVersionName}
+            </span>
+          )}
           {specLocked && (
             <Lock
               className="text-text-secondary size-3.5 shrink-0"

@@ -135,6 +135,38 @@ describe('TokenUsage gauge', () => {
     expect(within(card).getByTestId('balance-value')).toHaveTextContent('3,100,000 credits');
   });
 
+  it('reads the context share and the chat cost beside the ring', () => {
+    const base = config({ balanceEnabled: false });
+    mockStartupConfig.mockReturnValue({
+      ...base,
+      interface: { ...base.interface, contextCost: true },
+    });
+    mockTokenUsage.mockReturnValue({
+      ...usage(50_000),
+      totalCost: 0.5,
+      totalUsage: { costKnown: true },
+    } as unknown as TokenUsageView);
+    renderGauge();
+
+    const readout = screen.getByTestId('token-usage-readout');
+    expect(readout).toHaveTextContent('25%');
+    expect(readout).toHaveTextContent('$0.50');
+  });
+
+  it('says under one percent rather than an empty window, and hides cost when it is off', () => {
+    mockStartupConfig.mockReturnValue(config({ balanceEnabled: false }));
+    mockTokenUsage.mockReturnValue({
+      ...usage(60),
+      totalCost: 0.5,
+      totalUsage: { costKnown: true },
+    } as unknown as TokenUsageView);
+    renderGauge();
+
+    const readout = screen.getByTestId('token-usage-readout');
+    expect(readout).toHaveTextContent('<1%');
+    expect(readout).not.toHaveTextContent('$');
+  });
+
   it('keeps the card inside the viewport', async () => {
     mockStartupConfig.mockReturnValue(config());
     renderGauge();

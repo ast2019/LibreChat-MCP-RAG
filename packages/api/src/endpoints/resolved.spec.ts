@@ -1,4 +1,4 @@
-import { captureResolvedModel, createResolvedModelRegistry } from './resolved';
+import { captureResolvedModel, createResolvedModelRegistry, extractAliasTargets } from './resolved';
 
 describe('createResolvedModelRegistry', () => {
   it('keeps the latest concrete id per alias and ignores identical ids', () => {
@@ -38,5 +38,25 @@ describe('captureResolvedModel', () => {
     const registry = createResolvedModelRegistry();
     expect(captureResolvedModel([{ model: '~a/x-latest' }], registry)).toBeUndefined();
     expect(registry.get('~a/x-latest')).toBeUndefined();
+  });
+});
+
+describe('extractAliasTargets', () => {
+  it('maps each catalogue alias to the model it points to', () => {
+    expect(
+      extractAliasTargets([
+        { id: '~anthropic/claude-sonnet-latest', alias_target: { slug: 'anthropic/claude-sonnet-5.5' } },
+        { id: 'anthropic/claude-sonnet-5.5' },
+        { id: '~same/latest', alias_target: { slug: '~same/latest' } },
+        { id: '~bad/latest', alias_target: { slug: 42 } },
+        null,
+        'junk',
+      ]),
+    ).toEqual({ '~anthropic/claude-sonnet-latest': 'anthropic/claude-sonnet-5.5' });
+  });
+
+  it('returns nothing for a payload that is not a list', () => {
+    expect(extractAliasTargets(undefined)).toEqual({});
+    expect(extractAliasTargets({ data: [] })).toEqual({});
   });
 });

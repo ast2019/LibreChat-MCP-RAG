@@ -66,3 +66,33 @@ export function captureResolvedModel(
   registry.record(found.requested, found.resolved);
   return found.resolved;
 }
+
+/** Where a fetched endpoint's alias targets are cached, beside its token config at `tokenKey`. */
+export const aliasTargetsCacheKey = (tokenKey: string): string => `${tokenKey}:alias-targets`;
+
+/**
+ * Alias id → the concrete model it currently points to, as a model catalogue states it.
+ * OpenRouter lists each `~{provider}/{family}-latest` alias with an `alias_target`, so the
+ * selector can name the version before anyone has chatted on it; an observed response
+ * ({@link resolvedModels}) still wins when there is one.
+ */
+export function extractAliasTargets(data: unknown): Record<string, string> {
+  const targets: Record<string, string> = {};
+  if (!Array.isArray(data)) {
+    return targets;
+  }
+  for (const entry of data) {
+    if (entry == null || typeof entry !== 'object') {
+      continue;
+    }
+    const { id, alias_target } = entry as { id?: unknown; alias_target?: unknown };
+    const slug =
+      alias_target != null && typeof alias_target === 'object'
+        ? (alias_target as { slug?: unknown }).slug
+        : undefined;
+    if (typeof id === 'string' && typeof slug === 'string' && slug !== '' && slug !== id) {
+      targets[id] = slug;
+    }
+  }
+  return targets;
+}

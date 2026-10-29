@@ -8,6 +8,7 @@ import { BlinkAnimation } from './BlinkAnimation';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
 import Footer from './Footer';
+import { getBootAppTitle } from '~/utils/documentTitle';
 import { cn } from '~/utils';
 
 function AuthLayout({
@@ -87,7 +88,7 @@ function AuthLayout({
     return null;
   };
 
-  const appTitle = startupConfig?.appTitle ?? 'LibreChat';
+  const appTitle = startupConfig?.appTitle || getBootAppTitle();
   const logo = (
     <img
       src="assets/logo.svg"

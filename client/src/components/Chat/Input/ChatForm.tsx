@@ -91,6 +91,8 @@ import Queue from './Composer/Queue';
 import Tray from './Composer/Tray';
 import Bar from './Composer/Bar';
 import Mention from './Mention';
+import { chatModeLooks } from '~/components/Chat/ChatMode';
+import useChatMode from '~/hooks/Chat/useChatMode';
 import store from '~/store';
 
 interface ChatFormProps {
@@ -195,6 +197,7 @@ const ChatForm = memo(function ChatForm({
   const automaticPlayback = useRecoilValue(store.automaticPlayback);
   const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
   const { isTemporary } = useChatSettings();
+  const chatMode = useChatMode();
 
   const [showStopButton, setShowStopButton] = useAtom(showStopButtonByIndex(index));
   const plusPopoverAtom = useMemo(() => store.showPlusPopoverFamily(index), [index]);
@@ -858,6 +861,9 @@ const ChatForm = memo(function ChatForm({
                  *  context rail tucked under the composer never shows through. */
                 isTemporary &&
                   'border-series-6/50 from-series-6/10 to-series-6/10 high-contrast:border-series-6 bg-linear-to-b',
+                /** A confidential, local or admin model tints the composer in its own hue;
+                 *  Temporary Chat's accent wins when both apply. */
+                !isTemporary && chatMode != null && chatModeLooks[chatMode].composer,
               )}
             >
               <TextareaHeader addedConvo={addedConvo} setAddedConvo={setAddedConvo} />

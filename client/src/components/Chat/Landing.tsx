@@ -12,6 +12,8 @@ import { useChatSettings } from '~/Providers/ChatSettingsContext';
 import AgentContact from '~/components/Agents/AgentContact';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 import PasskeyNudge from '~/components/Auth/PasskeyNudge';
+import { getChatMode } from '~/hooks/Chat/useChatMode';
+import { ChatModeBadge } from './ChatMode';
 
 const containerClassName =
   'relative flex h-full items-center justify-center rounded-full bg-presentation text-text-primary';
@@ -78,6 +80,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     [conversation?.spec, startupConfig],
   );
 
+  const chatMode = isTemporary ? null : getChatMode(modelSpec);
   const brandedSpecLabel = modelSpec?.showOnLanding ? modelSpec.label : '';
   const brandedSpecDescription = (modelSpec?.showOnLanding && modelSpec.description) || '';
   const name =
@@ -107,7 +110,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     if (contentRef.current) {
       setContentHeight(contentRef.current.offsetHeight);
     }
-  }, [lineCount, description, selectedAgent, remScale]);
+  }, [lineCount, description, selectedAgent, remScale, chatMode]);
 
   /** The passkey nudge appears/disappears on its own schedule, so it asks for a re-measure. */
   const measureContent = useCallback(() => {
@@ -149,6 +152,10 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     <div
       className={`flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
     >
+      {/* Tells the welcome canvas which mode to glow in (`.landing-canvas:has(...)`). */}
+      {chatMode != null && (
+        <span aria-hidden="true" data-chat-mode={chatMode} className="landing-mode-marker hidden" />
+      )}
       <div ref={contentRef} className="flex flex-col items-center gap-0 p-2">
         <div
           className={`flex ${textHasMultipleLines ? 'flex-col' : 'flex-col md:flex-row'} items-center justify-center gap-2`}
@@ -223,6 +230,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               : 'animate-fadeIn text-text-secondary mt-4 max-w-md text-center text-base font-normal'
           }
         />
+        {chatMode != null && <ChatModeBadge mode={chatMode} />}
         {selectedAgent && !isTemporary && (
           <AgentContact
             agent={selectedAgent}
