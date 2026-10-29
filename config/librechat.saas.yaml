@@ -55,9 +55,11 @@ interface:
   fileSearch: true
   fileCitations: true
   runCode: false
-  # The composer ring then shows the share of the user's pack spent, not the context window.
-  contextUsage: false
-  contextCost: false
+  # The composer ring shows how full the model's context window is, with the share in percent
+  # and what the chat has cost so far (in `currency`) beside it; the card adds the token
+  # breakdown and the pack balance.
+  contextUsage: true
+  contextCost: true
   prompts:
     use: false
     create: false

@@ -574,6 +574,8 @@ declare global {
       /** The deployment's `interface.landingFooter`, so the welcome screen does
        *  not paint a footer the config is about to remove. */
       landingFooter?: boolean;
+      /** The deployment's `APP_TITLE`, so nothing paints the stock name first. */
+      appTitle?: string;
     };
   }
 }

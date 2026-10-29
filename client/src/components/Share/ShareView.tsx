@@ -25,7 +25,7 @@ import {
   normalizeCodeHighlightThrottleMs,
 } from '~/components/Chat/Messages/Content/Parts/useLazyHighlight';
 import SharedSubagentActivityDialog from '~/components/Chat/Subagents/SharedSubagentActivityDialog';
-import { cn, DEFAULT_APP_TITLE, getResponseStatus, selectActiveBranchTail } from '~/utils';
+import { cn, getBootAppTitle, getResponseStatus, selectActiveBranchTail } from '~/utils';
 import { siblingIdxFamily, siblingKey } from '~/components/Chat/Messages/Thread/state';
 import AnalyticsConsentToggle from '../Nav/SettingsTabs/Data/AnalyticsConsent';
 import { useDeploymentThemeOverride } from '~/Providers/DeploymentTheme';
@@ -138,7 +138,7 @@ function SharedView() {
   const chatTitleInTab = useRecoilValue(store.chatTitleInTab);
   let docTitle = '';
   if (!chatTitleInTab) {
-    docTitle = config?.appTitle || DEFAULT_APP_TITLE;
+    docTitle = config?.appTitle || getBootAppTitle();
   } else if (config?.appTitle != null && data?.title != null) {
     docTitle = `${data.title} | ${config.appTitle}`;
   } else {

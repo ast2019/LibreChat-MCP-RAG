@@ -52,6 +52,7 @@ jest.mock('../Menus', () => ({
   NewChat: () => null,
   HeaderMenu: jest.fn(() => null),
 }));
+jest.mock('../ChatMode', () => ({ ChatModeIndicator: () => null }));
 jest.mock('../TemporaryChat', () => ({
   TemporaryChat: () => null,
   TemporaryChatIndicator: () => null,

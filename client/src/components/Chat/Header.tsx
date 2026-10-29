@@ -22,6 +22,7 @@ import SubagentThreadLink from './SubagentThreadLink';
 import { PullRequestChip } from './PullRequest';
 import BookmarkMenu from './Menus/BookmarkMenu';
 import { useChatContext } from '~/Providers';
+import { ChatModeIndicator } from './ChatMode';
 import AddMultiConvo from './AddMultiConvo';
 import { useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
@@ -132,6 +133,7 @@ function Header({
       </div>
 
       <div className={cn('flex shrink-0 items-center gap-2', hiddenBehindNav)}>
+        <ChatModeIndicator />
         {showTemporaryChat && <TemporaryChatIndicator />}
         {!isNewChat && <NewChat className={isSmallScreen ? undefined : 'hidden'} />}
         {!isNewChat && parentConversationId == null && (

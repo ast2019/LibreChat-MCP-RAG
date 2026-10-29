@@ -12,6 +12,7 @@ import useTokenUsage from '~/hooks/Chat/useTokenUsage';
 import { contextBreakdownExpandedAtom } from './store';
 import CompactAction from './CompactAction';
 import { cn, formatTokens } from '~/utils';
+import { formatCost } from '~/utils/tokens';
 import { useLocalize } from '~/hooks';
 import UsagePopover from './Popover';
 import Breakdown from './Breakdown';
@@ -107,26 +108,54 @@ function TokenUsageIndicator({
     ? localize('com_ui_context_compacting')
     : usageAriaLabel;
 
+  /** Beside the ring: how full the context window is, then what the chat has cost so far,
+   *  so the gauge reads without opening the card. */
+  let percentText: string | null = null;
+  if (hasContext && hasMax) {
+    /** A first short reply fills a fraction of a percent of a large window; "0%" would say
+     *  the context is empty. */
+    percentText = view.percent > 0 && view.percent < 1 ? '<1%' : `${Math.round(view.percent)}%`;
+  }
+  const costText =
+    showCost && view.totalUsage.costKnown && Number.isFinite(view.totalCost) && view.totalCost > 0
+      ? formatCost(view.totalCost, currency)
+      : null;
+  const hasReadout = percentText != null || costText != null;
+
   return (
     <UsagePopover
       resetKey={conversationId}
       label={ariaLabel}
       cardLabel={localize(hasContext ? 'com_ui_context_usage' : 'com_nav_balance')}
       busy={compaction.isCompacting}
+      wide={hasReadout}
       trigger={(open) =>
         compaction.isCompacting && !open ? (
           <Spinner tone="secondary" className="size-5" />
         ) : (
-          <span
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={hasMax ? view.maxTokens : undefined}
-            aria-valuenow={view.usedTokens}
-            aria-label={localize('com_ui_context_usage')}
-            className="flex items-center justify-center"
-          >
-            <Gauge percent={view.percent} indeterminate={hasContext && !hasMax} />
-          </span>
+          <>
+            <span
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={hasMax ? view.maxTokens : undefined}
+              aria-valuenow={view.usedTokens}
+              aria-label={localize('com_ui_context_usage')}
+              className="flex items-center justify-center"
+            >
+              <Gauge percent={view.percent} indeterminate={hasContext && !hasMax} />
+            </span>
+            {hasReadout && (
+              <span
+                aria-hidden="true"
+                data-testid="token-usage-readout"
+                className="text-text-secondary flex items-center gap-1 text-xs tabular-nums"
+              >
+                {percentText != null && <span dir="ltr">{percentText}</span>}
+                {percentText != null && costText != null && <span>·</span>}
+                {costText != null && <span>{costText}</span>}
+              </span>
+            )}
+          </>
         )
       }
     >

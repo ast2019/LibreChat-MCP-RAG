@@ -38,6 +38,7 @@ const {
   loadToolApprovalHooks,
   maybeInjectQueryDevtoolsBootstrap,
   injectConfiguredFooterBootstrap,
+  injectAppTitleBootstrap,
   injectColorModeHandoff,
   readBundledThemeBoot,
   createDeploymentThemeShell,
@@ -557,6 +558,10 @@ if (cluster.isMaster) {
       customFooter: process.env.CUSTOM_FOOTER,
       landingFooter: appConfig?.interfaceConfig?.landingFooter,
     });
+
+    /* The tab, the sign-in brand panel and the logo name the app before `/api/config`
+       answers, so the shell carries the deployment's title from the start. */
+    indexHTML = injectAppTitleBootstrap(indexHTML, process.env.APP_TITLE);
 
     indexHTML = injectColorModeHandoff(indexHTML, appConfig?.interfaceConfig?.colorModeFromUrl);
     const indexShell = createDeploymentThemeShell(

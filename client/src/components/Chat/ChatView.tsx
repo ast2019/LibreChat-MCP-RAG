@@ -250,7 +250,11 @@ function ChatView({
                           <div
                             ref={composerBandRef}
                             className={cn(
-                              'bg-surface-canvas relative z-10 w-full [view-transition-name:chat-form]',
+                              'relative z-10 w-full [view-transition-name:chat-form]',
+                              /* The band hides messages scrolling under the composer. The
+                                 welcome screen has none, and an opaque band would cut the
+                                 canvas's dots and mode glow off below the composer. */
+                              isLandingPage ? 'bg-transparent' : 'bg-surface-canvas',
                               /* Clears the home indicator; iOS keeps reporting that inset while
                                  the keyboard covers it, so a focused composer drops it. */
                               'pb-safe has-[textarea:focus]:pb-0',

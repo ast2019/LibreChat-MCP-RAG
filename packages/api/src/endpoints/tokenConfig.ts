@@ -13,7 +13,7 @@ import type {
 import type { AppConfig } from '@librechat/data-schemas';
 import type { ResolvedModelRegistry } from '~/endpoints/resolved';
 import type { EndpointTokenConfig } from '~/types';
-import { resolvedModels as defaultResolvedModels } from '~/endpoints/resolved';
+import { aliasTargetsCacheKey, resolvedModels as defaultResolvedModels } from '~/endpoints/resolved';
 import { buildTokenConfigMap, type TokenomicsDeps } from '~/endpoints/pricing';
 import { getTokenConfigKey } from '~/endpoints/custom/initialize';
 import { applyPriceMultiplier } from '~/billing/markup';
@@ -87,6 +87,8 @@ export async function resolveTokenConfigMap(
   const customEndpoints = (appConfig?.endpoints?.[EModelEndpoint.custom] ?? []) as TEndpoint[];
   const cache = tokenConfigCache();
   const endpointTokenConfigs: Record<string, EndpointTokenConfig | undefined> = {};
+  /** endpoint → alias id → the concrete model its catalogue says the alias points to */
+  const aliasTargets: Record<string, Record<string, string> | undefined> = {};
 
   for (const endpointConfig of customEndpoints) {
     /** Models config and the token-config cache key by the normalized name */
@@ -110,6 +112,12 @@ export async function resolveTokenConfigMap(
     if (cached) {
       endpointTokenConfigs[name] = applyPriceMultiplier(cached, multiplier);
     }
+    const targets = (await cache.get(aliasTargetsCacheKey(tokenKey))) as
+      | Record<string, string>
+      | undefined;
+    if (targets) {
+      aliasTargets[name] = targets;
+    }
   }
 
   const includePricing = contextCost || (specs?.length ?? 0) > 0;
@@ -123,7 +131,9 @@ export async function resolveTokenConfigMap(
       if (specModels != null && offered?.has(model) !== true) {
         entry = withoutPricing(entry);
       }
-      const resolved = resolvedModels.get(model);
+      /** What answered on a real response first, else what the catalogue says the alias is */
+      const target = aliasTargets[endpoint]?.[model];
+      const resolved = resolvedModels.get(model) ?? (typeof target === 'string' ? target : undefined);
       if (resolved != null) {
         entry = { ...entry, resolved };
       }

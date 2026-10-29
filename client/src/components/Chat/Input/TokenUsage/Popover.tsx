@@ -16,6 +16,8 @@ interface UsagePopoverProps {
   /** Accessible name of the opened card */
   cardLabel: string;
   busy?: boolean;
+  /** The trigger carries a text readout beside the gauge, so it grows into a pill. */
+  wide?: boolean;
   /** The gauge face; receives whether the card is open */
   trigger: (open: boolean) => ReactNode;
   /** Card content, mounted only while the card is open */
@@ -31,6 +33,7 @@ export default function UsagePopover({
   label,
   cardLabel,
   busy = false,
+  wide = false,
   trigger,
   children,
 }: UsagePopoverProps) {
@@ -150,7 +153,8 @@ export default function UsagePopover({
           popover.show();
         }}
         className={cn(
-          'size-theme-control rounded-theme-control-round flex items-center justify-center transition-colors',
+          'rounded-theme-control-round flex items-center justify-center transition-colors',
+          wide ? 'h-theme-control min-w-theme-control gap-1.5 px-2' : 'size-theme-control',
           'hover:bg-surface-hover focus-visible:ring-text-primary focus-visible:ring-2 focus-visible:outline-hidden',
           'animate-in fade-in zoom-in-95 duration-300',
         )}

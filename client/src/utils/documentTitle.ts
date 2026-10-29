@@ -2,6 +2,24 @@ import { LocalStorageKeys } from 'librechat-data-provider';
 
 export const CHAT_TITLE_IN_TAB_KEY = 'chatTitleInTab';
 export const DEFAULT_APP_TITLE = 'LibreChat';
+
+/**
+ * The app's name before `/api/config` answers: the title the server wrote into the shell,
+ * then the one the last signed-in session stored, then the stock name. Reading these keeps the
+ * first render from painting the stock name and swapping it for the deployment's.
+ */
+export const getBootAppTitle = (): string => {
+  const injected =
+    typeof window !== 'undefined' ? window.__LIBRECHAT_CONFIG__?.appTitle?.trim() : undefined;
+  if (injected) {
+    return injected;
+  }
+  try {
+    return localStorage.getItem(LocalStorageKeys.APP_TITLE) || DEFAULT_APP_TITLE;
+  } catch {
+    return DEFAULT_APP_TITLE;
+  }
+};
 let documentTitleRevision = 0;
 
 export const getDocumentTitleRevision = (): number => documentTitleRevision;
@@ -9,13 +27,7 @@ export const getDocumentTitleRevision = (): number => documentTitleRevision;
 export const hasRealTitle = (title?: string | null): title is string =>
   title != null && title !== '' && title !== 'New Chat';
 
-const getAppTitle = (): string => {
-  try {
-    return localStorage.getItem(LocalStorageKeys.APP_TITLE) || DEFAULT_APP_TITLE;
-  } catch {
-    return DEFAULT_APP_TITLE;
-  }
-};
+const getAppTitle = getBootAppTitle;
 
 /** Reads the setting straight from localStorage so non-React callers stay in sync with the atom. */
 export const isChatTitleInTabEnabled = (): boolean => {
