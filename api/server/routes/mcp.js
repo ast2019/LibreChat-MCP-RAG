@@ -1061,6 +1061,17 @@ router.post(
  * Get connection status for all MCP servers
  * This endpoint returns all app level and user-scoped connection statuses from MCPManager without disconnecting idle connections
  */
+/** On a shared-OAuth server, an allowed user sees the owner's connection as their own. */
+const getStatusUserId = async (user, serverName, config) => {
+  try {
+    const principal = await getMCPManager().resolveSharedPrincipal(serverName, user, config);
+    return principal?.user?.id ?? user.id;
+  } catch {
+    logger.warn(`[MCP Connection Status] Shared connection lookup failed for ${serverName}`);
+    return user.id;
+  }
+};
+
 router.get('/connection/status', requireJwtAuth, configMiddleware, async (req, res) => {
   try {
     const user = req.user;
@@ -1087,9 +1098,9 @@ router.get('/connection/status', requireJwtAuth, configMiddleware, async (req, r
               await readMCPRecoveryGenerationAround(
                 { userId: user.id, serverName },
                 getMCPToolsCacheGeneration,
-                () =>
+                async () =>
                   getServerConnectionStatus(
-                    user.id,
+                    await getStatusUserId(user, serverName, config),
                     serverName,
                     config,
                     appConnections,
@@ -1168,9 +1179,9 @@ router.get('/connection/status/:serverName', requireJwtAuth, configMiddleware, a
       await readMCPRecoveryGenerationAround(
         { userId: user.id, serverName },
         getMCPToolsCacheGeneration,
-        () =>
+        async () =>
           getServerConnectionStatus(
-            user.id,
+            await getStatusUserId(user, serverName, mcpConfig[serverName]),
             serverName,
             mcpConfig[serverName],
             appConnections,

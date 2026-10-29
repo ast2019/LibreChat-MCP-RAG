@@ -20,6 +20,7 @@ import type { GraphTokenResolver } from '~/utils/graph';
 import type { FlowStateManager } from '~/flow/manager';
 import type { MCPOAuthTokens } from './oauth';
 import type { RequestBody } from '~/types';
+import type { SharedMCPPrincipal, SharedMCPPrincipalResolver } from './shared';
 import type * as t from './types';
 import {
   getMissingRuntimeBodyPlaceholderFields,
@@ -160,6 +161,7 @@ export class MCPManager extends UserConnectionManager {
     catalogRecoveryMaxStateEntries?: number,
     catalogRecoveryMaxDetachedDiscoveries?: number,
     private readonly appBindingCodec: MCPAppBindingCodec | undefined = undefined,
+    private readonly sharedPrincipal: SharedMCPPrincipalResolver | undefined = undefined,
   ) {
     super();
     this.catalogRecoveryTracker = new MCPServerCatalogRecoveryTracker(
@@ -188,6 +190,8 @@ export class MCPManager extends UserConnectionManager {
       catalogRecoveryMaxStateEntries?: number;
       catalogRecoveryMaxDetachedDiscoveries?: number;
       appBindingCodec?: MCPAppBindingCodec;
+      /** Lets allowed users run on a server's shared OAuth connection (`sharedOAuth`). */
+      sharedPrincipal?: SharedMCPPrincipalResolver;
     },
   ): Promise<MCPManager> {
     if (MCPManager.instance) throw new Error('MCPManager has already been initialized.');
@@ -195,6 +199,7 @@ export class MCPManager extends UserConnectionManager {
       options?.catalogRecoveryMaxStateEntries,
       options?.catalogRecoveryMaxDetachedDiscoveries,
       options?.appBindingCodec,
+      options?.sharedPrincipal,
     );
     await MCPManager.instance.initialize(configs);
     return MCPManager.instance;
@@ -520,6 +525,22 @@ export class MCPManager extends UserConnectionManager {
     };
   }
 
+  /**
+   * Who an MCP request on this server runs as: the requester, or, on a `sharedOAuth` server, the
+   * owner whose connection the requester may use. Without a resolver every request is its own.
+   */
+  public async resolveSharedPrincipal(
+    serverName: string,
+    user: IUser | undefined,
+    config?: t.ParsedServerConfig,
+  ): Promise<SharedMCPPrincipal | undefined> {
+    if (!user || !this.sharedPrincipal) {
+      return user ? { user, shared: false } : undefined;
+    }
+    const resolved = config ?? (await this.getPrincipalServerConfig(serverName, user));
+    return this.sharedPrincipal({ serverName, config: resolved, user });
+  }
+
   /** Retrieves an app-level or user-specific connection based on provided arguments. */
   public async getConnection(
     args: {
@@ -536,6 +557,15 @@ export class MCPManager extends UserConnectionManager {
       directBearerRecoveryState?: t.DirectBearerRecoveryState;
     } & Omit<t.OAuthConnectionOptions, 'useOAuth' | 'user' | 'flowManager'>,
   ): Promise<MCPConnection> {
+    const principal = await this.resolveSharedPrincipal(
+      args.serverName,
+      args.user,
+      args.connectionTarget?.serverConfig ?? args.serverConfig,
+    );
+    if (principal?.shared) {
+      /** The owner's tokens stand in; a requester is never sent to authorize the owner's account. */
+      args = { ...args, user: principal.user, oauthStart: undefined, returnOnOAuth: true };
+    }
     const userId = args.user?.id;
     const capabilityProfile = args.capabilityProfile ?? STANDARD_MCP_CAPABILITY_PROFILE;
     const connectionTarget = await this.resolveCheckoutTarget(args);
@@ -551,7 +581,7 @@ export class MCPManager extends UserConnectionManager {
         capabilityProfile,
         serverConfig: undefined,
         connectionTarget,
-      } as Parameters<typeof this.getUserConnection>[0]);
+      } as Parameters<MCPManager['getUserConnection']>[0]);
     }
 
     if (
@@ -602,7 +632,16 @@ export class MCPManager extends UserConnectionManager {
    * Per MCP spec, tool listing should be possible without authentication.
    * Use this for agent initialization to get tool schemas before OAuth flow.
    */
-  public async discoverServerTools(args: t.ToolDiscoveryOptions): Promise<t.ToolDiscoveryResult> {
+  public async discoverServerTools(
+    discoveryArgs: t.ToolDiscoveryOptions,
+  ): Promise<t.ToolDiscoveryResult> {
+    const principal = await this.resolveSharedPrincipal(
+      discoveryArgs.serverName,
+      discoveryArgs.user,
+    );
+    const args: t.ToolDiscoveryOptions = principal?.shared
+      ? { ...discoveryArgs, user: principal.user, oauthStart: undefined }
+      : discoveryArgs;
     const { serverName, user } = args;
     const capabilityProfile = args.capabilityProfile ?? STANDARD_MCP_CAPABILITY_PROFILE;
     const registry = MCPServersRegistry.getInstance();
@@ -1538,6 +1577,11 @@ Please follow these instructions when using tools from the respective MCP server
     mcpApps?: TMCPAppsPolicy;
   }): Promise<t.FormattedToolResponse> {
     if (scheduledBearerInvocation) requestScopedConnections = scheduledBearerInvocation.context;
+    const principal = await this.resolveSharedPrincipal(serverName, user, providedConfig);
+    if (principal?.shared) {
+      user = principal.user;
+      oauthStart = undefined;
+    }
     const userId = user?.id;
     const enforceSchedule =
       scheduledMCPInvocation != null && scheduledMCPInvocation.enrolled !== false;

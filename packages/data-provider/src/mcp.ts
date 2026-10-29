@@ -289,6 +289,17 @@ const BaseOptionsSchema = z.object({
    */
   serverInstructions: z.union([z.boolean(), z.string()]).optional(),
   /**
+   * Share one account's OAuth connection: users the rule allows run on the connection of the
+   * account with `ownerEmail` (an admin's per-user media switch wins; admins always may), and
+   * everyone else connects their own account as usual. The owner connects once from the picker.
+   */
+  sharedOAuth: z
+    .object({
+      ownerEmail: z.string().min(1),
+      allow: z.enum(['all', 'paid', 'admins']).default('paid'),
+    })
+    .optional(),
+  /**
    * Whether this server requires OAuth authentication
    * If not specified, will be auto-detected during construction
    */

@@ -11,6 +11,7 @@ const {
   createMCPAppBindingCodec,
   createMCPPolicyResolver,
   reportStoredMCPTombstones,
+  createSharedMCPPrincipalResolver,
 } = require('@librechat/api');
 const { syncStaticTools, mergeAppTools, getAppConfig, invalidateCachedTools } = require('./Config');
 const { startMCPAuthorizationFenceRetryWorker } = require('./MCPAuthorizationFenceRetry');
@@ -127,6 +128,10 @@ async function initializeMCPs() {
       catalogRecoveryMaxDetachedDiscoveries:
         appConfig?.mcpSettings?.catalogRecovery?.maxDetachedDiscoveries,
       appBindingCodec: createMCPAppBindingCodec(process.env.JWT_SECRET),
+      sharedPrincipal: createSharedMCPPrincipalResolver({
+        findUserByEmail: (email) => db.findUser({ email }),
+        findBalanceByUser: db.findBalanceByUser,
+      }),
     });
     startMCPAuthorizationFenceRetryWorker(invalidateCachedTools, {
       intervalMs: appConfig?.mcpSettings?.catalogRecovery?.authorizationFenceRetryIntervalMs,
