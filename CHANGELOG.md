@@ -7,6 +7,19 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-10-29
+
+### Changed
+- **A tidier admin users list («کاربران و اعتبار»).** With many users the old table squeezed
+  its columns until text overlapped.
+  - Rows use fixed column widths. The name, email and pack label are cut with «…» and show in
+    full on hover.
+  - Each row's «مصرف», «افزودن اعتبار» and «مدیر کردن / برداشتن مدیریت» sit behind one «⋯»
+    menu instead of three buttons.
+  - The two model-access choices stack in their column.
+  - On narrow screens each user becomes a card with labelled fields.
+  - The heading shows the number of users, and the pager reads «۱ تا ۲۵ از ۱۲۰».
+
 ## [0.21.0] - 2026-10-29
 
 ### Added

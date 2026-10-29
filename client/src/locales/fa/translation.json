@@ -3806,6 +3806,8 @@
   "com_admin_no_users": "کاربری پیدا نشد",
   "com_admin_grant": "افزودن اعتبار",
   "com_admin_pagination": "صفحه‌ها",
+  "com_admin_user_actions": "کارهای مربوط به {{0}}",
+  "com_admin_pagination_range": "{{0}} تا {{1}} از {{2}}",
   "com_admin_grant_title": "افزودن اعتبار",
   "com_admin_grant_choose": "یک بسته یا مبلغ انتخاب کنید",
   "com_admin_grant_custom": "مبلغ دلخواه",

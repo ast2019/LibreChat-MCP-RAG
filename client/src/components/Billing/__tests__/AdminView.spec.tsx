@@ -7,6 +7,7 @@ let mockRole = 'ADMIN';
 const mockMutate = jest.fn();
 const mockRoleMutate = jest.fn();
 const mockModelAccessMutate = jest.fn();
+const mockSetRoleMutate = jest.fn();
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -42,6 +43,8 @@ jest.mock('~/data-provider', () => ({
   useGetRole: () => mockUserRole,
   useUpdateRolePermissionsMutation: () => ({ mutate: mockRoleMutate, isLoading: false }),
   useAdminUserModelAccessMutation: () => ({ mutate: mockModelAccessMutate, isLoading: false }),
+  useAdminSetUserRoleMutation: () => ({ mutate: mockSetRoleMutate, isLoading: false }),
+  useAdminCreateUserMutation: () => ({ mutate: jest.fn(), isLoading: false }),
   useGetStartupConfig: () => ({
     data: {
       interface: { currency: mockCurrency },
@@ -49,6 +52,12 @@ jest.mock('~/data-provider', () => ({
     },
   }),
 }));
+
+/** Opens the first row's «⋯» menu and picks an action. */
+async function openRowAction(name: string) {
+  await userEvent.click(screen.getAllByTestId('admin-user-actions')[0]);
+  await userEvent.click(await screen.findByRole('menuitem', { name }));
+}
 
 const summaryData = {
   days: 30,
@@ -141,7 +150,7 @@ describe('AdminView', () => {
     renderView('/admin?tab=users');
     /** Sara's balance $0.50 */
     expect(screen.getByText('۱۳۴٬۷۵۰ تومان')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Add credit' }));
+    await openRowAction('Add credit');
     expect(await screen.findByRole('dialog')).toHaveTextContent('۵۳۹٬۰۰۰ تومان');
   });
 
@@ -215,9 +224,31 @@ describe('AdminView', () => {
     expect(screen.getByTestId('chat-page')).toBeInTheDocument();
   });
 
+  it('puts each row in one list with its actions behind a menu', async () => {
+    renderView('/admin?tab=users');
+    const row = screen.getByTestId('admin-user-row');
+    expect(row).toHaveTextContent('Sara');
+    expect(row).toHaveTextContent('sara@example.com');
+    expect(within(row).queryByRole('button', { name: 'Add credit' })).not.toBeInTheDocument();
+    await userEvent.click(within(row).getByRole('button', { name: 'Actions for Sara' }));
+    expect(await screen.findByRole('menuitem', { name: 'Usage' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Make admin' })).toBeInTheDocument();
+  });
+
+  it('makes a user an admin after confirming', async () => {
+    renderView('/admin?tab=users');
+    await openRowAction('Make admin');
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Make admin' }));
+    expect(mockSetRoleMutate).toHaveBeenCalledWith(
+      { userId: 'u1', admin: true },
+      expect.any(Object),
+    );
+  });
+
   it('grants a pack from the dialog', async () => {
     renderView('/admin?tab=users');
-    await userEvent.click(screen.getByRole('button', { name: 'Add credit' }));
+    await openRowAction('Add credit');
     await userEvent.click(await screen.findByRole('button', { name: 'Add' }));
     await waitFor(() =>
       expect(mockMutate).toHaveBeenCalledWith(
@@ -229,7 +260,7 @@ describe('AdminView', () => {
 
   it('grants a custom dollar amount as credits', async () => {
     renderView('/admin?tab=users');
-    await userEvent.click(screen.getByRole('button', { name: 'Add credit' }));
+    await openRowAction('Add credit');
     await userEvent.click(await screen.findByRole('radio', { name: 'Custom amount' }));
     await userEvent.type(screen.getByLabelText('Amount in US dollars of usage'), '2.5');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
