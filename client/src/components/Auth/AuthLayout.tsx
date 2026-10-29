@@ -111,7 +111,7 @@ function AuthLayout({
           </div>
         </div>
         <p className="text-text-primary mt-10 text-4xl font-bold">{appTitle}</p>
-        <p className="text-text-secondary mt-4 max-w-sm text-center text-lg">
+        <p className="text-text-secondary mt-4 max-w-md text-center text-lg">
           {localize('com_auth_brand_tagline')}
         </p>
       </aside>
