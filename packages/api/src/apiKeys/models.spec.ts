@@ -3,6 +3,7 @@ import { findApiModelSpec, listApiModelSpecs, resolveApiAgent } from './models';
 jest.mock('~/agents/load', () => ({
   loadEphemeralAgent: jest.fn(async (params: Record<string, unknown>) => ({
     id: 'eph',
+    tools: ['web_search', 'generate_image', 'generate_video'],
     ...params,
   })),
 }));
@@ -48,6 +49,8 @@ describe('API model specs', () => {
     });
     expect((spec.model_parameters as Record<string, unknown>).iconURL).toBeUndefined();
     expect(getAgent).not.toHaveBeenCalled();
+    /** Media files are delivered to the chat UI, not to API callers */
+    expect(spec.tools).toEqual(['web_search']);
     expect(await resolveApiAgent(req, 'agent_1', deps)).toEqual({ id: 'agent_1' });
   });
 });
