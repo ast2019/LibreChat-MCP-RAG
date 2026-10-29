@@ -16,6 +16,7 @@ import {
   Scale,
   Shield,
   ShieldCheck,
+  ShoppingBag,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
@@ -27,6 +28,7 @@ import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
 import { settingsOpenAtom } from './Settings';
 import Balance from '~/components/Balance';
+import { usePurchaseTarget } from '~/components/Balance/Purchase';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -115,6 +117,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const [showArchived, setShowArchived] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const purchase = usePurchaseTarget();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
@@ -201,6 +204,16 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <GearIcon className="icon-md" aria-hidden="true" />
           {localize('com_nav_settings')}
         </Menu.MenuItem>
+        {purchase?.kind === 'internal' && (
+          <Menu.MenuItem
+            onClick={() => navigate(purchase.to)}
+            className="select-item text-sm"
+            data-testid="nav-buy-pack"
+          >
+            <ShoppingBag className="icon-md" aria-hidden="true" />
+            {localize('com_ui_balance_buy_pack')}
+          </Menu.MenuItem>
+        )}
         <InviteMenuItem onSelect={() => setShowInvite(true)} />
         <InstallMenuItem onSelect={() => setShowInstall(true)} />
         <DropdownMenuSeparator />

@@ -1,33 +1,35 @@
 import useBalanceSummary from '~/hooks/useBalanceSummary';
-import { useGetStartupConfig } from '~/data-provider';
-import { usePurchaseTarget } from './Purchase';
+import { PurchaseLink, usePurchaseTarget } from './Purchase';
+import useLocalize from '~/hooks/useLocalize';
 import Summary from './Summary';
-import Prices from './Prices';
 
-/** The user's balance, or nothing when the deployment does not meter credits. */
+/**
+ * The user's balance, or nothing when the deployment does not meter credits. Pack prices live
+ * on the packs page alone; here, while there is a reason to buy (the free trial, or credit run
+ * out), a single link leads there.
+ */
 export default function Balance({ className }: { className?: string }) {
-  const { data: startupConfig } = useGetStartupConfig();
+  const localize = useLocalize();
   const { enabled, state, currency } = useBalanceSummary();
   const purchase = usePurchaseTarget();
   if (!enabled) {
     return null;
   }
-  const packs = startupConfig?.balance?.packs ?? [];
-  const showPrices = state.status === 'success' && state.summary.showPrices && packs.length > 0;
-  if (!showPrices) {
+  const offerPurchase = purchase != null && state.status === 'success' && state.summary.showPrices;
+  if (!offerPurchase) {
     return <Summary state={state} currency={currency} className={className} />;
   }
   return (
     <div className={className}>
       <Summary state={state} currency={currency} />
-      <Prices
-        packs={packs}
-        currency={currency}
-        purchase={purchase}
-        className="border-border-light mt-3 border-t pt-3"
-      />
+      <PurchaseLink
+        target={purchase}
+        className="text-text-primary mt-3 inline-block text-xs font-medium underline underline-offset-2"
+      >
+        {localize('com_ui_balance_buy_pack')}
+      </PurchaseLink>
     </div>
   );
 }
 
-export { Summary, Prices };
+export { Summary };

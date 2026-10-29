@@ -7,6 +7,7 @@ const mockMutate = jest.fn();
 const mockRefetch = jest.fn();
 let mockOptions: Record<string, unknown>;
 let mockCheckout: Record<string, unknown>;
+let mockStartupConfig: Record<string, unknown> | undefined;
 
 /** Renders keys, not copy: these assertions name the localization key each string uses. */
 jest.mock('~/hooks/useLocalize', () => ({
@@ -15,6 +16,7 @@ jest.mock('~/hooks/useLocalize', () => ({
 }));
 
 jest.mock('~/data-provider', () => ({
+  useGetStartupConfig: () => ({ data: mockStartupConfig }),
   usePaymentOptionsQuery: () => mockOptions,
   usePaymentCheckoutMutation: () => mockCheckout,
 }));
@@ -43,6 +45,32 @@ describe('payment Checkout', () => {
     mockMutate.mockReset();
     mockOptions = { data: options, isLoading: false, isError: false, refetch: mockRefetch };
     mockCheckout = { mutate: mockMutate, isLoading: false, isError: false, isSuccess: false };
+    mockStartupConfig = undefined;
+  });
+
+  it('still lists every pack with its price while online payment is off', () => {
+    mockOptions = { ...mockOptions, data: { enabled: false, gateways: [], packs: [] } };
+    mockStartupConfig = {
+      interface: { currency: { code: 'IRT', rate: 270_000, priceStep: 1000 } },
+      balance: {
+        packs: [
+          { id: 'starter', label: 'Starter', credits: 4_000_000 },
+          { id: 'pro', label: 'Pro', credits: 30_000_000 },
+        ],
+        purchaseUrl: 'https://t.me/support',
+      },
+    };
+    renderCheckout();
+
+    const packs = screen.getAllByTestId('payment-pack');
+    expect(packs).toHaveLength(2);
+    expect(packs[0]).toHaveTextContent('Starter');
+    expect(screen.getByText('com_ui_payment_offline_note')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'com_ui_balance_buy_pack' })).toHaveAttribute(
+      'href',
+      'https://t.me/support',
+    );
+    expect(screen.queryByRole('button', { name: /com_ui_payment_pay/ })).not.toBeInTheDocument();
   });
 
   it('shows skeletons while loading', () => {
