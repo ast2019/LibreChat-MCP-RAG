@@ -4041,6 +4041,7 @@
   "com_ui_payment_no_packs": "No packs are for sale right now.",
   "com_ui_payment_offline_note": "Online payment is not switched on yet. To buy a pack, contact support.",
   "com_ui_payment_pack": "Pack",
+  "com_ui_payment_pack_usd": "≈ ${{0}} of usage",
   "com_ui_payment_pay": "Pay {{0}}",
   "com_ui_payment_pay_plain": "Pay",
   "com_ui_payment_pending": "Checking your payment",

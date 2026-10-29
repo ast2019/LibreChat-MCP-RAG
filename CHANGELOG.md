@@ -7,6 +7,13 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-10-29
+
+### Changed
+- **Each pack shows its dollar value.** On the packs page («خرید اعتبار»), every pack's Toman
+  price has a line under it, «معادل ۴ دلار مصرف»: the usage it buys at the prices users are
+  billed (1,000,000 credits = $1). It appears with or without an online gateway.
+
 ## [0.20.1] - 2026-10-29
 
 ### Changed

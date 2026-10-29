@@ -8,7 +8,7 @@ import {
   usePaymentCheckoutMutation,
   usePaymentOptionsQuery,
 } from '~/data-provider';
-import { formatPackPrice } from '~/utils/balance';
+import { formatPackPrice, formatPackUsd } from '~/utils/balance';
 import { GATEWAY_LABELS, errorLabel, formatRial, readErrorCode } from './format';
 import useLocalize from '~/hooks/useLocalize';
 import cn from '~/utils/cn';
@@ -101,8 +101,11 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
                 <span className="text-text-primary min-w-0 flex-1 text-sm font-medium">
                   {pack.label}
                 </span>
-                <span className="text-text-primary text-sm font-semibold whitespace-nowrap">
-                  {price}
+                <span className="text-end whitespace-nowrap">
+                  <span className="text-text-primary block text-sm font-semibold">{price}</span>
+                  <span className="text-text-secondary block text-xs" data-testid="pack-usd">
+                    {localize('com_ui_payment_pack_usd', { 0: formatPackUsd(pack.credits) })}
+                  </span>
                 </span>
               </li>
             ))}
@@ -163,8 +166,13 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
                     </span>
                   )}
                 </span>
-                <span className="text-text-primary text-sm font-semibold whitespace-nowrap">
-                  {formatRial(pack.amountRial)}
+                <span className="text-end whitespace-nowrap">
+                  <span className="text-text-primary block text-sm font-semibold">
+                    {formatRial(pack.amountRial)}
+                  </span>
+                  <span className="text-text-secondary block text-xs" data-testid="pack-usd">
+                    {localize('com_ui_payment_pack_usd', { 0: formatPackUsd(pack.credits) })}
+                  </span>
                 </span>
               </label>
             );
