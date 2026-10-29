@@ -65,6 +65,7 @@ describe('payment Checkout', () => {
     const packs = screen.getAllByTestId('payment-pack');
     expect(packs).toHaveLength(2);
     expect(packs[0]).toHaveTextContent('Starter');
+    expect(screen.getAllByTestId('pack-usd')[0]).toHaveTextContent('com_ui_payment_pack_usd');
     expect(screen.getByText('com_ui_payment_offline_note')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'com_ui_balance_buy_pack' })).toHaveAttribute(
       'href',

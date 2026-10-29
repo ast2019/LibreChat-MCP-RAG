@@ -4041,6 +4041,7 @@
   "com_ui_payment_no_packs": "فعلاً بسته‌ای برای فروش نیست.",
   "com_ui_payment_offline_note": "پرداخت آنلاین هنوز فعال نشده است. برای خرید بسته با پشتیبانی تماس بگیرید.",
   "com_ui_payment_pack": "بسته",
+  "com_ui_payment_pack_usd": "معادل {{0}} دلار مصرف",
   "com_ui_payment_pay": "پرداخت {{0}}",
   "com_ui_payment_pay_plain": "پرداخت",
   "com_ui_payment_pending": "در حال بررسی پرداخت",

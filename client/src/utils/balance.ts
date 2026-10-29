@@ -129,6 +129,17 @@ export function formatBalanceAmount(
  * currency's `priceStep`, so the user pays at least what the pack is worth. Null without a
  * usable rate, so no price is ever shown under the wrong unit.
  */
+/**
+ * What a pack is worth in US dollars of usage at the prices users are billed
+ * (1,000,000 credits = $1), in the page's digits: `4000000` → `۴` in Persian.
+ */
+export function formatPackUsd(credits: number, locale?: string): string {
+  const usd = (Number.isFinite(credits) ? credits : 0) / CREDITS_PER_USD;
+  const lang =
+    locale ?? (typeof document !== 'undefined' ? document.documentElement.lang : undefined);
+  return new Intl.NumberFormat(lang || undefined, { maximumFractionDigits: 2 }).format(usd);
+}
+
 export function formatPackPrice(credits: number, currency?: CurrencyConfig): string | null {
   if (currency == null || !Number.isFinite(currency.rate) || currency.rate <= 0) {
     return null;

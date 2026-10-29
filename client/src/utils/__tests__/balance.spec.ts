@@ -1,5 +1,6 @@
 import type { TBalanceResponse } from 'librechat-data-provider';
 import {
+  formatPackUsd,
   summarizeBalance,
   formatPackPrice,
   formatTimeUntil,
@@ -182,5 +183,13 @@ describe('formatPackPrice', () => {
     expect(formatPackPrice(5_000_000, { code: 'EUR', rate: 0.5 })).toBe('€2.50');
     expect(formatPackPrice(5_000_000, undefined)).toBeNull();
     expect(formatPackPrice(5_000_000, { code: 'IRT', rate: 0 })).toBeNull();
+  });
+});
+
+describe('formatPackUsd', () => {
+  it('states a pack in dollars of usage, in the page digits', () => {
+    expect(formatPackUsd(4_000_000, 'en')).toBe('4');
+    expect(formatPackUsd(2_500_000, 'en')).toBe('2.5');
+    expect(formatPackUsd(30_000_000, 'fa')).toBe('۳۰');
   });
 });
