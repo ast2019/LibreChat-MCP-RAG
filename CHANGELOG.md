@@ -7,6 +7,55 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-30
+
+### Changed
+- **The composer gauge shows the context only.** Its card and dialog report how much of the
+  model's context the chat uses («ظرفیت گفتگو»). Credit use, the used-percent of the pack, the
+  auto-refill line and the buy button are gone from the composer. With `contextUsage: false` the
+  gauge does not render, even when balance is on.
+- **The remaining pack is a ring around the avatar.** The account button draws how much of the
+  last pack is left, in the pack's tone. It shows only for a user who has a pack, and screen
+  readers hear the same value. No new request: it reads the balance the menu already loads.
+- **`/` lists skills next to prompts.** `/تقویم` finds a skill by its title. Without prompt
+  access the menu lists skills only. `$` still opens skills.
+- **Image and video cards from the tool, not from the model's link.** `generate_image` draws the
+  image card. `generate_video` draws the background-video card from its own output, so a link the
+  model also writes is not drawn a second time, and the tool text no longer asks for one.
+- **Skills are on in the saas config.** `interface.skills.use` and the agents `skills`
+  capability are on, and `persianTools` is added. With `permissionSync: 'seed'`, a running
+  deployment also turns on «مهارت‌ها» for USER on the admin page («دسترسی کاربران»).
+
+### Added
+- **Three Persian skills** ship in `skill/`: «تقویم و تاریخ فارسی», «نگارش و نیم‌فاصله» and
+  «نوشتن محتوای فارسی». The new `display-title` frontmatter key sets the name the pickers show.
+- **Two deterministic Persian tools.** `persian_calendar` converts between Solar Hijri, Gregorian
+  and lunar Hijri dates, adds and subtracts, counts days and working days, and lists a month or
+  its holidays. `persian_normalize` fixes half-spaces (ZWNJ), Arabic letters, digits, spacing and
+  punctuation without changing words, and reports what it changed.
+  - Ordinary chats get both unless `persianTools.chat` is `false`. A saved agent gets each tool
+    when a skill that uses it is in its scope, so the tool is there when the model picks the skill.
+  - The fixed solar holidays are built in. The lunar ones come only from
+    `persianTools.holidays`, and the tool says when a year's list is missing.
+  - Lunar Hijri dates are calculated (Umm al-Qura) and labeled as such.
+- **«ساختن» in the composer `+` menu.** Image, video and speech rows, from
+  `GET /api/media/status`. An available way puts a starter sentence in the composer; a way that
+  is off opens «ساخت تصویر و ویدیو» to say what turns it on. Ways that are not configured are
+  left out, and «همه روش‌ها» is always there.
+- **«مشاهده در حافظه»** on the chat's memory card opens the memory panel, the one place memories
+  are edited and deleted.
+- **Keep feedback as a preference.** The feedback dialog offers «این را به‌عنوان ترجیح من به
+  خاطر بسپار». It opens the memory dialog filled with the text under the `preferences` key, or
+  adds the text to the preference already saved. Nothing is saved until the user presses save.
+- **«خروجی‌های گفتگو» in the chat menu.** One dialog lists what the chat made (images, code
+  files, videos) and what the user attached, with open, download and a jump to the message. It
+  has no delete; files are deleted from «فایل‌های من».
+  - Read from the chat's loaded messages, so it makes no new request and includes every branch.
+    A message on a branch that is not shown says so instead of jumping.
+
+### Not done / Known limitations
+- No undo for a memory change from the chat card; the memory panel edits and deletes.
+
 ## [0.25.0] - 2026-10-29
 
 ### Changed
