@@ -1,5 +1,9 @@
 import { normalizeIranianMobile } from 'librechat-data-provider';
-import type { TUserModelAccess } from 'librechat-data-provider';
+import type {
+  TUserModelAccess,
+  TAdminBillingUsersParams,
+  TAdminBillingUserSort,
+} from 'librechat-data-provider';
 import type { Model } from 'mongoose';
 import type { ITransaction } from '~/schema/transaction';
 import type { IBalance } from '~/types/balance';
@@ -64,6 +68,16 @@ export interface BillingUserUsage {
 }
 
 const MAX_PAGE_SIZE = 100;
+
+function getUserSort(sort: TAdminBillingUserSort): Record<string, 1 | -1> {
+  if (sort === 'oldest') {
+    return { createdAt: 1, _id: 1 };
+  }
+  if (sort === 'name') {
+    return { name: 1, email: 1, _id: 1 };
+  }
+  return { createdAt: -1, _id: -1 };
+}
 /** Credits added to balances: packs, manual grants and invite rewards (both sides). */
 const GRANT_CONTEXTS = ['pack', 'admin', 'referral', 'referral_welcome'];
 const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
@@ -81,11 +95,9 @@ const SPEND_MATCH = {
 };
 
 export function createBillingMethods(mongoose: typeof import('mongoose')): {
-  listUsersWithBalances: (params: {
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }) => Promise<{ users: BillingUserRow[]; total: number }>;
+  listUsersWithBalances: (
+    params: TAdminBillingUsersParams,
+  ) => Promise<{ users: BillingUserRow[]; total: number }>;
   getBillingSummary: (params: { since: Date; topModels?: number }) => Promise<BillingSummary>;
   getUserUsageByContext: (params: { userId: string; since: Date }) => Promise<BillingUserUsage>;
 } {
@@ -95,28 +107,80 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
 
   async function listUsersWithBalances({
     search,
+    role,
+    pack,
+    balance,
+    access,
+    sort = 'newest',
     limit = 25,
     offset = 0,
-  }: {
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ users: BillingUserRow[]; total: number }> {
+  }: TAdminBillingUsersParams): Promise<{ users: BillingUserRow[]; total: number }> {
     const trimmed = typeof search === 'string' ? search.trim().slice(0, 200) : '';
     const tokenFilter = trimmed ? buildUserSearchFilter(trimmed, { legacyPrefix: true }) : null;
     /** A search that reads as a mobile number also matches the stored E.164 phone exactly. */
     const phone = trimmed ? normalizeIranianMobile(trimmed) : null;
-    let filter: Record<string, unknown> = tokenFilter ?? {};
+    const filters: Record<string, unknown>[] = [];
     if (phone) {
-      filter = tokenFilter ? { $or: [tokenFilter, { phone }] } : { phone };
+      filters.push(tokenFilter ? { $or: [tokenFilter, { phone }] } : { phone });
+    } else if (tokenFilter) {
+      filters.push(tokenFilter);
+    }
+    if (role === 'USER' || role === 'ADMIN') {
+      filters.push({ role });
+    }
+
+    const customAccess = [
+      { 'modelAccess.local': { $in: [true, false] } },
+      { 'modelAccess.private': { $in: [true, false] } },
+      { apiAccess: { $in: [true, false] } },
+      { mediaAccess: { $in: [true, false] } },
+    ];
+    if (access === 'custom') {
+      filters.push({ $or: customAccess });
+    } else if (access === 'default') {
+      filters.push({ $nor: customAccess });
+    }
+
+    const balanceIdFilters: Promise<Record<string, unknown>>[] = [];
+    if (pack === 'has' || pack === 'none') {
+      balanceIdFilters.push(
+        balances()
+          .distinct('user', { packId: { $exists: true, $nin: [null, ''] } })
+          .then((ids) => ({ _id: { [pack === 'has' ? '$in' : '$nin']: ids } })),
+      );
+    } else if (typeof pack === 'string' && pack !== '') {
+      balanceIdFilters.push(
+        balances()
+          .distinct('user', { packId: pack })
+          .then((ids) => ({ _id: { $in: ids } })),
+      );
+    }
+    if (balance === 'positive' || balance === 'empty') {
+      balanceIdFilters.push(
+        balances()
+          .distinct('user', { tokenCredits: { $gt: 0 } })
+          .then((ids) => ({ _id: { [balance === 'positive' ? '$in' : '$nin']: ids } })),
+      );
+    }
+    filters.push(...(await Promise.all(balanceIdFilters)));
+
+    let filter: Record<string, unknown> = {};
+    if (filters.length === 1) {
+      filter = filters[0];
+    } else if (filters.length > 1) {
+      filter = { $and: filters };
     }
     const pageSize = Math.min(Math.max(Math.trunc(limit) || 25, 1), MAX_PAGE_SIZE);
     const skip = Math.max(Math.trunc(offset) || 0, 0);
+    const sortBy: Record<string, 1 | -1> = getUserSort(sort);
 
     const [docs, total] = await Promise.all([
       users()
-        .find(filter, '_id name username email phone role createdAt modelAccess apiAccess mediaAccess')
-        .sort({ createdAt: -1 })
+        .find(
+          filter,
+          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess',
+        )
+        .sort(sortBy)
         .skip(skip)
         .limit(pageSize)
         .lean(),

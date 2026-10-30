@@ -156,7 +156,7 @@ describe('AdminView', () => {
     expect(screen.queryByTestId('admin-rate')).not.toBeInTheDocument();
     expect(screen.queryByText('sara@example.com')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Users & credit' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'User management' }));
     expect(await screen.findByText('sara@example.com')).toBeInTheDocument();
     expect(screen.getByText('75%')).toBeInTheDocument();
   });
@@ -266,7 +266,7 @@ describe('AdminView', () => {
   it('turns the API on for one user', async () => {
     renderView('/admin?tab=users');
     await userEvent.click(screen.getByTestId('api-access-u1'));
-    await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'On' }));
     expect(mockApiAccessMutate).toHaveBeenCalledWith(
       { userId: 'u1', apiAccess: true },
       expect.any(Object),
@@ -276,7 +276,7 @@ describe('AdminView', () => {
   it('lets one user generate media without a pack', async () => {
     renderView('/admin?tab=users');
     await userEvent.click(screen.getByTestId('media-access-u1'));
-    await userEvent.click(await screen.findByRole('option', { name: 'Allowed' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'On' }));
     expect(mockMediaAccessMutate).toHaveBeenCalledWith(
       { userId: 'u1', mediaAccess: true },
       expect.any(Object),
