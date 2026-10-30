@@ -29,7 +29,22 @@ export type TAdminBillingUser = {
   usedPercent: number | null;
 };
 
-export type TAdminBillingUsersParams = { search?: string; limit?: number; offset?: number };
+export type TAdminBillingUserRoleFilter = 'USER' | 'ADMIN';
+export type TAdminBillingBalanceFilter = 'positive' | 'empty';
+export type TAdminBillingAccessFilter = 'custom' | 'default';
+export type TAdminBillingUserSort = 'newest' | 'oldest' | 'name';
+
+export type TAdminBillingUsersParams = {
+  search?: string;
+  role?: TAdminBillingUserRoleFilter;
+  /** `has`, `none`, or a configured pack ID. */
+  pack?: string;
+  balance?: TAdminBillingBalanceFilter;
+  access?: TAdminBillingAccessFilter;
+  sort?: TAdminBillingUserSort;
+  limit?: number;
+  offset?: number;
+};
 
 export type TAdminBillingUsersResponse = {
   total: number;

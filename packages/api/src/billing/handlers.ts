@@ -5,7 +5,11 @@ import type {
   BillingUserRow,
   BillingUserUsage,
 } from '@librechat/data-schemas';
-import type { TBalancePack, TBalanceConfig } from 'librechat-data-provider';
+import type {
+  TBalancePack,
+  TBalanceConfig,
+  TAdminBillingUsersParams,
+} from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import type { GrantBalanceDeps } from './packs';
 import { grantBalance, resolveBalanceGrant } from './packs';
@@ -33,11 +37,9 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
   findUserByEmail: (email: string) => Promise<BillingUser | null>;
   findUserById: (id: string) => Promise<BillingUser | null>;
   findBalanceByUser: (userId: string) => Promise<BillingBalance | null>;
-  listUsersWithBalances: (params: {
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }) => Promise<{ users: BillingUserRow[]; total: number }>;
+  listUsersWithBalances: (
+    params: TAdminBillingUsersParams,
+  ) => Promise<{ users: BillingUserRow[]; total: number }>;
   getBillingSummary: (params: { since: Date }) => Promise<BillingSummary>;
   /** One user's spend in a window, by ledger context and by model. */
   getUserUsageByContext?: (params: { userId: string; since: Date }) => Promise<BillingUserUsage>;
@@ -200,9 +202,31 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     try {
       const query = (req.query ?? {}) as Record<string, unknown>;
       const search = typeof query.search === 'string' ? query.search : undefined;
+      const role = query.role === 'USER' || query.role === 'ADMIN' ? query.role : undefined;
+      const pack =
+        typeof query.pack === 'string' && query.pack.trim() !== ''
+          ? query.pack.trim().slice(0, 100)
+          : undefined;
+      const balance =
+        query.balance === 'positive' || query.balance === 'empty' ? query.balance : undefined;
+      const access =
+        query.access === 'custom' || query.access === 'default' ? query.access : undefined;
+      const sort =
+        query.sort === 'oldest' || query.sort === 'name' || query.sort === 'newest'
+          ? query.sort
+          : undefined;
       const limit = Math.min(Math.max(readInt(query.limit, 25), 1), 100);
       const offset = Math.max(readInt(query.offset, 0), 0);
-      const { users, total } = await deps.listUsersWithBalances({ search, limit, offset });
+      const { users, total } = await deps.listUsersWithBalances({
+        search,
+        limit,
+        offset,
+        ...(role != null && { role }),
+        ...(pack != null && { pack }),
+        ...(balance != null && { balance }),
+        ...(access != null && { access }),
+        ...(sort != null && { sort }),
+      });
       return res.status(200).json({
         total,
         limit,
