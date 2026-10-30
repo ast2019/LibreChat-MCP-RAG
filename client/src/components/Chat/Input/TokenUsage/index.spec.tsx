@@ -1,24 +1,19 @@
 import { Provider, createStore } from 'jotai';
 import userEvent from '@testing-library/user-event';
 import { render, screen, within } from '@testing-library/react';
-import type { TBalanceResponse, TConversation } from 'librechat-data-provider';
+import type { TConversation } from 'librechat-data-provider';
 import type { TokenUsageView } from '~/hooks/Chat/useTokenUsage';
-import { TokenCredits, AutoRefill } from '~/components/Nav/Settings/BillingControls';
 import { contextBreakdownExpandedAtom } from './store';
 import TokenUsage from './index';
 
 const mockStartupConfig = jest.fn();
-const mockBalance = jest.fn();
 const mockTokenUsage = jest.fn();
 const mockBalanceQuery = jest.fn();
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: mockStartupConfig() }),
   useTokenConfigQuery: () => ({ data: undefined, isLoading: false, isError: false }),
-  useGetUserBalance: (config?: { enabled?: boolean }) =>
-    config?.enabled === false
-      ? { data: undefined, isError: false, isFetched: false }
-      : (mockBalanceQuery() ?? { data: mockBalance(), isError: false, isFetched: true }),
+  useGetUserBalance: (...args: unknown[]) => mockBalanceQuery(...args),
 }));
 
 jest.mock('~/hooks/AuthContext', () => ({
@@ -41,32 +36,26 @@ jest.mock('./Breakdown', () => ({
   default: () => <div data-testid="context-breakdown-stub" />,
 }));
 
-const NOW = Date.parse('2026-07-05T00:00:00.000Z');
-
-const balance: TBalanceResponse = {
-  tokenCredits: 3_100_000,
-  autoRefillEnabled: true,
-  refillAmount: 5_000_000,
-  refillIntervalValue: 7,
-  refillIntervalUnit: 'days',
-  lastRefill: '2026-07-01T00:00:00.000Z',
-};
-
 const config = ({
   balanceEnabled = true,
-  display = 'credits',
   contextUsage,
+  contextCost,
 }: {
   balanceEnabled?: boolean;
-  display?: string;
   contextUsage?: boolean;
+  contextCost?: boolean;
 } = {}) => ({
-  balance: { enabled: balanceEnabled, startBalance: 20_000, display },
-  interface: { contextUsage, currency: { code: 'USD', rate: 1 } },
+  balance: { enabled: balanceEnabled, startBalance: 20_000, display: 'pack' },
+  interface: { contextUsage, contextCost, currency: { code: 'USD', rate: 1 } },
 });
 
-const usage = (usedTokens: number) =>
-  ({ usedTokens, maxTokens: 200_000, percent: (usedTokens / 200_000) * 100 }) as TokenUsageView;
+const usage = (usedTokens: number, maxTokens: number | null = 200_000) =>
+  ({
+    usedTokens,
+    maxTokens: maxTokens ?? undefined,
+    percent: maxTokens ? (usedTokens / maxTokens) * 100 : 0,
+    totalUsage: { costKnown: false },
+  }) as unknown as TokenUsageView;
 
 const conversation = { conversationId: 'convo-1', endpoint: 'openAI' } as TConversation;
 
@@ -74,73 +63,79 @@ const renderGauge = () =>
   render(<TokenUsage index={0} conversation={conversation} isSubmitting={false} />);
 
 const openCard = async () => {
-  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  const user = userEvent.setup();
   await user.click(screen.getByTestId('token-usage'));
   return screen.findByRole('dialog');
 };
 
 describe('TokenUsage gauge', () => {
   beforeEach(() => {
-    jest.useFakeTimers().setSystemTime(NOW);
-    mockBalance.mockReturnValue(balance);
     mockTokenUsage.mockReturnValue(usage(0));
-    mockBalanceQuery.mockReset();
+    mockBalanceQuery.mockReturnValue({ data: undefined, isError: false, isFetched: false });
   });
   afterEach(() => {
-    jest.useRealTimers();
     jest.clearAllMocks();
   });
 
-  it('stays hidden on a fresh chat when balance is off', () => {
-    mockStartupConfig.mockReturnValue(config({ balanceEnabled: false }));
+  it('keeps an empty ring on a fresh chat whose model window is known', async () => {
+    mockStartupConfig.mockReturnValue(config());
+    renderGauge();
+    expect(screen.getByRole('meter', { name: 'Context usage' })).toHaveAttribute(
+      'aria-valuenow',
+      '0',
+    );
+    expect(screen.queryByTestId('token-usage-readout')).not.toBeInTheDocument();
+    const card = await openCard();
+    expect(card).toHaveAccessibleName('Context usage');
+    expect(within(card).getByTestId('context-breakdown-stub')).toBeInTheDocument();
+  });
+
+  it('shows only the context, never the balance, the pack or buying credit', async () => {
+    mockStartupConfig.mockReturnValue(config());
+    mockTokenUsage.mockReturnValue(usage(83_200));
+    renderGauge();
+    expect(screen.getByTestId('token-usage')).toHaveAccessibleName(
+      'Context window: 83.2K of 200K tokens used (42%)',
+    );
+    const card = await openCard();
+    expect(within(card).getByTestId('context-breakdown-stub')).toBeInTheDocument();
+    expect(within(card).queryByTestId('balance-summary')).not.toBeInTheDocument();
+    expect(within(card).queryByTestId('balance-refill')).not.toBeInTheDocument();
+    expect(within(card).queryByRole('link')).not.toBeInTheDocument();
+    expect(mockBalanceQuery).not.toHaveBeenCalled();
+  });
+
+  it('stays hidden on a fresh chat when the model window is unknown', () => {
+    mockStartupConfig.mockReturnValue(config());
+    mockTokenUsage.mockReturnValue(usage(0, null));
     renderGauge();
     expect(screen.queryByTestId('token-usage')).not.toBeInTheDocument();
   });
 
-  it('shows the balance on a fresh chat when balance is on', async () => {
-    mockStartupConfig.mockReturnValue(config());
-    renderGauge();
-    const card = await openCard();
-    expect(within(card).getByTestId('balance-summary')).toBeInTheDocument();
-    expect(within(card).queryByTestId('context-breakdown-stub')).not.toBeInTheDocument();
-  });
-
-  it('places the balance below the context window', async () => {
-    mockStartupConfig.mockReturnValue(config());
-    mockTokenUsage.mockReturnValue(usage(83_200));
-    renderGauge();
-    const card = await openCard();
-    const context = within(card).getByTestId('context-breakdown-stub');
-    const summary = within(card).getByTestId('balance-summary');
-    expect(context.compareDocumentPosition(summary)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it('keeps a balance-only gauge when context usage is off, without reading context', async () => {
-    mockStartupConfig.mockReturnValue(config({ contextUsage: false, display: 'percent' }));
-    renderGauge();
+  it('mounts nothing when context usage is off, even with balance on', () => {
+    mockStartupConfig.mockReturnValue(config({ contextUsage: false }));
+    const { container } = renderGauge();
+    expect(container).toBeEmptyDOMElement();
     expect(mockTokenUsage).not.toHaveBeenCalled();
-    expect(screen.getByRole('meter', { name: 'Share of balance used' })).toHaveAttribute(
-      'aria-valuenow',
-      '38',
-    );
-    const card = await openCard();
-    expect(within(card).getByTestId('balance-value')).toHaveTextContent('38% used');
   });
 
-  it('reads an unknown display mode from an unvalidated override as credits', async () => {
-    mockStartupConfig.mockReturnValue(config({ display: 'dollars' }));
+  it('mounts nothing until the startup config loads', () => {
+    mockStartupConfig.mockReturnValue(undefined);
+    const { container } = renderGauge();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('works the same with balance off', async () => {
+    mockStartupConfig.mockReturnValue(config({ balanceEnabled: false }));
+    mockTokenUsage.mockReturnValue(usage(50_000));
     renderGauge();
+    expect(screen.getByTestId('token-usage-readout')).toHaveTextContent('25%');
     const card = await openCard();
-    expect(within(card).getByRole('heading', { name: 'Balance' })).toBeInTheDocument();
-    expect(within(card).getByTestId('balance-value')).toHaveTextContent('3,100,000 credits');
+    expect(within(card).getByTestId('context-breakdown-stub')).toBeInTheDocument();
   });
 
-  it('reads the context share and the chat cost beside the ring', () => {
-    const base = config({ balanceEnabled: false });
-    mockStartupConfig.mockReturnValue({
-      ...base,
-      interface: { ...base.interface, contextCost: true },
-    });
+  it('reads the context share and the chat cost beside the ring when cost is on', () => {
+    mockStartupConfig.mockReturnValue(config({ contextCost: true }));
     mockTokenUsage.mockReturnValue({
       ...usage(50_000),
       totalCost: 0.5,
@@ -154,7 +149,7 @@ describe('TokenUsage gauge', () => {
   });
 
   it('says under one percent rather than an empty window, and hides cost when it is off', () => {
-    mockStartupConfig.mockReturnValue(config({ balanceEnabled: false }));
+    mockStartupConfig.mockReturnValue(config());
     mockTokenUsage.mockReturnValue({
       ...usage(60),
       totalCost: 0.5,
@@ -169,6 +164,7 @@ describe('TokenUsage gauge', () => {
 
   it('keeps the card inside the viewport', async () => {
     mockStartupConfig.mockReturnValue(config());
+    mockTokenUsage.mockReturnValue(usage(1_000));
     renderGauge();
     const card = await openCard();
     expect(card).toHaveClass(
@@ -178,7 +174,7 @@ describe('TokenUsage gauge', () => {
     );
   });
 
-  it('sizes expanded context relative to the viewport without widening balance-only cards', async () => {
+  it('widens only an expanded card that has context to show', async () => {
     mockStartupConfig.mockReturnValue(config());
     mockTokenUsage.mockReturnValue(usage(83_200));
     const store = createStore();
@@ -201,94 +197,4 @@ describe('TokenUsage gauge', () => {
     );
     expect(screen.getByTestId('token-usage-card')).toHaveClass('w-72');
   });
-
-  it('tints the balance-only ring with the balance tone, amber until empty', () => {
-    mockStartupConfig.mockReturnValue(config({ contextUsage: false }));
-    mockBalance.mockReturnValue({ ...balance, tokenCredits: 400_000 });
-    renderGauge();
-    const meter = screen.getByRole('meter', { name: 'Share of balance used' });
-    expect(meter).toHaveAttribute('aria-valuenow', '92');
-    const ring = meter.querySelectorAll('circle')[1];
-    expect(ring).toHaveClass('stroke-status-warning');
-    expect(ring).not.toHaveClass('stroke-status-error');
-  });
-
-  it('exposes no valueless meter while the balance-only gauge has nothing to measure', () => {
-    mockBalance.mockReturnValue({ tokenCredits: 900, autoRefillEnabled: false });
-    mockStartupConfig.mockReturnValue({
-      ...config({ contextUsage: false, display: 'percent' }),
-      balance: { enabled: true, startBalance: 0, display: 'percent' },
-    });
-    renderGauge();
-    expect(screen.getByTestId('token-usage')).toBeInTheDocument();
-    expect(screen.queryByRole('meter')).not.toBeInTheDocument();
-  });
-
-  it('mounts nothing when both context usage and balance are off', () => {
-    mockStartupConfig.mockReturnValue(config({ balanceEnabled: false, contextUsage: false }));
-    const { container } = renderGauge();
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('agrees with the card when auto-refill is on but the refill amount is not positive', async () => {
-    mockStartupConfig.mockReturnValue(config());
-    mockBalance.mockReturnValue({ ...balance, refillAmount: 0 });
-    renderGauge();
-    const card = await openCard();
-    expect(within(card).getByTestId('balance-refill')).toHaveTextContent(
-      "Doesn't refill automatically",
-    );
-    const settings = render(<AutoRefill />);
-    expect(settings.container).toHaveTextContent('Auto-Refill is disabled.');
-    expect(settings.container).not.toHaveTextContent('Error loading auto-refill settings.');
-  });
-
-  it.each([
-    ['loading', { data: undefined, isError: false, isFetched: false }, 'auto-refill-loading'],
-    ['failed', { data: undefined, isError: true, isFetched: true }, 'alert'],
-  ] as const)(
-    'shows the auto-refill row %s on its own when settings search hides the balance row',
-    (_state, query, marker) => {
-      mockStartupConfig.mockReturnValue(config());
-      mockBalanceQuery.mockReturnValue(query);
-      const settings = render(<AutoRefill />);
-      const node =
-        marker === 'alert'
-          ? within(settings.container).getByRole('alert')
-          : within(settings.container).getByTestId(marker);
-      expect(node).toBeInTheDocument();
-      if (marker === 'alert') {
-        expect(node).toHaveTextContent('Error loading auto-refill settings.');
-      }
-    },
-  );
-
-  it.each(['credits', 'currency', 'percent'] as const)(
-    'shows the same %s reading in the gauge and in settings',
-    async (display) => {
-      mockStartupConfig.mockReturnValue(config({ display }));
-      renderGauge();
-      const card = await openCard();
-      const gauge = within(card).getByTestId('balance-summary').textContent;
-
-      const settings = render(
-        <>
-          <TokenCredits />
-          <AutoRefill />
-        </>,
-      );
-      const settingsSummary = within(settings.container).getByTestId('balance-summary');
-      expect(settingsSummary.textContent).toBe(gauge);
-
-      const refillRow = within(settings.container).queryByText('Refill Amount:');
-      if (display === 'percent') {
-        expect(refillRow).not.toBeInTheDocument();
-        expect(settings.container).not.toHaveTextContent(/5,000,000|\$5\.00/);
-      } else {
-        const amount = display === 'currency' ? '$5.00' : '5,000,000';
-        expect(refillRow?.nextElementSibling).toHaveTextContent(amount);
-        expect(gauge).toContain(`+${amount}`);
-      }
-    },
-  );
 });

@@ -5,14 +5,12 @@ import type { TConversation } from 'librechat-data-provider';
 import type { TokenUsageView } from '~/hooks/Chat/useTokenUsage';
 import type { CurrencyConfig } from '~/utils';
 import useCompactConversation, { supportsCompaction } from '~/hooks/Chat/useCompactConversation';
-import { useGetStartupConfig } from '~/data-provider';
-import Balance, { Summary as BalanceSummary } from '~/components/Balance';
-import useBalanceSummary from '~/hooks/useBalanceSummary';
 import useTokenUsage from '~/hooks/Chat/useTokenUsage';
 import { contextBreakdownExpandedAtom } from './store';
+import { useGetStartupConfig } from '~/data-provider';
 import CompactAction from './CompactAction';
-import { cn, formatTokens } from '~/utils';
 import { formatCost } from '~/utils/tokens';
+import { cn, formatTokens } from '~/utils';
 import { useLocalize } from '~/hooks';
 import UsagePopover from './Popover';
 import Breakdown from './Breakdown';
@@ -32,7 +30,7 @@ interface ContextCardProps {
   compactionAvailable: boolean;
 }
 
-/** The context half of the card. Mounted only while the card is open. */
+/** The card's content. Mounted only while the card is open. */
 function ContextCard({
   view,
   showCost,
@@ -62,6 +60,10 @@ function ContextCard({
   );
 }
 
+/**
+ * How full the conversation's context window is. Only the context: the balance, the pack and
+ * buying credit live in the account menu, so the composer ring is never read as money.
+ */
 function TokenUsageIndicator({
   index,
   conversation,
@@ -69,12 +71,10 @@ function TokenUsageIndicator({
   showCost,
   currency,
   compactionEnabled,
-  balanceEnabled,
 }: TokenUsageProps & {
   showCost: boolean;
   currency?: CurrencyConfig;
   compactionEnabled: boolean;
-  balanceEnabled: boolean;
 }) {
   const localize = useLocalize();
   const expanded = useAtomValue(contextBreakdownExpandedAtom);
@@ -82,34 +82,35 @@ function TokenUsageIndicator({
   /** Owned here, not in the popover: `unmountOnHide` would otherwise lose the
    *  in-flight state the moment the pointer leaves. */
   const compaction = useCompactConversation();
-  const compactionAvailable = compactionEnabled && supportsCompaction(conversation?.endpoint);
   const conversationId = conversation?.conversationId ?? '';
   const hasContext = view.usedTokens > 0;
+  const hasMax = view.maxTokens != null && view.maxTokens > 0;
+  const compactionAvailable =
+    hasContext && compactionEnabled && supportsCompaction(conversation?.endpoint);
 
-  /** Without balance, hide until the branch has data — keeps a fresh,
-   *  message-less chat clean and lets the indicator animate into view once the
-   *  first tokens land. With balance, the card always has something to show. */
-  if (!hasContext && !balanceEnabled) {
+  /** A fresh chat keeps an empty ring when the model's window is known, so the composer
+   *  buttons do not shift once the first tokens land. Without a known window there is
+   *  nothing to measure until the branch has data. */
+  if (!hasContext && !hasMax) {
     return null;
   }
 
-  const hasMax = view.maxTokens != null && view.maxTokens > 0;
-  let usageAriaLabel = localize('com_nav_balance');
-  if (hasContext) {
-    usageAriaLabel = hasMax
-      ? localize('com_ui_context_usage_label', {
-          0: formatTokens(view.usedTokens),
-          1: formatTokens(view.maxTokens ?? 0),
-          2: String(Math.round(view.percent)),
-        })
-      : localize('com_ui_context_usage_label_unknown', { 0: formatTokens(view.usedTokens) });
+  let usageAriaLabel = localize('com_ui_context_usage_label_unknown', {
+    0: formatTokens(view.usedTokens),
+  });
+  if (hasMax) {
+    usageAriaLabel = localize('com_ui_context_usage_label', {
+      0: formatTokens(view.usedTokens),
+      1: formatTokens(view.maxTokens ?? 0),
+      2: String(Math.round(view.percent)),
+    });
   }
   const ariaLabel = compaction.isCompacting
     ? localize('com_ui_context_compacting')
     : usageAriaLabel;
 
-  /** Beside the ring: how full the context window is, then what the chat has cost so far,
-   *  so the gauge reads without opening the card. */
+  /** Beside the ring: how full the context window is, then (when the deployment shows it)
+   *  what the chat has cost so far, so the gauge reads without opening the card. */
   let percentText: string | null = null;
   if (hasContext && hasMax) {
     /** A first short reply fills a fraction of a percent of a large window; "0%" would say
@@ -126,7 +127,7 @@ function TokenUsageIndicator({
     <UsagePopover
       resetKey={conversationId}
       label={ariaLabel}
-      cardLabel={localize(hasContext ? 'com_ui_context_usage' : 'com_nav_balance')}
+      cardLabel={localize('com_ui_context_usage')}
       busy={compaction.isCompacting}
       wide={hasReadout}
       trigger={(open) =>
@@ -166,65 +167,13 @@ function TokenUsageIndicator({
         )}
         data-testid="token-usage-card"
       >
-        {hasContext && (
-          <ContextCard
-            view={view}
-            showCost={showCost}
-            currency={currency}
-            compaction={compaction}
-            compactionAvailable={compactionAvailable}
-          />
-        )}
-        {balanceEnabled && (
-          <Balance className={hasContext ? 'border-border-light border-t pt-3' : undefined} />
-        )}
-      </div>
-    </UsagePopover>
-  );
-}
-
-/** The gauge for a deployment that turned context usage off but meters credits:
- *  its ring is the share of the balance allotment spent. */
-function BalanceIndicator({ conversationId }: { conversationId: string }) {
-  const localize = useLocalize();
-  const { state, currency } = useBalanceSummary();
-  if (state.status === 'empty') {
-    return null;
-  }
-  const summary = state.status === 'success' ? state.summary : null;
-  const usedPercent = summary?.usedPercent ?? null;
-  const label = localize('com_nav_balance');
-
-  return (
-    <UsagePopover
-      resetKey={conversationId}
-      label={label}
-      cardLabel={label}
-      busy={state.status === 'loading'}
-      trigger={() =>
-        /** A meter has no indeterminate state: until there is a share to report
-         *  (loading, failed, nothing to measure against) the ring is decoration
-         *  and the button's label carries the name. */
-        usedPercent != null ? (
-          <span
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={usedPercent}
-            aria-label={localize('com_ui_balance_used_label')}
-            className="flex items-center justify-center"
-          >
-            <Gauge percent={usedPercent} indeterminate={false} tone={summary?.tone} />
-          </span>
-        ) : (
-          <span aria-hidden="true" className="flex items-center justify-center">
-            <Gauge percent={0} indeterminate />
-          </span>
-        )
-      }
-    >
-      <div className="w-72 max-w-full">
-        <BalanceSummary state={state} currency={currency} />
+        <ContextCard
+          view={view}
+          showCost={showCost}
+          currency={currency}
+          compaction={compaction}
+          compactionAvailable={compactionAvailable}
+        />
       </div>
     </UsagePopover>
   );
@@ -236,14 +185,8 @@ const TokenUsage = memo(function TokenUsage(props: TokenUsageProps) {
   /** Wait for config before mounting: until it loads `contextUsage === false`
    *  reads as undefined, so a disabled deployment would briefly mount the
    *  indicator and fire the token-config query on first load */
-  if (startupConfig == null) {
+  if (startupConfig == null || startupConfig.interface?.contextUsage === false) {
     return null;
-  }
-  const balanceEnabled = startupConfig.balance?.enabled === true;
-  if (startupConfig.interface?.contextUsage === false) {
-    return balanceEnabled ? (
-      <BalanceIndicator conversationId={props.conversation?.conversationId ?? ''} />
-    ) : null;
   }
   return (
     <TokenUsageIndicator
@@ -255,7 +198,6 @@ const TokenUsage = memo(function TokenUsage(props: TokenUsageProps) {
        *  (a cached config from an older release) must not receive the request,
        *  which it would run as an empty, billed ordinary turn. */
       compactionEnabled={startupConfig.compactionEnabled === true}
-      balanceEnabled={balanceEnabled}
     />
   );
 });

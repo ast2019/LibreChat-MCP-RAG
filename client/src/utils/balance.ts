@@ -109,6 +109,30 @@ export function summarizeBalance(
   };
 }
 
+export interface PackRemaining {
+  /** Whole percent of the granted pack still left, 0–100 */
+  percent: number;
+  tone: BalanceTone;
+}
+
+/**
+ * What is left of the user's granted pack, or null when no pack measures it (the sign-up
+ * gift, a trial, auto-refill only), so the account ring never claims a pack the user has
+ * not bought.
+ */
+export function getPackRemaining(
+  balance: TBalanceResponse | undefined,
+  summary: BalanceSummary | null,
+): PackRemaining | null {
+  if (balance == null || summary == null || positive(balance.packAllotment) == null) {
+    return null;
+  }
+  if (summary.usedPercent == null) {
+    return null;
+  }
+  return { percent: 100 - summary.usedPercent, tone: summary.tone };
+}
+
 /** A credit amount in the configured display: money for `currency` and `pack`, whole
  *  credits otherwise. */
 export function formatBalanceAmount(
