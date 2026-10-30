@@ -105,6 +105,7 @@ const {
   validateAndParseOpenAPISpec,
   resolveMCPAppsPolicy,
   MEDIA_TOOL_NAMES,
+  PERSIAN_TOOL_NAMES,
 } = require('librechat-data-provider');
 const {
   createActionTool,
@@ -783,6 +784,7 @@ const nativeTools = new Set([
   Tools.web_search,
   Tools.memory,
   ...MEDIA_TOOL_NAMES,
+  ...PERSIAN_TOOL_NAMES,
 ]);
 
 const mcpServerPinPrefix = `${Constants.mcp_server}${Constants.mcp_delimiter}`;

@@ -20,6 +20,9 @@ interface MemoryCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
   triggerRef?: React.MutableRefObject<HTMLButtonElement | null>;
+  /** Prefills the fields each time the dialog opens, e.g. a preference from message feedback */
+  initialKey?: string;
+  initialValue?: string;
 }
 
 export default function MemoryCreateDialog({
@@ -27,6 +30,8 @@ export default function MemoryCreateDialog({
   onOpenChange,
   children,
   triggerRef,
+  initialKey = '',
+  initialValue = '',
 }: MemoryCreateDialogProps) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
@@ -60,18 +65,16 @@ export default function MemoryCreateDialog({
     },
   });
 
-  const [key, setKey] = useState('');
-  const [value, setValue] = useState('');
+  const [key, setKey] = useState(initialKey);
+  const [value, setValue] = useState(initialValue);
   const [touched, setTouched] = useState({ key: false, value: false });
   const [prevOpen, setPrevOpen] = useState(open);
 
   if (open !== prevOpen) {
     setPrevOpen(open);
-    if (!open) {
-      setKey('');
-      setValue('');
-      setTouched({ key: false, value: false });
-    }
+    setKey(open ? initialKey : '');
+    setValue(open ? initialValue : '');
+    setTouched({ key: false, value: false });
   }
 
   const keyError = getMemoryKeyError({ key, memories: memData?.memories });

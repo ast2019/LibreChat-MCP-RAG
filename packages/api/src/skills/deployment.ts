@@ -386,6 +386,11 @@ export function getDeploymentSkillById(id: SkillId): DeploymentSkill | null {
   return registry.getById(id);
 }
 
+/** A loaded deployment skill by name, without an access check; callers check scope. */
+export function getDeploymentSkillByName(name: string): DeploymentSkill | null {
+  return registry.list().find((skill) => skill.name === name) ?? null;
+}
+
 export async function getDeploymentSkillDownloadStream(
   filepath: string,
 ): Promise<NodeJS.ReadableStream> {
@@ -712,6 +717,7 @@ export async function loadSkillFromDirectory(
   }
 
   const derived = deriveStructuredFrontmatterFields(frontmatter);
+  const displayTitle = readDisplayTitle(frontmatter, skillDirectory.relativeDirectory);
   const skillId = stableObjectId(`${identity.idNamespace ?? 'deployment-skill'}:${name}`);
   const files = await loadDeploymentSkillFiles({
     skillId,
@@ -722,6 +728,7 @@ export async function loadSkillFromDirectory(
   return {
     _id: skillId,
     name,
+    ...(displayTitle !== undefined && { displayTitle }),
     description,
     body: content,
     frontmatter,
@@ -744,6 +751,28 @@ export async function loadSkillFromDirectory(
     updatedAt: stat.mtime,
     ...derived,
   };
+}
+
+/** Same ceiling the Skill schema puts on `displayTitle`. */
+const DISPLAY_TITLE_MAX = 128;
+
+/** `display-title` from the frontmatter: the name pickers show, e.g. in Persian. */
+function readDisplayTitle(
+  frontmatter: Record<string, unknown>,
+  relativeDirectory: string,
+): string | undefined {
+  const raw = frontmatter['display-title'];
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return undefined;
+  }
+  const title = raw.trim();
+  if (title.length > DISPLAY_TITLE_MAX) {
+    logger.warn(
+      `[deploymentSkills] ${relativeDirectory}/${SKILL_MD}: display-title is longer than ${DISPLAY_TITLE_MAX} characters and was ignored`,
+    );
+    return undefined;
+  }
+  return title;
 }
 
 async function loadDeploymentSkillFiles({

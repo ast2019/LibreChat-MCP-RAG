@@ -3,8 +3,8 @@ import type { ServerRequest } from '~/types';
 import type { MediaToolDeps } from './tools';
 import { checkMediaAccess, getChatMediaTools, getMediaConfig } from './config';
 import { generateHiggsfield, generateOpenRouterVideo } from './providers';
-import { createMediaTools } from './tools';
 import { createMediaJobRunner } from './jobs';
+import { createMediaTools } from './tools';
 
 const mediaGeneration = {
   enabled: true,
@@ -257,6 +257,8 @@ describe('background video jobs', () => {
       type: 'tool_call',
     });
     expect(JSON.stringify(message.content)).toContain('/api/media/jobs/job7');
+    /** The chat draws the card from the result; the model is told not to repeat the link. */
+    expect(JSON.stringify(message.content)).toContain('do not write any link');
     expect(createMediaJob).toHaveBeenCalledWith(
       expect.objectContaining({
         providerJobId: 'or-job',

@@ -51,6 +51,7 @@ import MemoryArtifacts, { hasMemoryArtifacts } from './MemoryArtifacts';
 import { hasParallelLanes, parallelLaneGroups } from '~/utils/lanes';
 import { useMCPAppsPolicy } from '~/Providers/MCPAppsPolicyContext';
 import { selectToolCallUIResources } from '~/utils/mcpApps';
+import { collectToolMediaJobIds } from '~/utils/mediaJobs';
 import PendingSkillCall from './Parts/PendingSkillCall';
 import ActivityPhaseGroup from './ActivityPhaseGroup';
 import { hasPendingApprovalInPart } from '~/utils';
@@ -1352,6 +1353,8 @@ const ContentPartsBody = memo(function ContentPartsBody({
   return <ApprovalProvider>{sequentialContent}</ApprovalProvider>;
 });
 
+const NO_MEDIA_JOBS: ReadonlySet<string> = new Set();
+
 const ContentParts = memo(function ContentParts(props: ContentPartsProps) {
   const { enabled: appsEnabled } = useMCPAppsPolicy();
   const {
@@ -1615,7 +1618,20 @@ const ContentParts = memo(function ContentParts(props: ContentPartsProps) {
    *  itself referentially stable there, so a churning array cannot push a new
    *  value at every markdown block in the message. */
   const attachmentsByName = useMemo(() => buildAttachmentsByName(attachments), [attachments]);
-  const media = useMemo(() => ({ attachmentsByName }), [attachmentsByName]);
+  /** Keyed by the ids themselves, not by `content`: every streamed delta is a new
+   *  `content`, and a new set each time would re-render every markdown block. */
+  const toolMediaJobKey = useMemo(
+    () => [...collectToolMediaJobIds(props.content)].sort().join(','),
+    [props.content],
+  );
+  const toolMediaJobIds = useMemo<ReadonlySet<string>>(
+    () => (toolMediaJobKey === '' ? NO_MEDIA_JOBS : new Set(toolMediaJobKey.split(','))),
+    [toolMediaJobKey],
+  );
+  const media = useMemo(
+    () => ({ attachmentsByName, toolMediaJobIds }),
+    [attachmentsByName, toolMediaJobIds],
+  );
   return (
     <MessageContext.Provider value={messageContext}>
       <MediaContext.Provider value={media}>

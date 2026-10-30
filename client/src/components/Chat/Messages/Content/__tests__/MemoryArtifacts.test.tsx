@@ -24,6 +24,11 @@ jest.mock('~/hooks', () => ({
   }),
 }));
 
+jest.mock('../MemoryLink', () => ({
+  __esModule: true,
+  default: () => <button type="button" data-testid="memory-view-link" />,
+}));
+
 // Mock the MemoryInfo component
 jest.mock('../MemoryInfo', () => ({
   __esModule: true,
@@ -204,12 +209,14 @@ describe('MemoryArtifacts', () => {
       // Initially collapsed
       expect(screen.queryByTestId('memory-info')).not.toBeInTheDocument();
 
+      const toggle = screen.getByRole('button', { name: 'Updated saved memory' });
+
       // Click to expand
-      fireEvent.click(screen.getByRole('button'));
+      fireEvent.click(toggle);
       expect(screen.getByTestId('memory-info')).toBeInTheDocument();
 
       // Click to collapse
-      fireEvent.click(screen.getByRole('button'));
+      fireEvent.click(toggle);
       expect(screen.queryByTestId('memory-info')).not.toBeInTheDocument();
     });
 
@@ -262,5 +269,18 @@ describe('MemoryArtifacts', () => {
       expect(button).toHaveClass('text-status-error');
       expect(screen.getByText('Memory Error')).toBeInTheDocument();
     });
+  });
+});
+
+describe('MemoryArtifacts memory link', () => {
+  it('offers the memory panel once the card is opened', () => {
+    const attachment = {
+      type: Tools.memory,
+      [Tools.memory]: { type: 'update', key: 'preferences', value: 'short answers' },
+    } as unknown as TAttachment;
+    render(<MemoryArtifacts attachments={[attachment]} />);
+    expect(screen.queryByTestId('memory-view-link')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Updated saved memory' }));
+    expect(screen.getByTestId('memory-view-link')).toBeInTheDocument();
   });
 });

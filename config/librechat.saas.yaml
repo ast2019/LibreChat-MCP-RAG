@@ -82,7 +82,10 @@ interface:
   # Lia is LibreChat's welcome-screen mascot; it does not belong to the HiveGPT brand.
   mascot: false
   # Builder / operator features stay off for end users: adding their own MCP servers, authoring
-  # Skills, the build-info panel. The programming API (remoteAgents) is off for the role; turn it on
+  # Skills, the build-info panel. Using Skills is on, for the deployment skills shipped in `skill/`
+  # (Persian calendar, orthography, content). `permissionSync: 'seed'` leaves an existing USER role
+  # as stored, so on a running deployment turn it on there («دسترسی کاربران» → مهارت‌ها).
+  # The programming API (remoteAgents) is off for the role; turn it on
   # for everyone on the admin page («دسترسی کاربران» → API) or per user in the users list. `use` is on so
   # users can pick the servers configured below (`mcpServers:`, e.g. Higgsfield) in the composer.
   # With `permissionSync: 'seed'` an existing deployment also turns it on for the USER role on the
@@ -93,7 +96,7 @@ interface:
     share: false
     public: false
   skills:
-    use: false
+    use: true
     create: false
     share: false
     public: false
@@ -249,6 +252,17 @@ memory:
       VALID KEYS: profile, preferences, work, goals, context
       TOKEN LIMIT: Maximum 2000 tokens across all memory values.
       If nothing in the latest messages is worth remembering, end the turn without any tool call.
+
+# Deterministic Persian date and spelling tools (`persian_calendar`, `persian_normalize`).
+# The fixed Solar Hijri holidays are built in. The lunar ones move every year with the moon
+# sighting, so add each year's official list here once it is published, one entry per day with
+# the Solar Hijri date in Latin digits:
+#   holidays:
+#     - { date: 'YYYY-MM-DD', title: 'عنوان تعطیلی' }
+persianTools:
+  chat: true
+  timezone: 'Asia/Tehran'
+  holidays: []
 
 webSearch:
   # Paid Google results first; when one provider's plan runs out (or it rejects its key) the
@@ -424,6 +438,7 @@ endpoints:
       - context
       - tools
       - memory
+      - skills
   custom:
     # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
     - name: 'OpenRouter'

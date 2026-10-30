@@ -285,6 +285,8 @@ const ALLOWED_FRONTMATTER_KEYS = new Set<string>([
   'compatibility',
   'metadata',
   'references',
+  /** LibreChat: the human-friendly title a deployment skill shows in pickers (`displayTitle`) */
+  'display-title',
 ]);
 
 const CANONICAL_FRONTMATTER_KEYS = new Map(
@@ -343,6 +345,7 @@ const FRONTMATTER_KIND: Record<string, FrontmatterKind | FrontmatterKind[]> = {
   version: 'string',
   license: 'string',
   compatibility: 'string',
+  'display-title': 'string',
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

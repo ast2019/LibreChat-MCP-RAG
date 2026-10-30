@@ -43,7 +43,7 @@ export const mediaToolDefinitions: Record<MediaTools, MediaToolDefinition> = {
   },
   [MediaTools.video]: {
     name: MediaTools.video,
-    description: `Generates a short video clip from a description, optionally starting from an image. ${shared} It takes one to several minutes and costs much more than an image, so only call it when the user clearly asked for a video. Put the returned markdown link in your reply exactly as given; it plays inside the chat.`,
+    description: `Generates a short video clip from a description, optionally starting from an image. ${shared} It takes one to several minutes and costs much more than an image, so only call it when the user clearly asked for a video. The chat shows the video as a card by itself and plays it there; do not write a link to it.`,
     schema: {
       type: 'object',
       properties: {

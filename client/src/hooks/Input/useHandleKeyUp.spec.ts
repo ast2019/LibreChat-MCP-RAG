@@ -415,8 +415,30 @@ describe('useHandleKeyUp', () => {
   });
 
   describe('permission gating', () => {
-    it('does NOT trigger slash command without PROMPTS access', () => {
+    it('does NOT trigger slash command without PROMPTS access or skills', () => {
       mockHasPromptsAccess.current = false;
+      mockHasSkillsAccess.current = false;
+      const ref = makeTextAreaRef('/', 1);
+      const { handleKeyUp, setShowPromptsPopover } = renderUseHandleKeyUp(ref);
+
+      act(() => handleKeyUp(makeKeyEvent('/')));
+
+      expect(setShowPromptsPopover).not.toHaveBeenCalled();
+    });
+
+    it('opens the slash menu for skills alone when the role has no PROMPTS access', () => {
+      mockHasPromptsAccess.current = false;
+      const ref = makeTextAreaRef('/', 1);
+      const { handleKeyUp, setShowPromptsPopover } = renderUseHandleKeyUp(ref);
+
+      act(() => handleKeyUp(makeKeyEvent('/')));
+
+      expect(setShowPromptsPopover).toHaveBeenCalledWith(true);
+    });
+
+    it('keeps the slash menu closed for skills alone when the endpoint offers no skills', () => {
+      mockHasPromptsAccess.current = false;
+      mockSkillsEnabled.current = false;
       const ref = makeTextAreaRef('/', 1);
       const { handleKeyUp, setShowPromptsPopover } = renderUseHandleKeyUp(ref);
 

@@ -101,6 +101,12 @@ jest.mock('~/components/Chat/Rename', () => ({
   __esModule: true,
   default: () => <div data-testid="rename-dialog" />,
 }));
+jest.mock('~/components/Chat/Outputs/Dialog', () => ({
+  __esModule: true,
+  default: ({ conversationId }: { conversationId: string }) => (
+    <div data-testid="outputs-dialog">{conversationId}</div>
+  ),
+}));
 jest.mock('../useExportShare', () => ({
   __esModule: true,
   default: () => ({
@@ -171,6 +177,7 @@ describe('useChatOptions', () => {
     expect(labels(result.current.items)).toEqual([
       'share',
       'export',
+      'com_ui_outputs',
       'com_ui_rename',
       'com_ui_pin',
       'com_ui_change_project',
@@ -189,7 +196,7 @@ describe('useChatOptions', () => {
   it('keeps the dialog-opening items open and anchored so their dialogs can restore focus', () => {
     const { result } = setup();
 
-    for (const label of ['com_ui_rename', 'com_ui_delete']) {
+    for (const label of ['com_ui_outputs', 'com_ui_rename', 'com_ui_delete']) {
       const item = find(result.current.items, label);
       expect(item.hideOnClick).toBe(false);
       expect(item.ref).toBeDefined();
@@ -595,6 +602,7 @@ describe('useChatOptions', () => {
     expect(labels(result.current.items)).toEqual([
       'share',
       'export',
+      'com_ui_outputs',
       'com_ui_rename',
       'com_ui_duplicate',
       'com_ui_delete',
@@ -612,6 +620,27 @@ describe('useChatOptions', () => {
       ariaHasPopup: 'dialog',
       ariaControls: 'delete-conversation-dialog',
     });
+  });
+
+  it('opens the outputs of the open chat and drops them when another chat opens', () => {
+    const { result, rerender } = setup();
+
+    expect(find(result.current.items, 'com_ui_outputs')).toMatchObject({ ariaHasPopup: 'dialog' });
+    act(() => find(result.current.items, 'com_ui_outputs').onClick?.({} as never));
+    const { rerender: rerenderDialogs } = render(<>{result.current.dialogs}</>);
+    expect(screen.getByTestId('outputs-dialog')).toHaveTextContent('convo-1');
+
+    mockState.conversation = { conversationId: 'convo-2', title: 'Other' };
+    rerender();
+    rerenderDialogs(<>{result.current.dialogs}</>);
+
+    expect(screen.queryByTestId('outputs-dialog')).not.toBeInTheDocument();
+  });
+
+  it('leaves the outputs out of a read-only thread', () => {
+    const { result } = setup(true);
+
+    expect(labels(result.current.items)).not.toContain('com_ui_outputs');
   });
 
   it('closes an open dialog when another chat becomes the open one', () => {

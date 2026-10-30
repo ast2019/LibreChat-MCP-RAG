@@ -1,4 +1,4 @@
-import { useState, memo, useRef } from 'react';
+import { useState, memo, useRef, useId } from 'react';
 import { useSetAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
@@ -21,16 +21,18 @@ import {
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
+import { InviteDialog, InviteMenuItem } from '~/components/Referral';
+import { openInNewTab, policyUrls, getPackRemaining } from '~/utils';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
 import { InstallDialog, InstallMenuItem } from '~/components/Pwa';
-import { InviteDialog, InviteMenuItem } from '~/components/Referral';
+import { usePurchaseTarget } from '~/components/Balance/Purchase';
+import useBalanceSummary from '~/hooks/useBalanceSummary';
 import { MediaToolsDialog } from '~/components/Media';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
-import { openInNewTab, policyUrls } from '~/utils';
+import PackRing from '~/components/Balance/Ring';
 import { settingsOpenAtom } from './Settings';
 import Balance from '~/components/Balance';
-import { usePurchaseTarget } from '~/components/Balance/Purchase';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -121,6 +123,12 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const [showInvite, setShowInvite] = useState(false);
   const [showMediaTools, setShowMediaTools] = useState(false);
   const purchase = usePurchaseTarget();
+  const { state: balanceState, balance } = useBalanceSummary();
+  const pack = getPackRemaining(
+    balance,
+    balanceState.status === 'success' ? balanceState.summary : null,
+  );
+  const packDescriptionId = useId();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
@@ -130,6 +138,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
       <Menu.MenuButton
         ref={accountSettingsButtonRef}
         aria-label={localize('com_nav_account_settings')}
+        aria-describedby={pack != null ? packDescriptionId : undefined}
         data-testid="nav-user"
         className={
           collapsed
@@ -137,11 +146,24 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
             : 'hover:bg-surface-nav-hover aria-[expanded=true]:bg-surface-nav-selected flex h-auto w-full items-center gap-2 rounded-xl p-2 text-sm transition-all duration-200 ease-in-out'
         }
       >
-        <div className={collapsed ? 'size-7 shrink-0' : 'h-8 w-8 shrink-0'}>
-          <div className="relative flex">
-            <Avatar user={user} size={collapsed ? 28 : 32} />
+        {pack != null ? (
+          /** The ring takes the avatar's place at the same outer size, so the button and the
+           *  rail do not move when a pack is granted or runs out. */
+          <PackRing percent={pack.percent} tone={pack.tone}>
+            <Avatar user={user} size={collapsed ? 24 : 26} />
+          </PackRing>
+        ) : (
+          <div className={collapsed ? 'size-7 shrink-0' : 'h-8 w-8 shrink-0'}>
+            <div className="relative flex">
+              <Avatar user={user} size={collapsed ? 28 : 32} />
+            </div>
           </div>
-        </div>
+        )}
+        {pack != null && (
+          <span id={packDescriptionId} className="sr-only">
+            {localize('com_ui_balance_pack_remaining', { 0: String(pack.percent) })}
+          </span>
+        )}
         {!collapsed && (
           <div className="text-text-primary grow overflow-hidden text-start text-ellipsis whitespace-nowrap">
             {user?.name ?? user?.username ?? localize('com_nav_user')}

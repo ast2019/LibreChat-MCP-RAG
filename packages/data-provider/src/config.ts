@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { ZodError } from 'zod';
 import type { TEndpointsConfig, TModelsConfig, TConfig } from './types';
 import type { TPaymentsStartupConfig } from './payments';
+import type { TReferralStartupConfig } from './referral';
 import {
   MAX_SUBAGENTS,
   MAX_SUBAGENTS_CEILING,
@@ -42,9 +43,9 @@ import {
 } from './types/scheduleConsent';
 import { paymentsConfigSchema } from './payments';
 import { referralConfigSchema } from './referral';
-import { mediaGenerationSchema } from './media';
-import type { TReferralStartupConfig } from './referral';
 import { phoneLoginConfigSchema } from './phone';
+import { mediaGenerationSchema } from './media';
+import { persianToolsSchema } from './persian';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -4734,6 +4735,8 @@ export const configSchema = z.object({
   referral: referralConfigSchema.optional(),
   /** In-chat image, video and speech generation billed to the user's credit. */
   mediaGeneration: mediaGenerationSchema.optional(),
+  /** The Persian calendar and spelling tools, and the year's official lunar holidays. */
+  persianTools: persianToolsSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({

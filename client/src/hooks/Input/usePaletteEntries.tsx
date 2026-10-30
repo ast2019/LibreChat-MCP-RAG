@@ -43,7 +43,7 @@ import { ephemeralAgentByConvoId } from '~/store';
 import { favoriteKey } from './useToolFavorites';
 import useLocalize from '~/hooks/useLocalize';
 
-export type PaletteSection = 'tool' | 'skill' | 'mcp';
+export type PaletteSection = 'tool' | 'create' | 'skill' | 'mcp';
 
 /**
  * One selectable row in the composer palette. Tools, skills and MCP servers are
@@ -74,6 +74,9 @@ export interface PaletteEntry {
   pinned: boolean;
   /** Temporary catalog placeholders do not have a durable favorite identity. */
   favoritable?: boolean;
+  /** Picking the row hands off to the composer or a dialog, so it closes the palette
+   *  instead of staying open as a toggle does. */
+  dismiss?: boolean;
   onSelect: () => void;
   /** Removes a persistent pin without changing the tool's active state. */
   onUnpin?: () => void;

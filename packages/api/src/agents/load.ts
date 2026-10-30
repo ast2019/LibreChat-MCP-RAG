@@ -29,6 +29,7 @@ import { synthesizeBackgroundToolOptions } from '~/agents/background';
 import { mergeSynthesizedToolOptions } from '~/agents/selection';
 import { synthesizeIntentToolOptions } from '~/agents/intent';
 import { getCustomEndpointConfig } from '~/app/config';
+import { getChatPersianTools } from '~/persian/config';
 import { getChatMediaTools } from '~/media/config';
 
 const { mcp_all, mcp_delimiter } = Constants;
@@ -157,6 +158,8 @@ export async function loadEphemeralAgent(
   /** Image, video and speech generation the model can call in any chat; whether the user may
    *  generate (a pack, or an admin's switch) is checked when a tool runs. */
   tools.push(...getChatMediaTools(req.config, req.user, modelSpec));
+  /** Exact dates and Persian spelling fixes, so the model never works them out itself. */
+  tools.push(...getChatPersianTools(req.config, modelSpec));
 
   const addedServers = new Set<string>();
   if (mcpServers.size > 0) {

@@ -106,14 +106,16 @@ const useHandleKeyUp = ({
     }
   }, [textAreaRef, setShowPlusPopover, plusCommandEnabled, hasMultiConvoAccess, endpoint]);
 
+  /** The `/` menu lists prompts and skills, so it opens when either is available. */
+  const skillsAvailable = hasSkillsAccess && skillsEnabled && !isAssistantsEndpoint(endpoint);
   const handlePromptsCommand = useCallback(() => {
-    if (!hasPromptsAccess || !slashCommandEnabled) {
+    if ((!hasPromptsAccess && !skillsAvailable) || !slashCommandEnabled) {
       return;
     }
     if (shouldTriggerCommand(textAreaRef, '/')) {
       setShowPromptsPopover(true);
     }
-  }, [textAreaRef, hasPromptsAccess, setShowPromptsPopover, slashCommandEnabled]);
+  }, [textAreaRef, hasPromptsAccess, skillsAvailable, setShowPromptsPopover, slashCommandEnabled]);
 
   const handleSkillsCommand = useCallback(() => {
     if (
