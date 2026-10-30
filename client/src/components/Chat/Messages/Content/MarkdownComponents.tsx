@@ -19,8 +19,8 @@ import CodeBlock from '~/components/Messages/Content/CodeBlock';
 import useHasAccess from '~/hooks/Roles/useHasAccess';
 import { strongDirection } from '~/utils/direction';
 import { useFileDownload } from '~/data-provider';
-import MediaJob from './MediaJob';
 import { useLocalize } from '~/hooks';
+import MediaJob from './MediaJob';
 
 type TCodeProps = {
   inline?: boolean;
@@ -146,6 +146,7 @@ export function getAudioLinkSource(href?: string | null): string | null {
 
 export const a: React.ElementType = memo(function MarkdownAnchor({ href, children }: TAnchorProps) {
   const { useUser, useToast } = useMessagePartsHost();
+  const { toolMediaJobIds } = useMediaContext();
   const user = useUser();
   const showToast = useToast();
   const localize = useLocalize();
@@ -172,6 +173,11 @@ export const a: React.ElementType = memo(function MarkdownAnchor({ href, childre
 
   const mediaJobId = href?.match(MEDIA_JOB_LINK_PATTERN)?.[1];
   if (mediaJobId) {
+    /* The `generate_video` call already draws this job's card; a link the model
+       also wrote would draw the same video a second time. */
+    if (toolMediaJobIds?.has(mediaJobId.toLowerCase()) === true) {
+      return null;
+    }
     return <MediaJob jobId={mediaJobId} />;
   }
 
@@ -201,6 +207,8 @@ export const a: React.ElementType = memo(function MarkdownAnchor({ href, childre
      *  `media-src` does not allow the video's host (`CSP_MEDIA_SRC_EXTRA`). */
     return (
       <span className="my-2 flex max-w-xl flex-col gap-1">
+        {/* A linked video carries no caption file; what it shows is described in the message. */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           controls
           playsInline

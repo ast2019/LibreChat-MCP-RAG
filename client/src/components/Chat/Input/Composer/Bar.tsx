@@ -6,12 +6,14 @@ import type { TConversation, EModelEndpoint, EndpointFileConfig } from 'librecha
 import type { PaletteEntry, PaletteMode } from '~/hooks/Input/usePaletteEntries';
 import type { Dictation } from '~/hooks/Input/useDictation';
 import type { ExtendedFile, FileSetter } from '~/common';
+import { useBadgeRowContext, useOptionalChatFormContext } from '~/Providers';
 import usePaletteEntries from '~/hooks/Input/usePaletteEntries';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
+import useCreateEntries from '~/hooks/Input/useCreateEntries';
 import useToolFavorites from '~/hooks/Input/useToolFavorites';
 import useElementSize from '~/hooks/Generic/useElementSize';
 import useChipPacking from '~/hooks/Input/useChipPacking';
-import { useBadgeRowContext } from '~/Providers';
+import { MediaToolsDialog } from '~/components/Media';
 import TokenUsage from '../TokenUsage';
 import { useLocalize } from '~/hooks';
 import Thinking from './Thinking';
@@ -264,9 +266,42 @@ function Bar({
      lives here rather than in the palette so dismissing the popover mid-config
      does not unmount the dialog. */
   const mcpConfigProps = context?.mcpServerManager?.getConfigDialogProps();
+
+  /* «ساختن»: the chat model makes images, videos and audio itself whenever it is
+     asked, so these rows only start the request in the composer. Ordinary chats
+     only: agents and confidential specs carry their own tool set. */
+  const form = useOptionalChatFormContext();
+  const [showMediaTools, setShowMediaTools] = useState(false);
+  const compose = useCallback(
+    (starter: string) => {
+      if (form == null) {
+        return;
+      }
+      const current = form.getValues('text') ?? '';
+      const next = current.trim() === '' ? starter : `${starter}${current}`;
+      form.setValue('text', next, { shouldDirty: true, shouldValidate: true });
+      requestAnimationFrame(() => {
+        const textarea = anchorRef.current?.querySelector<HTMLTextAreaElement>(
+          'textarea[data-testid="text-input"]',
+        );
+        textarea?.focus();
+        textarea?.setSelectionRange(next.length, next.length);
+      });
+    },
+    [form, anchorRef],
+  );
+  const showAllMedia = useCallback(() => setShowMediaTools(true), []);
+  const createEntries = useCreateEntries({
+    enabled: showTools && catalogWanted,
+    onCompose: compose,
+    onShowAll: showAllMedia,
+  });
   /* `usePaletteEntries` already returns nothing once `enabled` is false, so the
      gate lives in one place rather than being re-applied to its result here. */
-  const entries = allEntries;
+  const entries = useMemo(
+    () => (createEntries.length > 0 ? [...allEntries, ...createEntries] : allEntries),
+    [allEntries, createEntries],
+  );
 
   /* Catalog skills are excluded: a picked skill is staged context for the next
      turn, so it belongs in the tray above the textarea with files and quotes.
@@ -531,6 +566,13 @@ function Bar({
           {...mcpConfigProps}
           conversationId={conversationId}
           storageContextKey={context?.storageContextKey}
+        />
+      )}
+      {showMediaTools && (
+        <MediaToolsDialog
+          open={showMediaTools}
+          onOpenChange={setShowMediaTools}
+          triggerRef={anchorRef}
         />
       )}
     </div>

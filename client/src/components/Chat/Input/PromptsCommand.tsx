@@ -3,7 +3,8 @@ import { AutoSizer, List } from 'react-virtualized';
 import { useSetRecoilState, useRecoilValue } from 'recoil';
 import { Input, Spinner, useCombobox, useRemScale } from '@librechat/client';
 import type { TPromptGroup } from 'librechat-data-provider';
-import type { PromptOption } from '~/common';
+import type { MentionOption, PromptOption } from '~/common';
+import { useSkillOptions, useSkillsCommandAvailable } from './skillOptions';
 import useInitPopoverInput from '~/hooks/Input/useInitPopoverInput';
 import { removeCharIfLast, detectVariables } from '~/utils';
 import { useRecordPromptUsage } from '~/data-provider';
@@ -53,14 +54,22 @@ const PopoverContainer = memo(
 
 const ROW_HEIGHT = 44;
 
+/**
+ * The `/` menu: the user's prompts and, where skills are on, the skills they can invoke, so
+ * `/تقویم` finds the calendar skill by its title. Without prompt access it lists skills only.
+ */
 function PromptsCommand({
   index,
   textAreaRef,
   submitPrompt,
+  conversationId = '',
+  agentId,
 }: {
   index: number;
   textAreaRef: React.MutableRefObject<HTMLTextAreaElement | null>;
   submitPrompt: (textPrompt: string) => void;
+  conversationId?: string;
+  agentId?: string | null;
 }) {
   const localize = useLocalize();
   const remScale = useRemScale();
@@ -77,12 +86,23 @@ function PromptsCommand({
   const [variableGroup, setVariableGroup] = useState<TPromptGroup | null>(null);
   const setShowPromptsPopover = useSetRecoilState(store.showPromptsPopoverFamily(index));
 
+  const skillsAvailable = useSkillsCommandAvailable(index);
+  const skills = useSkillOptions({
+    conversationId,
+    agentId,
+    enabled: skillsAvailable && showPromptsPopover,
+  });
+
   const prompts = useMemo(() => data?.promptGroups, [data]);
   const promptsMap = useMemo(() => data?.promptsMap, [data]);
+  const options = useMemo(
+    () => [...(skillsAvailable ? skills.options : []), ...(hasAccess ? (prompts ?? []) : [])],
+    [skillsAvailable, skills.options, hasAccess, prompts],
+  );
 
   const { open, setOpen, searchValue, setSearchValue, matches } = useCombobox({
     value: '',
-    options: prompts ?? [],
+    options,
   });
 
   const initInputRef = useInitPopoverInput({
@@ -93,8 +113,9 @@ function PromptsCommand({
     setOpen,
   });
 
+  const selectSkill = skills.select;
   const handleSelect = useCallback(
-    (mention?: PromptOption, e?: React.KeyboardEvent<HTMLInputElement>) => {
+    (mention?: PromptOption | MentionOption, e?: React.KeyboardEvent<HTMLInputElement>) => {
       if (!mention) {
         return;
       }
@@ -105,6 +126,18 @@ function PromptsCommand({
 
       if (textAreaRef.current) {
         removeCharIfLast(textAreaRef.current, commandChar);
+      }
+
+      if (mention.type === 'skill') {
+        if (e && e.key === 'Tab') {
+          e.preventDefault();
+        }
+        selectSkill(mention.value);
+        textAreaRef.current?.focus();
+        return;
+      }
+      if (!('id' in mention) || typeof mention.id !== 'string') {
+        return;
       }
 
       const group = promptsMap?.[mention.id];
@@ -135,6 +168,7 @@ function PromptsCommand({
       promptsMap,
       submitPrompt,
       recordUsage,
+      selectSkill,
     ],
   );
 
@@ -151,10 +185,10 @@ function PromptsCommand({
 
   /** The full prompt list is fetched on first popover open, not at app startup */
   useEffect(() => {
-    if (showPromptsPopover) {
+    if (showPromptsPopover && hasAccess) {
       requestAllPromptGroups?.();
     }
-  }, [showPromptsPopover, requestAllPromptGroups]);
+  }, [showPromptsPopover, hasAccess, requestAllPromptGroups]);
 
   useEffect(() => {
     setActiveIndex((prev) => Math.min(prev, Math.max(matches.length - 1, 0)));
@@ -173,9 +207,19 @@ function PromptsCommand({
     currentActiveItem?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
   }, [activeIndex]);
 
-  if (!hasAccess) {
+  if (!hasAccess && !skillsAvailable) {
     return null;
   }
+
+  let placeholder = localize('com_ui_command_usage_placeholder');
+  if (skillsAvailable) {
+    placeholder = localize(
+      hasAccess ? 'com_ui_command_skills_prompts_placeholder' : 'com_ui_skills_command_placeholder',
+    );
+  }
+  const loading =
+    (hasAccess && isLoading) ||
+    (skillsAvailable && (skills.isLoading || skills.isFetchingNextPage));
 
   const rowRenderer = ({
     index,
@@ -186,11 +230,11 @@ function PromptsCommand({
     key: string;
     style: React.CSSProperties;
   }) => {
-    const mention = matches[index] as PromptOption;
+    const mention = matches[index] as PromptOption | MentionOption;
     return (
       <MentionItem
         index={index}
-        type="prompt"
+        type={mention.type === 'skill' ? 'skill' : 'prompt'}
         key={key}
         style={style}
         onClick={() => {
@@ -220,7 +264,7 @@ function PromptsCommand({
         <div className="popover border-border-light bg-surface-tertiary-alt rounded-theme-popover border p-2 shadow-lg">
           <Input
             ref={initInputRef}
-            placeholder={localize('com_ui_command_usage_placeholder')}
+            placeholder={placeholder}
             variant="embedded"
             className="mb-1"
             autoComplete="off"
@@ -252,7 +296,7 @@ function PromptsCommand({
                 if (e.key === 'Enter') {
                   e.preventDefault();
                 }
-                handleSelect(matches[activeIndex] as PromptOption | undefined, e);
+                handleSelect(matches[activeIndex] as PromptOption | MentionOption | undefined, e);
               } else if (e.key === 'Backspace' && searchValue === '') {
                 setOpen(false);
                 setShowPromptsPopover(false);
@@ -268,7 +312,7 @@ function PromptsCommand({
               }, 150);
             }}
           />
-          {open && isLoading && matches.length === 0 && (
+          {open && loading && matches.length === 0 && (
             <div className="text-text-primary flex h-32 items-center justify-center">
               <Spinner />
             </div>

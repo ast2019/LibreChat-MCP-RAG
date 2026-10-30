@@ -3,6 +3,7 @@ import { Part as ChatPart } from '@librechat/chat/components';
 import {
   Tools,
   Constants,
+  MediaTools,
   ContentTypes,
   ToolCallTypes,
   imageGenTools,
@@ -47,6 +48,7 @@ import { getAskUserQuestionPart } from '~/utils/approval';
 import AskUserQuestionCall from './AskUserQuestionCall';
 import { isBashProgrammaticToolCall } from './routing';
 import { isError } from './ToolOutput/OutputRenderer';
+import { findMediaJobId } from '~/utils/mediaJobs';
 import { ToolPreparation } from './preparation';
 import { ErrorMessage } from './MessageContent';
 import AskUserQuestion from './AskUserQuestion';
@@ -56,6 +58,7 @@ import AgentHandoff from './AgentHandoff';
 import CodeAnalyze from './CodeAnalyze';
 import Container from './Container';
 import WebSearch from './WebSearch';
+import MediaJob from './MediaJob';
 import ToolCall from './ToolCall';
 import Image from './Image';
 
@@ -207,6 +210,34 @@ const renderHandoff: ToolRenderer = ({ toolCall }) => (
   <AgentHandoff args={toolCall.args ?? ''} name={toolCall.name || ''} />
 );
 
+/**
+ * HiveGPT's in-chat image generator draws the same card as the other image tools while it runs and
+ * once it returns a picture. When it cannot run (no pack, switched off) it answers in plain text,
+ * so a finished call without an image keeps the generic card, which shows that answer.
+ */
+const renderMediaImage: ToolRenderer = (props) => {
+  const { toolCall, attachments } = props;
+  const finished = toolCall.runStepStatus != null || (toolCall.output?.length ?? 0) > 0;
+  const hasImage =
+    attachments?.some(
+      (attachment) => typeof (attachment as { filepath?: unknown }).filepath === 'string',
+    ) === true;
+  if (finished && !hasImage) {
+    return renderDefaultTool(props);
+  }
+  return renderImageGen(props);
+};
+
+/**
+ * A video made in the background is drawn from the `generate_video` result itself, so the card no
+ * longer depends on the model copying a link into its reply. A call that started no job (no pack,
+ * a failed request) keeps the generic card.
+ */
+const renderMediaVideo: ToolRenderer = (props) => {
+  const jobId = findMediaJobId(props.toolCall.output);
+  return jobId != null ? <MediaJob jobId={jobId} /> : renderDefaultTool(props);
+};
+
 /** Agent tool cards by tool name; any other name draws the generic card. */
 const tools: Record<string, ToolRenderer> = {
   [Tools.execute_code]: renderExecuteCode,
@@ -215,6 +246,8 @@ const tools: Record<string, ToolRenderer> = {
   image_gen_oai: renderImageGen,
   image_edit_oai: renderImageGen,
   gemini_image_gen: renderImageGen,
+  [MediaTools.image]: renderMediaImage,
+  [MediaTools.video]: renderMediaVideo,
   /** Dedicated Q&A record: the generic tool card would label the
    *  interrupt-resolved call "cancelled" and dump raw JSON args. */
   ask_user_question: ({ toolCall, isSubmitting, showCursor, onToolExpand }) => (

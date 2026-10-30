@@ -95,6 +95,7 @@ const rowElementId = (index: number, key: string) => {
 
 const SECTION_LABEL: Record<PaletteSection, TranslationKeys> = {
   tool: 'com_ui_composer_tools',
+  create: 'com_ui_composer_create',
   skill: 'com_ui_skills',
   mcp: 'com_ui_composer_mcp',
 };
@@ -436,7 +437,12 @@ function Palette({
       return NO_ROWS;
     }
     const favoriteMatches: PaletteEntry[] = [];
-    const buckets: Record<PaletteSection, PaletteEntry[]> = { tool: [], skill: [], mcp: [] };
+    const buckets: Record<PaletteSection, PaletteEntry[]> = {
+      tool: [],
+      create: [],
+      skill: [],
+      mcp: [],
+    };
 
     for (const entry of entries) {
       if (query !== '' && scoreEntry(entry.label, entry.description, query) < 0) {
@@ -454,6 +460,7 @@ function Palette({
       const byRank = (a: PaletteEntry, b: PaletteEntry) => rank(a) - rank(b);
       favoriteMatches.sort(byRank);
       buckets.tool.sort(byRank);
+      buckets.create.sort(byRank);
       buckets.skill.sort(byRank);
       buckets.mcp.sort(byRank);
     }
@@ -505,9 +512,9 @@ function Palette({
       if (list.length === 0) {
         return;
       }
-      /* Tools are a short fixed set; skills and servers run to hundreds, so
-         the palette keeps a handful and the dialog holds the rest. */
-      const capped = section !== 'tool';
+      /* Tools and the create rows are short fixed sets; skills and servers run
+         to hundreds, so the palette keeps a handful and the dialog holds the rest. */
+      const capped = section !== 'tool' && section !== 'create';
       next.push({
         type: 'header',
         key: `h:${section}`,
@@ -521,6 +528,7 @@ function Palette({
     };
 
     pushSection('tool');
+    pushSection('create');
     pushSection('skill');
     pushSection('mcp');
 
@@ -764,6 +772,13 @@ function Palette({
         recent.attach(row.file);
         return;
       }
+      /* A create row hands off to the composer (or the media dialog), like an
+         upload destination hands off to a file picker. */
+      if (row.entry.dismiss === true) {
+        popover.hide();
+        row.entry.onSelect();
+        return;
+      }
       /* Every catalog row is a toggle, so the palette stays open and several can
          be flipped in one visit. Only an attach destination, which hands off to
          a file picker, dismisses it. */
@@ -784,7 +799,11 @@ function Palette({
   const handleRowClick = useCallback(
     (event: React.MouseEvent, index: number) => {
       const row = rows[index];
-      if (row != null && row.type !== 'attach' && row.type !== 'file') {
+      const handsOff =
+        row?.type === 'attach' ||
+        row?.type === 'file' ||
+        (row?.type === 'entry' && row.entry.dismiss === true);
+      if (row != null && !handsOff) {
         event.stopPropagation();
       }
       activate(index);

@@ -50,6 +50,14 @@ jest.mock('~/components/Prompts', () => ({
   VariableDialog: () => null,
 }));
 
+const mockSkillsAvailable = { current: false };
+const mockSelectSkill = jest.fn();
+const mockSkillOptions = jest.fn();
+jest.mock('../skillOptions', () => ({
+  useSkillsCommandAvailable: () => mockSkillsAvailable.current,
+  useSkillOptions: (params: { enabled?: boolean }) => mockSkillOptions(params),
+}));
+
 jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => key,
   activateCatalog: jest.fn(),
@@ -121,6 +129,21 @@ beforeEach(() => {
   jest.clearAllMocks();
   document.body.innerHTML = '';
   mockShowPromptsPopover.current = true;
+  mockSkillsAvailable.current = false;
+  mockSkillOptions.mockReturnValue({
+    options: [
+      {
+        type: 'skill',
+        label: 'تقویم و تاریخ فارسی',
+        value: 'persian-calendar',
+        description: 'Dates in Iran',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    isFetchingNextPage: false,
+    select: mockSelectSkill,
+  });
   mockPromptGroupsContext.mockReturnValue({
     hasAccess: true,
     allPromptGroups: {
@@ -232,5 +255,45 @@ describe('PromptsCommand lazy prompt loading', () => {
     mockShowPromptsPopover.current = false;
     renderCommand();
     expect(mockRequestAllPromptGroups).not.toHaveBeenCalled();
+  });
+});
+
+describe('PromptsCommand skills', () => {
+  it('lists skills above prompts and finds one by its Persian title', () => {
+    mockSkillsAvailable.current = true;
+    renderCommand();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+    const input = screen.getByPlaceholderText('com_ui_command_skills_prompts_placeholder');
+    fireEvent.change(input, { target: { value: 'تقویم' } });
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(mockSelectSkill).toHaveBeenCalledWith('persian-calendar');
+    expect(mockSetShowPromptsPopover).toHaveBeenCalledWith(false);
+  });
+
+  it('lists skills only, and loads no prompts, when the role has no prompt access', () => {
+    mockSkillsAvailable.current = true;
+    mockPromptGroupsContext.mockReturnValue({
+      hasAccess: false,
+      allPromptGroups: { data: { promptGroups, promptsMap }, isLoading: false },
+      requestAllPromptGroups: mockRequestAllPromptGroups,
+    });
+    renderCommand();
+    expect(screen.getByPlaceholderText('com_ui_skills_command_placeholder')).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(mockRequestAllPromptGroups).not.toHaveBeenCalled();
+  });
+
+  it('fetches the skill catalog only while the menu is open', () => {
+    mockSkillsAvailable.current = true;
+    mockShowPromptsPopover.current = false;
+    renderCommand();
+    expect(mockSkillOptions).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+  });
+
+  it('renders nothing without prompt access or skills', () => {
+    mockPromptGroupsContext.mockReturnValue({ hasAccess: false, allPromptGroups: undefined });
+    const { container } = renderCommand();
+    expect(container).toBeEmptyDOMElement();
   });
 });

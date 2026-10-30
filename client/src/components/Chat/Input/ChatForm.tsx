@@ -63,6 +63,7 @@ import useAskAnswerMode from '~/hooks/Input/useAskAnswerMode';
 import AskUserQuestionPopover from './AskUserQuestionPopover';
 import useComposerItems from '~/hooks/Input/useComposerItems';
 import useAttachTarget from '~/hooks/Input/useAttachTarget';
+import { chatModeLooks } from '~/components/Chat/ChatMode';
 import { chatDirectionAtom } from '~/store/chatDirection';
 import useSpeechRoute from '~/hooks/Input/useSpeechRoute';
 import Hints, { composerHintId } from './Composer/Hints';
@@ -73,6 +74,7 @@ import useHasAccess from '~/hooks/Roles/useHasAccess';
 import useDictation from '~/hooks/Input/useDictation';
 import { useGetStartupConfig } from '~/data-provider';
 import CodeWorkspaceMenu from './CodeWorkspaceMenu';
+import useChatMode from '~/hooks/Chat/useChatMode';
 import CodeApprovalMenu from './CodeApprovalMenu';
 import TextareaHeader from './TextareaHeader';
 import PromptsCommand from './PromptsCommand';
@@ -91,8 +93,6 @@ import Queue from './Composer/Queue';
 import Tray from './Composer/Tray';
 import Bar from './Composer/Bar';
 import Mention from './Mention';
-import { chatModeLooks } from '~/components/Chat/ChatMode';
-import useChatMode from '~/hooks/Chat/useChatMode';
 import store from '~/store';
 
 interface ChatFormProps {
@@ -819,7 +819,13 @@ const ChatForm = memo(function ChatForm({
               newConversation={newConversation}
               textAreaRef={textAreaRef}
             />
-            <PromptsCommand index={index} textAreaRef={textAreaRef} submitPrompt={submitPrompt} />
+            <PromptsCommand
+              index={index}
+              textAreaRef={textAreaRef}
+              submitPrompt={submitPrompt}
+              conversationId={conversationId}
+              agentId={conversation?.agent_id}
+            />
             {index === 0 && (
               <AskUserQuestionPopover conversationId={conversationId} textAreaRef={textAreaRef} />
             )}

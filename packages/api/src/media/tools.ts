@@ -2,20 +2,20 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '@librechat/data-schemas';
 import { tool } from '@librechat/agents/langchain/tools';
 import { MediaTools, MEDIA_TRANSACTION_CONTEXTS } from 'librechat-data-provider';
-import type { TMediaGenerationConfig } from 'librechat-data-provider';
+import type { MediaJobCreateData, MediaJobRecord } from '@librechat/data-schemas';
 import type { StructuredToolInterface } from '@librechat/agents/langchain/tools';
+import type { TMediaGenerationConfig } from 'librechat-data-provider';
 import type { MediaEndpoint, MediaFetch, MediaUser, SavedMedia } from './types';
 import type { MediaBilling, MediaCharge } from './billing';
-import type { MediaJobCreateData, MediaJobRecord } from '@librechat/data-schemas';
 import type { ServerRequest } from '~/types';
 import { generateHiggsfield, submitHiggsfield, submitOpenRouterVideo } from './providers';
-import { generateOpenRouterImage } from './providers';
-import { mediaJobLink } from './jobs';
 import { checkMediaAccess, getMediaConfig, resolveMediaEndpoint } from './config';
 import { createSpeechProviderClient } from '~/speech/client';
-import { pcmToWav } from '~/speech/audio';
+import { generateOpenRouterImage } from './providers';
 import { mediaToolDefinitions } from './definitions';
+import { pcmToWav } from '~/speech/audio';
 import { mediaCredits } from './billing';
+import { mediaJobLink } from './jobs';
 import { MediaError } from './types';
 
 type TextPart = { type: 'text'; text: string };
@@ -285,8 +285,10 @@ export function createMediaTools(
                 ...(req.user?.tenantId ? { tenantId: req.user.tenantId } : {}),
               });
               return {
+                /* The chat draws the video card from this result (the job path below), so the
+                   model no longer has to copy a link into its reply. */
                 result: text(
-                  `The ${duration}-second video is being made in the background (usually 1 to 5 minutes) and is charged only when it is ready. Tell the user, in their language, that it will appear and play right here and they can keep chatting or close the page. Put this markdown in your reply exactly as written: ${jobMarkdown(job.id)}`,
+                  `The ${duration}-second video is being made in the background (usually 1 to 5 minutes) and is charged only when it is ready. The chat already shows it as a card that turns into the player, so do not write any link to it. Tell the user, in their language, that it will appear and play right here and they can keep chatting or close the page. Job: ${mediaJobLink(job.id)}`,
                 ),
                 deferred: true,
               };

@@ -9,6 +9,11 @@ type MediaContext = {
    * markdown renderer resolves the reference through this map.
    */
   attachmentsByName?: ReadonlyMap<string, TAttachment>;
+  /**
+   * Background video jobs the message already shows as a card drawn from the
+   * `generate_video` call, so a job link in the reply text renders nothing more.
+   */
+  toolMediaJobIds?: ReadonlySet<string>;
 };
 
 export const MediaContext = createContext<MediaContext>({});
