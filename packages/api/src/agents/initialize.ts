@@ -146,6 +146,7 @@ import { resolveAgentCodeExecution } from '~/code/agent';
 import { hasActiveFileFieldPolicy } from '~/protection';
 import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
+import { getSkillPersianTools } from '~/persian/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
 import { getAgentInferencePolicy } from './input';
@@ -1551,6 +1552,16 @@ export async function initializeAgent(
       });
       extraAllowedToolNames = union.extraToolNames;
       perSkillExtras = union.perSkillExtras;
+    }
+    /** A skill the model selects mid-turn cannot add tools to a built graph, so the Persian
+     *  skills' deterministic tools load with the agent whenever those skills are in scope. */
+    const preloaded = getSkillPersianTools({
+      accessibleSkillIds: params.accessibleSkillIds!,
+      skillStates: params.skillStates,
+      userId: user?.id,
+    }).filter((name) => !baseToolNames.includes(name) && !extraAllowedToolNames.includes(name));
+    if (preloaded.length > 0) {
+      extraAllowedToolNames = [...extraAllowedToolNames, ...preloaded];
     }
   }
 

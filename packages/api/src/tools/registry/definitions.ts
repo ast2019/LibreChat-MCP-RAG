@@ -5,6 +5,7 @@ import {
 } from '@librechat/agents';
 import type { ExtendedJsonSchema } from './schema';
 import { AskUserQuestionToolDefinition } from '~/agents/hitl/askUserQuestionTool';
+import { persianToolDefinitions } from '~/persian/definitions';
 import { mediaToolDefinitions } from '~/media/definitions';
 import { geminiToolkit } from '~/tools/toolkits/gemini';
 import { oaiToolkit } from '~/tools/toolkits/oai';
@@ -388,16 +389,18 @@ export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
     responseFormat: geminiToolkit.gemini_image_gen.responseFormat,
   },
   ...Object.fromEntries(
-    Object.values(mediaToolDefinitions).map((definition) => [
-      definition.name,
-      {
-        name: definition.name,
-        description: definition.description,
-        schema: definition.schema as ExtendedJsonSchema,
-        toolType: 'builtin' as const,
-        responseFormat: definition.responseFormat,
-      },
-    ]),
+    [...Object.values(mediaToolDefinitions), ...Object.values(persianToolDefinitions)].map(
+      (definition) => [
+        definition.name,
+        {
+          name: definition.name,
+          description: definition.description,
+          schema: definition.schema as ExtendedJsonSchema,
+          toolType: 'builtin' as const,
+          responseFormat: definition.responseFormat,
+        },
+      ],
+    ),
   ),
 };
 

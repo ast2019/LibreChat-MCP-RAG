@@ -33,6 +33,7 @@ const {
   withRequestCodeInputs,
   resolveAgentCodeExecution,
   resolveMCPClientCapabilityProfile,
+  createPersianTools,
 } = require('@librechat/api');
 const {
   AuthType,
@@ -43,6 +44,7 @@ const {
   PermissionTypes,
   AgentCapabilities,
   MEDIA_TOOL_NAMES,
+  PERSIAN_TOOL_NAMES,
   resolveMCPAppsPolicy,
 } = require('librechat-data-provider');
 const {
@@ -195,6 +197,12 @@ const loadTools = async ({
       MEDIA_TOOL_NAMES.map((name) => [
         name,
         async () => require('~/server/services/Media').loadMediaTools(options.req, [name]),
+      ]),
+    ),
+    ...Object.fromEntries(
+      PERSIAN_TOOL_NAMES.map((name) => [
+        name,
+        async () => createPersianTools({ req: options.req, toolNames: [name] }),
       ]),
     ),
     gemini_image_gen: async (_toolContextMap, dynamicToolContextMap) => {
