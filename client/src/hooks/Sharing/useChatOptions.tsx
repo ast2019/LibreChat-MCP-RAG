@@ -3,7 +3,7 @@ import { useRecoilValue } from 'recoil';
 import { useToastContext } from '@librechat/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Pen, Pin, Trash, Archive, CopyPlus, ArchiveRestore } from 'lucide-react';
+import { Pen, Pin, Trash, Archive, CopyPlus, FolderOpen, ArchiveRestore } from 'lucide-react';
 import type { TConversation } from 'librechat-data-provider';
 import type { ReactNode } from 'react';
 import type * as t from '~/common';
@@ -20,6 +20,7 @@ import { useLocalize, useNavigateToConvo, useNewConvo } from '~/hooks';
 import { useChatSettings } from '~/Providers/ChatSettingsContext';
 import useProjectMenuItem from '~/hooks/Chat/useProjectMenuItem';
 import { useChatContext, useLiveAnnouncer } from '~/Providers';
+import OutputsDialog from '~/components/Chat/Outputs/Dialog';
 import { NotificationSeverity } from '~/common';
 import useExportShare from './useExportShare';
 import Rename from '~/components/Chat/Rename';
@@ -33,7 +34,7 @@ export type UseChatOptionsResult = {
   dialogs: ReactNode;
 };
 
-type DialogKind = 'rename' | 'delete';
+type DialogKind = 'rename' | 'delete' | 'outputs';
 
 const iconClass = 'size-4 text-text-secondary';
 const noop = () => {};
@@ -95,6 +96,7 @@ export default function useChatOptions({
 
   const renameRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLButtonElement>(null);
+  const outputsRef = useRef<HTMLButtonElement>(null);
   /** ChatView stays mounted across a route change, so a dialog is tied to the chat it was opened
    *  for rather than to whichever chat is open when it renders. */
   const [openDialog, setOpenDialog] = useState<{ kind: DialogKind; id: string } | null>(null);
@@ -119,6 +121,7 @@ export default function useChatOptions({
     (routeConversationId == null || routeConversationId === conversationId);
   const showRename = isDialogOpen('rename');
   const showDelete = isDialogOpen('delete');
+  const showOutputs = isDialogOpen('outputs');
   /** A close only clears the dialog it belongs to: a delete that settles after another chat
    *  opened its own dialog must not take that one down. */
   const toggleDialog = (kind: DialogKind) => (open: boolean) =>
@@ -130,6 +133,7 @@ export default function useChatOptions({
     });
   const setShowRename = toggleDialog('rename');
   const setShowDelete = toggleDialog('delete');
+  const setShowOutputs = toggleDialog('outputs');
 
   const pinMutation = usePinConversationMutation();
   const archiveMutation = useArchiveConvoMutation();
@@ -206,6 +210,16 @@ export default function useChatOptions({
 
   const items: t.MenuItemProps[] = [
     ...exportShare.items,
+    {
+      label: localize('com_ui_outputs'),
+      onClick: () => setShowOutputs(true),
+      icon: <FolderOpen className={iconClass} aria-hidden="true" />,
+      ariaHasPopup: 'dialog',
+      /** NOTE: THE FOLLOWING PROPS ARE REQUIRED FOR MENU ITEMS THAT OPEN DIALOGS */
+      hideOnClick: false,
+      ref: outputsRef,
+      render: (props) => <button {...props} />,
+    },
     { separate: true },
     {
       label: localize('com_ui_rename'),
@@ -262,6 +276,14 @@ export default function useChatOptions({
     dialogs: exportShare.show ? (
       <>
         {exportShare.dialogs}
+        {showOutputs && (
+          <OutputsDialog
+            open={showOutputs}
+            onOpenChange={setShowOutputs}
+            conversationId={conversationId}
+            triggerRef={outputsRef}
+          />
+        )}
         {showRename && (
           <Rename
             open={showRename}

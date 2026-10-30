@@ -11,6 +11,7 @@ import type {
 import { toolPanelSpacingClassName } from './disclosure';
 import { useExpandCollapse, useLocalize } from '~/hooks';
 import MemoryInfo from './MemoryInfo';
+import MemoryLink from './MemoryLink';
 import { cn } from '~/utils';
 
 type ContentParts = ReadonlyArray<TMessageContentParts | undefined> | undefined;
@@ -158,6 +159,11 @@ export default function MemoryArtifacts({
             )}
           >
             {showInfo && <MemoryInfo key="memory-info" memoryArtifacts={memoryArtifacts} />}
+            {showInfo && (
+              <div className="border-border-light flex justify-end border-t px-3 py-1.5">
+                <MemoryLink />
+              </div>
+            )}
           </div>
         </div>
       </div>

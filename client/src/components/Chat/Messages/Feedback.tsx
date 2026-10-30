@@ -21,6 +21,7 @@ import {
   ThumbUpIcon,
   ThumbDownIcon,
 } from '@librechat/client';
+import { RememberPreferenceButton, RememberPreferenceDialog } from './RememberPreference';
 import { hoverButtonClasses } from './styles';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -226,6 +227,8 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
   const localize = useLocalize();
   const [openDialog, setOpenDialog] = useState(false);
   const [feedback, setFeedback] = useState<TFeedback | undefined>(initialFeedback);
+  /** Feedback the user chose to keep as a preference, while its memory dialog is open. */
+  const [rememberText, setRememberText] = useState<string | null>(null);
 
   useEffect(() => {
     setFeedback(initialFeedback);
@@ -325,6 +328,15 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
             placeholder={localize('com_ui_feedback_placeholder')}
             maxLength={500}
           />
+          {openDialog && (
+            <RememberPreferenceButton
+              text={feedback?.text}
+              onRemember={(text) => {
+                handleDialogSave();
+                setRememberText(text);
+              }}
+            />
+          )}
           <div className="mt-4 flex items-end justify-end gap-2">
             <Button variant="destructive" onClick={handleDialogClear}>
               {localize('com_ui_delete')}
@@ -335,6 +347,9 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
           </div>
         </OGDialogContent>
       </OGDialog>
+      {rememberText != null && (
+        <RememberPreferenceDialog text={rememberText} onClose={() => setRememberText(null)} />
+      )}
     </>
   );
 }
