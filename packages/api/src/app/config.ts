@@ -114,3 +114,21 @@ export function getEndpointsDropParamsMap(
 
   return result;
 }
+
+/**
+ * A `librechat.yaml` section with the admin page's overrides on top. Overrides merge onto the
+ * top level of the app config, while `appConfig.config` keeps the file as loaded.
+ */
+export function readConfigSection(
+  appConfig: AppConfig | null | undefined,
+  section: string,
+): Record<string, unknown> | undefined {
+  const fromFile = (appConfig?.config as Record<string, unknown> | undefined)?.[section];
+  const override = (appConfig as Record<string, unknown> | undefined)?.[section];
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    value != null && typeof value === 'object' && !Array.isArray(value);
+  if (!isObject(fromFile) && !isObject(override)) {
+    return undefined;
+  }
+  return { ...(isObject(fromFile) ? fromFile : {}), ...(isObject(override) ? override : {}) };
+}

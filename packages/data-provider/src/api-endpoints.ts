@@ -554,6 +554,9 @@ export const adminBillingSummary = (days: number) =>
 export const adminBillingPacks = () => `${adminBilling()}/packs`;
 export const adminBillingGrant = () => `${adminBilling()}/grant`;
 export const adminBillingCreateUser = () => `${adminBilling()}/users`;
+export const adminGifts = () => `${adminBilling()}/gifts`;
+export const mediaStatus = () => `${BASE_URL}/api/media/status`;
+export const mediaJob = (jobId: string) => `${BASE_URL}/api/media/jobs/${encodeURIComponent(jobId)}`;
 export const adminRoleMembers = (role: string, userId?: string) =>
   `${BASE_URL}/api/admin/roles/${encodeURIComponent(role)}/members${
     userId != null ? `/${encodeURIComponent(userId)}` : ''

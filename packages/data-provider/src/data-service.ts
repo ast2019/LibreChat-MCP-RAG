@@ -17,7 +17,10 @@ import type {
   TAdminApiAccessResponse,
   TAdminMediaAccessRequest,
   TAdminMediaAccessResponse,
+  TAdminGiftSettings,
+  TAdminGiftUpdate,
 } from './types/billing';
+import type { TMediaAvailability, TMediaJobView } from './media';
 import type {
   TPaymentOrder,
   TPaymentOptions,
@@ -102,6 +105,22 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function getAdminGifts(): Promise<TAdminGiftSettings> {
+  return request.get(endpoints.adminGifts());
+}
+
+export function updateAdminGifts(payload: TAdminGiftUpdate): Promise<TAdminGiftSettings> {
+  return request.put(endpoints.adminGifts(), payload);
+}
+
+export function getMediaStatus(): Promise<TMediaAvailability> {
+  return request.get(endpoints.mediaStatus());
+}
+
+export function getMediaJob(jobId: string): Promise<TMediaJobView> {
+  return request.get(endpoints.mediaJob(jobId));
 }
 
 export function createAdminUser(

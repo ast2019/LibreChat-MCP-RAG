@@ -163,7 +163,7 @@ mcpServers:
     type: streamable-http
     url: 'https://mcp.higgsfield.ai/mcp'
     title: 'Higgsfield'
-    description: 'ساخت تصویر و ویدیو با حساب Higgsfield خودتان (Kling، Veo، Seedance، Flux و …)'
+    description: 'ساخت تصویر و ویدیو با حساب Higgsfield (حساب خودتان یا حساب مشترک تیم). همه روش‌ها: منوی حساب ← «ساخت تصویر و ویدیو»'
     iconPath: '/assets/higgsfield.svg'
     startup: false
     requiresOAuth: true
@@ -202,6 +202,8 @@ mediaGeneration:
     defaultDuration: 4
     maxDuration: 8
     estimateUsdPerSecond: 0.25
+    # Runs in the background: the chat shows a card that becomes the player when the job ends,
+    # so a closed page or a dropped stream loses nothing; charged only when the file arrives.
   speech:
     model: 'google/gemini-3.8-flash-tts'
     voice: 'Kore'

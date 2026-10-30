@@ -17,12 +17,14 @@ import {
   Shield,
   ShieldCheck,
   ShoppingBag,
+  Wand2,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
 import { InstallDialog, InstallMenuItem } from '~/components/Pwa';
 import { InviteDialog, InviteMenuItem } from '~/components/Referral';
+import { MediaToolsDialog } from '~/components/Media';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
@@ -117,6 +119,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const [showArchived, setShowArchived] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showMediaTools, setShowMediaTools] = useState(false);
   const purchase = usePurchaseTarget();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
   /** The collapsed rail opens the menu beside it, toward the content. */
@@ -214,6 +217,14 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
             {localize('com_ui_balance_buy_pack')}
           </Menu.MenuItem>
         )}
+        <Menu.MenuItem
+          onClick={() => setShowMediaTools(true)}
+          className="select-item text-sm"
+          data-testid="nav-media-tools"
+        >
+          <Wand2 className="icon-md" aria-hidden="true" />
+          {localize('com_media_tools_title')}
+        </Menu.MenuItem>
         <InviteMenuItem onSelect={() => setShowInvite(true)} />
         <InstallMenuItem onSelect={() => setShowInstall(true)} />
         <DropdownMenuSeparator />
@@ -222,6 +233,13 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           {localize('com_nav_log_out')}
         </Menu.MenuItem>
       </Menu.Menu>
+      {showMediaTools && (
+        <MediaToolsDialog
+          open={showMediaTools}
+          onOpenChange={setShowMediaTools}
+          triggerRef={accountSettingsButtonRef}
+        />
+      )}
       {showInvite && (
         <InviteDialog
           open={showInvite}

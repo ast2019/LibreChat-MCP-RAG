@@ -10,12 +10,14 @@ import Overview from './Overview';
 import Advanced from './Advanced';
 import Access from './Access';
 import Users from './Users';
+import Gifts from './Gifts';
 
 const TABS: { id: string; label: TranslationKeys }[] = [
   { id: 'overview', label: 'com_admin_tab_overview' },
   { id: 'users', label: 'com_admin_tab_users' },
   { id: 'access', label: 'com_admin_tab_access' },
   { id: 'payments', label: 'com_admin_payments_title' },
+  { id: 'gifts', label: 'com_admin_tab_gifts' },
   { id: 'status', label: 'com_admin_tab_status' },
   { id: 'advanced', label: 'com_admin_tab_advanced' },
 ];
@@ -77,6 +79,9 @@ export default function AdminView() {
             </Tabs.Content>
             <Tabs.Content value="access" className="focus-visible:outline-none">
               <Access />
+            </Tabs.Content>
+            <Tabs.Content value="gifts" className="focus-visible:outline-none">
+              <Gifts />
             </Tabs.Content>
             <Tabs.Content value="payments" className="focus-visible:outline-none">
               <AdminPayments />

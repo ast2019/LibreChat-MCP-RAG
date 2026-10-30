@@ -6,8 +6,11 @@ import type { TMediaGenerationConfig } from 'librechat-data-provider';
 import type { StructuredToolInterface } from '@librechat/agents/langchain/tools';
 import type { MediaEndpoint, MediaFetch, MediaUser, SavedMedia } from './types';
 import type { MediaBilling, MediaCharge } from './billing';
+import type { MediaJobCreateData, MediaJobRecord } from '@librechat/data-schemas';
 import type { ServerRequest } from '~/types';
-import { generateHiggsfield, generateOpenRouterImage, generateOpenRouterVideo } from './providers';
+import { generateHiggsfield, submitHiggsfield, submitOpenRouterVideo } from './providers';
+import { generateOpenRouterImage } from './providers';
+import { mediaJobLink } from './jobs';
 import { checkMediaAccess, getMediaConfig, resolveMediaEndpoint } from './config';
 import { createSpeechProviderClient } from '~/speech/client';
 import { pcmToWav } from '~/speech/audio';
@@ -31,6 +34,8 @@ export interface MediaToolDeps {
     req: ServerRequest,
     fileId: string,
   ) => Promise<{ buffer: Buffer; type: string } | null>;
+  /** Records a long generation for the job worker, which saves and charges it when done. */
+  createMediaJob: (data: MediaJobCreateData) => Promise<MediaJobRecord>;
   fetch?: MediaFetch;
 }
 
@@ -59,15 +64,8 @@ function toDataUrl(file: { buffer: Buffer; type: string }): string {
   return `data:${file.type};base64,${file.buffer.toString('base64')}`;
 }
 
-function extensionOf(type: string): string {
-  const subtype = type.split('/')[1]?.split(/[;+]/)[0] ?? '';
-  if (subtype === 'mpeg') {
-    return 'mp3';
-  }
-  if (subtype === 'quicktime') {
-    return 'mov';
-  }
-  return /^[a-z0-9]{2,5}$/.test(subtype) ? subtype : 'bin';
+function jobMarkdown(jobId: string): string {
+  return `[🎬 video](${mediaJobLink(jobId)})`;
 }
 
 function mediaLink(saved: SavedMedia, label: string): string {
@@ -91,7 +89,9 @@ export function createMediaTools(
     charge: MediaCharge,
     estimateUsd: number,
     priceMultiplier: number,
-    work: (config: TMediaGenerationConfig) => Promise<{ result: ToolResult; costUsd?: number }>,
+    work: (
+      config: TMediaGenerationConfig,
+    ) => Promise<{ result: ToolResult; costUsd?: number; deferred?: boolean }>,
   ): Promise<ToolResult> {
     const config = getMediaConfig(req.config);
     const user = req.user as unknown as MediaUser | undefined;
@@ -114,9 +114,12 @@ export function createMediaTools(
       );
     }
     try {
-      const { result, costUsd } = await work(config);
-      const credits = costUsd != null ? mediaCredits(costUsd, priceMultiplier) : estimate;
-      await deps.billing.record(req, charge, credits);
+      const { result, costUsd, deferred } = await work(config);
+      /** A background job is charged by the worker when its file is delivered. */
+      if (!deferred) {
+        const credits = costUsd != null ? mediaCredits(costUsd, priceMultiplier) : estimate;
+        await deps.billing.record(req, charge, credits);
+      }
       return result;
     } catch (error) {
       if (error instanceof MediaError) {
@@ -255,7 +258,7 @@ export function createMediaTools(
               const [firstFrame] = input.first_frame_image_id
                 ? await loadReferences([input.first_frame_image_id])
                 : [];
-              const generated = await generateOpenRouterVideo(doFetch, endpointOf(config), {
+              const providerJobId = await submitOpenRouterVideo(doFetch, endpointOf(config), {
                 model: settings.model,
                 prompt: String(input.prompt ?? ''),
                 duration,
@@ -263,21 +266,29 @@ export function createMediaTools(
                 aspectRatio: input.aspect_ratio,
                 generateAudio: settings.generateAudio,
                 firstFrame,
-                pollIntervalMs: settings.pollIntervalMs,
-                timeoutMs: settings.timeoutMs,
                 signal: run?.signal,
               });
-              const saved = await deps.saveMedia(req, {
-                buffer: generated.buffer,
-                type: generated.type,
-                filename: `video.${extensionOf(generated.type)}`,
+              const job = await deps.createMediaJob({
+                user: req.user!.id,
+                kind: 'video',
+                provider: 'openrouter',
+                providerJobId,
+                providerModel: settings.model,
+                label: `${duration}s`,
+                endpoint: config.endpoint,
                 context: MEDIA_TRANSACTION_CONTEXTS.video,
+                conversationId: run?.configurable?.thread_id,
+                fallbackUsd: duration * settings.estimateUsdPerSecond,
+                priceMultiplier: multiplierOf(),
+                pollIntervalMs: settings.pollIntervalMs,
+                deadline: new Date(Date.now() + settings.timeoutMs),
+                ...(req.user?.tenantId ? { tenantId: req.user.tenantId } : {}),
               });
               return {
                 result: text(
-                  `The ${duration}-second video is ready (file_id: ${saved.file_id}). Put this markdown in your reply exactly as written so it plays in the chat: ${mediaLink(saved, '🎬 video')}`,
+                  `The ${duration}-second video is being made in the background (usually 1 to 5 minutes) and is charged only when it is ready. Tell the user, in their language, that it will appear and play right here and they can keep chatting or close the page. Put this markdown in your reply exactly as written: ${jobMarkdown(job.id)}`,
                 ),
-                costUsd: generated.costUsd,
+                deferred: true,
               };
             },
           );
@@ -411,6 +422,36 @@ export function createMediaTools(
               if (model!.kind === 'video' && input.duration_seconds) {
                 body.duration = Math.round(Number(input.duration_seconds));
               }
+              if (model!.kind === 'video') {
+                const providerJobId = await submitHiggsfield(doFetch, settings, {
+                  model: model!,
+                  input: body,
+                  idempotencyKey: randomUUID(),
+                  signal: run?.signal,
+                });
+                const job = await deps.createMediaJob({
+                  user: req.user!.id,
+                  kind: 'video',
+                  provider: 'higgsfield',
+                  providerJobId,
+                  providerModel: model!.id,
+                  label: model!.label,
+                  endpoint: 'Higgsfield',
+                  context: MEDIA_TRANSACTION_CONTEXTS.higgsfield,
+                  conversationId: run?.configurable?.thread_id,
+                  fallbackUsd: model!.priceUsd,
+                  priceMultiplier: 1,
+                  pollIntervalMs: settings.pollIntervalMs,
+                  deadline: new Date(Date.now() + settings.timeoutMs),
+                  ...(req.user?.tenantId ? { tenantId: req.user.tenantId } : {}),
+                });
+                return {
+                  result: text(
+                    `The ${model!.label} video is being made in the background and is charged only when it is ready. Tell the user, in their language, that it will appear and play right here. Put this markdown in your reply exactly as written: ${jobMarkdown(job.id)}`,
+                  ),
+                  deferred: true,
+                };
+              }
               const output = await generateHiggsfield(doFetch, settings, {
                 model: model!,
                 input: body,
@@ -419,22 +460,8 @@ export function createMediaTools(
                 timeoutMs: settings.timeoutMs,
                 signal: run?.signal,
               });
-              if (model!.kind === 'image') {
-                return {
-                  result: imageResult(output, `The image was generated with ${model!.label}.`),
-                  costUsd: model!.priceUsd,
-                };
-              }
-              const saved = await deps.saveMedia(req, {
-                buffer: output.buffer,
-                type: output.type,
-                filename: `higgsfield.${extensionOf(output.type)}`,
-                context: MEDIA_TRANSACTION_CONTEXTS.higgsfield,
-              });
               return {
-                result: text(
-                  `The ${model!.label} video is ready (file_id: ${saved.file_id}). Put this markdown in your reply exactly as written so it plays in the chat: ${mediaLink(saved, '🎬 video')}`,
-                ),
+                result: imageResult(output, `The image was generated with ${model!.label}.`),
                 costUsd: model!.priceUsd,
               };
             },

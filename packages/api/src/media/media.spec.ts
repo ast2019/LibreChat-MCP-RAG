@@ -4,6 +4,7 @@ import type { MediaToolDeps } from './tools';
 import { checkMediaAccess, getChatMediaTools, getMediaConfig } from './config';
 import { generateHiggsfield, generateOpenRouterVideo } from './providers';
 import { createMediaTools } from './tools';
+import { createMediaJobRunner } from './jobs';
 
 const mediaGeneration = {
   enabled: true,
@@ -154,6 +155,9 @@ describe('media tools', () => {
       findBalanceByUser: jest.fn().mockResolvedValue({ packId: 'starter' }),
       saveMedia: jest.fn(),
       loadImage: jest.fn().mockResolvedValue(null),
+      createMediaJob: jest.fn(
+        async (data) => ({ ...data, id: 'job1', status: 'pending' }) as never,
+      ),
       fetch: jest.fn().mockResolvedValue(
         json({
           data: [{ b64_json: Buffer.from('png').toString('base64') }],
@@ -227,5 +231,121 @@ describe('media tools', () => {
     expect(JSON.stringify(failed.content)).toContain('Nothing was charged');
     expect(failing.billing.record).not.toHaveBeenCalled();
     expect(release).toHaveBeenCalled();
+  });
+});
+
+describe('background video jobs', () => {
+  const release = jest.fn().mockResolvedValue(undefined);
+  const req = { user: { id: 'u1' }, config: appConfig() } as unknown as ServerRequest;
+
+  it('starts the video at the provider, answers at once, and charges nothing yet', async () => {
+    const billing = { hold: jest.fn().mockResolvedValue({ release }), record: jest.fn() };
+    const createMediaJob = jest.fn(async (data) => ({ ...data, id: 'job7' }) as never);
+    const deps: MediaToolDeps = {
+      billing,
+      findBalanceByUser: jest.fn().mockResolvedValue({ packId: 'starter' }),
+      saveMedia: jest.fn(),
+      loadImage: jest.fn(),
+      createMediaJob,
+      fetch: jest.fn().mockResolvedValue(json({ id: 'or-job', status: 'pending' })),
+    };
+    const [videoTool] = createMediaTools({ req, toolNames: [MediaTools.video] }, deps);
+    const message = await videoTool.invoke({
+      id: 'v1',
+      name: MediaTools.video,
+      args: { prompt: 'waves', duration_seconds: 4 },
+      type: 'tool_call',
+    });
+    expect(JSON.stringify(message.content)).toContain('/api/media/jobs/job7');
+    expect(createMediaJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerJobId: 'or-job',
+        provider: 'openrouter',
+        fallbackUsd: 0.8,
+      }),
+    );
+    expect(billing.record).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalled();
+  });
+
+  const job = {
+    id: 'job7',
+    user: 'u1',
+    kind: 'video' as const,
+    provider: 'openrouter' as const,
+    providerJobId: 'or-job',
+    providerModel: 'google/veo',
+    endpoint: 'OpenRouter',
+    context: 'video_generation',
+    status: 'pending' as const,
+    fallbackUsd: 0.8,
+    priceMultiplier: 1.5,
+    pollIntervalMs: 10_000,
+    nextPollAt: new Date(),
+    deadline: new Date(Date.now() + 60_000),
+  };
+
+  function runnerWith(fetchMock: jest.Mock, now = () => new Date()) {
+    const deps = {
+      claimDueMediaJobs: jest.fn().mockResolvedValue([job]),
+      updateMediaJob: jest.fn().mockResolvedValue(null),
+      loadOwnerRequest: jest.fn().mockResolvedValue(req),
+      saveMedia: jest.fn().mockResolvedValue({
+        file_id: 'f1',
+        filepath: '/images/u1/f1-video.mp4',
+        filename: 'f1-video.mp4',
+        type: 'video/mp4',
+        bytes: 3,
+      }),
+      billing: { record: jest.fn() },
+      fetch: fetchMock,
+      now,
+    };
+    return { runner: createMediaJobRunner(deps), deps };
+  }
+
+  it('delivers a finished video and charges the reported cost with the markup', async () => {
+    const { runner, deps } = runnerWith(
+      jest
+        .fn()
+        .mockResolvedValueOnce(json({ status: 'completed', usage: { cost: 1 } }))
+        .mockResolvedValueOnce(
+          new Response(Buffer.from('mp4'), { headers: { 'content-type': 'video/mp4' } }),
+        ),
+    );
+    expect(await runner.tick()).toBe(1);
+    expect(deps.billing.record).toHaveBeenCalledWith(
+      req,
+      expect.objectContaining({ context: 'video_generation' }),
+      1_500_000,
+    );
+    expect(deps.updateMediaJob).toHaveBeenCalledWith(
+      'job7',
+      expect.objectContaining({ status: 'completed', filepath: '/images/u1/f1-video.mp4' }),
+    );
+  });
+
+  it('waits on a running job, and never charges a failed or overdue one', async () => {
+    const pending = runnerWith(jest.fn().mockResolvedValue(json({ status: 'in_progress' })));
+    await pending.runner.tick();
+    expect(pending.deps.updateMediaJob).toHaveBeenCalledWith('job7', {
+      nextPollAt: expect.any(Date),
+    });
+
+    const failed = runnerWith(jest.fn().mockResolvedValue(json({ status: 'failed' })));
+    await failed.runner.tick();
+    expect(failed.deps.updateMediaJob).toHaveBeenCalledWith('job7', {
+      status: 'failed',
+      errorCode: 'provider_error',
+    });
+    expect(failed.deps.billing.record).not.toHaveBeenCalled();
+
+    const late = runnerWith(jest.fn(), () => new Date(Date.now() + 120_000));
+    await late.runner.tick();
+    expect(late.deps.updateMediaJob).toHaveBeenCalledWith('job7', {
+      status: 'failed',
+      errorCode: 'timeout',
+    });
+    expect(late.deps.fetch).not.toHaveBeenCalled();
   });
 });

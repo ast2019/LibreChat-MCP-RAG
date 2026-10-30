@@ -18,6 +18,8 @@ import type {
   TAdminApiAccessResponse,
   TAdminMediaAccessRequest,
   TAdminMediaAccessResponse,
+  TAdminGiftSettings,
+  TAdminGiftUpdate,
 } from 'librechat-data-provider';
 import type {
   QueryKey,
@@ -243,3 +245,26 @@ export const useAdminBillingUserUsageQuery = (
     () => dataService.getAdminBillingUserUsage(userId as string, days),
     { enabled: userId != null && userId !== '', refetchOnWindowFocus: false, retry: false },
   );
+
+/** The sign-up gift and invite rewards new accounts get. */
+export const useAdminGiftsQuery = (): QueryObserverResult<TAdminGiftSettings> =>
+  useQuery<TAdminGiftSettings>([QueryKeys.adminGifts], () => dataService.getAdminGifts(), {
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+/** Saves new gift amounts; they apply to sign-ups and invites from now on. */
+export const useAdminGiftsMutation = (): UseMutationResult<
+  TAdminGiftSettings,
+  unknown,
+  TAdminGiftUpdate
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((payload: TAdminGiftUpdate) => dataService.updateAdminGifts(payload), {
+    onSuccess: (data) => {
+      queryClient.setQueryData([QueryKeys.adminGifts], data);
+      queryClient.invalidateQueries([QueryKeys.adminBillingPacks]);
+      queryClient.invalidateQueries([QueryKeys.startupConfig]);
+    },
+  });
+};

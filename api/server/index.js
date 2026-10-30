@@ -93,6 +93,7 @@ const { initializeScheduleEngine, recordExpiredScheduleApproval } = require('./s
 const { jwtLogin, ldapLogin, passportLogin } = require('~/strategies');
 const { startExpiredFileSweep } = require('./services/Files/process');
 const { startServiceStatusRefresh } = require('./services/ServiceStatus');
+const { startMediaJobWorker } = require('./services/Media');
 const { checkMigrations } = require('./services/start/migration');
 const optionalJwtAuth = require('./middleware/optionalJwtAuth');
 const initializeMCPs = require('./services/initializeMCPs');
@@ -275,6 +276,7 @@ const startServer = async () => {
   startSkillDeletionSweep(appConfig.skillDeletion);
   startExpiredFileSweep({ appConfig, loadAppConfig: getAppConfig });
   startServiceStatusRefresh();
+  startMediaJobWorker();
   // Register any programmatic tool-approval policy hooks declared in
   // `endpoints.agents.toolApproval.hooks`. Honor the `enabled` kill switch: when tool
   // approval is off we pass no hooks, so a disabled endpoint imports/runs nothing (and any
@@ -458,6 +460,7 @@ const startServer = async () => {
   app.use('/api/actions', routes.actions);
   app.use('/api/keys', routes.keys);
   app.use('/api/api-keys', routes.apiKeys);
+  app.use('/api/media', routes.media);
   app.use('/api/user', routes.user);
   app.use('/api/search', routes.search);
   app.use('/api/messages', routes.messages);

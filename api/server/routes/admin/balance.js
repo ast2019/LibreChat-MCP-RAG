@@ -5,10 +5,12 @@ const {
   getPrimaryPriceMultiplier,
   createAdminBalanceHandlers,
   createAdminCreateUserHandler,
+  createAdminGiftHandlers,
 } = require('@librechat/api');
-const { SystemCapabilities } = require('@librechat/data-schemas');
+const { SystemRoles, PrincipalType, PrincipalModel } = require('librechat-data-provider');
+const { SystemCapabilities, BASE_CONFIG_PRINCIPAL_ID } = require('@librechat/data-schemas');
 const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
-const { getAppConfig } = require('~/server/services/Config');
+const { getAppConfig, invalidateConfigCaches } = require('~/server/services/Config');
 const { requireJwtAuth } = require('~/server/middleware');
 const db = require('~/models');
 
@@ -55,6 +57,23 @@ const createUser = createAdminCreateUserHandler({
   minPasswordLength: parseInt(process.env.MIN_PASSWORD_LENGTH, 10) || 8,
 });
 
+/** The sign-up gift and invite rewards, stored as deployment-wide overrides. */
+const gifts = createAdminGiftHandlers({
+  getAppConfig: (req) => getAppConfig({ role: SystemRoles.USER, tenantId: req.user?.tenantId }),
+  getBaseChangedAt: async () =>
+    (await db.findConfigByPrincipal(PrincipalType.ROLE, BASE_CONFIG_PRINCIPAL_ID))?.updatedAt ??
+    null,
+  patchBaseFields: async (fields) => {
+    await db.patchConfigFields(
+      PrincipalType.ROLE,
+      BASE_CONFIG_PRINCIPAL_ID,
+      PrincipalModel.ROLE,
+      fields,
+    );
+  },
+  invalidate: invalidateConfigCaches,
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/packs', requireReadUsers, handlers.listPacks);
@@ -63,6 +82,8 @@ router.post('/grant', requireManageUsers, handlers.grant);
 router.get('/users', requireReadUsers, handlers.listUsers);
 router.post('/users', requireManageUsers, createUser);
 router.get('/summary', requireReadUsers, handlers.summary);
+router.get('/gifts', requireReadUsers, gifts.getGifts);
+router.put('/gifts', requireManageUsers, gifts.updateGifts);
 router.get('/usage', requireReadUsers, handlers.userUsage);
 
 module.exports = router;

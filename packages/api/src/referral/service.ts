@@ -6,6 +6,7 @@ import type {
   TReferralStartupConfig,
 } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
+import { readConfigSection } from '~/app/config';
 
 /** Ledger contexts of invite rewards, so they stay separable from purchases and grants: what
  *  an inviter earns, and the welcome credits of the account they invited. */
@@ -14,10 +15,10 @@ export const REFERRAL_WELCOME_CONTEXT = 'referral_welcome';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** `referral` from the app config; admin overrides merge in unvalidated, so it is re-parsed and
- *  an invalid block counts as off. */
+/** `referral` from `librechat.yaml` with the admin page's amounts on top. It is re-parsed, so an
+ *  invalid block counts as off. Read per request, so a change applies from then on. */
 export function resolveReferralSettings(appConfig?: AppConfig | null): TReferralConfig {
-  const raw = (appConfig?.config as { referral?: unknown } | undefined)?.referral;
+  const raw = readConfigSection(appConfig, 'referral');
   const parsed = referralConfigSchema.safeParse(raw ?? {});
   return parsed.success ? parsed.data : referralConfigSchema.parse({});
 }
