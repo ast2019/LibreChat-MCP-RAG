@@ -71,7 +71,7 @@
 skill/
   persian-calendar/SKILL.md          عنوان: تقویم و تاریخ فارسی
   persian-orthography/SKILL.md       عنوان: نگارش و نیم‌فاصله
-  natural-persian-content/SKILL.md   عنوان: نوشتن فارسی طبیعی
+  natural-persian-content/SKILL.md   عنوان: نوشتن محتوای فارسی
 ```
 
 - Loader کلید جدید `display-title` را به‌عنوان عنوان فارسی می‌خواند.
