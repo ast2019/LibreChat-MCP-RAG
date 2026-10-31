@@ -7,6 +7,7 @@ import type { StructuredToolInterface } from '@librechat/agents/langchain/tools'
 import type { TMediaGenerationConfig } from 'librechat-data-provider';
 import type { MediaEndpoint, MediaFetch, MediaUser, SavedMedia } from './types';
 import type { MediaBilling, MediaCharge } from './billing';
+import type { MediaAccessResult } from './config';
 import type { ServerRequest } from '~/types';
 import { generateHiggsfield, submitHiggsfield, submitOpenRouterVideo } from './providers';
 import { checkMediaAccess, getMediaConfig, resolveMediaEndpoint } from './config';
@@ -16,6 +17,7 @@ import { mediaToolDefinitions } from './definitions';
 import { pcmToWav } from '~/speech/audio';
 import { mediaCredits } from './billing';
 import { mediaJobLink } from './jobs';
+import { getBalanceConfig } from '~/app/config';
 import { MediaError } from './types';
 
 type TextPart = { type: 'text'; text: string };
@@ -47,6 +49,14 @@ interface RunnableConfig {
 const text = (message: string): ToolResult => [[{ type: 'text', text: message }], {}];
 
 const BUY_HINT = 'they can buy a pack from «خرید اعتبار» (/payment)';
+
+/** What the model tells the user when media is refused, by refusal code. */
+const mediaRefusal: Record<Exclude<MediaAccessResult, { ok: true }>['code'], string> = {
+  paid_only: `Image, video and audio generation are part of paid packs. Tell the user, in their language, that ${BUY_HINT} to unlock them.`,
+  not_in_pack: `The user's current pack does not include image, video and audio generation. Tell the user, in their language, that ${BUY_HINT} that includes them.`,
+  media_disabled:
+    'An admin has turned media generation off for this account. Tell the user, in their language.',
+};
 
 const ERROR_MESSAGES: Record<MediaError['code'], string> = {
   blocked:
@@ -98,13 +108,14 @@ export function createMediaTools(
     if (!config || !pick(config) || !user?.id) {
       return text('This generator is not available on this deployment.');
     }
-    const access = await checkMediaAccess(config, user, deps.findBalanceByUser);
+    const access = await checkMediaAccess(
+      config,
+      user,
+      deps.findBalanceByUser,
+      getBalanceConfig(req.config)?.packs,
+    );
     if (!access.ok) {
-      return text(
-        access.code === 'paid_only'
-          ? `Image, video and audio generation are part of paid packs. Tell the user, in their language, that ${BUY_HINT} to unlock them.`
-          : 'An admin has turned media generation off for this account. Tell the user, in their language.',
-      );
+      return text(mediaRefusal[access.code]);
     }
     const estimate = mediaCredits(estimateUsd, priceMultiplier);
     const held = await deps.billing.hold(req, charge, estimate);

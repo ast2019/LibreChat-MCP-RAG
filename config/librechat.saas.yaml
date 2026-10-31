@@ -121,6 +121,11 @@ balance:
   display: pack
   # Twice the earlier sizes (2M / 5M / 15M), so a pack lasts twice as long. The price follows
   # the credits (credits / 1,000,000 x the Toman rate), so it doubles too.
+  # `grants` (optional, per pack) says what the pack includes while it is the user's pack:
+  # `local` and `private` models, `media` (image, video, voice, Higgsfield) and `api`. `true`
+  # includes it, `false` leaves it out; an omitted class keeps the rule without packs (the role
+  # on «دسترسی کاربران» for local, private and API; any pack for media). A user's own setting on
+  # the admin page still wins. Example: `grants: { private: true, media: true, api: false }`.
   packs:
     - id: starter
       label: 'بسته پایه'

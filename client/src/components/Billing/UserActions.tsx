@@ -2,12 +2,19 @@ import { useId, useState } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { SystemRoles } from 'librechat-data-provider';
 import { DropdownPopup, Button } from '@librechat/client';
-import { ChartPie, Ellipsis, ShieldCheck, ShieldOff, WalletCards } from 'lucide-react';
+import {
+  ChartPie,
+  Ellipsis,
+  ShieldCheck,
+  ShieldOff,
+  SlidersHorizontal,
+  WalletCards,
+} from 'lucide-react';
 import type { TAdminBillingUser } from 'librechat-data-provider';
 import type * as t from '~/common';
 import { useLocalize } from '~/hooks';
 
-export type UserAction = 'usage' | 'grant' | 'role';
+export type UserAction = 'details' | 'usage' | 'grant' | 'role';
 
 /** One row's actions behind a single «⋯» button, so the table stays narrow. */
 export default function UserActions({
@@ -27,6 +34,12 @@ export default function UserActions({
   const who = user.name || user.username || user.email || user.phone || '';
 
   const items: t.MenuItemProps[] = [
+    {
+      id: `details-${user.id}`,
+      label: localize('com_admin_user_details'),
+      icon: <SlidersHorizontal className="text-text-secondary size-4" aria-hidden="true" />,
+      onClick: () => onAction('details', user),
+    },
     {
       id: `usage-${user.id}`,
       label: localize('com_admin_spend_button'),

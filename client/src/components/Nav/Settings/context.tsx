@@ -4,6 +4,8 @@ import {
   AgentCapabilities,
   Permissions,
   PermissionTypes,
+  findPackGrants,
+  resolveApiAccess,
   isTwoFactorPolicyProvider,
 } from 'librechat-data-provider';
 import type { SettingsContextValue } from './types';
@@ -63,9 +65,12 @@ export function useSettingsContext(): SettingsContextValue {
   const replyNotificationSoundAllowed =
     replyConfigLoaded && replyNotificationsConfig?.sound !== false;
   const analyticsConfigured = hasAnalyticsGtmId(startupConfig?.analyticsGtmId);
-  /** The user's own API switch, set by an admin, wins over the role. */
-  const hasRemoteAgentsBool =
-    typeof user?.apiAccess === 'boolean' ? user.apiAccess : hasRemoteAgents === true;
+  /** The user's own API switch, set by an admin, wins; then the current pack; then the role. */
+  const hasRemoteAgentsBool = resolveApiAccess({
+    override: user?.apiAccess,
+    packGrant: findPackGrants(startupConfig?.balance?.packs, user?.packId)?.api,
+    roleAllows: hasRemoteAgents === true,
+  }).allowed;
   const hasMultiConvoBool = hasMultiConvo === true;
   const hasPromptsBool = hasPrompts === true;
   const engineTTS = useRecoilValue<string>(store.engineTTS);

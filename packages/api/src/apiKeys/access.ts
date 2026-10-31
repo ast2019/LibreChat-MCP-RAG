@@ -1,17 +1,20 @@
 import { logger } from '@librechat/data-schemas';
+import { findPackGrants } from 'librechat-data-provider';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { AppConfig } from '@librechat/data-schemas';
 import { getBalanceConfig } from '~/app/config';
 
 type ApiUserRequest = Request & {
-  user?: { id?: string; role?: string; apiAccess?: boolean | null };
+  user?: { id?: string; role?: string; apiAccess?: boolean | null; packId?: string | null };
   config?: AppConfig;
 };
 
 /**
  * Lets a user's own programming API override win over their role: `true` admits them, `false`
- * refuses them, and anything else falls through to the role check (`REMOTE_AGENTS.USE`). The
- * override is read from the user already loaded by authentication, never from the database.
+ * refuses them. Without one, the current pack's `grants.api` decides when it says (`req.config`
+ * must be loaded for that), and anything else falls through to the role check
+ * (`REMOTE_AGENTS.USE`). The override and the pack are read from the user already loaded by
+ * authentication, never from the database.
  */
 export function createCheckApiAccess(roleCheck: RequestHandler): RequestHandler {
   return (baseReq, res, next) => {
@@ -27,6 +30,21 @@ export function createCheckApiAccess(roleCheck: RequestHandler): RequestHandler 
           message: 'API access is turned off for this account',
           type: 'permission_error',
           code: 'api_access_disabled',
+        },
+      });
+      return;
+    }
+    const packGrant = findPackGrants(getBalanceConfig(req.config)?.packs, req.user?.packId)?.api;
+    if (packGrant === true) {
+      next();
+      return;
+    }
+    if (packGrant === false) {
+      res.status(403).json({
+        error: {
+          message: 'Your current pack does not include API access',
+          type: 'permission_error',
+          code: 'api_not_in_pack',
         },
       });
       return;

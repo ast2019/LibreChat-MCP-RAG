@@ -86,6 +86,11 @@ export interface GrantBalanceDeps {
       packGrantedAt?: Date;
     },
   ) => Promise<unknown>;
+  /**
+   * Copies the pack onto the user (`user.packId`), so the pack's `grants` reach every request
+   * on the loaded user without a balance read. Optional for callers that predate pack grants.
+   */
+  setUserPack?: (user: string, packId: string) => Promise<unknown>;
   now?: () => Date;
 }
 
@@ -131,6 +136,7 @@ export async function grantBalance(
     packAllotment,
     packGrantedAt: (deps.now ?? (() => new Date()))(),
   });
+  await deps.setUserPack?.(userId, pack?.id ?? 'custom');
 
   return {
     balance: result.balance,

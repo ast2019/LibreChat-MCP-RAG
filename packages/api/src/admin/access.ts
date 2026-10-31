@@ -1,6 +1,6 @@
-import { userModelAccessUpdateSchema } from 'librechat-data-provider';
+import { ACCESS_CLASSES, userModelAccessUpdateSchema } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
-import type { TUserModelAccess } from 'librechat-data-provider';
+import type { TAccessClass, TUserModelAccess } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 
@@ -148,4 +148,84 @@ export function createAdminMediaAccessHandlers(deps: AdminMediaAccessDeps): {
       'media access',
     ),
   };
+}
+
+/** Most users one bulk request may change; the users list shows at most 100 per page. */
+export const MAX_BULK_USERS = 100;
+
+export interface AdminBulkAccessDeps extends AdminModelAccessDeps {
+  saveApiAccess: SaveUserSwitch<'apiAccess'>;
+  saveMediaAccess: SaveUserSwitch<'mediaAccess'>;
+}
+
+/** The user ids of a bulk request: 1 to {@link MAX_BULK_USERS} valid ids, kept once each. */
+export function readBulkUserIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_BULK_USERS) {
+    return null;
+  }
+  if (!value.every((id) => typeof id === 'string' && isValidObjectIdString(id))) {
+    return null;
+  }
+  return [...new Set(value as string[])];
+}
+
+/**
+ * `POST /api/admin/users/bulk-access`: sets one access class (`local`, `private`, `api` or
+ * `media`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
+ * through the same saves as the per-user switches. Answers with how many changed and which ids
+ * no longer exist.
+ */
+export function createAdminBulkAccessHandler(deps: AdminBulkAccessDeps): {
+  updateBulkAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  async function saveOne(id: string, field: TAccessClass, value: boolean | null) {
+    if (field === 'api') {
+      return deps.saveApiAccess(id, value);
+    }
+    if (field === 'media') {
+      return deps.saveMediaAccess(id, value);
+    }
+    const user = await deps.findUserModelAccess(id);
+    if (!user) {
+      return null;
+    }
+    const next = pickModelAccess(user.modelAccess);
+    if (value === null) {
+      delete next[field];
+    } else {
+      next[field] = value;
+    }
+    return deps.saveUserModelAccess(id, next);
+  }
+
+  async function updateBulkAccess(req: ServerRequest, res: Response): Promise<Response> {
+    const body = (req.body ?? {}) as { userIds?: unknown; field?: unknown; value?: unknown };
+    const userIds = readBulkUserIds(body.userIds);
+    if (!userIds) {
+      return res.status(400).json({ error: `Send 1 to ${MAX_BULK_USERS} user IDs` });
+    }
+    const field = body.field;
+    if (typeof field !== 'string' || !(ACCESS_CLASSES as readonly string[]).includes(field)) {
+      return res.status(400).json({ error: 'Invalid access field' });
+    }
+    const value = body.value;
+    if (value !== null && typeof value !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid access value' });
+    }
+    try {
+      const notFound: string[] = [];
+      for (const id of userIds) {
+        const saved = await saveOne(id, field as TAccessClass, value);
+        if (!saved) {
+          notFound.push(id);
+        }
+      }
+      return res.status(200).json({ updated: userIds.length - notFound.length, notFound });
+    } catch (error) {
+      logger.error('[adminBulkAccess] update error:', error);
+      return res.status(500).json({ error: 'Failed to update access' });
+    }
+  }
+
+  return { updateBulkAccess };
 }

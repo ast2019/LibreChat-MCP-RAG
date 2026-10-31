@@ -229,6 +229,12 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Boolean,
       default: undefined,
     },
+    /** The current balance pack, copied from the balance on each grant, so the pack's `grants`
+     *  travel on the loaded user. Unset for a user never granted a pack. */
+    packId: {
+      type: String,
+      default: undefined,
+    },
     /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
     modelAccess: {
       type: {

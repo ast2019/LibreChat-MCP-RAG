@@ -43,6 +43,48 @@ describe('createCheckApiAccess', () => {
   });
 });
 
+describe('createCheckApiAccess with pack grants', () => {
+  const config = {
+    balance: {
+      packs: [
+        { id: 'pro', label: 'Pro', credits: 1, grants: { api: true } },
+        { id: 'basic', label: 'Basic', credits: 1, grants: { api: false } },
+        { id: 'plain', label: 'Plain', credits: 1 },
+      ],
+    },
+  };
+
+  it('admits a user whose pack includes the API without asking the role', () => {
+    const role = jest.fn();
+    const next = jest.fn();
+    createCheckApiAccess(role)(reqWith({ id: 'u', packId: 'pro' }, config), mockRes(), next);
+    expect(next).toHaveBeenCalled();
+    expect(role).not.toHaveBeenCalled();
+  });
+
+  it('refuses a user whose pack excludes the API, with its own code', () => {
+    const role = jest.fn((_req, _res, next) => next());
+    const res = mockRes();
+    createCheckApiAccess(role)(reqWith({ id: 'u', packId: 'basic' }, config), res, jest.fn());
+    expect(res.statusCode).toBe(403);
+    expect(res.body?.error?.code).toBe('api_not_in_pack');
+  });
+
+  it('follows the role for a pack that does not say, and lets the user switch win', () => {
+    const role = jest.fn();
+    createCheckApiAccess(role)(reqWith({ id: 'u', packId: 'plain' }, config), mockRes(), jest.fn());
+    expect(role).toHaveBeenCalledTimes(1);
+
+    const next = jest.fn();
+    createCheckApiAccess(role)(
+      reqWith({ id: 'u', packId: 'basic', apiAccess: true }, config),
+      mockRes(),
+      next,
+    );
+    expect(next).toHaveBeenCalled();
+  });
+});
+
 describe('createRequireApiBalance', () => {
   const enabled = { balance: { enabled: true } };
 

@@ -1,14 +1,16 @@
 const express = require('express');
 const {
   hashSecret,
+  getMediaConfig,
   getBalanceConfig,
   getPrimaryPriceMultiplier,
+  roleAccessFromPermissions,
   createAdminBalanceHandlers,
   createAdminCreateUserHandler,
   createAdminGiftHandlers,
 } = require('@librechat/api');
 const { SystemRoles, PrincipalType, PrincipalModel } = require('librechat-data-provider');
-const { SystemCapabilities, BASE_CONFIG_PRINCIPAL_ID } = require('@librechat/data-schemas');
+const { logger, SystemCapabilities, BASE_CONFIG_PRINCIPAL_ID } = require('@librechat/data-schemas');
 const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
 const { getAppConfig, invalidateConfigCaches } = require('~/server/services/Config');
 const { requireJwtAuth } = require('~/server/middleware');
@@ -36,9 +38,27 @@ const handlers = createAdminBalanceHandlers({
   findBalanceByUser: (userId) => db.findBalanceByUser(userId),
   createTransaction: db.createTransaction,
   upsertBalanceFields: db.upsertBalanceFields,
+  setUserPack: (userId, packId) =>
+    db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
   listUsersWithBalances: db.listUsersWithBalances,
   getBillingSummary: db.getBillingSummary,
   getUserUsageByContext: db.getUserUsageByContext,
+  /** What a user without overrides gets: the packs' grants and the media rule, as users see them */
+  getAccessRules: async (req) => {
+    const appConfig = await getAppConfig({ role: SystemRoles.USER, tenantId: req.user?.tenantId });
+    return {
+      packs: getBalanceConfig(appConfig)?.packs,
+      mediaPaidOnly: getMediaConfig(appConfig)?.paidOnly !== false,
+    };
+  },
+  getRoleAccess: async (role) => {
+    try {
+      return roleAccessFromPermissions((await db.getRoleByName(role))?.permissions);
+    } catch (error) {
+      logger.error(`[adminBalance] Could not read role '${role}' for effective access:`, error);
+      return roleAccessFromPermissions(null);
+    }
+  },
   getPriceMultiplier: async (req) =>
     getPrimaryPriceMultiplier(
       await getAppConfig({
@@ -79,6 +99,7 @@ router.use(requireJwtAuth, requireAdminAccess);
 router.get('/packs', requireReadUsers, handlers.listPacks);
 router.get('/user', requireReadUsers, handlers.getUserBalance);
 router.post('/grant', requireManageUsers, handlers.grant);
+router.post('/grant-bulk', requireManageUsers, handlers.grantBulk);
 router.get('/users', requireReadUsers, handlers.listUsers);
 router.post('/users', requireManageUsers, createUser);
 router.get('/summary', requireReadUsers, handlers.summary);

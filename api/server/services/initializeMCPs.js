@@ -12,6 +12,7 @@ const {
   createMCPPolicyResolver,
   reportStoredMCPTombstones,
   createSharedMCPPrincipalResolver,
+  getBalanceConfig,
 } = require('@librechat/api');
 const { syncStaticTools, mergeAppTools, getAppConfig, invalidateCachedTools } = require('./Config');
 const { startMCPAuthorizationFenceRetryWorker } = require('./MCPAuthorizationFenceRetry');
@@ -131,6 +132,7 @@ async function initializeMCPs() {
       sharedPrincipal: createSharedMCPPrincipalResolver({
         findUserByEmail: (email) => db.findUser({ email }),
         findBalanceByUser: db.findBalanceByUser,
+        getPacks: () => getBalanceConfig(appConfig)?.packs,
       }),
     });
     startMCPAuthorizationFenceRetryWorker(invalidateCachedTools, {

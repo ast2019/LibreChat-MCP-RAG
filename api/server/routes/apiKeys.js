@@ -12,7 +12,7 @@ const {
   listAgentApiKeys,
   getRoleByName,
 } = require('~/models');
-const { requireJwtAuth } = require('~/server/middleware');
+const { requireJwtAuth, configMiddleware } = require('~/server/middleware');
 
 const router = express.Router();
 
@@ -32,12 +32,19 @@ const checkRemoteAgentsUse = createCheckApiAccess(
   }),
 );
 
-router.post('/', requireJwtAuth, checkRemoteAgentsUse, handlers.createApiKey);
+/** The config carries the packs whose `grants.api` the check reads */
+router.post('/', requireJwtAuth, configMiddleware, checkRemoteAgentsUse, handlers.createApiKey);
 
-router.get('/', requireJwtAuth, checkRemoteAgentsUse, handlers.listApiKeys);
+router.get('/', requireJwtAuth, configMiddleware, checkRemoteAgentsUse, handlers.listApiKeys);
 
-router.get('/:id', requireJwtAuth, checkRemoteAgentsUse, handlers.getApiKey);
+router.get('/:id', requireJwtAuth, configMiddleware, checkRemoteAgentsUse, handlers.getApiKey);
 
-router.delete('/:id', requireJwtAuth, checkRemoteAgentsUse, handlers.deleteApiKey);
+router.delete(
+  '/:id',
+  requireJwtAuth,
+  configMiddleware,
+  checkRemoteAgentsUse,
+  handlers.deleteApiKey,
+);
 
 module.exports = router;

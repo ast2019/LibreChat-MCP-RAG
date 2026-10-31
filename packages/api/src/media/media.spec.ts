@@ -88,6 +88,27 @@ describe('media config', () => {
       code: 'media_disabled',
     });
   });
+
+  it('lets a pack that says so include or withhold media', async () => {
+    const config = getMediaConfig(appConfig())!;
+    const packs = [
+      { id: 'starter', grants: { media: false } },
+      { id: 'pro', grants: { media: true } },
+    ];
+    const starter = jest.fn().mockResolvedValue({ packId: 'starter' });
+    const pro = jest.fn().mockResolvedValue({ packId: 'pro' });
+    const custom = jest.fn().mockResolvedValue({ packId: 'custom' });
+    expect(await checkMediaAccess(config, { id: 'u' }, starter, packs)).toEqual({
+      ok: false,
+      code: 'not_in_pack',
+    });
+    expect(await checkMediaAccess(config, { id: 'u' }, pro, packs)).toEqual({ ok: true });
+    /** A pack the list does not describe still counts as paid */
+    expect(await checkMediaAccess(config, { id: 'u' }, custom, packs)).toEqual({ ok: true });
+    expect(await checkMediaAccess(config, { id: 'u', mediaAccess: true }, starter, packs)).toEqual({
+      ok: true,
+    });
+  });
 });
 
 describe('media providers', () => {

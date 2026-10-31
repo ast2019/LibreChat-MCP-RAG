@@ -1,4 +1,5 @@
 import type { TUserModelAccess } from '../permissions';
+import type { TAccessClass, TEffectiveAccessMap, TPackGrants } from '../access';
 
 /** Admin billing page wire types (`/api/admin/balance/*`). */
 export type TAdminBillingBalance = {
@@ -24,9 +25,13 @@ export type TAdminBillingUser = {
   apiAccess?: boolean;
   /** Media generation override; absent follows the deployment rule. Older servers omit it. */
   mediaAccess?: boolean;
+  /** The pack copied onto the user on its last grant; its `grants` decide local, private and API */
+  packId?: string;
   balance: TAdminBillingBalance | null;
   /** Whole percent of the last pack used; null when nothing measures it */
   usedPercent: number | null;
+  /** What each access class resolves to now and who decided it. Older servers omit it. */
+  effective?: TEffectiveAccessMap;
 };
 
 export type TAdminBillingUserRoleFilter = 'USER' | 'ADMIN';
@@ -75,6 +80,8 @@ export type TAdminBillingPack = {
   label: string;
   credits: number;
   description?: string;
+  /** Access the pack grants or withholds while it is the user's pack */
+  grants?: TPackGrants;
 };
 
 export type TAdminBillingPacksResponse = {
@@ -94,6 +101,29 @@ export type TAdminBillingGrantResponse = {
   packAllotment: number;
   pack: { id: string; label: string } | null;
 };
+
+/** `POST /api/admin/balance/grant-bulk`: one pack or credit amount to several users. */
+export type TAdminBillingBulkGrantRequest =
+  | { userIds: string[]; packId: string }
+  | { userIds: string[]; credits: number };
+
+export type TAdminBillingBulkGrantResponse = {
+  granted: number;
+  /** Users that were not granted (gone, or the ledger write failed) */
+  failed: string[];
+  credits: number;
+  pack: { id: string; label: string } | null;
+};
+
+/** `POST /api/admin/users/bulk-access`: one access class for several users. */
+export type TAdminBulkAccessRequest = {
+  userIds: string[];
+  field: TAccessClass;
+  /** `true` allows, `false` denies, `null` returns to the default */
+  value: boolean | null;
+};
+
+export type TAdminBulkAccessResponse = { updated: number; notFound: string[] };
 
 /** `GET|PUT /api/admin/balance/gifts`: amounts in credits ($1 = 1,000,000) */
 export type TAdminGiftSettings = {

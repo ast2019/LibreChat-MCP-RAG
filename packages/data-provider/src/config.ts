@@ -46,6 +46,7 @@ import { referralConfigSchema } from './referral';
 import { phoneLoginConfigSchema } from './phone';
 import { mediaGenerationSchema } from './media';
 import { persianToolsSchema } from './persian';
+import { packGrantsSchema } from './access';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -4045,6 +4046,12 @@ export const balancePackSchema = z.object({
   credits: z.number().int().positive(),
   /** Admin-facing note such as the sale price; never used for billing */
   description: z.string().max(200).optional(),
+  /**
+   * Access the pack grants or withholds while it is the user's current pack (local and private
+   * model specs, media generation, the programming API). A user's own override still wins;
+   * an omitted class keeps the rule without packs.
+   */
+  grants: packGrantsSchema.optional(),
 });
 
 export type TBalancePack = z.infer<typeof balancePackSchema>;

@@ -335,6 +335,8 @@ export type TUser = {
   apiAccess?: boolean;
   /** Per-user media generation override; absent follows the deployment rule. */
   mediaAccess?: boolean;
+  /** The current balance pack; its `grants` (in the startup config's packs) apply. */
+  packId?: string;
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;

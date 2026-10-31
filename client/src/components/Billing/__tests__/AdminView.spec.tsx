@@ -11,6 +11,9 @@ const mockSetRoleMutate = jest.fn();
 const mockApiAccessMutate = jest.fn();
 const mockMediaAccessMutate = jest.fn();
 const mockGiftsMutate = jest.fn();
+const mockBulkGrantMutate = jest.fn();
+const mockBulkAccessMutate = jest.fn();
+let mockUsersParams: Record<string, unknown> | undefined;
 let mockUserRole: Record<string, unknown>;
 let mockSummary: Record<string, unknown>;
 let mockUsers: Record<string, unknown>;
@@ -32,7 +35,10 @@ jest.mock('@librechat/client', () => ({
 
 jest.mock('~/data-provider', () => ({
   useAdminBillingSummaryQuery: () => mockSummary,
-  useAdminBillingUsersQuery: () => mockUsers,
+  useAdminBillingUsersQuery: (params: Record<string, unknown>) => {
+    mockUsersParams = params;
+    return mockUsers;
+  },
   useAdminBillingPacksQuery: () => ({
     data: {
       enabled: true,
@@ -41,6 +47,8 @@ jest.mock('~/data-provider', () => ({
     },
   }),
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
+  useAdminBillingBulkGrantMutation: () => ({ mutate: mockBulkGrantMutate, isLoading: false }),
+  useAdminUsersBulkAccessMutation: () => ({ mutate: mockBulkAccessMutate, isLoading: false }),
   useAdminServiceStatusQuery: () => mockStatus,
   useRefreshAdminServiceStatusMutation: () => ({
     mutate: jest.fn(),
@@ -80,6 +88,12 @@ jest.mock('~/data-provider', () => ({
 async function openRowAction(name: string) {
   await userEvent.click(screen.getAllByTestId('admin-user-actions')[0]);
   await userEvent.click(await screen.findByRole('menuitem', { name }));
+}
+
+/** Opens the first user's sheet, where their access is changed. */
+async function openDetails() {
+  await openRowAction('Details and access');
+  return screen.findByTestId('admin-user-drawer');
 }
 
 const summaryData = {
@@ -263,8 +277,9 @@ describe('AdminView', () => {
     expect(screen.getByTestId('admin-gift-note')).toHaveTextContent('$0.20');
   });
 
-  it('turns the API on for one user', async () => {
+  it('turns the API on for one user from their sheet', async () => {
     renderView('/admin?tab=users');
+    await openDetails();
     await userEvent.click(screen.getByTestId('api-access-u1'));
     await userEvent.click(await screen.findByRole('option', { name: 'On' }));
     expect(mockApiAccessMutate).toHaveBeenCalledWith(
@@ -275,12 +290,91 @@ describe('AdminView', () => {
 
   it('lets one user generate media without a pack', async () => {
     renderView('/admin?tab=users');
+    await openDetails();
     await userEvent.click(screen.getByTestId('media-access-u1'));
     await userEvent.click(await screen.findByRole('option', { name: 'On' }));
     expect(mockMediaAccessMutate).toHaveBeenCalledWith(
       { userId: 'u1', mediaAccess: true },
       expect.any(Object),
     );
+  });
+
+  it('opens a user sheet from their name, with pack, access and role', async () => {
+    renderView('/admin?tab=users');
+    await userEvent.click(screen.getByRole('button', { name: 'Sara' }));
+    const drawer = await screen.findByTestId('admin-user-drawer');
+    expect(drawer).toHaveTextContent('Pack and credit');
+    expect(drawer).toHaveTextContent('Starter');
+    expect(within(drawer).getByTestId('model-access-local-u1')).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Make admin' })).toBeInTheDocument();
+  });
+
+  it('shows each access as it resolves now, without a control in the row', () => {
+    mockUsers = {
+      data: {
+        ...usersData,
+        users: [
+          {
+            ...usersData.users[0],
+            mediaAccess: false,
+            effective: {
+              local: { allowed: true, source: 'role' },
+              private: { allowed: true, source: 'role' },
+              media: { allowed: false, source: 'user' },
+              api: { allowed: false, source: 'role' },
+            },
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    };
+    renderView('/admin?tab=users');
+    const summary = screen.getByTestId('access-summary-u1');
+    expect(summary).toHaveTextContent('Image, video and voice · Off · set for this user');
+    expect(summary).toHaveTextContent('On-server models · On');
+    expect(screen.getByText('1 set for this user')).toBeInTheDocument();
+    expect(screen.queryByTestId('media-access-u1')).not.toBeInTheDocument();
+  });
+
+  it('changes one access for the selected users', async () => {
+    renderView('/admin?tab=users');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Sara' }));
+    expect(screen.getByTestId('admin-bulk-bar')).toHaveTextContent('1 users selected');
+    await userEvent.click(screen.getByRole('button', { name: 'Change access' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'API' }));
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Off' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(mockBulkAccessMutate).toHaveBeenCalledWith(
+      { userIds: ['u1'], field: 'api', value: false },
+      expect.any(Object),
+    );
+  });
+
+  it('adds a pack to every selected user', async () => {
+    renderView('/admin?tab=users');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all on this page' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a pack or credit' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    expect(mockBulkGrantMutate).toHaveBeenCalledWith(
+      { userIds: ['u1'], packId: 'starter' },
+      expect.any(Object),
+    );
+  });
+
+  it('reads the filters and the page from the address', () => {
+    renderView('/admin?tab=users&role=ADMIN&pack=pack:starter&sort=name&page=2&q=sara');
+    expect(mockUsersParams).toEqual(
+      expect.objectContaining({
+        search: 'sara',
+        role: 'ADMIN',
+        pack: 'starter',
+        sort: 'name',
+        offset: 25,
+      }),
+    );
+    expect(screen.getByRole('searchbox')).toHaveValue('sara');
   });
 
   it('lets the admin set the invite reward, applied from now on', async () => {

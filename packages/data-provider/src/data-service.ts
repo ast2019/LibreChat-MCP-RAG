@@ -7,6 +7,10 @@ import type {
   TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
   TAdminBillingGrantResponse,
+  TAdminBillingBulkGrantRequest,
+  TAdminBillingBulkGrantResponse,
+  TAdminBulkAccessRequest,
+  TAdminBulkAccessResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
   TAdminBillingUserUsage,
@@ -105,6 +109,18 @@ export function grantAdminBilling(
   payload: TAdminBillingGrantRequest,
 ): Promise<TAdminBillingGrantResponse> {
   return request.post(endpoints.adminBillingGrant(), payload);
+}
+
+export function grantAdminBillingBulk(
+  payload: TAdminBillingBulkGrantRequest,
+): Promise<TAdminBillingBulkGrantResponse> {
+  return request.post(endpoints.adminBillingGrantBulk(), payload);
+}
+
+export function updateAdminUsersBulkAccess(
+  payload: TAdminBulkAccessRequest,
+): Promise<TAdminBulkAccessResponse> {
+  return request.post(endpoints.adminUsersBulkAccess(), payload);
 }
 
 export function getAdminGifts(): Promise<TAdminGiftSettings> {

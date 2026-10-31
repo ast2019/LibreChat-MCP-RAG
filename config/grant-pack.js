@@ -4,7 +4,7 @@ const { getBalanceConfig, resolveBalanceGrant, grantBalance } = require('@librec
 const { User } = require('@librechat/data-schemas').createModels(mongoose);
 require('module-alias')({ base: path.resolve(__dirname, '..', 'api') });
 const { getAppConfig } = require('~/server/services/Config');
-const { createTransaction, upsertBalanceFields } = require('~/models');
+const { createTransaction, upsertBalanceFields, updateUser } = require('~/models');
 const { silentExit } = require('./helpers');
 const connect = require('./connect');
 
@@ -58,7 +58,12 @@ const connect = require('./connect');
 
   try {
     const result = await grantBalance(
-      { createTransaction, upsertBalanceFields },
+      {
+        createTransaction,
+        upsertBalanceFields,
+        setUserPack: (userId, packId) =>
+          updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
+      },
       {
         userId: user._id.toString(),
         credits: resolution.value.credits,

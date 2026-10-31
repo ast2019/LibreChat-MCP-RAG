@@ -7,6 +7,32 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Added
+- **Packs say what they include.** A pack in `balance.packs` can carry `grants` for `local`,
+  `private`, `media` and `api` (`true` includes it, `false` leaves it out). While it is the user's
+  pack it decides each class the user has no own setting for; an omitted class keeps the rule
+  without packs, so configs without `grants` behave as before. The order is: the user's own
+  setting, then admin, then the pack, then the role or deployment rule. A grant also copies the
+  pack onto the user (`user.packId`), so requests read it without a balance lookup;
+  `npm run sync-user-packs` copies it once for users granted a pack earlier.
+- **A user sheet on `/admin?tab=users`.** The list shows one read-only chip per access class, on or
+  off as it resolves now, with a mark for the user's own settings. The user's name, or «جزئیات و
+  دسترسی‌ها» in the row menu, opens a side sheet with pack, credit, usage, each access class and
+  the role. The default option of each class says what it means now («پیش‌فرض (الان روشن)»), and
+  a line below names who decides it (this user's setting, admin, the pack, the role or the rule).
+- **Bulk actions.** Rows have checkboxes and a select-all for the page. «دادن بسته یا اعتبار» grants
+  one pack or amount to every selected user (`POST /api/admin/balance/grant-bulk`), and «تغییر
+  دسترسی» sets one class to on, off or default for them (`POST /api/admin/users/bulk-access`),
+  up to 100 users per request. Each answer reports the users it could not change.
+- **Filters in the address.** Search, role, pack, balance, access, sort and page live in the query
+  (`?tab=users&q=…&pack=…&page=2`), so a view survives a reload and can be shared.
+
+### Changed
+- The media switch reads «ساخت تصویر، ویدیو و صدا» and its default no longer claims to follow
+  "the user's pack" when only having any pack mattered. The grant dialog lists what each pack
+  includes and leaves out. A media refusal for a pack that excludes media says so to the model
+  (`not_in_pack`), and an API call refused by the pack answers `403 api_not_in_pack`.
+
 ### Changed
 - **A thumbs-down needs its reason, and the reason is learned.** Choosing a thumbs-down tag opens
   a dialog («چه چیزی باید فرق می‌کرد؟»), and the feedback is saved only with a written reason.

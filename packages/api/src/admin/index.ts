@@ -8,7 +8,11 @@ export {
   createAdminModelAccessHandlers,
   createAdminApiAccessHandlers,
   createAdminMediaAccessHandlers,
+  createAdminBulkAccessHandler,
+  readBulkUserIds,
+  MAX_BULK_USERS,
 } from './access';
+export { computeEffectiveAccess, roleAccessFromPermissions } from './effectiveAccess';
 export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminCodeEnvironmentHandlers } from './code';
 export { buildAuditContext } from './context';
@@ -30,7 +34,13 @@ export type {
 } from './roles';
 export type { AdminSkillSyncAccessDeps, AdminSkillSyncDeps } from './skills';
 export type { AdminUsersDeps } from './users';
-export type { AdminModelAccessDeps, AdminApiAccessDeps, AdminMediaAccessDeps } from './access';
+export type {
+  AdminModelAccessDeps,
+  AdminApiAccessDeps,
+  AdminMediaAccessDeps,
+  AdminBulkAccessDeps,
+} from './access';
+export type { AccessRules, RoleAccess, EffectiveAccessUser } from './effectiveAccess';
 export type { AdminAuditLogDeps } from './auditLog';
 export type { CascadeStep, CascadeOutcome } from './cascade';
 export type { AdminCodeEnvironmentDeps } from './code';
