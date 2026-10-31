@@ -21,6 +21,9 @@ jest.mock('@librechat/api', () => ({
   isSubagentThreadWriteBlocked: jest.fn().mockResolvedValue(false),
   requireFeedbackEnabled: jest.fn((req, res, next) => next()),
   applyForcedRetention: jest.fn(),
+  learnFromFeedback: jest.fn().mockResolvedValue('skipped'),
+  getSafeErrorMetadata: jest.fn(() => ({})),
+  Tokenizer: { getTokenCount: jest.fn(() => 1) },
 }));
 
 jest.mock('~/server/services/Config', () => ({ getAppConfig: jest.fn() }));
@@ -76,7 +79,11 @@ jest.mock('~/db/models', () => ({
 
 describe('PUT /:conversationId/:messageId/feedback', () => {
   let app;
-  const { sendFeedbackScore, requireFeedbackEnabled } = require('@librechat/api');
+  const {
+    sendFeedbackScore,
+    requireFeedbackEnabled,
+    learnFromFeedback,
+  } = require('@librechat/api');
   const { updateMessage } = require('~/models');
 
   beforeAll(() => {
@@ -94,6 +101,7 @@ describe('PUT /:conversationId/:messageId/feedback', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     requireFeedbackEnabled.mockImplementation((req, res, next) => next());
+    learnFromFeedback.mockResolvedValue('skipped');
     updateMessage.mockImplementation((userId, { messageId, feedback }) =>
       Promise.resolve({
         messageId,
@@ -229,6 +237,36 @@ describe('PUT /:conversationId/:messageId/feedback', () => {
       'user-1',
       { messageId: 'message-1', feedback: null },
       { context: 'updateFeedback' },
+    );
+  });
+
+  it('learns the reason from the rated answer and reports the outcome', async () => {
+    learnFromFeedback.mockResolvedValue('saved');
+    const feedback = { rating: 'thumbsDown', tag: 'inaccurate', text: 'cite sources' };
+
+    const response = await request(app)
+      .put('/api/messages/conversation-1/message-1/feedback')
+      .send({ feedback });
+
+    expect(response.status).toBe(200);
+    expect(response.body.memory).toBe('saved');
+    expect(learnFromFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ getUserMemories: undefined }),
+      expect.objectContaining({ feedback, endpoint: 'openAI', user: { id: 'user-1' } }),
+    );
+  });
+
+  it('keeps the saved feedback when learning from it fails', async () => {
+    learnFromFeedback.mockRejectedValue(new Error('memory store down'));
+
+    const response = await request(app)
+      .put('/api/messages/conversation-1/message-1/feedback')
+      .send({ feedback: { rating: 'thumbsDown', tag: 'inaccurate', text: 'cite sources' } });
+
+    expect(response.status).toBe(200);
+    expect(response.body.memory).toBe('skipped');
+    expect(response.body.feedback).toEqual(
+      expect.objectContaining({ rating: 'thumbsDown', tag: 'inaccurate' }),
     );
   });
 });

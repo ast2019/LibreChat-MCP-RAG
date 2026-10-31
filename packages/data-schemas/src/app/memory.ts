@@ -52,3 +52,14 @@ export function isMemoryExcludedForEndpoint(
     (excluded) => typeof excluded === 'string' && excluded.toLowerCase() === normalized,
   );
 }
+
+/**
+ * Whether chats on `endpoint` may not even read saved memories: excluded, and
+ * `excludeEndpointsRead` is not on. Writing stays governed by {@link isMemoryExcludedForEndpoint}.
+ */
+export function isMemoryReadExcludedForEndpoint(
+  config: TMemoryConfig | undefined,
+  endpoint: string | null | undefined,
+): boolean {
+  return config?.excludeEndpointsRead !== true && isMemoryExcludedForEndpoint(config, endpoint);
+}

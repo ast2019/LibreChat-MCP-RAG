@@ -21,7 +21,6 @@ import {
   ThumbUpIcon,
   ThumbDownIcon,
 } from '@librechat/client';
-import { RememberPreferenceButton, RememberPreferenceDialog } from './RememberPreference';
 import { hoverButtonClasses } from './styles';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -137,12 +136,10 @@ function FeedbackButtons({
     (tag: TFeedbackTag) => (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault();
       downStore.hide();
+      /** Opens the reason dialog; the thumbs-down is saved with its reason from there. */
       onFeedback({ rating: 'thumbsDown', tag });
-      if (tag.key === 'other') {
-        onOther?.();
-      }
     },
-    [onFeedback, onOther, downStore],
+    [onFeedback, downStore],
   );
 
   return (
@@ -225,10 +222,11 @@ const buttonClasses = (isActive: boolean, isLast: boolean) =>
 
 function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }: FeedbackProps) {
   const localize = useLocalize();
-  const [openDialog, setOpenDialog] = useState(false);
   const [feedback, setFeedback] = useState<TFeedback | undefined>(initialFeedback);
-  /** Feedback the user chose to keep as a preference, while its memory dialog is open. */
-  const [rememberText, setRememberText] = useState<string | null>(null);
+  /** The feedback being written in the dialog; saved only by «ذخیره». A thumbs-down needs its
+   *  reason, so choosing one of its tags opens the dialog instead of saving the tag alone. */
+  const [draft, setDraft] = useState<TFeedback | null>(null);
+  const openDialog = draft != null;
 
   useEffect(() => {
     setFeedback(initialFeedback);
@@ -244,32 +242,49 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
 
   const handleButtonFeedback = useCallback(
     (fb: TFeedback | undefined) => {
-      if (fb?.tag?.key === 'other') setOpenDialog(true);
-      else setOpenDialog(false);
+      if (fb?.rating === 'thumbsDown') {
+        setDraft({ ...fb, text: fb.text ?? '' });
+        return;
+      }
       propagateMinimal(fb);
     },
     [propagateMinimal],
   );
 
-  const handleOtherOpen = useCallback(() => setOpenDialog(true), []);
+  const handleEditOpen = useCallback(() => {
+    if (feedback) {
+      setDraft({ ...feedback, text: feedback.text ?? '' });
+    }
+  }, [feedback]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setFeedback((prev) => (prev ? { ...prev, text: e.target.value } : undefined));
+    const text = e.target.value;
+    setDraft((prev) => (prev ? { ...prev, text } : prev));
   };
 
+  const reason = draft?.text?.trim() ?? '';
+  const needsReason = draft?.rating === 'thumbsDown' && reason === '';
+
   const handleDialogSave = useCallback(() => {
-    if (feedback?.tag?.key === 'other' && !feedback?.text?.trim()) {
+    if (!draft || needsReason) {
       return;
     }
-    propagateMinimal(feedback);
-    setOpenDialog(false);
-  }, [feedback, propagateMinimal]);
+    propagateMinimal({ ...draft, text: reason || undefined });
+    setDraft(null);
+  }, [draft, needsReason, reason, propagateMinimal]);
 
   const handleDialogClear = useCallback(() => {
     setFeedback(undefined);
     handleFeedback({ feedback: undefined });
-    setOpenDialog(false);
+    setDraft(null);
   }, [handleFeedback]);
+
+  /** Closing without saving drops the draft and keeps whatever was saved before. */
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDraft(null);
+    }
+  }, []);
 
   const renderSingleFeedbackButton = () => {
     if (!feedback) return null;
@@ -290,7 +305,7 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
               if (isThumbsUp) {
                 handleButtonFeedback(undefined);
               } else {
-                setOpenDialog(true);
+                handleEditOpen();
               }
             }}
             aria-label={label}
@@ -303,6 +318,10 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
     );
   };
 
+  const tagLabel = draft?.tag
+    ? localize(draft.tag.label as Parameters<typeof localize>[0])
+    : undefined;
+
   return (
     <>
       {feedback ? (
@@ -312,44 +331,42 @@ function Feedback({ isLast = false, handleFeedback, feedback: initialFeedback }:
           isLast={isLast}
           feedback={feedback}
           onFeedback={handleButtonFeedback}
-          onOther={handleOtherOpen}
+          onOther={handleEditOpen}
         />
       )}
-      <OGDialog open={openDialog} onOpenChange={setOpenDialog}>
+      <OGDialog open={openDialog} onOpenChange={handleOpenChange}>
         <OGDialogContent className="w-11/12 max-w-lg">
           <OGDialogTitle className="text-lg leading-6 font-semibold">
-            {localize('com_ui_feedback_more_information')}
+            {draft?.rating === 'thumbsDown'
+              ? localize('com_ui_feedback_reason_title')
+              : localize('com_ui_feedback_more_information')}
           </OGDialogTitle>
+          {tagLabel && <p className="text-text-secondary text-sm">{tagLabel}</p>}
           <Textarea
             className="h-auto w-full rounded-xl p-2"
-            value={feedback?.text || ''}
+            value={draft?.text || ''}
             onChange={handleTextChange}
             rows={4}
-            placeholder={localize('com_ui_feedback_placeholder')}
+            placeholder={localize('com_ui_feedback_reason_placeholder')}
+            aria-describedby="feedback-reason-hint"
+            aria-required={draft?.rating === 'thumbsDown'}
             maxLength={500}
           />
-          {openDialog && (
-            <RememberPreferenceButton
-              text={feedback?.text}
-              onRemember={(text) => {
-                handleDialogSave();
-                setRememberText(text);
-              }}
-            />
-          )}
+          <p id="feedback-reason-hint" className="text-text-secondary text-xs">
+            {localize('com_ui_feedback_reason_hint')}
+          </p>
           <div className="mt-4 flex items-end justify-end gap-2">
-            <Button variant="destructive" onClick={handleDialogClear}>
-              {localize('com_ui_delete')}
-            </Button>
-            <Button variant="submit" onClick={handleDialogSave} disabled={!feedback?.text?.trim()}>
+            {feedback && (
+              <Button variant="destructive" onClick={handleDialogClear}>
+                {localize('com_ui_delete')}
+              </Button>
+            )}
+            <Button variant="submit" onClick={handleDialogSave} disabled={needsReason}>
               {localize('com_ui_save')}
             </Button>
           </div>
         </OGDialogContent>
       </OGDialog>
-      {rememberText != null && (
-        <RememberPreferenceDialog text={rememberText} onClose={() => setRememberText(null)} />
-      )}
     </>
   );
 }

@@ -126,6 +126,16 @@ export const feedbackSchema = z
 
 export type TMinimalFeedback = z.infer<typeof feedbackSchema>;
 
+/**
+ * What became of a feedback reason in memory:
+ * - `saved`: added to the `preferences` memory.
+ * - `duplicate`: the memory already holds the same line.
+ * - `full`: adding it would pass the memory `tokenLimit` or `charLimit`.
+ * - `skipped`: not learned (off, no reason, memory off for the user or the answer's endpoint,
+ *   no permission, or the content filter withheld it).
+ */
+export type TFeedbackMemoryOutcome = 'saved' | 'duplicate' | 'full' | 'skipped';
+
 export type TFeedback = {
   rating: TFeedbackRating;
   tag: TFeedbackTag | undefined;

@@ -8,9 +8,12 @@ const {
   stripReasoningLabelMetadata,
 } = require('librechat-data-provider');
 const {
+  Tokenizer,
   unescapeLaTeX,
   countTokens,
   sendFeedbackScore,
+  learnFromFeedback,
+  getSafeErrorMetadata,
   traceIdForMessage,
   mergeQuotedTextForCount,
   requireFeedbackEnabled,
@@ -49,6 +52,13 @@ const {
   prepareMessageRequestValidation,
 } = require('~/server/middleware');
 const db = require('~/models');
+
+const feedbackMemoryDeps = {
+  getUserMemories: db.getUserMemories,
+  setMemory: db.setMemory,
+  getRoleByName: db.getRoleByName,
+  countTokens: (value) => Tokenizer.getTokenCount(value, 'o200k_base'),
+};
 
 const retentionStore = { stampForcedRetention: db.stampForcedRetention };
 
@@ -817,10 +827,25 @@ router.put(
         messageId,
       });
 
+      /** The saved feedback stands whatever becomes of learning from it */
+      let memory = 'skipped';
+      try {
+        memory = await learnFromFeedback(feedbackMemoryDeps, {
+          req,
+          user: req.user,
+          config: req.config,
+          feedback: feedbackResult?.data,
+          endpoint: updatedMessage.endpoint,
+        });
+      } catch (error) {
+        logger.error('[feedback] Could not add the reason to memory', getSafeErrorMetadata(error));
+      }
+
       res.json({
         messageId,
         conversationId,
         feedback: updatedMessage.feedback,
+        memory,
       });
     } catch (error) {
       logger.error('Error updating message feedback:', error);
