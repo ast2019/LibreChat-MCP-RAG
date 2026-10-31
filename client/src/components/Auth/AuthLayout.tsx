@@ -4,7 +4,7 @@ import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import { hasPublishedPolicies } from '~/utils/policies';
 import { TranslationKeys, useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
-import { FeatureGrid } from './Features';
+import { CompareCard } from './Compare';
 import { BlinkAnimation } from './BlinkAnimation';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
@@ -57,7 +57,6 @@ function AuthLayout({
    *  reader never meets both and never meets neither. */
   const statesConsent = registrationStatesConsent || statesConsentBelowProviders;
   const isTwoFactorSetup = pathname === '/login/2fa/setup';
-  const isWhy = pathname === '/why';
   const DisplayError = () => {
     if (hasStartupConfigError) {
       return (
@@ -101,47 +100,26 @@ function AuthLayout({
 
   return (
     <div className="bg-surface-primary flex min-h-screen">
-      {/* The brand side: the title, the tagline and what sets this service apart, only on
-          screens wide enough to give the form a full column beside it. It is wider on large
-          screens so the advantages fit without scrolling. The `/why` page shows the full
-          comparison itself, so there the panel keeps the logo alone. */}
-      <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-10 lg:flex xl:w-3/5 xl:px-14">
-        {isWhy ? (
-          <>
-            <div className="auth-brand-orbit relative flex size-72 items-center justify-center">
-              <div className="bg-surface-primary/80 border-border-light flex size-28 items-center justify-center rounded-3xl border p-5 shadow-lg backdrop-blur-sm">
-                <BlinkAnimation active={isFetching}>
-                  <div className="h-16 w-16">
-                    <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
-                  </div>
-                </BlinkAnimation>
-              </div>
+      {/* The brand side: the title, the tagline and how this service compares with similar
+          ones, only on screens wide enough to give the form a full column beside it. It is
+          wider on large screens so the whole comparison fits without scrolling. */}
+      <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-8 lg:flex xl:w-3/5 xl:px-12">
+        <div className="flex w-full max-w-3xl flex-col gap-5 py-6">
+          <div className="flex items-center gap-4">
+            <div className="bg-surface-primary/80 border-border-light flex size-12 shrink-0 items-center justify-center rounded-2xl border p-2.5 shadow-lg backdrop-blur-sm">
+              <BlinkAnimation active={isFetching}>
+                <div className="h-7 w-7">
+                  <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
+                </div>
+              </BlinkAnimation>
             </div>
-            <p className="text-text-primary mt-10 text-4xl font-bold">{appTitle}</p>
-            <p className="text-text-secondary mt-4 max-w-md text-center text-lg">
-              {localize('com_auth_brand_tagline')}
-            </p>
-          </>
-        ) : (
-          <div className="flex w-full max-w-3xl flex-col gap-6 py-8">
-            <div className="flex items-center gap-4">
-              <div className="bg-surface-primary/80 border-border-light flex size-14 shrink-0 items-center justify-center rounded-2xl border p-3 shadow-lg backdrop-blur-sm">
-                <BlinkAnimation active={isFetching}>
-                  <div className="h-8 w-8">
-                    <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
-                  </div>
-                </BlinkAnimation>
-              </div>
-              <div className="min-w-0">
-                <p className="text-text-primary text-3xl font-bold">{appTitle}</p>
-                <p className="text-text-secondary mt-1 text-base">
-                  {localize('com_auth_brand_tagline')}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-text-primary text-2xl font-bold">{appTitle}</p>
+              <p className="text-text-secondary text-sm">{localize('com_auth_brand_tagline')}</p>
             </div>
-            <FeatureGrid appTitle={appTitle} />
           </div>
-        )}
+          <CompareCard appTitle={appTitle} />
+        </div>
       </aside>
 
       <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
@@ -158,9 +136,7 @@ function AuthLayout({
           <div
             className={cn(
               'bg-surface-primary overflow-hidden px-6 py-4 sm:rounded-lg',
-              isWhy && 'w-11/12 max-w-2xl',
-              isTwoFactorSetup && 'w-11/12 max-w-lg',
-              !isWhy && !isTwoFactorSetup && 'w-authPageWidth sm:max-w-md',
+              isTwoFactorSetup ? 'w-11/12 max-w-lg' : 'w-authPageWidth sm:max-w-md',
             )}
           >
             {!hasStartupConfigError && !isFetching && header && (
@@ -175,6 +151,12 @@ function AuthLayout({
             {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
           </div>
         </main>
+        {/* Small screens have no brand panel, so the comparison follows the form here */}
+        {showsSocialLogin && (
+          <div className="flex justify-center px-4 pb-6 lg:hidden">
+            <CompareCard appTitle={appTitle} className="max-w-xl" />
+          </div>
+        )}
         {!statesConsent && <Footer startupConfig={startupConfig} />}
       </div>
     </div>

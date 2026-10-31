@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.3] - 2026-10-31
+
+### Changed
+- **The whole comparison is on the sign-in page.** Beside the form, «HiveGPT در کنار سرویس‌های
+  مشابه» is one table: every advantage with its icon, a title and a short line on one row, the
+  HiveGPT column marked, then what is shared and what is not here yet. Small screens show the
+  same table under the form. The tiles, the «مقایسه‌ی کامل» link and the separate `/why` page are
+  gone.
+
 ## [0.28.2] - 2026-10-31
 
 ### Changed
