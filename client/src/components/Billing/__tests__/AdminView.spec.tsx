@@ -334,10 +334,21 @@ describe('AdminView', () => {
     renderView('/admin?tab=users');
     const summary = screen.getByTestId('access-summary-u1');
     /** Only what the user has now; a class that is off is not listed */
-    expect(summary).toHaveTextContent('On-server models');
+    expect(summary).toHaveTextContent('Secure local AI');
+    expect(summary).not.toHaveTextContent('Special secure local AI');
     expect(summary).not.toHaveTextContent('Image, video and voice');
     expect(summary).not.toHaveTextContent('API');
     expect(screen.queryByTestId('media-access-u1')).not.toBeInTheDocument();
+  });
+
+  it('gives admins the special secure local chip', () => {
+    mockUsers = {
+      data: { ...usersData, users: [{ ...usersData.users[0], role: 'ADMIN' }] },
+      isLoading: false,
+      isError: false,
+    };
+    renderView('/admin?tab=users');
+    expect(screen.getByTestId('access-summary-u1')).toHaveTextContent('Special secure local AI');
   });
 
   it('changes one access for the selected users', async () => {

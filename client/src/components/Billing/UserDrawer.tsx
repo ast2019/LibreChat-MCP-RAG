@@ -113,6 +113,16 @@ export default function UserDrawer({
                 {ACCESS_CLASSES.map((field) => (
                   <AccessControl key={field} user={user} field={field} packs={packs} />
                 ))}
+                {isAdmin && (
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-text-primary text-sm">
+                      {localize('com_admin_access_special')}
+                    </span>
+                    <span className="text-text-secondary text-xs">
+                      {localize('com_admin_access_special_hint')}
+                    </span>
+                  </div>
+                )}
               </div>
             </Section>
 
