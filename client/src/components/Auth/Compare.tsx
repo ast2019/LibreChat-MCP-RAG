@@ -33,7 +33,9 @@ export const COMPARE_SECTIONS: CompareSection[] = [
       { label: 'com_auth_compare_row_private', ours: 'yes', others: 'no' },
       { label: 'com_auth_compare_row_memory', ours: 'yes', others: 'some' },
       { label: 'com_auth_compare_row_higgsfield', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_voice', ours: 'yes', others: 'some' },
       { label: 'com_auth_compare_row_new_models', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_model', ours: 'yes', others: 'some' },
       { label: 'com_auth_compare_row_tools', ours: 'yes', others: 'some' },
     ],
   },
@@ -80,22 +82,13 @@ function OfferMark({ offer }: { offer: Offer }) {
   );
 }
 
-/**
- * The comparison table. `compact` fits the sign-in page's brand panel; the full form is the
- * public `/why` page, with the services it compares against named below it.
- */
-export function CompareTable({
-  appTitle,
-  compact = false,
-}: {
-  appTitle: string;
-  compact?: boolean;
-}) {
+/** The full comparison on the public `/why` page, with the services it compares against. */
+export function CompareTable({ appTitle }: { appTitle: string }) {
   const localize = useLocalize();
-  const cell = compact ? 'py-1.5' : 'py-2.5';
+  const cell = 'py-2.5';
   return (
-    <div className={cn('w-full', compact ? 'max-w-md' : '')}>
-      <table className={cn('w-full border-collapse', compact ? 'text-sm' : 'text-sm sm:text-base')}>
+    <div className="w-full">
+      <table className="w-full border-collapse text-sm sm:text-base">
         <caption className="sr-only">{localize('com_auth_compare_title')}</caption>
         <thead>
           <tr className="border-border-medium border-b">
@@ -122,10 +115,7 @@ export function CompareTable({
               <th
                 scope="colgroup"
                 colSpan={3}
-                className={cn(
-                  'text-text-tertiary text-start text-xs font-semibold',
-                  compact ? 'pt-3 pb-1' : 'pt-5 pb-1.5',
-                )}
+                className="text-text-tertiary pt-5 pb-1.5 text-start text-xs font-semibold"
               >
                 {localize(section.title)}
               </th>

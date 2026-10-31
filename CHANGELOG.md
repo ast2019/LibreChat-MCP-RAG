@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-10-31
+
+### Changed
+- **The sign-in panel fits without scrolling.** Beside the form it shows «چرا HiveGPT؟» as a grid
+  of tiles, one per advantage with an icon, a title and one line, in two columns (three on very
+  wide screens), instead of a long table. The panel takes three fifths of the screen from `xl`.
+  Under the tiles, one line each says what the service shares with similar ones and what is
+  coming, and a link opens the full table on `/why`.
+- **Two more advantages:** Persian voice (speak instead of typing, hear answers read aloud) and
+  showing the exact model version that answered, with its price. Both are in the tiles and the
+  `/why` table.
+
 ## [0.28.1] - 2026-10-31
 
 ### Changed
