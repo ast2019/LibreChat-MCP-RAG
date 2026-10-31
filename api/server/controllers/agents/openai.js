@@ -15,6 +15,8 @@ const {
   writeSSE,
   createRun,
   createChunk,
+  convertChatMessages,
+  applyChatClientTools,
   applyContextToAgent,
   buildRunToolSet,
   buildInitialToolSessions,
@@ -165,47 +167,6 @@ function createToolLoader({ req, res, signal, definitionsOnly = true }) {
       logger.error('Error loading tools for agent ' + agentId, getSafeErrorMetadata(error));
     }
   };
-}
-
-/**
- * Convert content part to internal format
- * @param {Object} part - Content part
- * @returns {Object} Converted part
- */
-function convertContentPart(part) {
-  if (part.type === 'text') {
-    return { type: 'text', text: part.text };
-  }
-  if (part.type === 'image_url') {
-    return { type: 'image_url', image_url: part.image_url };
-  }
-  return part;
-}
-
-/**
- * Convert OpenAI messages to internal format
- * @param {Array} messages - OpenAI format messages
- * @returns {Array} Internal format messages
- */
-function convertMessages(messages) {
-  return messages.map((msg) => {
-    let content;
-    if (typeof msg.content === 'string') {
-      content = msg.content;
-    } else if (msg.content) {
-      content = msg.content.map(convertContentPart);
-    } else {
-      content = '';
-    }
-
-    return {
-      role: msg.role,
-      content,
-      ...(msg.name && { name: msg.name }),
-      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
-      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id }),
-    };
-  });
 }
 
 /**
@@ -828,6 +789,17 @@ const executeOpenAIChatCompletion = async (envelope, { req, res }) => {
         }
       }
       const modelBoundAgents = [...modelBoundAgentsById.values()];
+      /** The caller's function tools replace the model's server tools for this run */
+      const clientTools = applyChatClientTools({
+        agent: primaryConfig,
+        agentCount: runAgents.length,
+        hasSubagents: modelBoundAgents.length > runAgents.length,
+        tools: request.tools,
+        toolChoice: request.tool_choice,
+      });
+      if (!clientTools.ok) {
+        return sendErrorResponse(res, 400, clientTools.error, 'invalid_request_error');
+      }
       const manualSkillPrimes = primaryConfig.manualSkillPrimes;
       const alwaysApplySkillPrimes = primaryConfig.alwaysApplySkillPrimes;
       assertModelBoundContent({
@@ -935,7 +907,7 @@ const executeOpenAIChatCompletion = async (envelope, { req, res }) => {
 
       const summarizationConfig = appConfig?.summarization;
 
-      const openaiMessages = convertMessages(request.messages);
+      const openaiMessages = convertChatMessages(request.messages);
 
       const toolSet = buildRunToolSet(
         primaryConfig,
@@ -1151,6 +1123,7 @@ const executeOpenAIChatCompletion = async (envelope, { req, res }) => {
         /** Bills subagent child-run model calls (reported outside the
          *  streamEvents loop) into the same collectedUsage array. */
         subagentUsageSink: createSubagentUsageSink(collectedUsage),
+        clientDelegatedToolNames: clientTools.names,
       });
 
       if (!run) {

@@ -81,6 +81,12 @@ import { collectReachableAgents } from '../traversal';
 import { resolveRecursionLimit } from '../config';
 import { getDynamicToolContexts } from '../hitl';
 import { createSafeUser } from '~/utils';
+import {
+  convertChatMessages,
+  validateChatTools,
+  validateChatToolChoice,
+  validateChatToolExchanges,
+} from './clientTools';
 
 /**
  * Dependencies for the chat completion service
@@ -429,35 +435,11 @@ function inspectSubmittedRequest(
 }
 
 /**
- * Convert OpenAI messages to LibreChat format
+ * Convert OpenAI messages to LibreChat format: a tool exchange becomes one assistant message
+ * with `tool_call` parts (see {@link convertChatMessages}).
  */
 export function convertMessages(messages: ChatMessage[]): unknown[] {
-  return messages.map((msg) => {
-    let content: string | unknown[];
-    if (typeof msg.content === 'string') {
-      content = msg.content;
-    } else if (msg.content) {
-      content = msg.content.map((part) => {
-        if (part.type === 'text') {
-          return { type: 'text', text: part.text };
-        }
-        if (part.type === 'image_url') {
-          return { type: 'image_url', image_url: part.image_url };
-        }
-        return part;
-      });
-    } else {
-      content = '';
-    }
-
-    return {
-      role: msg.role,
-      content,
-      ...(msg.name && { name: msg.name }),
-      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
-      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id }),
-    };
-  });
+  return convertChatMessages(messages);
 }
 
 /**
@@ -520,7 +502,7 @@ export function validateRequest(body: unknown): ChatCompletionValidationResult {
   const request = body as Record<string, unknown>;
 
   if (!request.model || typeof request.model !== 'string') {
-    return { valid: false, error: 'model (agent_id) is required' };
+    return { valid: false, error: 'model is required: a model name from GET /v1/models' };
   }
 
   if (!request.messages || !Array.isArray(request.messages)) {
@@ -582,6 +564,16 @@ export function validateRequest(body: unknown): ChatCompletionValidationResult {
 
   if (request.parent_message_id !== undefined && typeof request.parent_message_id !== 'string') {
     return { valid: false, error: 'parent_message_id must be a string' };
+  }
+
+  const toolsError =
+    validateChatTools(request.tools) ?? validateChatToolChoice(request.tool_choice, request.tools);
+  if (toolsError !== undefined) {
+    return { valid: false, error: toolsError };
+  }
+  const exchangeError = validateChatToolExchanges(request.messages as ChatMessage[]);
+  if (exchangeError !== undefined) {
+    return { valid: false, error: exchangeError };
   }
 
   return { valid: true, request: request as unknown as ChatCompletionRequest };

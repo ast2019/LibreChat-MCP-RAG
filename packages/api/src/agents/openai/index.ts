@@ -22,7 +22,7 @@
  * Request format:
  * ```json
  * {
- *   "model": "agent_id_here",
+ *   "model": "smart",
  *   "messages": [
  *     {"role": "user", "content": "Hello!"}
  *   ],
@@ -30,12 +30,13 @@
  * }
  * ```
  *
- * The "model" parameter should be the agent ID you want to invoke.
- * Use the /v1/models endpoint to list available agents.
+ * The "model" parameter is a model name from /v1/models: a model of the menu or a shared
+ * agent's id. Function `tools` are executed by the caller (see `./clientTools`).
  */
 
 export * from './types';
 export * from './handlers';
+export * from './clientTools';
 export {
   createAgentChatCompletion,
   listAgentModels,

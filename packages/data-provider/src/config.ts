@@ -2668,6 +2668,16 @@ export const rateLimitSchema = z.object({
       userWindowInMinutes: z.number().positive().optional(),
     })
     .optional(),
+  /**
+   * Model calls of the programming API (`/api/agents/v1/chat/completions` and `/responses`)
+   * per user per window (default 1 minute). Omission leaves them unlimited.
+   */
+  api: z
+    .object({
+      userMax: z.number().int().positive().optional(),
+      userWindowInMinutes: z.number().positive().optional(),
+    })
+    .optional(),
   fileUploads: z
     .object({
       ipMax: z.number().optional(),

@@ -75,6 +75,7 @@ jest.mock('~/server/middleware', () => ({
   },
   moderateText: (req, res, next) => next(),
   agentEventUserLimiter: (req, res, next) => next(),
+  apiRequestLimiter: (req, res, next) => next(),
   messageIpLimiter: (req, res, next) => next(),
   configMiddleware: (req, res, next) => next(),
   messageUserLimiter: (req, res, next) => next(),

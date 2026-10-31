@@ -11,7 +11,7 @@
  *
  * Request format:
  *   {
- *     "model": "agent_id_here",
+ *     "model": "smart",
  *     "input": "Hello!" or [{ type: "message", role: "user", content: "Hello!" }],
  *     "stream": true,
  *     "previous_response_id": "optional_conversation_id"
@@ -25,7 +25,11 @@ const {
   getResponse,
   listModels,
 } = require('~/server/controllers/agents/responses');
-const { configMiddleware, requireTermsAcceptance } = require('~/server/middleware');
+const {
+  configMiddleware,
+  apiRequestLimiter,
+  requireTermsAcceptance,
+} = require('~/server/middleware');
 const {
   checkAgentPermission,
   preAuthTenantMiddleware,
@@ -49,7 +53,7 @@ router.use(checkRemoteAgentsFeature);
  *
  * Request body:
  * {
- *   "model": "agent_id",                // Required: The agent ID to use
+ *   "model": "smart",                   // Required: a model id from GET /v1/models
  *   "input": "..." | [...],             // Required: String or array of input items
  *   "stream": true,                     // Optional: Whether to stream (default: false)
  *   "previous_response_id": "...",      // Optional: Previous response for continuation
@@ -83,7 +87,7 @@ router.use(checkRemoteAgentsFeature);
  *   "usage": { ... }
  * }
  */
-router.post('/', checkAgentPermission, requireApiBalance, createResponse);
+router.post('/', apiRequestLimiter, checkAgentPermission, requireApiBalance, createResponse);
 
 /**
  * @route GET /v1/responses/models

@@ -8,9 +8,19 @@ import {
 } from './errors';
 import { agentComponentSchemas, agentContracts } from './agents';
 import { skillComponentSchemas, skillContracts } from './skills';
+import { inferenceComponentSchemas, inferenceContracts } from './inference';
 
-/** The agent and skill management endpoints authenticate with an OIDC access token (bearer). */
+/**
+ * Model calls and events authenticate with an API key from Settings → API keys; the agent and
+ * skill management endpoints with an OIDC access token. Both are sent as bearer tokens.
+ */
 export const securitySchemes: Record<string, SecurityScheme> = {
+  apiKey: {
+    type: 'http',
+    scheme: 'bearer',
+    description:
+      'An API key created in Settings → API keys, sent as `Authorization: Bearer <key>`. The account needs API access (admin switch, pack or role) and credit.',
+  },
   oidcBearer: {
     type: 'http',
     scheme: 'bearer',
@@ -20,6 +30,7 @@ export const securitySchemes: Record<string, SecurityScheme> = {
 };
 
 export const componentSchemas: Record<string, ZodTypeAny> = {
+  ...inferenceComponentSchemas,
   ...agentComponentSchemas,
   ...skillComponentSchemas,
   ErrorMessage: errorMessageResponseSchema,
@@ -52,4 +63,8 @@ export const componentSchemaOverrides: Record<string, Record<string, unknown>> =
   },
 };
 
-export const contracts: EndpointContract[] = [...agentContracts, ...skillContracts];
+export const contracts: EndpointContract[] = [
+  ...inferenceContracts,
+  ...agentContracts,
+  ...skillContracts,
+];

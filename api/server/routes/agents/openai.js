@@ -13,7 +13,7 @@
  *
  * Request format:
  *   {
- *     "model": "agent_id_here",
+ *     "model": "smart",
  *     "messages": [{"role": "user", "content": "Hello!"}],
  *     "stream": true
  *   }
@@ -32,6 +32,7 @@ const {
 } = require('~/server/controllers/agents/openai');
 const {
   configMiddleware,
+  apiRequestLimiter,
   agentEventUserLimiter,
   requireTermsAcceptance,
 } = require('~/server/middleware');
@@ -112,7 +113,8 @@ router.get('/events/:id', eventHandlers.getEvent);
  *
  * Request body:
  * {
- *   "model": "agent_id",        // Required: The agent ID to use
+ *   "model": "smart",           // Required: a model id from GET /v1/models
+ *   "tools": [...],             // Optional: function tools the caller executes
  *   "messages": [...],          // Required: Array of chat messages
  *   "stream": true,             // Optional: Whether to stream (default: false)
  *   "conversation_id": "...",   // Optional: Conversation ID for context
@@ -128,6 +130,7 @@ router.get('/events/:id', eventHandlers.getEvent);
  */
 router.post(
   '/chat/completions',
+  apiRequestLimiter,
   checkAgentPermission,
   requireApiBalance,
   OpenAIChatCompletionController,

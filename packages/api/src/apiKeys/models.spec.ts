@@ -14,6 +14,7 @@ const config = {
       {
         name: 'smart',
         label: 'Smart',
+        group: 'Claude',
         preset: {
           endpoint: 'OpenRouter',
           model: 'anthropic/claude',
@@ -22,6 +23,12 @@ const config = {
         },
       },
       { name: 'broken', label: 'No endpoint', preset: {} },
+      {
+        name: 'local',
+        label: 'Local',
+        privacy: 'local',
+        preset: { endpoint: 'Local', model: 'qwen' },
+      },
     ],
   },
 };
@@ -32,8 +39,10 @@ describe('API model specs', () => {
     expect(findApiModelSpec(req, 'smart')?.name).toBe('smart');
     expect(findApiModelSpec(req, 'broken')).toBeNull();
     expect(findApiModelSpec(req, 'missing')).toBeNull();
-    expect(listApiModelSpecs(req).map((m) => [m.id, m.name, m.provider])).toEqual([
-      ['smart', 'Smart', 'OpenRouter'],
+    /** The brand group stands in for the host endpoint, and a local model says so */
+    expect(listApiModelSpecs(req).map((m) => [m.id, m.name, m.provider, m.privacy])).toEqual([
+      ['smart', 'Smart', 'Claude', undefined],
+      ['local', 'Local', 'Local', 'local'],
     ]);
   });
 

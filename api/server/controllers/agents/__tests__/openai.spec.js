@@ -174,6 +174,12 @@ jest.mock('@librechat/agents', () => ({
   }),
 }));
 
+/** The API model resolver: a stored agent by id, as the mocked models return it */
+jest.mock('../apiAgent', () => ({
+  loadApiAgent: (_req, model) => require('~/models').getAgent({ id: model }),
+  listApiModelSpecs: () => [],
+}));
+
 jest.mock('@librechat/api', () => ({
   createFileProvisionRecovery: () =>
     jest.requireActual('@librechat/api').createFileProvisionRecovery(),
@@ -226,6 +232,11 @@ jest.mock('@librechat/api', () => ({
   buildAgentContextAttachmentsByAgentId: (...args) =>
     mockBuildAgentContextAttachmentsByAgentId(...args),
   createChunk: jest.fn().mockReturnValue({}),
+  convertChatMessages: (...args) =>
+    jest.requireActual('@librechat/api').convertChatMessages(...args),
+  applyChatClientTools: jest.fn((...args) =>
+    jest.requireActual('@librechat/api').applyChatClientTools(...args),
+  ),
   completeOpenAIToolCalls: jest.requireActual('@librechat/api').completeOpenAIToolCalls,
   buildRunToolSet: jest.fn().mockReturnValue(new Set()),
   buildInitialToolSessions: jest.fn().mockReturnValue(mockInitialSessions),
@@ -920,6 +931,64 @@ describe('OpenAIChatCompletionController', () => {
     await OpenAIChatCompletionController(req, res);
 
     expect(createRun).toHaveBeenCalledWith(expect.objectContaining({ isTemporary: true }));
+  });
+
+  it('binds the caller tools in place of the server tools and delegates them to the caller', async () => {
+    const api = require('@librechat/api');
+    const tools = [
+      {
+        type: 'function',
+        function: { name: 'read_file', parameters: { type: 'object', properties: {} } },
+      },
+    ];
+    const history = [
+      { role: 'user', content: 'open app.ts' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'call_1', content: 'export {}' },
+    ];
+    const agent = {
+      id: 'agent-123',
+      model: 'gpt-4',
+      model_parameters: {},
+      toolRegistry: {},
+      edges: [],
+      toolDefinitions: [{ name: 'web_search' }],
+    };
+    api.initializeAgent.mockResolvedValueOnce(agent);
+    api.validateRequest.mockReturnValueOnce({
+      request: { ...req.body, messages: history, tools, tool_choice: 'auto' },
+    });
+
+    await OpenAIChatCompletionController(req, res);
+
+    const runParams = api.createRun.mock.calls.at(-1)[0];
+    expect(runParams.clientDelegatedToolNames).toEqual(['read_file']);
+    expect(agent.toolDefinitions).toEqual([expect.objectContaining({ name: 'read_file' })]);
+    /** The tool exchange reaches the formatter as one assistant turn with its result */
+    expect(api.buildRunToolSet.mock.calls.at(-1)[3]).toEqual([
+      { role: 'user', content: 'open app.ts' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_call',
+            tool_call: { id: 'call_1', name: 'read_file', args: '{}', output: 'export {}' },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('runs without caller tools when the request sends none', async () => {
+    const api = require('@librechat/api');
+    await OpenAIChatCompletionController(req, res);
+    expect(api.createRun.mock.calls.at(-1)[0].clientDelegatedToolNames).toEqual([]);
   });
 
   it('uses collected usage for the non-streaming response', async () => {

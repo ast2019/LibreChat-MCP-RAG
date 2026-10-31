@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "LibreChat Agents API",
+    "title": "Agents API",
     "version": "0.1.0",
-    "description": "The public agent and skill management endpoints of the LibreChat Agents API. This API is in beta and may change."
+    "description": "Call the models with an API key: OpenAI-compatible `/models` and `/chat/completions` (with caller-executed tools, for coding clients), Open Responses `/responses`, and agent events. The agent and skill management endpoints use an OIDC token. Base URL: `<site>/api/agents/v1`."
   },
   "servers": [
     {
@@ -12,6 +12,1220 @@
     }
   ],
   "paths": {
+    "/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List the models this key can call",
+        "tags": [
+          "Models"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "The models of the menu this user may use (including local and private ones they have access to), then the agents shared with them. Use `id` as `model`.",
+        "responses": {
+          "200": {
+            "description": "The models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/{model}": {
+      "get": {
+        "operationId": "getModel",
+        "summary": "Read one model",
+        "tags": [
+          "Models"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model",
+            "description": "A model id from `GET /models`",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat/completions": {
+      "post": {
+        "operationId": "createChatCompletion",
+        "summary": "Create a chat completion (OpenAI-compatible)",
+        "tags": [
+          "Chat Completions"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Works with OpenAI SDKs and coding clients by setting the base URL and key. Image, video and voice generation are not available here. Usage is charged to the account like chat.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The completion, or a stream of chunks when `stream` is true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletion"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events, one `data: {chat.completion.chunk}` per line pair and a final `data: [DONE]`. The first chunk carries `delta.role`, text arrives in `delta.content`, reasoning in `delta.reasoning`, and caller tool calls in `delta.tool_calls` (by `index`, with `id`, `type`, `function.name`, then `function.arguments`). The last chunk carries `finish_reason` and `usage`. An error after streaming started arrives as a final content chunk followed by `[DONE]`."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/responses": {
+      "post": {
+        "operationId": "createResponse",
+        "summary": "Create a response (Open Responses)",
+        "tags": [
+          "Responses"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The response, or a stream of events when `stream` is true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Open Responses streaming events (`response.created`, `response.output_text.delta`, `response.function_call_arguments.delta`, `response.completed`, …)."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/responses/models": {
+      "get": {
+        "operationId": "listResponseModels",
+        "summary": "List the models, as `GET /models` does",
+        "tags": [
+          "Responses"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/responses/{id}": {
+      "get": {
+        "operationId": "getResponse",
+        "summary": "Read a stored response",
+        "tags": [
+          "Responses"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "A response id created with `store: true`",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "post": {
+        "operationId": "createAgentEvent",
+        "summary": "Deliver an event to an agent",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Durably queues an event for a shared agent (`fire`), a bound child actor (`continue`) or a running generation (`steer`). Send exactly one `Idempotency-Key` header and keep it stable when retrying the same delivery.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; poll `GET /events/{id}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/bindings": {
+      "post": {
+        "operationId": "createAgentEventBinding",
+        "summary": "Bind a source actor to a child agent thread",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Send exactly one `Idempotency-Key` header and keep it stable when retrying the same delivery.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEventBindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The binding id and child thread",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{id}": {
+      "get": {
+        "operationId": "getAgentEvent",
+        "summary": "Read an event delivery status",
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "The delivery id `POST /events` returned",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The delivery state (`pending`, `leased`, `succeeded`, `dead`) and handling",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`missing_api_key` (send `Authorization: Bearer <key>`) or `invalid_api_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`insufficient_balance`: no credit left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api_access_disabled` (switched off for this account), `api_not_in_pack` (the current pack excludes the API), the role has no API access, or `access_denied` for an agent not shared with the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`model_not_found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`account_deletion_in_progress`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: too many calls for this user in the window (`rateLimits.api`). Wait for `Retry-After` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIError"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "An unknown error occurred.",
+                    "Processing error in ErrorController."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents": {
       "post": {
         "operationId": "createAgent",
@@ -2361,6 +3575,11 @@
   },
   "components": {
     "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API key created in Settings → API keys, sent as `Authorization: Bearer <key>`. The account needs API access (admin switch, pack or role) and credit."
+      },
       "oidcBearer": {
         "type": "http",
         "scheme": "bearer",
@@ -2369,6 +3588,727 @@
       }
     },
     "schemas": {
+      "OpenAIError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "param": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "message",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ChatMessage": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ]
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "text"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "image_url"
+                        },
+                        "image_url": {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "low",
+                                "high"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "url"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "image_url"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "function"
+                },
+                "function": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "arguments": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "arguments"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "function"
+              ]
+            }
+          },
+          "tool_call_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ]
+      },
+      "FunctionTool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "function"
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {}
+              },
+              "strict": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "function"
+        ]
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "minItems": 1
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              }
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunctionTool"
+            },
+            "maxItems": 128
+          },
+          "tool_choice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "auto",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "function"
+                  },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "function"
+                ]
+              }
+            ]
+          },
+          "max_tokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "frequency_penalty": {
+            "type": "number"
+          },
+          "presence_penalty": {
+            "type": "number"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "user": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "parent_message_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ]
+      },
+      "ChatCompletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "const": "assistant"
+                    },
+                    "content": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reasoning": {
+                      "type": "string"
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "function"
+                          },
+                          "function": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "arguments": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "arguments"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "function"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "content"
+                  ]
+                },
+                "finish_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "stop",
+                    "length",
+                    "tool_calls",
+                    "content_filter",
+                    null
+                  ]
+                }
+              },
+              "required": [
+                "index",
+                "message",
+                "finish_reason"
+              ]
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "prompt_tokens",
+              "completion_tokens",
+              "total_tokens"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "model",
+          "choices",
+          "usage"
+        ]
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "model"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "owned_by": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "array",
+            "items": {}
+          },
+          "root": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "null"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "privacy": {
+            "type": "string",
+            "enum": [
+              "local",
+              "private"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "owned_by",
+          "permission",
+          "root",
+          "parent"
+        ]
+      },
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        },
+        "required": [
+          "object",
+          "data"
+        ]
+      },
+      "ResponseRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "tool_choice": {},
+          "stream": {
+            "type": "boolean"
+          },
+          "previous_response_id": {
+            "type": "string"
+          },
+          "store": {
+            "type": "boolean"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "model",
+          "input"
+        ],
+        "additionalProperties": true
+      },
+      "Response": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "response"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created_at",
+          "status",
+          "model",
+          "output"
+        ],
+        "additionalProperties": true
+      },
+      "AgentEventRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "fire",
+              "continue",
+              "steer"
+            ]
+          },
+          "event": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "occurredAt": {
+                "type": "integer"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "occurredAt"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "agentId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "agentId"
+            ]
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "orderingKey": {
+            "type": "string"
+          },
+          "expectedAction": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "mode",
+          "event"
+        ],
+        "additionalProperties": true
+      },
+      "AgentEventBindingRequest": {
+        "type": "object",
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "parentConversationId": {
+            "type": "string"
+          },
+          "parentMessageId": {
+            "type": "string"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "agentId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "agentId"
+            ]
+          }
+        },
+        "required": [
+          "actorId",
+          "parentConversationId",
+          "parentMessageId",
+          "target"
+        ]
+      },
       "AgentCreateRequest": {
         "type": "object",
         "properties": {
