@@ -4,6 +4,7 @@ import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import { hasPublishedPolicies } from '~/utils/policies';
 import { TranslationKeys, useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
+import { CompareTable } from './Compare';
 import { BlinkAnimation } from './BlinkAnimation';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
@@ -56,6 +57,7 @@ function AuthLayout({
    *  reader never meets both and never meets neither. */
   const statesConsent = registrationStatesConsent || statesConsentBelowProviders;
   const isTwoFactorSetup = pathname === '/login/2fa/setup';
+  const isWhy = pathname === '/why';
   const DisplayError = () => {
     if (hasStartupConfigError) {
       return (
@@ -99,22 +101,49 @@ function AuthLayout({
 
   return (
     <div className="bg-surface-primary flex min-h-screen">
-      {/* The brand side: decorative apart from the title and tagline it states, and only
-          on screens wide enough to give the form a full column beside it. */}
+      {/* The brand side: the title, the tagline and how this service differs from similar
+          ones, only on screens wide enough to give the form a full column beside it. The
+          `/why` page shows the comparison itself, so there the panel keeps the logo alone. */}
       <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-10 lg:flex">
-        <div className="auth-brand-orbit relative flex size-72 items-center justify-center">
-          <div className="bg-surface-primary/80 border-border-light flex size-28 items-center justify-center rounded-3xl border p-5 shadow-lg backdrop-blur-sm">
-            <BlinkAnimation active={isFetching}>
-              <div className="h-16 w-16">
-                <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
+        {isWhy ? (
+          <>
+            <div className="auth-brand-orbit relative flex size-72 items-center justify-center">
+              <div className="bg-surface-primary/80 border-border-light flex size-28 items-center justify-center rounded-3xl border p-5 shadow-lg backdrop-blur-sm">
+                <BlinkAnimation active={isFetching}>
+                  <div className="h-16 w-16">
+                    <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
+                  </div>
+                </BlinkAnimation>
               </div>
-            </BlinkAnimation>
+            </div>
+            <p className="text-text-primary mt-10 text-4xl font-bold">{appTitle}</p>
+            <p className="text-text-secondary mt-4 max-w-md text-center text-lg">
+              {localize('com_auth_brand_tagline')}
+            </p>
+          </>
+        ) : (
+          <div className="flex max-h-screen w-full max-w-md flex-col items-center overflow-y-auto py-10">
+            <div className="flex items-center gap-4">
+              <div className="bg-surface-primary/80 border-border-light flex size-16 shrink-0 items-center justify-center rounded-2xl border p-3 shadow-lg backdrop-blur-sm">
+                <BlinkAnimation active={isFetching}>
+                  <div className="h-10 w-10">
+                    <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
+                  </div>
+                </BlinkAnimation>
+              </div>
+              <p className="text-text-primary text-3xl font-bold">{appTitle}</p>
+            </div>
+            <p className="text-text-secondary mt-4 text-center text-lg">
+              {localize('com_auth_brand_tagline')}
+            </p>
+            <div className="bg-surface-primary/80 border-border-light mt-8 w-full rounded-2xl border p-4 backdrop-blur-sm">
+              <h2 className="text-text-primary mb-1 text-base font-semibold">
+                {localize('com_auth_compare_title')}
+              </h2>
+              <CompareTable appTitle={appTitle} compact />
+            </div>
           </div>
-        </div>
-        <p className="text-text-primary mt-10 text-4xl font-bold">{appTitle}</p>
-        <p className="text-text-secondary mt-4 max-w-md text-center text-lg">
-          {localize('com_auth_brand_tagline')}
-        </p>
+        )}
       </aside>
 
       <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
@@ -131,7 +160,9 @@ function AuthLayout({
           <div
             className={cn(
               'bg-surface-primary overflow-hidden px-6 py-4 sm:rounded-lg',
-              isTwoFactorSetup ? 'w-11/12 max-w-lg' : 'w-authPageWidth sm:max-w-md',
+              isWhy && 'w-11/12 max-w-2xl',
+              isTwoFactorSetup && 'w-11/12 max-w-lg',
+              !isWhy && !isTwoFactorSetup && 'w-authPageWidth sm:max-w-md',
             )}
           >
             {!hasStartupConfigError && !isFetching && header && (

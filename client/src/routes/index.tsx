@@ -11,6 +11,7 @@ import {
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
 import { importWithRecovery } from '~/lib/assets/lazy';
+import WhyPage from '~/components/Auth/WhyPage';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
 import MarketplaceRoute from './Marketplace';
@@ -111,6 +112,10 @@ export const router = createBrowserRouter(
         {
           path: 'reset-password',
           element: <ResetPassword />,
+        },
+        {
+          path: 'why',
+          element: <WhyPage />,
         },
       ],
     },

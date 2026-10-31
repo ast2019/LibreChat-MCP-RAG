@@ -146,6 +146,15 @@ function Login() {
           </a>
         </p>
       )}
+      {/* Wide screens show the comparison beside the form; narrow ones link to it. */}
+      <p className="my-2 text-center lg:hidden">
+        <a
+          href="/why"
+          className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover inline-flex p-1 text-sm font-medium underline decoration-transparent transition-all duration-200"
+        >
+          {localize('com_auth_compare_link')}
+        </a>
+      </p>
     </>
   );
 }
