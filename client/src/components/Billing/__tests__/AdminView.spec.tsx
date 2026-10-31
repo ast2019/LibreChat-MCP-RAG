@@ -12,6 +12,7 @@ const mockApiAccessMutate = jest.fn();
 const mockMediaAccessMutate = jest.fn();
 const mockGiftsMutate = jest.fn();
 const mockBulkGrantMutate = jest.fn();
+const mockPacksMutate = jest.fn();
 const mockBulkAccessMutate = jest.fn();
 let mockUsersParams: Record<string, unknown> | undefined;
 let mockUserRole: Record<string, unknown>;
@@ -47,6 +48,7 @@ jest.mock('~/data-provider', () => ({
     },
   }),
   useAdminBillingGrantMutation: () => ({ mutate: mockMutate, isLoading: false }),
+  useAdminBillingPacksMutation: () => ({ mutate: mockPacksMutate, isLoading: false }),
   useAdminBillingBulkGrantMutation: () => ({ mutate: mockBulkGrantMutate, isLoading: false }),
   useAdminUsersBulkAccessMutation: () => ({ mutate: mockBulkAccessMutate, isLoading: false }),
   useAdminServiceStatusQuery: () => mockStatus,
@@ -375,6 +377,62 @@ describe('AdminView', () => {
       }),
     );
     expect(screen.getByRole('searchbox')).toHaveValue('sara');
+  });
+
+  it('edits a pack, says what it includes, and saves the whole list', async () => {
+    renderView('/admin?tab=packs');
+    const pack = screen.getByTestId('admin-pack');
+    const save = screen.getByTestId('admin-packs-save');
+    /** Nothing changed yet */
+    expect(save).toBeDisabled();
+
+    const name = within(pack).getByLabelText('Name users see');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Starter plus');
+    await userEvent.click(within(pack).getByTestId('pack-grant-media-starter'));
+    await userEvent.click(await screen.findByRole('option', { name: 'Included' }));
+    /** A saved pack keeps its id */
+    expect(within(pack).getByLabelText('ID')).toHaveAttribute('readonly');
+
+    await userEvent.click(save);
+    expect(mockPacksMutate).toHaveBeenCalledWith(
+      {
+        packs: [
+          { id: 'starter', label: 'Starter plus', credits: 2_000_000, grants: { media: true } },
+        ],
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('adds a pack and blocks saving until it has a name and a price', async () => {
+    renderView('/admin?tab=packs');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a pack' }));
+    const added = screen.getAllByTestId('admin-pack')[1];
+    expect(within(added).getByLabelText('ID')).toHaveValue('pack-2');
+    expect(screen.getByTestId('admin-packs-save')).toBeDisabled();
+    expect(screen.getByText('Fix the marked fields to save.')).toBeInTheDocument();
+
+    await userEvent.type(within(added).getByLabelText('Name users see'), 'Team');
+    await userEvent.type(within(added).getByLabelText('Usage it includes, in dollars'), '50');
+    await userEvent.click(screen.getByTestId('admin-packs-save'));
+    expect(mockPacksMutate).toHaveBeenCalledWith(
+      {
+        packs: [
+          { id: 'starter', label: 'Starter', credits: 2_000_000 },
+          { id: 'pack-2', label: 'Team', credits: 50_000_000 },
+        ],
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('warns that users keep their credit when a pack is removed', async () => {
+    renderView('/admin?tab=packs');
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Starter' }));
+    expect(screen.getByRole('status')).toHaveTextContent('users who have it keep their credit');
+    await userEvent.click(screen.getByTestId('admin-packs-save'));
+    expect(mockPacksMutate).toHaveBeenCalledWith({ packs: [] }, expect.any(Object));
   });
 
   it('lets the admin set the invite reward, applied from now on', async () => {
