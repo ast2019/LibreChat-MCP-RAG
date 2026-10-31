@@ -259,6 +259,12 @@ export const autoDiscoverConfigSchema = z.object({
    * new AI company's models appear without a config change. Off by default.
    */
   otherProviders: z.boolean().default(false),
+  /**
+   * Icon of a group `otherProviders` adds when its provider has no built-in icon (a known
+   * provider, e.g. `mistralai`, uses its own). A URL or a known icon name; defaults to
+   * `/assets/ai-provider.svg`.
+   */
+  otherProvidersIcon: z.string().optional(),
   /** Model or alias ids never added (and never chosen as a private upgrade). */
   exclude: z.array(z.string()).default([]),
   /** Group new providers' groups are inserted before; else after the last provider group. */
