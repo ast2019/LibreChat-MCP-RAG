@@ -10,6 +10,7 @@ import {
   FileText,
   ScanText,
   Sparkles,
+  ThumbsUp,
   BadgeCheck,
   ShieldCheck,
   Clapperboard,
@@ -85,6 +86,13 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         detail: 'com_auth_feature_memory_body',
         ours: 'yes',
         others: 'some',
+      },
+      {
+        icon: ThumbsUp,
+        title: 'com_auth_feature_feedback',
+        detail: 'com_auth_feature_feedback_body',
+        ours: 'yes',
+        others: 'no',
       },
       {
         icon: Clapperboard,
@@ -210,7 +218,7 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
             </tr>
             {section.rows.map(({ icon: Icon, title, detail, ours, others }) => (
               <tr key={title} className="border-border-light border-b last:border-b-0">
-                <th scope="row" className="py-1.5 pe-3 text-start font-normal">
+                <th scope="row" className="py-1 pe-3 text-start font-normal">
                   <span className="flex items-start gap-2">
                     {Icon && (
                       <Icon
@@ -229,7 +237,7 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
                     </span>
                   </span>
                 </th>
-                <td className="bg-surface-secondary px-2 py-1.5 text-center">
+                <td className="bg-surface-secondary px-2 py-1 text-center">
                   <OfferMark offer={ours} />
                 </td>
                 <td className="py-1.5 ps-2 text-center">
