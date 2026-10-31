@@ -4,14 +4,14 @@ import { buildOpenApiDocument } from './adapter';
 /** Stable document version, independent of the package version, so the artifact does not churn. */
 const DOCUMENT_VERSION = '0.1.0';
 
-/** Build the OpenAPI 3.1 document for the public agent and skill management endpoints. */
+/** Build the OpenAPI 3.1 document for the public model, event, agent and skill endpoints. */
 export function buildAgentsOpenApiDocument(): Record<string, unknown> {
   return buildOpenApiDocument({
     info: {
-      title: 'LibreChat Agents API',
+      title: 'Agents API',
       version: DOCUMENT_VERSION,
       description:
-        'The public agent and skill management endpoints of the LibreChat Agents API. This API is in beta and may change.',
+        'Call the models with an API key: OpenAI-compatible `/models` and `/chat/completions` (with caller-executed tools, for coding clients), Open Responses `/responses`, and agent events. The agent and skill management endpoints use an OIDC token. Base URL: `<site>/api/agents/v1`.',
     },
     servers: [
       {

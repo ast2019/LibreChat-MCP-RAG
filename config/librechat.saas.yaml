@@ -148,6 +148,18 @@ balance:
 transactions:
   enabled: true
 
+# The programming API (Settings → API keys, base URL `<site>/api/agents/v1`). Each user may make
+# 60 model calls a minute across all their keys (coding clients make several per task and retry
+# a 429 after `Retry-After`). The document of the API is served at `/api/openapi.json`, with the
+# interactive reference at `/api/docs`; the user guide is docs/api/README.fa.md.
+rateLimits:
+  api:
+    userMax: 60
+    userWindowInMinutes: 1
+
+openapi:
+  enabled: true
+
 # Long-term memory. A small, cheap model reads the last messages after each turn and saves
 # stable facts. It runs on the ZDR endpoint, so memory processing never goes to a provider
 # that keeps data. Chats on the local models read saved memories but never write any: no memory

@@ -2150,6 +2150,7 @@ export async function createRun({
   initialSummary,
   modelCallbacks,
   clientToolNames,
+  clientDelegatedToolNames,
   calibrationRatio,
   fadingTier,
   fadingTiers,
@@ -2231,6 +2232,12 @@ export async function createRun({
   modelCallbacks?: readonly RunModelCallback[];
   /** Caller-executed tools must never run eagerly before handoff is decided. */
   clientToolNames?: ReadonlySet<string>;
+  /**
+   * Tools the caller executes (Chat Completions `tools`): a model turn that calls them ends the
+   * graph and its calls are published as `client`. The SDK needs a single-agent graph and an
+   * accepted-result handler (`on_model_response`) for them.
+   */
+  clientDelegatedToolNames?: readonly string[];
   /** Calibration ratio from previous run's contextMeta, seeds the pruner EMA */
   calibrationRatio?: number;
   /**
@@ -3048,6 +3055,9 @@ export async function createRun({
     graphConfig,
     tokenCounter,
     customHandlers: runHandlers,
+    ...((clientDelegatedToolNames?.length ?? 0) > 0 && {
+      clientDelegatedToolNames: [...(clientDelegatedToolNames ?? [])],
+    }),
     initialSessions,
     calibrationRatio,
     fadingTier,
@@ -3089,6 +3099,7 @@ export async function createRun({
         CHECK_BACKGROUND_TASK_NAME,
         ...agents.flatMap((agent) => agent.backgroundToolNames ?? []),
         ...(clientToolNames ?? []),
+        ...(clientDelegatedToolNames ?? []),
       ],
     },
     // Let host file tools share the code-execution sandbox session so a file

@@ -10,6 +10,7 @@ const shareLimiters = require('./shareLimiters');
 const registerLimiter = require('./registerLimiter');
 const toolCallLimiter = require('./toolCallLimiter');
 const messageLimiters = require('./messageLimiters');
+const apiLimiter = require('./apiLimiter');
 const promptUsageLimiter = require('./promptUsageLimiter');
 const verifyEmailLimiter = require('./verifyEmailLimiter');
 const emailChangeLimiter = require('./emailChangeLimiter');
@@ -27,6 +28,7 @@ module.exports = {
   ...uploadLimiters,
   ...importLimiters,
   ...messageLimiters,
+  ...apiLimiter,
   ...forkLimiters,
   ...shareLimiters,
   ...promptUsageLimiter,

@@ -2,9 +2,11 @@
  * OpenAI-compatible types for the agent chat completions API.
  * These types follow the OpenAI API spec for /v1/chat/completions.
  *
- * Note: This API uses agent_id as the "model" parameter per OpenAI spec.
+ * The "model" is a model name from `GET /v1/models`: a model of the menu or a shared agent's id.
  * In the future, this will be extended to support the Responses API.
  */
+
+import type { ChatFunctionTool, ChatToolChoice } from './clientTools';
 
 /**
  * Content part types for OpenAI format
@@ -51,7 +53,7 @@ export interface ChatMessage {
  * OpenAI chat completion request
  */
 export interface ChatCompletionRequest {
-  /** Agent ID to invoke (maps to model in OpenAI spec) */
+  /** A model name from `GET /v1/models`: a model of the menu or a shared agent's id */
   model: string;
   /** Conversation messages */
   messages: ChatMessage[];
@@ -75,6 +77,12 @@ export interface ChatCompletionRequest {
   conversation_id?: string;
   /** Parent message ID (LibreChat extension) */
   parent_message_id?: string;
+  /** Function tools the caller executes itself (see `./clientTools`) */
+  tools?: ChatFunctionTool[];
+  /** `none` binds no tools; `auto`, `required` and a named function bind them all */
+  tool_choice?: ChatToolChoice;
+  /** Accepted for compatibility; the last chunk always carries `usage` */
+  stream_options?: { include_usage?: boolean };
 }
 
 /**

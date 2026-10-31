@@ -1,6 +1,6 @@
 # Agents API response projection
 
-This module projects an **agent run**, which can include several model invocations and server-executed tools, onto an OpenAI-compatible response. It is not a transparent proxy for a single model completion. Only explicitly client-owned calls in graph-accepted model responses may become outward `tool_calls`; SDK- and provider-executed calls stay inside the run. Binding caller-supplied tool schemas and client execution remains a separate feature.
+This module projects an **agent run**, which can include several model invocations and server-executed tools, onto an OpenAI-compatible response. It is not a transparent proxy for a single model completion. Only explicitly client-owned calls in graph-accepted model responses may become outward `tool_calls`; SDK- and provider-executed calls stay inside the run. Caller-supplied function `tools` are bound by `clientTools.ts`: they replace the agent's server tools for the request and are passed to the SDK as `clientDelegatedToolNames`, so a model turn that calls them ends the run and the calls are published as `client` (`finish_reason: "tool_calls"`). The caller replays the assistant `tool_calls` and its `role: "tool"` results, which `convertChatMessages` folds into one assistant message with `tool_call` parts. Delegation needs a single-agent graph; a model built from several agents refuses tools with 400.
 
 ## Owners and boundaries
 

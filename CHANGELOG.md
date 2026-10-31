@@ -7,6 +7,35 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-31
+
+### Added
+- **Coding clients can use the API.** `POST /api/agents/v1/chat/completions` accepts caller
+  `tools` and `tool_choice` like OpenAI. The model sees only the caller's tools for that request;
+  when it calls them the response ends with `finish_reason: "tool_calls"` and the calls in
+  `message.tool_calls` (streamed as `delta.tool_calls`). The caller runs them and replays the
+  assistant `tool_calls` and `role: "tool"` results, which reach the model as a real tool
+  exchange. The run uses the SDK's client delegation (`clientDelegatedToolNames`, new on
+  `createRun`); a model built from several agents refuses tools with 400. This is what Continue,
+  Cline, Roo Code, OpenCode and Aider need.
+- **A per-user API limit.** `rateLimits.api` (`userMax`, `userWindowInMinutes`) limits model
+  calls of `/chat/completions` and `/responses` per user across their keys, with an
+  OpenAI-shaped 429 `rate_limit_exceeded` and `Retry-After`. Unset keeps them unlimited; the saas
+  config allows 60 a minute.
+- **The OpenAPI document describes the API users call.** It now covers `/models`,
+  `/models/{model}`, `/chat/completions` (JSON and SSE, tools, every refusal code), `/responses`,
+  `/responses/models`, `/responses/{id}` and the event endpoints, under a new `apiKey` bearer
+  scheme, beside the agent and skill management endpoints. The saas config serves it at
+  `/api/openapi.json` with the reference at `/api/docs`.
+- **A Persian guide** (`docs/api/README.fa.md`): access and keys, models, chat, tools, VS Code
+  (Continue, Cline, Roo Code), OpenCode and Aider, limits, every error, key safety. The API keys
+  tab gains a ready Continue `config.yaml`, notes on tools, local models and the limit, the full
+  error list, and a link to `/api/docs`.
+
+### Changed
+- `GET /models` names a model's brand group as `provider` (for example `Claude`) instead of the
+  host endpoint, and marks local and private models with `privacy`.
+
 ## [0.28.6] - 2026-10-31
 
 ### Changed

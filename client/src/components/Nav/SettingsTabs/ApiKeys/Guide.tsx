@@ -9,6 +9,9 @@ const MAX_LISTED_MODELS = 12;
 /** Tool names, the same in every language. */
 const CURL_TITLE = 'curl';
 const PYTHON_TITLE = 'Python (openai)';
+const CONTINUE_TITLE = 'Continue · config.yaml';
+/** The path of the interactive API reference, the same in every language. */
+const DOCS_PATH = '/api/docs';
 
 function CopyBlock({ label, value }: { label: string; value: string }) {
   const localize = useLocalize();
@@ -68,6 +71,19 @@ export default function Guide() {
     ')',
     'print(reply.choices[0].message.content)',
   ].join('\n');
+  const continueConfig = [
+    'name: HiveGPT',
+    'version: 1.0.0',
+    'schema: v1',
+    'models:',
+    `  - name: ${exampleModel}`,
+    '    provider: openai',
+    `    model: ${exampleModel}`,
+    `    apiBase: ${baseURL}`,
+    '    apiKey: YOUR_API_KEY',
+    '    roles: [chat, edit, apply]',
+    '    capabilities: [tool_use]',
+  ].join('\n');
 
   return (
     <section aria-labelledby="api-guide-title" className="space-y-3">
@@ -115,11 +131,33 @@ export default function Guide() {
         <CopyBlock label={PYTHON_TITLE} value={python} />
       </div>
 
+      <div className="space-y-1">
+        <p className="text-text-primary text-xs font-medium">
+          {localize('com_api_guide_coding_title')}
+        </p>
+        <p className="text-text-secondary text-xs">{localize('com_api_guide_coding_intro')}</p>
+        <CopyBlock label={CONTINUE_TITLE} value={continueConfig} />
+      </div>
+
       <ul className="text-text-secondary list-disc space-y-1 ps-5 text-xs">
+        <li>{localize('com_api_guide_tools')}</li>
+        <li>{localize('com_api_guide_local')}</li>
         <li>{localize('com_api_guide_billing')}</li>
+        <li>{localize('com_api_guide_limits')}</li>
         <li>{localize('com_api_guide_key_once')}</li>
         <li>{localize('com_api_guide_errors')}</li>
       </ul>
+      <p className="text-text-secondary text-xs">
+        {localize('com_api_guide_docs')}{' '}
+        <a
+          href={DOCS_PATH}
+          target="_blank"
+          rel="noreferrer"
+          className="text-text-primary focus-visible:ring-text-primary rounded-sm font-medium underline focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <bdi dir="ltr">{DOCS_PATH}</bdi>
+        </a>
+      </p>
     </section>
   );
 }

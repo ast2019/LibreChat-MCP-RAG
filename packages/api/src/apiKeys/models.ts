@@ -45,6 +45,7 @@ export function listApiModelSpecs(req: ConfigCarrier): Array<{
   name: string;
   description?: string;
   provider: string;
+  privacy?: 'local' | 'private';
 }> {
   const list = (req.config?.modelSpecs as { list?: TModelSpec[] } | undefined)?.list ?? [];
   return list
@@ -59,7 +60,9 @@ export function listApiModelSpecs(req: ConfigCarrier): Array<{
       parent: null,
       name: spec.label ?? spec.name,
       ...(spec.description ? { description: spec.description } : {}),
-      provider: String(spec.preset.endpoint),
+      /** The brand group users see, never the host endpoint behind it */
+      provider: spec.group ?? spec.label ?? spec.name,
+      ...((spec.privacy === 'local' || spec.privacy === 'private') && { privacy: spec.privacy }),
     }));
 }
 
