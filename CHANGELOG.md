@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.4] - 2026-10-31
+
+### Changed
+- **Persian copy without Arabic vowel marks.** Fatha, damma, kasra and sukun are gone from every
+  Persian string («فارسیِ» → «فارسی», «عکسِ» → «عکس»), so the text reads as Persian. The common
+  «ـاً» spellings (لطفاً، مثلاً) stay.
+- **Memory has its own row in the sign-in comparison.** «حافظه‌ی بلندمدت» (name, work, preferences
+  and projects, across every model) and «یادگیری از بازخورد» (the reason behind each thumbs-down)
+  are now two rows, and the rows are a little tighter so the table still fits beside the form.
+
 ## [0.28.3] - 2026-10-31
 
 ### Changed
