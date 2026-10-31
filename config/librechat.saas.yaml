@@ -597,11 +597,12 @@ modelSpecs:
       x-ai: { group: 'Grok', icon: 'xai' }
       z-ai: { group: 'GLM', icon: 'zhipu' }
       qwen: { group: 'Qwen', icon: 'qwen' }
-      moonshotai: { group: 'Kimi' }
+      moonshotai: { group: 'Kimi', icon: 'moonshot' }
     # A provider not listed above still gets its `-latest` models, in a group named after it
     # (as OpenRouter writes it), after the listed groups: a new AI company shows up without a
     # config change. New specs carry their publish date and read «جدید» in the menu for two
-    # weeks, with their price.
+    # weeks, with their price. Such a group uses the company's built-in icon when there is one
+    # (Mistral, Cohere…), else `otherProvidersIcon` (default `/assets/ai-provider.svg`).
     otherProviders: true
     # Older families that would duplicate a menu entry: GPT Mini (ChatGPT Mini is GPT Luna) and
     # DeepSeek V4 Flash (DeepSeek Flash follows the newest Flash).
