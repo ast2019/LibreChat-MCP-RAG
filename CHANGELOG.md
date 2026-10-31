@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.5] - 2026-10-31
+
+### Changed
+- **The users list shows only what a user has.** The access column lists a chip for each class
+  that is on now and nothing for the ones that are off, without check or dash marks. The
+  «۲ تنظیم اختصاصی» line is gone; the stronger edge on a chip already marks the user's own
+  setting. A user with no access reads «بدون دسترسی» to screen readers.
+
 ## [0.28.4] - 2026-10-31
 
 ### Changed

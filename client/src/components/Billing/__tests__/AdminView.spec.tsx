@@ -311,7 +311,7 @@ describe('AdminView', () => {
     expect(within(drawer).getByRole('button', { name: 'Make admin' })).toBeInTheDocument();
   });
 
-  it('shows each access as it resolves now, without a control in the row', () => {
+  it('lists only the access a user has now, without a control in the row', () => {
     mockUsers = {
       data: {
         ...usersData,
@@ -333,9 +333,10 @@ describe('AdminView', () => {
     };
     renderView('/admin?tab=users');
     const summary = screen.getByTestId('access-summary-u1');
-    expect(summary).toHaveTextContent('Image, video and voice · Off · set for this user');
-    expect(summary).toHaveTextContent('On-server models · On');
-    expect(screen.getByText('1 set for this user')).toBeInTheDocument();
+    /** Only what the user has now; a class that is off is not listed */
+    expect(summary).toHaveTextContent('On-server models');
+    expect(summary).not.toHaveTextContent('Image, video and voice');
+    expect(summary).not.toHaveTextContent('API');
     expect(screen.queryByTestId('media-access-u1')).not.toBeInTheDocument();
   });
 
