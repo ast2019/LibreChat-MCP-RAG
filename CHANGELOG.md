@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Fixed
+- **Every model group in the menu has an icon.** Kimi uses the Moonshot icon in the saas config.
+  A group that `otherProviders` adds for a company not in `providers` (Unbiased, for example)
+  gets that company's built-in icon when there is one, else a generic AI icon, on the group
+  header and on its models. Before, such a group had no header icon and its models showed the
+  host's logo. The generic icon is `modelSpecs.autoDiscover.otherProvidersIcon` (default
+  `/assets/ai-provider.svg`).
+
 ## [0.26.0] - 2026-10-30
 
 ### Changed

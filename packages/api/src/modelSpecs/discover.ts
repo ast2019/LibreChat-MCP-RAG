@@ -1,6 +1,7 @@
 import { logger } from '@librechat/data-schemas';
 import {
   EModelEndpoint,
+  resolveProviderId,
   normalizeEndpointName,
   autoDiscoverConfigSchema,
 } from 'librechat-data-provider';
@@ -38,6 +39,7 @@ export interface ModelFamily {
 }
 
 export const DEFAULT_AUTO_DESCRIPTION = 'جدید؛ خودکار از فهرست {group} اضافه شد';
+export const DEFAULT_OTHER_PROVIDER_ICON = '/assets/ai-provider.svg';
 export const DEFAULT_PRIVATE_GROUP = 'محرمانه';
 export const DEFAULT_PRIVATE_LABEL_SUFFIX = ' — محرمانه';
 export const DEFAULT_PRIVATE_DESCRIPTION =
@@ -105,6 +107,15 @@ export function providerGroupName(model: CatalogueModel, provider: string): stri
     return raw.slice(0, separator).trim();
   }
   return provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
+/**
+ * The icon of a provider missing from `providers`: its built-in icon when the prefix or the
+ * group name names a known provider (`mistralai`, `Moonshot AI`), else `fallback`. Never left
+ * empty, so a new company's group and models never show the host's logo or no icon at all.
+ */
+export function otherProviderIcon(provider: string, group: string, fallback: string): string {
+  return resolveProviderId(provider) ?? resolveProviderId(group) ?? fallback;
 }
 
 export function prettyModelName(model: CatalogueModel): string {
@@ -183,8 +194,9 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
     .filter((model) => model.id.startsWith('~'))
     .sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id));
 
-  /** Groups of providers missing from `settings.providers`, in the order first met. */
-  const otherGroups: string[] = [];
+  /** Groups of providers missing from `settings.providers` and their icons, in the order first met. */
+  const otherGroups = new Map<string, string>();
+  const fallbackIcon = settings.otherProvidersIcon || DEFAULT_OTHER_PROVIDER_ICON;
   const listedGroups = new Set(Object.values(settings.providers).map((p) => p.group));
   for (const model of aliases) {
     const parsed = parseAliasFamily(model.id);
@@ -193,10 +205,13 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
       const group = providerGroupName(model, parsed.provider);
       /** Never folded into a configured brand's group or the confidential one by name alone. */
       if (!listedGroups.has(group) && group !== privateGroup) {
-        provider = { group };
-        if (!otherGroups.includes(group)) {
-          otherGroups.push(group);
+        /** One icon per group: the first provider met for it decides. */
+        let icon = otherGroups.get(group);
+        if (icon == null) {
+          icon = otherProviderIcon(parsed.provider, group, fallbackIcon);
+          otherGroups.set(group, icon);
         }
+        provider = { group, icon };
       }
     }
     /** A public spec never joins the confidential group. */
@@ -261,12 +276,15 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
     insertIntoGroup(list, group, additions, fallbackIndex);
   }
   /** Then providers nobody listed, after the listed ones. */
-  for (const group of otherGroups) {
+  for (const [group, icon] of otherGroups) {
     const additions = byGroup.get(group);
     if (!additions) {
       continue;
     }
     byGroup.delete(group);
+    if (!list.some((spec) => spec?.group === group)) {
+      additions[0] = { ...additions[0], groupIcon: icon };
+    }
     insertIntoGroup(list, group, additions, fallbackIndex);
   }
   return true;

@@ -210,16 +210,61 @@ describe('applyAutoDiscoveredSpecs — public', () => {
       discoveredAt: 40,
       preset: { endpoint: 'OpenRouter', model: '~moonshotai/kimi-latest' },
     });
-    /** No icon is known for it, so the group carries none */
-    expect(byName(on, 'auto-moonshotai-kimi')?.groupIcon).toBeUndefined();
+    /** The prefix names a provider with a built-in icon, so the group and spec use it */
+    expect(byName(on, 'auto-moonshotai-kimi')).toMatchObject({
+      iconURL: 'moonshot',
+      groupIcon: 'moonshot',
+    });
     /** After every listed provider's group */
     const groups = on.modelSpecs?.list?.map((s) => s.group) ?? [];
     expect(groups.lastIndexOf('MoonshotAI')).toBeGreaterThan(groups.lastIndexOf('Grok'));
   });
 
+  it('gives an unlisted provider with no built-in icon the generic or configured icon', () => {
+    const list = [spec('sonnet', 'Claude', '~anthropic/claude-sonnet-latest')];
+    const newcomer: CatalogueModel[] = [
+      { id: '~unbiased/pareto-latest', name: 'Pareto Latest', created: 60 },
+      { id: '~unbiased/pareto-mini-latest', name: 'Pareto Mini Latest', created: 55 },
+    ];
+    const generic = applyAutoDiscoveredSpecs(
+      makeConfig(list, { otherProviders: true }),
+      snap([...catalogue, ...newcomer]),
+    );
+    expect(byName(generic, 'auto-unbiased-pareto')).toMatchObject({
+      group: 'Unbiased',
+      iconURL: '/assets/ai-provider.svg',
+      groupIcon: '/assets/ai-provider.svg',
+    });
+    /** Only the spec opening the group carries the group icon */
+    expect(byName(generic, 'auto-unbiased-pareto-mini')).toMatchObject({
+      iconURL: '/assets/ai-provider.svg',
+    });
+    expect(byName(generic, 'auto-unbiased-pareto-mini')?.groupIcon).toBeUndefined();
+
+    const configured = applyAutoDiscoveredSpecs(
+      makeConfig(list, { otherProviders: true, otherProvidersIcon: '/assets/logo.svg' }),
+      snap([...catalogue, ...newcomer]),
+    );
+    expect(byName(configured, 'auto-unbiased-pareto')?.groupIcon).toBe('/assets/logo.svg');
+  });
+
+  it('does not set a group icon when the group already exists in the list', () => {
+    const list = [
+      spec('sonnet', 'Claude', '~anthropic/claude-sonnet-latest'),
+      spec('kimi-k3', 'MoonshotAI', 'moonshotai/kimi-k3', { groupIcon: '/assets/kimi.png' }),
+    ];
+    const result = applyAutoDiscoveredSpecs(makeConfig(list, { otherProviders: true }), snap());
+    expect(byName(result, 'auto-moonshotai-kimi')?.groupIcon).toBeUndefined();
+    expect(byName(result, 'kimi-k3')?.groupIcon).toBe('/assets/kimi.png');
+  });
+
   it('never folds an unlisted provider into a listed brand’s group by name', () => {
     const list = [spec('sonnet', 'Claude', '~anthropic/claude-sonnet-latest')];
-    const impostor: CatalogueModel = { id: '~clone/claude-latest', name: 'Claude: X Latest', created: 50 };
+    const impostor: CatalogueModel = {
+      id: '~clone/claude-latest',
+      name: 'Claude: X Latest',
+      created: 50,
+    };
     const result = applyAutoDiscoveredSpecs(
       makeConfig(list, { otherProviders: true }),
       snap([...catalogue, impostor]),
