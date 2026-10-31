@@ -24,21 +24,24 @@ interface CompareSection {
  */
 export const COMPARE_SECTIONS: CompareSection[] = [
   {
+    title: 'com_auth_compare_section_ours',
+    rows: [
+      { label: 'com_auth_compare_row_persian', ours: 'yes', others: 'no' },
+      { label: 'com_auth_compare_row_pdf', ours: 'yes', others: 'no' },
+      { label: 'com_auth_compare_row_ocr', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_special', ours: 'yes', others: 'no' },
+      { label: 'com_auth_compare_row_private', ours: 'yes', others: 'no' },
+      { label: 'com_auth_compare_row_memory', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_higgsfield', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_new_models', ours: 'yes', others: 'some' },
+      { label: 'com_auth_compare_row_tools', ours: 'yes', others: 'some' },
+    ],
+  },
+  {
     title: 'com_auth_compare_section_shared',
     rows: [
       { label: 'com_auth_compare_row_models', ours: 'yes', others: 'yes' },
       { label: 'com_auth_compare_row_media', ours: 'yes', others: 'yes' },
-    ],
-  },
-  {
-    title: 'com_auth_compare_section_ours',
-    rows: [
-      { label: 'com_auth_compare_row_new_models', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_private', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_special', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_tools', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_persian', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_memory', ours: 'yes', others: 'some' },
     ],
   },
   {

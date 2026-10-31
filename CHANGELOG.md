@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-10-31
+
+### Changed
+- **The comparison before sign-in names what sets us apart, first.** «فرق ما» now leads the table
+  and lists Persian writing (spelling, half-spaces, punctuation, the Solar Hijri calendar), a
+  correct Persian PDF of any answer or chat, reading scanned Persian PDFs and photos, special and
+  local AIs on our own servers for confidential data, confidential mode, learning from chats and
+  feedback, Higgsfield video and images, new models within hours, and tools, web search and
+  documents. «مثل بقیه» and «هنوز نداریم» follow.
+
 ## [0.28.0] - 2026-10-31
 
 ### Added
