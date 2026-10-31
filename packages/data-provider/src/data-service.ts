@@ -6,6 +6,7 @@ import type {
   TAdminBillingUsersParams,
   TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
+  TAdminBillingPacksUpdate,
   TAdminBillingGrantResponse,
   TAdminBillingBulkGrantRequest,
   TAdminBillingBulkGrantResponse,
@@ -103,6 +104,12 @@ export function refreshAdminServiceStatus(): Promise<TServiceStatusResponse> {
 
 export function getAdminBillingPacks(): Promise<TAdminBillingPacksResponse> {
   return request.get(endpoints.adminBillingPacks());
+}
+
+export function updateAdminBillingPacks(
+  payload: TAdminBillingPacksUpdate,
+): Promise<TAdminBillingPacksResponse> {
+  return request.put(endpoints.adminBillingPacks(), payload);
 }
 
 export function grantAdminBilling(

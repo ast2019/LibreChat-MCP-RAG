@@ -84,6 +84,9 @@ export type TAdminBillingPack = {
   grants?: TPackGrants;
 };
 
+/** `PUT /api/admin/balance/packs`: the whole pack list as the admin page saves it. */
+export type TAdminBillingPacksUpdate = { packs: TAdminBillingPack[] };
+
 export type TAdminBillingPacksResponse = {
   enabled: boolean;
   packs: TAdminBillingPack[];

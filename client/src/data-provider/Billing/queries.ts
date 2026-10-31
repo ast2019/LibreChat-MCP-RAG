@@ -7,6 +7,7 @@ import type {
   TAdminBillingUsersParams,
   TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
+  TAdminBillingPacksUpdate,
   TAdminBillingGrantResponse,
   TAdminBillingBulkGrantRequest,
   TAdminBillingBulkGrantResponse,
@@ -60,6 +61,29 @@ export const useAdminBillingPacksQuery = (
     () => dataService.getAdminBillingPacks(),
     { staleTime: 60_000, refetchOnWindowFocus: false, retry: false, ...config },
   );
+
+/**
+ * Saves the whole pack list. Everything that shows packs or what they grant reads it again:
+ * the admin pages, the user list's effective access, payments and the startup config.
+ */
+export const useAdminBillingPacksMutation = (): UseMutationResult<
+  TAdminBillingPacksResponse,
+  unknown,
+  TAdminBillingPacksUpdate
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: TAdminBillingPacksUpdate) => dataService.updateAdminBillingPacks(payload),
+    {
+      onSuccess: (data) => {
+        queryClient.setQueryData([QueryKeys.adminBillingPacks], data);
+        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+        queryClient.invalidateQueries([QueryKeys.paymentOptions]);
+        queryClient.invalidateQueries([QueryKeys.startupConfig]);
+      },
+    },
+  );
+};
 
 /** Grants a pack or raw credits, then refreshes the user list and the summary. */
 export const useAdminBillingGrantMutation = (): UseMutationResult<

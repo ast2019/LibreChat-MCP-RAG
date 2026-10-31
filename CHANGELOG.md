@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-31
+
+### Added
+- **Packs are managed on the admin page.** A new «بسته‌ها» tab (`/admin?tab=packs`) adds, edits
+  and removes packs: the name users see, the usage it includes in dollars (with the Toman price),
+  an admin note, and what it includes (on-server and private models, media, API: default,
+  included or not included). The list is saved whole through `PUT /api/admin/balance/packs` as a
+  deployment-wide override over `balance.packs`, validated (unique, well-formed ids; names and
+  amounts in range), and applies from the next request to grants, payments, the user list and
+  the startup config. A saved pack's id stays fixed. Users keep the credit of a pack that is
+  changed or removed, and the page says so before a removal is saved.
+
 ## [0.27.0] - 2026-10-31
 
 ### Added

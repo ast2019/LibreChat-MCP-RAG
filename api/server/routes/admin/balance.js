@@ -8,6 +8,7 @@ const {
   createAdminBalanceHandlers,
   createAdminCreateUserHandler,
   createAdminGiftHandlers,
+  createAdminPackHandlers,
 } = require('@librechat/api');
 const { SystemRoles, PrincipalType, PrincipalModel } = require('librechat-data-provider');
 const { logger, SystemCapabilities, BASE_CONFIG_PRINCIPAL_ID } = require('@librechat/data-schemas');
@@ -94,9 +95,24 @@ const gifts = createAdminGiftHandlers({
   invalidate: invalidateConfigCaches,
 });
 
+/** The pack list, stored like the gifts as a deployment-wide override over `balance.packs` */
+const packEditor = createAdminPackHandlers({
+  getAppConfig: (req) => getAppConfig({ role: SystemRoles.USER, tenantId: req.user?.tenantId }),
+  patchBaseFields: async (fields) => {
+    await db.patchConfigFields(
+      PrincipalType.ROLE,
+      BASE_CONFIG_PRINCIPAL_ID,
+      PrincipalModel.ROLE,
+      fields,
+    );
+  },
+  invalidate: invalidateConfigCaches,
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/packs', requireReadUsers, handlers.listPacks);
+router.put('/packs', requireManageUsers, packEditor.updatePacks);
 router.get('/user', requireReadUsers, handlers.getUserBalance);
 router.post('/grant', requireManageUsers, handlers.grant);
 router.post('/grant-bulk', requireManageUsers, handlers.grantBulk);
