@@ -7,6 +7,8 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-31
+
 ### Added
 - **Packs say what they include.** A pack in `balance.packs` can carry `grants` for `local`,
   `private`, `media` and `api` (`true` includes it, `false` leaves it out). While it is the user's
@@ -26,14 +28,21 @@ LibreChat versions are tracked separately in `package.json`.
   up to 100 users per request. Each answer reports the users it could not change.
 - **Filters in the address.** Search, role, pack, balance, access, sort and page live in the query
   (`?tab=users&q=…&pack=…&page=2`), so a view survives a reload and can be shared.
+- **How we differ, before sign-in.** On wide screens the sign-in panel beside the form shows a
+  short comparison with similar services: what we share (the leading models, image, video and
+  voice), what sets us apart (new models within hours, confidential mode, special AIs on our own
+  servers, MCP tools, web search and documents, Persian skills, memory that learns from feedback)
+  and what we do not have yet (a mobile app, notifications). Narrow screens get a link under the
+  form to the public `/why` page, which shows the full table with sign-up and sign-in buttons.
 
 ### Changed
+- **The ring around the avatar shows any credit.** It measures the current allowance: the pack
+  when there is one, else auto-refill, else the sign-up gift. A user on the gift alone now sees
+  it too, and screen readers hear "of your credit left" instead of "of your pack".
 - The media switch reads «ساخت تصویر، ویدیو و صدا» and its default no longer claims to follow
   "the user's pack" when only having any pack mattered. The grant dialog lists what each pack
   includes and leaves out. A media refusal for a pack that excludes media says so to the model
   (`not_in_pack`), and an API call refused by the pack answers `403 api_not_in_pack`.
-
-### Changed
 - **A thumbs-down needs its reason, and the reason is learned.** Choosing a thumbs-down tag opens
   a dialog («چه چیزی باید فرق می‌کرد؟»), and the feedback is saved only with a written reason.
   Closing the dialog saves nothing. With the new `memory.learnFromFeedback`, the server adds the
@@ -50,14 +59,6 @@ LibreChat versions are tracked separately in `package.json`.
   chats on `excludeEndpoints` get the saved memories in their prompt, but no memory agent runs
   and no memory tool is registered for them. Before, an excluded endpoint could not read memory,
   yet inline memory tools could still be registered on it. Both are on in the saas config.
-
-### Added
-- **How we differ, before sign-in.** On wide screens the sign-in panel beside the form shows a
-  short comparison with similar services: what we share (the leading models, image, video and
-  voice), what sets us apart (new models within hours, confidential mode, special AIs on our own
-  servers, MCP tools, web search and documents, Persian skills, memory that learns from feedback)
-  and what we do not have yet (a mobile app, notifications). Narrow screens get a link under the
-  form to the public `/why` page, which shows the full table with sign-up and sign-in buttons.
 
 ### Fixed
 - **Every model group in the menu has an icon.** Kimi uses the Moonshot icon in the saas config.

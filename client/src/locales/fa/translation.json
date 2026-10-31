@@ -126,7 +126,7 @@
   "com_ui_balance_refill_when_empty": "وقتی اعتبارتان تمام شود شارژ می‌شود",
   "com_ui_balance_usage_limit": "میزان مصرف",
   "com_ui_balance_used": "{{0}}% مصرف‌شده",
-  "com_ui_balance_pack_remaining": "{{0}}% از بسته باقی مانده است",
+  "com_ui_balance_pack_remaining": "{{0}}% از اعتبارتان باقی مانده است",
   "com_ui_balance_used_label": "سهم مصرف‌شده از اعتبار",
   "com_ui_balance_usage_unavailable": "مصرف در دسترس نیست",
   "com_ui_repository_instructions": "دستورالعمل‌های مخزن",
