@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Added
+- **How we differ, before sign-in.** On wide screens the sign-in panel beside the form shows a
+  short comparison with similar services: what we share (the leading models, image, video and
+  voice), what sets us apart (new models within hours, confidential mode, special AIs on our own
+  servers, MCP tools, web search and documents, Persian skills, memory that learns from feedback)
+  and what we do not have yet (a mobile app, notifications). Narrow screens get a link under the
+  form to the public `/why` page, which shows the full table with sign-up and sign-in buttons.
+
 ## [0.26.0] - 2026-10-30
 
 ### Changed
