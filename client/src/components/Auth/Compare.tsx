@@ -1,4 +1,20 @@
-import { Check, Minus } from 'lucide-react';
+import { useId } from 'react';
+import {
+  Mic,
+  Plug,
+  Brain,
+  Check,
+  Minus,
+  Server,
+  PenLine,
+  FileText,
+  ScanText,
+  Sparkles,
+  BadgeCheck,
+  ShieldCheck,
+  Clapperboard,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { TranslationKeys } from '~/hooks';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -7,7 +23,9 @@ import { cn } from '~/utils';
 type Offer = 'yes' | 'no' | 'some';
 
 interface CompareRow {
-  label: TranslationKeys;
+  icon?: LucideIcon;
+  title: TranslationKeys;
+  detail?: TranslationKeys;
   ours: Offer;
   others: Offer;
 }
@@ -18,39 +36,110 @@ interface CompareSection {
 }
 
 /**
- * How this service differs from similar Persian AI services. `others` describes those services
- * as a group, from what they state publicly, so no single one is credited with a feature it may
- * not have.
+ * How this service differs from similar Persian AI services, strongest first. `others` describes
+ * those services as a group, from what they state publicly, so no single one is credited with a
+ * feature it may not have.
  */
 export const COMPARE_SECTIONS: CompareSection[] = [
   {
     title: 'com_auth_compare_section_ours',
     rows: [
-      { label: 'com_auth_compare_row_persian', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_pdf', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_ocr', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_special', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_private', ours: 'yes', others: 'no' },
-      { label: 'com_auth_compare_row_memory', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_higgsfield', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_voice', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_new_models', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_model', ours: 'yes', others: 'some' },
-      { label: 'com_auth_compare_row_tools', ours: 'yes', others: 'some' },
+      {
+        icon: PenLine,
+        title: 'com_auth_feature_persian',
+        detail: 'com_auth_feature_persian_body',
+        ours: 'yes',
+        others: 'no',
+      },
+      {
+        icon: FileText,
+        title: 'com_auth_feature_pdf',
+        detail: 'com_auth_feature_pdf_body',
+        ours: 'yes',
+        others: 'no',
+      },
+      {
+        icon: ScanText,
+        title: 'com_auth_feature_ocr',
+        detail: 'com_auth_feature_ocr_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: Server,
+        title: 'com_auth_feature_local',
+        detail: 'com_auth_feature_local_body',
+        ours: 'yes',
+        others: 'no',
+      },
+      {
+        icon: ShieldCheck,
+        title: 'com_auth_feature_private',
+        detail: 'com_auth_feature_private_body',
+        ours: 'yes',
+        others: 'no',
+      },
+      {
+        icon: Brain,
+        title: 'com_auth_feature_memory',
+        detail: 'com_auth_feature_memory_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: Clapperboard,
+        title: 'com_auth_feature_higgsfield',
+        detail: 'com_auth_feature_higgsfield_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: Mic,
+        title: 'com_auth_feature_voice',
+        detail: 'com_auth_feature_voice_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: Sparkles,
+        title: 'com_auth_feature_new',
+        detail: 'com_auth_feature_new_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: BadgeCheck,
+        title: 'com_auth_feature_model',
+        detail: 'com_auth_feature_model_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: Plug,
+        title: 'com_auth_feature_tools',
+        detail: 'com_auth_feature_tools_body',
+        ours: 'yes',
+        others: 'some',
+      },
     ],
   },
   {
     title: 'com_auth_compare_section_shared',
     rows: [
-      { label: 'com_auth_compare_row_models', ours: 'yes', others: 'yes' },
-      { label: 'com_auth_compare_row_media', ours: 'yes', others: 'yes' },
+      {
+        title: 'com_auth_compare_shared_models',
+        detail: 'com_auth_compare_shared_models_body',
+        ours: 'yes',
+        others: 'yes',
+      },
+      { title: 'com_auth_compare_shared_media', ours: 'yes', others: 'yes' },
     ],
   },
   {
     title: 'com_auth_compare_section_missing',
     rows: [
-      { label: 'com_auth_compare_row_app', ours: 'no', others: 'yes' },
-      { label: 'com_auth_compare_row_notifications', ours: 'no', others: 'some' },
+      { title: 'com_auth_compare_row_app', ours: 'no', others: 'yes' },
+      { title: 'com_auth_compare_row_notifications', ours: 'no', others: 'some' },
     ],
   },
 ];
@@ -82,29 +171,28 @@ function OfferMark({ offer }: { offer: Offer }) {
   );
 }
 
-/** The full comparison on the public `/why` page, with the services it compares against. */
+/**
+ * The comparison on the sign-in page: one line per feature, with this service's column marked,
+ * sized to sit beside the form on a laptop screen without scrolling.
+ */
 export function CompareTable({ appTitle }: { appTitle: string }) {
   const localize = useLocalize();
-  const cell = 'py-2.5';
   return (
     <div className="w-full">
-      <table className="w-full border-collapse text-sm sm:text-base">
+      <table className="w-full border-collapse text-sm">
         <caption className="sr-only">{localize('com_auth_compare_title')}</caption>
         <thead>
           <tr className="border-border-medium border-b">
-            <th scope="col" className={cn('text-text-secondary pe-3 text-start font-medium', cell)}>
+            <th scope="col" className="text-text-secondary py-2 pe-3 text-start font-medium">
               {localize('com_auth_compare_feature')}
             </th>
             <th
               scope="col"
-              className={cn('text-text-primary w-20 px-2 text-center font-semibold', cell)}
+              className="bg-surface-secondary text-text-primary w-24 rounded-t-lg px-2 py-2 text-center font-semibold"
             >
               <bdi>{appTitle}</bdi>
             </th>
-            <th
-              scope="col"
-              className={cn('text-text-secondary w-24 ps-2 text-center font-medium', cell)}
-            >
+            <th scope="col" className="text-text-secondary w-24 py-2 ps-2 text-center font-medium">
               {localize('com_auth_compare_others')}
             </th>
           </tr>
@@ -115,24 +203,37 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
               <th
                 scope="colgroup"
                 colSpan={3}
-                className="text-text-tertiary pt-5 pb-1.5 text-start text-xs font-semibold"
+                className="text-text-tertiary pt-3 pb-1 text-start text-xs font-semibold"
               >
                 {localize(section.title)}
               </th>
             </tr>
-            {section.rows.map((row) => (
-              <tr key={row.label} className="border-border-light border-b last:border-b-0">
-                <th
-                  scope="row"
-                  className={cn('text-text-primary pe-3 text-start font-normal', cell)}
-                >
-                  {localize(row.label)}
+            {section.rows.map(({ icon: Icon, title, detail, ours, others }) => (
+              <tr key={title} className="border-border-light border-b last:border-b-0">
+                <th scope="row" className="py-1.5 pe-3 text-start font-normal">
+                  <span className="flex items-start gap-2">
+                    {Icon && (
+                      <Icon
+                        className="text-text-secondary mt-0.5 size-4 shrink-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="min-w-0 leading-5">
+                      <span className="text-text-primary font-medium">{localize(title)}</span>
+                      {detail && (
+                        <span className="text-text-secondary text-xs">
+                          {' — '}
+                          {localize(detail)}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </th>
-                <td className={cn('px-2 text-center', cell)}>
-                  <OfferMark offer={row.ours} />
+                <td className="bg-surface-secondary px-2 py-1.5 text-center">
+                  <OfferMark offer={ours} />
                 </td>
-                <td className={cn('ps-2 text-center', cell)}>
-                  <OfferMark offer={row.others} />
+                <td className="py-1.5 ps-2 text-center">
+                  <OfferMark offer={others} />
                 </td>
               </tr>
             ))}
@@ -141,5 +242,26 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
       </table>
       <p className="text-text-tertiary mt-3 text-xs">{localize('com_auth_compare_note')}</p>
     </div>
+  );
+}
+
+/** The comparison in its card, with its heading: beside the form, or under it on small screens. */
+export function CompareCard({ appTitle, className }: { appTitle: string; className?: string }) {
+  const localize = useLocalize();
+  /** The page renders the card twice (beside the form and under it), each shown by width */
+  const headingId = useId();
+  return (
+    <section
+      aria-labelledby={headingId}
+      className={cn(
+        'bg-surface-primary/80 border-border-light w-full rounded-2xl border p-4 backdrop-blur-sm',
+        className,
+      )}
+    >
+      <h2 id={headingId} className="text-text-primary mb-1 text-lg font-semibold">
+        {localize('com_auth_compare_heading', { 0: appTitle })}
+      </h2>
+      <CompareTable appTitle={appTitle} />
+    </section>
   );
 }
