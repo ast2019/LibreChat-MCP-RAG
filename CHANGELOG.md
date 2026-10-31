@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.28.6] - 2026-10-31
+
+### Changed
+- **«لوکال امن» instead of «سرور».** The local model class reads «لوکال امن» on the users list
+  and «هوش مصنوعی لوکال امن» in the user sheet, the access tab and the packs tab.
+- **Admins show «لوکال امن خاص».** An admin's row has one more chip for the admin-only local
+  models (`adminOnly` specs), and their sheet lists it as always on for admins.
+
 ## [0.28.5] - 2026-10-31
 
 ### Changed
