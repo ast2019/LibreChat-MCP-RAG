@@ -1,7 +1,8 @@
-import { SystemRoles } from 'librechat-data-provider';
+import { SystemRoles, findPackGrants } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import type { MediaUser } from './types';
-import { getMediaConfig, resolveMediaEndpoint } from './config';
+import { getMediaConfig, resolveMediaEndpoint, resolveUserMediaAccess } from './config';
+import { getBalanceConfig } from '~/app/config';
 
 /** Why a way to generate is or is not usable for this user right now. */
 export type MediaWayState =
@@ -76,6 +77,10 @@ export async function getMediaAvailability(
   const balance = await deps.findBalanceByUser(user.id);
   const hasPack = Boolean(balance?.packId);
   const paidOnly = config?.paidOnly !== false;
+  const packs = getBalanceConfig(appConfig ?? undefined)?.packs;
+  /** Whether the current pack includes media; `undefined` when the pack does not say */
+  const packGrant = findPackGrants(packs, balance?.packId)?.media;
+  const generatorAllowed = resolveUserMediaAccess(config, user, balance?.packId, packs).allowed;
 
   /** The same rule the tools apply when they run. */
   const generatorState = (configured: boolean): MediaWayState => {
@@ -85,10 +90,7 @@ export async function getMediaAvailability(
     if (userSwitch === false) {
       return 'disabled_by_admin';
     }
-    if (userSwitch === true || isAdmin || !paidOnly || hasPack) {
-      return 'active';
-    }
-    return 'needs_pack';
+    return generatorAllowed ? 'active' : 'needs_pack';
   };
 
   const endpointReady = config != null && resolveMediaEndpoint(appConfig, config) != null;
@@ -123,7 +125,8 @@ export async function getMediaAvailability(
     if (ownerEmail && !/^\$\{.+\}$/.test(ownerEmail)) {
       const ownerId = await deps.findUserIdByEmail(ownerEmail);
       const allow = entry.sharedOAuth?.allow ?? 'paid';
-      const allowed = userSwitch ?? (isAdmin || allow === 'all' || (allow === 'paid' && hasPack));
+      const allowed =
+        userSwitch ?? (isAdmin || allow === 'all' || (allow === 'paid' && (packGrant ?? hasPack)));
       if (!ownerId) {
         shared = 'owner_not_connected';
       } else if (ownerId === user.id) {

@@ -22,3 +22,15 @@ export function formatLocal(credits: number, currency?: CurrencyConfig): string 
   const formatted = formatCost(Math.abs(value) / CREDITS_PER_USD, currency);
   return value < 0 ? `-${formatted}` : formatted;
 }
+
+/** A count in the page's locale digits («۱۲» in Persian). */
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat(document.documentElement.lang || undefined).format(value);
+}
+
+/** Names joined the page's way («الف، ب و ج» in Persian). */
+export function formatList(items: string[]): string {
+  return new Intl.ListFormat(document.documentElement.lang || undefined, {
+    type: 'conjunction',
+  }).format(items);
+}

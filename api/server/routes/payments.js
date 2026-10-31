@@ -23,7 +23,12 @@ const handlers = createPaymentHandlers({
   getTenantAppConfig: (tenantId) => getAppConfig({ tenantId }),
   currencyRates: getSharedCurrencyRates(),
   store: db,
-  grant: { createTransaction: db.createTransaction, upsertBalanceFields: db.upsertBalanceFields },
+  grant: {
+    createTransaction: db.createTransaction,
+    upsertBalanceFields: db.upsertBalanceFields,
+    setUserPack: (userId, packId) =>
+      db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
+  },
   health: getSharedGatewayHealth(),
   asSystem: runAsSystem,
   withTenant: (tenantId, fn) => (tenantId ? tenantStorage.run({ tenantId }, fn) : fn()),

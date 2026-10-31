@@ -58,6 +58,7 @@ export interface PaymentServiceDeps {
       tx: Parameters<GrantBalanceDeps['createTransaction']>[0] & { messageId: string },
     ) => ReturnType<GrantBalanceDeps['createTransaction']>;
     upsertBalanceFields: GrantBalanceDeps['upsertBalanceFields'];
+    setUserPack?: GrantBalanceDeps['setUserPack'];
   };
   registry: PaymentDriverRegistry;
   health?: GatewayHealth;
@@ -254,6 +255,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
             createTransaction: (tx) =>
               deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
             upsertBalanceFields: deps.grant.upsertBalanceFields,
+            setUserPack: deps.grant.setUserPack,
             now,
           },
           {

@@ -95,6 +95,8 @@ export interface IUser extends Document {
   mediaAccess?: boolean;
   /** Per-user grant (`true`) or denial (`false`) of local/private model specs; unset follows the role. */
   modelAccess?: TUserModelAccess;
+  /** The current balance pack, copied from the balance on each grant; its `grants` apply. */
+  packId?: string;
   favorites?: TUserFavorite[];
   /** Display order for the sidebar's Pinned section: favorite and pinned-chat
    *  entry keys interleaved (`agent:`, `spec:`, `model:`, `convo:` prefixes). */

@@ -26,6 +26,8 @@ export interface BillingUserRow {
   apiAccess?: boolean;
   /** The user's own media generation override; absent follows the deployment rule */
   mediaAccess?: boolean;
+  /** `user.packId`: the pack copied onto the user on its last grant, whose `grants` apply */
+  packId?: string;
   balance: {
     tokenCredits: number;
     packId?: string;
@@ -178,7 +180,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       users()
         .find(
           filter,
-          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess',
+          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess packId',
         )
         .sort(sortBy)
         .skip(skip)
@@ -217,6 +219,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           },
           ...(typeof doc.apiAccess === 'boolean' && { apiAccess: doc.apiAccess }),
           ...(typeof doc.mediaAccess === 'boolean' && { mediaAccess: doc.mediaAccess }),
+          ...(typeof doc.packId === 'string' && doc.packId !== '' && { packId: doc.packId }),
           balance: balance
             ? {
                 tokenCredits: balance.tokenCredits ?? 0,

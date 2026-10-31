@@ -1,7 +1,8 @@
-import { useEffect, useId, useState } from 'react';
-import { RotateCcw, UserPlus, Users as UsersIcon } from 'lucide-react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { RotateCcw, ShieldCheck, UserPlus, Users as UsersIcon, WalletCards, X } from 'lucide-react';
 import { SystemRoles } from 'librechat-data-provider';
-import { Button, Dropdown, Input, Skeleton } from '@librechat/client';
+import { Button, Checkbox, Dropdown, Input, Skeleton } from '@librechat/client';
 import type {
   TAdminBillingUser,
   TAdminBillingUserSort,
@@ -16,8 +17,9 @@ import { useLocalize, useAuthContext } from '~/hooks';
 import CreateUserDialog from './CreateUserDialog';
 import { Money, UsageCell } from './parts';
 import UserActions from './UserActions';
-import ModelAccess from './ModelAccess';
-import UserSwitch from './UserSwitch';
+import BulkAccessDialog from './BulkAccessDialog';
+import AccessSummary from './AccessSummary';
+import UserDrawer from './UserDrawer';
 import GiftNote from './GiftNote';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
@@ -37,12 +39,79 @@ type PackFilter = 'all' | 'has' | 'none' | `pack:${string}`;
 
 /** Column widths shared by the header and every row on wide screens. */
 const COL = {
+  select: 'md:w-6',
   pack: 'md:w-28',
   usage: 'md:w-32',
   access: 'md:w-52',
   credit: 'md:w-32 md:text-end',
   actions: 'md:w-10',
 };
+
+const ROLE_FILTERS: readonly string[] = ['USER', 'ADMIN'];
+const BALANCE_FILTERS: readonly string[] = ['positive', 'empty'];
+const ACCESS_FILTERS: readonly string[] = ['custom', 'default'];
+const SORTS: readonly string[] = ['newest', 'oldest', 'name'];
+
+/** A URL value when it is one of `allowed`, else the default. */
+function pick<T extends string>(value: string | null, allowed: readonly string[], fallback: T): T {
+  return value != null && allowed.includes(value) ? (value as T) : fallback;
+}
+
+/**
+ * The list's filters, sort and page, kept in the address (`?tab=users&q=…&pack=…&page=2`) so a
+ * view can be shared, survives a reload and comes back with the browser's back button. Writing
+ * merges into the current query, so `tab` and anything else there stay.
+ */
+function useUserFilters() {
+  const [params, setParams] = useSearchParams();
+  const pack = params.get('pack');
+  const filters = {
+    search: params.get('q') ?? '',
+    role: pick<RoleFilter>(params.get('role'), ROLE_FILTERS, ALL),
+    pack: (pack === 'has' || pack === 'none' || pack?.startsWith(PACK_PREFIX)
+      ? pack
+      : ALL) as PackFilter,
+    balance: pick<BalanceFilter>(params.get('balance'), BALANCE_FILTERS, ALL),
+    access: pick<AccessFilter>(params.get('access'), ACCESS_FILTERS, ALL),
+    sort: pick<TAdminBillingUserSort>(params.get('sort'), SORTS, 'newest'),
+    page: Math.max(Number.parseInt(params.get('page') ?? '1', 10) || 1, 1),
+  };
+
+  /** Sets the given keys (removing defaults and empties) and, unless `page` is set, page 1. */
+  const update = (
+    changes: Partial<
+      Record<'q' | 'role' | 'pack' | 'balance' | 'access' | 'sort' | 'page', string>
+    >,
+  ) => {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(changes)) {
+          const isDefault =
+            value == null ||
+            value === '' ||
+            value === ALL ||
+            (key === 'sort' && value === 'newest') ||
+            (key === 'page' && value === '1');
+          if (isDefault) {
+            next.delete(key);
+          } else {
+            next.set(key, value);
+          }
+        }
+        if (!('page' in changes)) {
+          next.delete('page');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const reset = () => update({ q: '', role: ALL, pack: ALL, balance: ALL, access: ALL });
+
+  return { filters, update, reset };
+}
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat(document.documentElement.lang || undefined).format(value);
@@ -83,7 +152,7 @@ function FilterField({
   );
 }
 
-function UserCell({ row }: { row: TAdminBillingUser }) {
+function UserCell({ row, onOpen }: { row: TAdminBillingUser; onOpen: () => void }) {
   const localize = useLocalize();
   const name = row.name || row.username || row.email || row.phone || '—';
   const initial = name.trim().charAt(0).toUpperCase();
@@ -97,9 +166,15 @@ function UserCell({ row }: { row: TAdminBillingUser }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-text-primary truncate text-sm font-medium" title={name} dir="auto">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="text-text-primary focus-visible:ring-text-primary truncate rounded-sm text-start text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+            title={localize('com_admin_open_details', { 0: name })}
+            dir="auto"
+          >
             {name}
-          </span>
+          </button>
           <span className="text-text-secondary border-border-light shrink-0 rounded-md border px-1.5 py-0.5 text-xs">
             {row.role === SystemRoles.ADMIN
               ? localize('com_admin_role_admin')
@@ -151,14 +226,14 @@ export default function Users() {
   const accessId = useId();
   const sortId = useId();
   const searchId = useId();
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [role, setRole] = useState<RoleFilter>(ALL);
-  const [pack, setPack] = useState<PackFilter>(ALL);
-  const [balance, setBalance] = useState<BalanceFilter>(ALL);
-  const [access, setAccess] = useState<AccessFilter>(ALL);
-  const [sort, setSort] = useState<TAdminBillingUserSort>('newest');
-  const [offset, setOffset] = useState(0);
+  const { filters, update, reset } = useUserFilters();
+  const { search, role, pack, balance, access, sort } = filters;
+  const offset = (filters.page - 1) * PAGE_SIZE;
+  const [searchInput, setSearchInput] = useState(search);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [openUserId, setOpenUserId] = useState<string | null>(null);
+  const [bulkGranting, setBulkGranting] = useState(false);
+  const [bulkAccess, setBulkAccess] = useState(false);
   const [granting, setGranting] = useState<TAdminBillingUser | null>(null);
   const [viewingUsage, setViewingUsage] = useState<TAdminBillingUser | null>(null);
   const [changingRole, setChangingRole] = useState<TAdminBillingUser | null>(null);
@@ -166,13 +241,26 @@ export default function Users() {
   const { user: currentUser } = useAuthContext();
   const { currency } = useBalanceDisplay();
 
+  /** The box follows the address when it changes from outside (back button, cleared filters) */
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setSearch(searchInput.trim());
-      setOffset(0);
-    }, SEARCH_DELAY_MS);
+    setSearchInput((current) => (current.trim() === search ? current : search));
+  }, [search]);
+
+  useEffect(() => {
+    const next = searchInput.trim();
+    if (next === search) {
+      return;
+    }
+    const timeout = window.setTimeout(() => update({ q: next }), SEARCH_DELAY_MS);
     return () => window.clearTimeout(timeout);
-  }, [searchInput]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `update` is rebuilt every render
+  }, [searchInput, search]);
+
+  /** A selection is for the page in view; a new page or filter starts empty */
+  const viewKey = `${search}|${role}|${pack}|${balance}|${access}|${sort}|${filters.page}`;
+  useEffect(() => {
+    setSelected(new Set());
+  }, [viewKey]);
 
   const packs = useAdminBillingPacksQuery();
   const selectedPack = pack.startsWith(PACK_PREFIX) ? pack.slice(PACK_PREFIX.length) : pack;
@@ -187,27 +275,46 @@ export default function Users() {
     offset,
   });
   const total = users.data?.total ?? 0;
-  const rows = users.data?.users ?? [];
+  const rows = useMemo(() => users.data?.users ?? [], [users.data]);
+  const packList = packs.data?.packs ?? [];
+  /** The open sheet reads the row from the latest list, so a change shows there at once */
+  const openUser = rows.find((row) => row.id === openUserId) ?? null;
   const hasFilters =
     searchInput.trim() !== '' || role !== ALL || pack !== ALL || balance !== ALL || access !== ALL;
+  const selectedIds = rows.filter((row) => selected.has(row.id)).map((row) => row.id);
+  const allSelected = rows.length > 0 && selectedIds.length === rows.length;
+  let pageSelection: boolean | 'indeterminate' = allSelected;
+  if (!allSelected && selectedIds.length > 0) {
+    pageSelection = 'indeterminate';
+  }
 
   const resetFilters = () => {
     setSearchInput('');
-    setSearch('');
-    setRole(ALL);
-    setPack(ALL);
-    setBalance(ALL);
-    setAccess(ALL);
-    setOffset(0);
+    reset();
   };
 
-  const changeFilter = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
-    setter(value);
-    setOffset(0);
+  const toggleRow = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
   };
+
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(rows.map((row) => row.id)) : new Set());
+  };
+
+  const clearSelection = () => setSelected(new Set());
 
   const onAction = (action: UserAction, row: TAdminBillingUser) => {
-    if (action === 'usage') {
+    if (action === 'details') {
+      setOpenUserId(row.id);
+    } else if (action === 'usage') {
       setViewingUsage(row);
     } else if (action === 'grant') {
       setGranting(row);
@@ -262,7 +369,7 @@ export default function Users() {
                   { value: 'USER', label: localize('com_admin_role_user') },
                   { value: 'ADMIN', label: localize('com_admin_role_admin') },
                 ]}
-                onChange={(value) => changeFilter(setRole, value as RoleFilter)}
+                onChange={(value) => update({ role: value as RoleFilter })}
                 ariaLabel={localize('com_admin_filter_role')}
                 testId="admin-filter-role"
                 sizeClasses="z-50"
@@ -280,7 +387,7 @@ export default function Users() {
                     label: item.label,
                   })),
                 ]}
-                onChange={(value) => changeFilter(setPack, value as PackFilter)}
+                onChange={(value) => update({ pack: value as PackFilter })}
                 ariaLabel={localize('com_admin_filter_pack')}
                 testId="admin-filter-pack"
                 sizeClasses="z-50"
@@ -294,7 +401,7 @@ export default function Users() {
                   { value: 'positive', label: localize('com_admin_filter_has_balance') },
                   { value: 'empty', label: localize('com_admin_filter_empty_balance') },
                 ]}
-                onChange={(value) => changeFilter(setBalance, value as BalanceFilter)}
+                onChange={(value) => update({ balance: value as BalanceFilter })}
                 ariaLabel={localize('com_admin_filter_balance')}
                 testId="admin-filter-balance"
                 sizeClasses="z-50"
@@ -308,7 +415,7 @@ export default function Users() {
                   { value: 'custom', label: localize('com_admin_filter_custom_access') },
                   { value: 'default', label: localize('com_admin_filter_default_access') },
                 ]}
-                onChange={(value) => changeFilter(setAccess, value as AccessFilter)}
+                onChange={(value) => update({ access: value as AccessFilter })}
                 ariaLabel={localize('com_admin_filter_access')}
                 testId="admin-filter-access"
                 sizeClasses="z-50"
@@ -326,7 +433,7 @@ export default function Users() {
                     { value: 'oldest', label: localize('com_admin_sort_oldest') },
                     { value: 'name', label: localize('com_admin_sort_name') },
                   ]}
-                  onChange={(value) => changeFilter(setSort, value as TAdminBillingUserSort)}
+                  onChange={(value) => update({ sort: value as TAdminBillingUserSort })}
                   ariaLabel={localize('com_admin_sort')}
                   testId="admin-user-sort"
                   sizeClasses="z-50"
@@ -352,11 +459,46 @@ export default function Users() {
           </div>
         </div>
 
+        {rows.length > 0 && (
+          <div
+            className="border-border-light flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2"
+            data-testid="admin-bulk-bar"
+          >
+            <Checkbox
+              checked={pageSelection}
+              onCheckedChange={(checked) => toggleAll(checked === true)}
+              aria-label={localize('com_admin_select_page')}
+            />
+            <span className="text-text-secondary text-sm" aria-live="polite">
+              {selectedIds.length > 0
+                ? localize('com_admin_bulk_selected', { 0: formatNumber(selectedIds.length) })
+                : localize('com_admin_select_page')}
+            </span>
+            {selectedIds.length > 0 && (
+              <span className="ms-auto flex flex-wrap gap-2">
+                <Button size="compact" variant="outline" onClick={() => setBulkGranting(true)}>
+                  <WalletCards className="me-1.5 size-4" aria-hidden="true" />
+                  {localize('com_admin_bulk_grant')}
+                </Button>
+                <Button size="compact" variant="outline" onClick={() => setBulkAccess(true)}>
+                  <ShieldCheck className="me-1.5 size-4" aria-hidden="true" />
+                  {localize('com_admin_bulk_access')}
+                </Button>
+                <Button size="compact" variant="ghost" onClick={clearSelection}>
+                  <X className="me-1 size-4" aria-hidden="true" />
+                  {localize('com_admin_bulk_clear')}
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="border-border-light overflow-hidden rounded-xl border">
           <div
             aria-hidden="true"
             className="bg-surface-secondary border-border-light text-text-secondary hidden items-center gap-4 border-b px-4 py-2.5 text-xs font-medium md:flex"
           >
+            <span className={COL.select} />
             <span className="flex-1">{localize('com_admin_col_user')}</span>
             <span className={COL.pack}>{localize('com_admin_col_pack')}</span>
             <span className={COL.usage}>{localize('com_admin_col_usage')}</span>
@@ -415,7 +557,18 @@ export default function Users() {
                 data-testid="admin-user-row"
                 className="border-border-light hover:bg-surface-hover relative flex flex-col gap-3 border-b px-4 py-4 last:border-0 md:flex-row md:items-center md:gap-4"
               >
-                <UserCell row={row} />
+                <div className={cn('absolute inset-s-4 top-5 md:static', COL.select)}>
+                  <Checkbox
+                    checked={selected.has(row.id)}
+                    onCheckedChange={(checked) => toggleRow(row.id, checked === true)}
+                    aria-label={localize('com_admin_select_user', {
+                      0: row.name || row.username || row.email || row.phone || '',
+                    })}
+                  />
+                </div>
+                <div className="ps-8 md:contents md:ps-0">
+                  <UserCell row={row} onOpen={() => setOpenUserId(row.id)} />
+                </div>
                 <div className="grid grid-cols-2 gap-3 md:contents">
                   <div className={cn('order-1 min-w-0 text-sm md:order-none', COL.pack)}>
                     <CellLabel>{localize('com_admin_col_pack')}</CellLabel>
@@ -432,11 +585,7 @@ export default function Users() {
                   </div>
                   <div className={cn('order-4 col-span-2 md:order-none', COL.access)}>
                     <CellLabel>{localize('com_admin_col_model_access')}</CellLabel>
-                    <div className="flex flex-col gap-1">
-                      <ModelAccess user={row} />
-                      <UserSwitch user={row} field="apiAccess" />
-                      <UserSwitch user={row} field="mediaAccess" />
-                    </div>
+                    <AccessSummary user={row} />
                   </div>
                   <div
                     className={cn(
@@ -473,7 +622,7 @@ export default function Users() {
                 size="compact"
                 variant="outline"
                 disabled={offset === 0}
-                onClick={() => setOffset(Math.max(offset - PAGE_SIZE, 0))}
+                onClick={() => update({ page: String(filters.page - 1) })}
               >
                 {localize('com_ui_prev')}
               </Button>
@@ -481,7 +630,7 @@ export default function Users() {
                 size="compact"
                 variant="outline"
                 disabled={offset + PAGE_SIZE >= total}
-                onClick={() => setOffset(offset + PAGE_SIZE)}
+                onClick={() => update({ page: String(filters.page + 1) })}
               >
                 {localize('com_ui_next')}
               </Button>
@@ -500,12 +649,37 @@ export default function Users() {
         <RoleDialog user={changingRole} onClose={() => setChangingRole(null)} />
       )}
       {creating && <CreateUserDialog open onClose={() => setCreating(false)} />}
+      <UserDrawer
+        user={openUser}
+        packs={packList}
+        currency={currency}
+        isSelf={openUser?.id === currentUser?.id}
+        onAction={onAction}
+        onClose={() => setOpenUserId(null)}
+      />
       {granting != null && (
         <GrantDialog
           user={granting}
-          packs={packs.data?.packs ?? []}
+          packs={packList}
           currency={currency}
           onClose={() => setGranting(null)}
+        />
+      )}
+      {bulkGranting && selectedIds.length > 0 && (
+        <GrantDialog
+          user={null}
+          userIds={selectedIds}
+          packs={packList}
+          currency={currency}
+          onClose={() => setBulkGranting(false)}
+          onDone={clearSelection}
+        />
+      )}
+      {bulkAccess && selectedIds.length > 0 && (
+        <BulkAccessDialog
+          userIds={selectedIds}
+          onClose={() => setBulkAccess(false)}
+          onDone={clearSelection}
         />
       )}
     </>

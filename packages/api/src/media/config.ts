@@ -1,10 +1,17 @@
 import {
   MediaTools,
   SystemRoles,
+  findPackGrants,
   extractEnvVariable,
+  resolveMediaAccess,
   mediaGenerationSchema,
 } from 'librechat-data-provider';
-import type { TMediaGenerationConfig, TModelSpec } from 'librechat-data-provider';
+import type {
+  TModelSpec,
+  TPackGrants,
+  TEffectiveAccess,
+  TMediaGenerationConfig,
+} from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { resolveSpeechEndpoint } from '~/speech/config';
 import { readConfigSection } from '~/app/config';
@@ -83,25 +90,59 @@ export function resolveMediaEndpoint(
   return endpoint ? { ...endpoint, name: config.endpoint } : undefined;
 }
 
-export type MediaAccessResult = { ok: true } | { ok: false; code: 'media_disabled' | 'paid_only' };
+export type MediaAccessResult =
+  | { ok: true }
+  | { ok: false; code: 'media_disabled' | 'paid_only' | 'not_in_pack' };
+
+type PackList = ReadonlyArray<{ id?: string; grants?: TPackGrants }> | null | undefined;
 
 /**
- * Whether this user may generate now: an admin's switch wins, admins may always, and otherwise a
- * `paidOnly` deployment needs a pack on the user's balance (bought or granted).
+ * The media access of a user whose balance pack is known: the shared rule
+ * ({@link resolveMediaAccess}) with this deployment's `paidOnly` and the pack's `grants`.
+ */
+export function resolveUserMediaAccess(
+  config: Pick<TMediaGenerationConfig, 'paidOnly'> | null | undefined,
+  user: Pick<MediaUser, 'role' | 'mediaAccess'>,
+  packId: string | null | undefined,
+  packs: PackList,
+): TEffectiveAccess {
+  return resolveMediaAccess({
+    override: user.mediaAccess,
+    isAdmin: user.role === SystemRoles.ADMIN,
+    paidOnly: config?.paidOnly !== false,
+    hasPack: Boolean(packId),
+    packGrant: findPackGrants(packs, packId)?.media,
+  });
+}
+
+/**
+ * Whether this user may generate now: an admin's switch wins, admins may always, then the
+ * current pack's `grants.media`, and otherwise a `paidOnly` deployment needs a pack on the
+ * user's balance (bought or granted). The balance is read only when the answer depends on it.
  */
 export async function checkMediaAccess(
   config: TMediaGenerationConfig,
   user: MediaUser,
   findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>,
+  packs?: PackList,
 ): Promise<MediaAccessResult> {
   if (user.mediaAccess === false) {
     return { ok: false, code: 'media_disabled' };
   }
-  if (user.mediaAccess === true || user.role === SystemRoles.ADMIN || config.paidOnly !== true) {
+  const packDecides = (packs ?? []).some((pack) => typeof pack.grants?.media === 'boolean');
+  if (
+    user.mediaAccess === true ||
+    user.role === SystemRoles.ADMIN ||
+    (config.paidOnly === false && !packDecides)
+  ) {
     return { ok: true };
   }
   const balance = await findBalanceByUser(user.id);
-  return balance?.packId ? { ok: true } : { ok: false, code: 'paid_only' };
+  const access = resolveUserMediaAccess(config, user, balance?.packId, packs);
+  if (access.allowed) {
+    return { ok: true };
+  }
+  return { ok: false, code: balance?.packId ? 'not_in_pack' : 'paid_only' };
 }
 
 /** The Higgsfield models and voices the model may pick, for the system prompt. */

@@ -116,6 +116,21 @@ interface:
 - چون قیمت تومانی با نرخ دلار عوض می‌شود، قیمتی که کاربر می‌بیند همان لحظه است. مبلغ را موقع فروش با همین قیمت بگیرید و بسته را از صفحهٔ ادمین بدهید.
 - **صفحهٔ ادمین** (`/admin`) همه مبالغ را هم دلاری و هم تومانی نشان می‌دهد، و نرخ، منبع و زمان آن را بالای صفحه می‌نویسد. پنجرهٔ «افزودن اعتبار» قیمت تومانی هر بسته را هم دارد.
 
+**دسترسی‌هایی که بسته می‌دهد (`grants`):** هر بسته می‌تواند بگوید تا وقتی بستهٔ فعلی کاربر است، چه چیزهایی را شامل می‌شود:
+
+```yaml
+    - id: pro
+      label: 'بسته حرفه‌ای'
+      credits: 30000000
+      grants: { private: true, media: true, api: true }
+```
+
+- کلیدها: `local` (مدل‌های روی سرور)، `private` (مدل‌های محرمانه)، `media` (تصویر، ویدیو، صدا و Higgsfield) و `api`. `true` یعنی شامل است و `false` یعنی نیست.
+- کلیدی که نوشته نشود همان قانون بدون بسته را دارد: برای `local`، `private` و `api` تنظیم «دسترسی کاربران»، و برای `media` «هر بسته‌ای».
+- ترتیب تصمیم: تنظیم اختصاصی همان کاربر در صفحهٔ ادمین، بعد مدیر بودن، بعد `grants` بستهٔ فعلی، بعد نقش یا قانون کلی.
+- بسته روی خود کاربر هم نوشته می‌شود (`user.packId`) تا هر درخواست بدون خواندن موجودی آن را بداند. برای کاربرانی که پیش از این تغییر بسته گرفته‌اند یک بار `npm run sync-user-packs` را اجرا کنید.
+- صفحهٔ کاربران در `/admin?tab=users` برای هر دسترسی نشان می‌دهد الان روشن است یا خاموش و چه کسی تصمیم گرفته. پنجرهٔ «افزودن اعتبار» زیر نام هر بسته می‌نویسد شامل چه چیزهایی هست.
+
 **دادن بسته به کاربر:**
 - اعتبار باقی‌مانده کاربر حذف نمی‌شود و به بسته جدید اضافه می‌شود.
 - نوار مصرف دوباره از «۰٪» شروع می‌شود، چون مبنای درصد موجودی کاربر درست بعد از دریافت بسته است.
@@ -136,6 +151,16 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 
 # مقدار دلخواه به جای بسته (یکی از packId یا credits را بفرستید، نه هر دو)
   -d '{"userId":"<id>","credits":500000}'
+
+# یک بسته برای چند کاربر (حداکثر ۱۰۰ شناسه)؛ پاسخ: granted و failed
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"userIds":["<id1>","<id2>"],"packId":"starter"}' \
+  https://chat.example.com/api/admin/balance/grant-bulk
+
+# یک دسترسی برای چند کاربر: field یکی از local، private، media، api؛ value یکی از true، false، null
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"userIds":["<id1>","<id2>"],"field":"media","value":true}' \
+  https://chat.example.com/api/admin/users/bulk-access
 
 # موجودی و درصد مصرف یک کاربر
 curl -H "Authorization: Bearer $TOKEN" "https://chat.example.com/api/admin/balance/user?email=user@example.com"

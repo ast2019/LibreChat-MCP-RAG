@@ -8,6 +8,10 @@ import type {
   TAdminModelAccessResponse,
   TAdminBillingGrantRequest,
   TAdminBillingGrantResponse,
+  TAdminBillingBulkGrantRequest,
+  TAdminBillingBulkGrantResponse,
+  TAdminBulkAccessRequest,
+  TAdminBulkAccessResponse,
   TAdminBillingPacksResponse,
   TAdminBillingUsersResponse,
   TAdminBillingUserUsage,
@@ -70,6 +74,41 @@ export const useAdminBillingGrantMutation = (): UseMutationResult<
       onSuccess: () => {
         queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
         queryClient.invalidateQueries([QueryKeys.adminBillingSummary]);
+      },
+    },
+  );
+};
+
+/** Grants one pack or credit amount to several users, then refreshes the list and the summary. */
+export const useAdminBillingBulkGrantMutation = (): UseMutationResult<
+  TAdminBillingBulkGrantResponse,
+  unknown,
+  TAdminBillingBulkGrantRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: TAdminBillingBulkGrantRequest) => dataService.grantAdminBillingBulk(payload),
+    {
+      onSettled: () => {
+        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
+        queryClient.invalidateQueries([QueryKeys.adminBillingSummary]);
+      },
+    },
+  );
+};
+
+/** Sets one access class for several users, then refreshes the user list. */
+export const useAdminUsersBulkAccessMutation = (): UseMutationResult<
+  TAdminBulkAccessResponse,
+  unknown,
+  TAdminBulkAccessRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: TAdminBulkAccessRequest) => dataService.updateAdminUsersBulkAccess(payload),
+    {
+      onSettled: () => {
+        queryClient.invalidateQueries([QueryKeys.adminBillingUsers]);
       },
     },
   );

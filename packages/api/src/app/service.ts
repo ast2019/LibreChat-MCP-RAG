@@ -14,6 +14,7 @@ import {
   getConfigDefaults,
   normalizeEndpointName,
   setMaxSubagents,
+  findPackGrants,
 } from 'librechat-data-provider';
 import type { AppConfig, RolePermissions, ConfigOverrideLayer } from '@librechat/data-schemas';
 import type { TUserModelAccess } from 'librechat-data-provider';
@@ -294,6 +295,11 @@ export interface GetAppConfigOptions {
    * which wins over the role permission. Read from the loaded user, never from the database.
    */
   modelAccess?: TUserModelAccess | null;
+  /**
+   * The user's current balance pack (`user.packId`), whose `grants` decide the local/private
+   * classes the user has no override for. Read from the loaded user, never from the database.
+   */
+  packId?: string | null;
   refresh?: boolean;
   /** When true, return only the YAML-derived base config — no DB override queries. */
   baseOnly?: boolean;
@@ -318,6 +324,7 @@ export interface AppConfigUserLike {
   tenantId?: string;
   idOnTheSource?: string | null;
   modelAccess?: TUserModelAccess | null;
+  packId?: string | null;
 }
 
 export function getAppConfigOptionsFromUser(
@@ -333,6 +340,7 @@ export function getAppConfigOptionsFromUser(
     idOnTheSource: userId && hasSourceIdentity ? (user.idOnTheSource ?? null) : undefined,
     tenantId: tenantId ?? user?.tenantId ?? getTenantId(),
     modelAccess: user?.modelAccess ?? undefined,
+    packId: user?.packId ?? undefined,
   };
 }
 
@@ -699,6 +707,7 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
       role: options.role,
       permissions,
       override: options.modelAccess,
+      packGrants: findPackGrants(config.balance?.packs, options.packId),
     });
     /** Discovered specs join before the access filters, so the same rules hide them */
     const discovered = applyAutoDiscoveredSpecs(config, getModelCatalogue());

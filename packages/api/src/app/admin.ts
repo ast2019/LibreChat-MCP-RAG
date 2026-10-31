@@ -1,6 +1,11 @@
-import { SystemRoles, Permissions, PermissionTypes } from 'librechat-data-provider';
+import {
+  SystemRoles,
+  Permissions,
+  PermissionTypes,
+  resolveModelClassAccess,
+} from 'librechat-data-provider';
 import type { AppConfig, RolePermissions } from '@librechat/data-schemas';
-import type { TUserModelAccess } from 'librechat-data-provider';
+import type { TPackGrants, TUserModelAccess } from 'librechat-data-provider';
 
 /** Which model privacy classes a principal may use. */
 export type PrivacyAccess = { allowLocal: boolean; allowPrivate: boolean };
@@ -40,34 +45,39 @@ export function applyAdminOnlySpecs(config: AppConfig, role?: string): AppConfig
 }
 
 /**
- * Effective access to the `local` and `private` spec classes: ADMIN always has both; otherwise a
- * user override (`true`/`false`) wins over the role permission, and a permission the role does
- * not store counts as granted (the default for both types), so roles that predate them keep today's
- * behavior. `permissions` is `null` when the role could not be read — the role grants nothing then.
+ * Effective access to the `local` and `private` spec classes, per class: ADMIN always has both;
+ * otherwise a user override (`true`/`false`) wins, then the current pack's `grants`, then the role
+ * permission. A permission the role does not store counts as granted (the default for both
+ * types), so roles that predate them keep today's behavior. `permissions` is `null` when the role
+ * could not be read — the role grants nothing then.
  */
 export function resolvePrivacyAccess({
   role,
   permissions,
   override,
+  packGrants,
 }: {
   role?: string;
   permissions?: RolePermissions | null;
   override?: TUserModelAccess | null;
+  packGrants?: TPackGrants;
 }): PrivacyAccess {
-  if (role === SystemRoles.ADMIN) {
-    return { allowLocal: true, allowPrivate: true };
-  }
+  const isAdmin = role === SystemRoles.ADMIN;
   const roleAllows = (type: PermissionTypes.LOCAL_MODELS | PermissionTypes.PRIVATE_MODELS) =>
     permissions !== null && permissions?.[type]?.[Permissions.USE] !== false;
   return {
-    allowLocal:
-      typeof override?.local === 'boolean'
-        ? override.local
-        : roleAllows(PermissionTypes.LOCAL_MODELS),
-    allowPrivate:
-      typeof override?.private === 'boolean'
-        ? override.private
-        : roleAllows(PermissionTypes.PRIVATE_MODELS),
+    allowLocal: resolveModelClassAccess({
+      isAdmin,
+      override: override?.local,
+      packGrant: packGrants?.local,
+      roleAllows: roleAllows(PermissionTypes.LOCAL_MODELS),
+    }).allowed,
+    allowPrivate: resolveModelClassAccess({
+      isAdmin,
+      override: override?.private,
+      packGrant: packGrants?.private,
+      roleAllows: roleAllows(PermissionTypes.PRIVATE_MODELS),
+    }).allowed,
   };
 }
 

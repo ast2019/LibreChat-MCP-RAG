@@ -1,6 +1,7 @@
 import { logger } from '@librechat/data-schemas';
-import { SystemRoles, extractEnvVariable } from 'librechat-data-provider';
+import { SystemRoles, findPackGrants, extractEnvVariable } from 'librechat-data-provider';
 import type { IUser } from '@librechat/data-schemas';
+import type { TPackGrants } from 'librechat-data-provider';
 import type { ParsedServerConfig } from './types';
 
 /** `sharedOAuth` on an MCP server: one account's OAuth connection used by the users it allows. */
@@ -14,6 +15,8 @@ export interface SharedOAuthConfig {
 export interface SharedMCPPrincipalDeps {
   findUserByEmail: (email: string) => Promise<IUser | null>;
   findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>;
+  /** The configured balance packs, whose `grants.media` decides the `paid` rule per pack. */
+  getPacks?: () => ReadonlyArray<{ id?: string; grants?: TPackGrants }> | null | undefined;
   now?: () => number;
 }
 
@@ -77,7 +80,8 @@ export function createSharedMCPPrincipalResolver(
       return false;
     }
     const balance = await deps.findBalanceByUser(user.id);
-    return Boolean(balance?.packId);
+    /** A pack that says whether it includes media decides; any other pack counts as paid */
+    return findPackGrants(deps.getPacks?.(), balance?.packId)?.media ?? Boolean(balance?.packId);
   }
 
   return async ({ serverName, config, user }) => {

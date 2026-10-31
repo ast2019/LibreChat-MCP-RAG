@@ -110,6 +110,29 @@ describe('applyPrivacyAccessSpecs', () => {
 });
 
 describe('resolvePrivacyAccess', () => {
+  it('lets the current pack decide a class the user has no override for', () => {
+    const roleDenies = {
+      [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: false },
+      [PermissionTypes.PRIVATE_MODELS]: { [Permissions.USE]: false },
+    } as RolePermissions;
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.USER,
+        permissions: roleDenies,
+        packGrants: { private: true },
+      }),
+    ).toEqual({ allowLocal: false, allowPrivate: true });
+    /** The user's own setting still wins over the pack */
+    expect(
+      resolvePrivacyAccess({
+        role: SystemRoles.USER,
+        permissions: roleDenies,
+        override: { private: false },
+        packGrants: { private: true, local: true },
+      }),
+    ).toEqual({ allowLocal: true, allowPrivate: false });
+  });
+
   const permissions = (local?: boolean, priv?: boolean) =>
     ({
       ...(local !== undefined && { [PermissionTypes.LOCAL_MODELS]: { [Permissions.USE]: local } }),

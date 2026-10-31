@@ -553,10 +553,13 @@ export const adminBillingSummary = (days: number) =>
   `${adminBilling()}/summary${buildQuery({ days })}`;
 export const adminBillingPacks = () => `${adminBilling()}/packs`;
 export const adminBillingGrant = () => `${adminBilling()}/grant`;
+export const adminBillingGrantBulk = () => `${adminBilling()}/grant-bulk`;
+export const adminUsersBulkAccess = () => `${BASE_URL}/api/admin/users/bulk-access`;
 export const adminBillingCreateUser = () => `${adminBilling()}/users`;
 export const adminGifts = () => `${adminBilling()}/gifts`;
 export const mediaStatus = () => `${BASE_URL}/api/media/status`;
-export const mediaJob = (jobId: string) => `${BASE_URL}/api/media/jobs/${encodeURIComponent(jobId)}`;
+export const mediaJob = (jobId: string) =>
+  `${BASE_URL}/api/media/jobs/${encodeURIComponent(jobId)}`;
 export const adminRoleMembers = (role: string, userId?: string) =>
   `${BASE_URL}/api/admin/roles/${encodeURIComponent(role)}/members${
     userId != null ? `/${encodeURIComponent(userId)}` : ''

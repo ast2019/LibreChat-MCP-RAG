@@ -11,7 +11,10 @@ import type {
   TAdminBillingUsersParams,
 } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
+import type { AccessRules, RoleAccess } from '../admin/effectiveAccess';
 import type { GrantBalanceDeps } from './packs';
+import { computeEffectiveAccess } from '../admin/effectiveAccess';
+import { MAX_BULK_USERS, readBulkUserIds } from '../admin/access';
 import { grantBalance, resolveBalanceGrant } from './packs';
 
 type BillingRequest = Request & { user?: IUser };
@@ -45,6 +48,12 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
   getUserUsageByContext?: (params: { userId: string; since: Date }) => Promise<BillingUserUsage>;
   /** Markup applied to provider prices; the summary divides spend by it to estimate cost. */
   getPriceMultiplier: (req: BillingRequest) => Promise<number | undefined>;
+  /**
+   * The rules each listed user's effective access is computed against (packs and the media
+   * `paidOnly`), and what a role allows. Without both, rows carry no `effective`.
+   */
+  getAccessRules?: (req: BillingRequest) => Promise<AccessRules>;
+  getRoleAccess?: (role: string) => Promise<RoleAccess>;
   now?: () => Date;
 }
 
@@ -116,6 +125,7 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
   listPacks: (req: BillingRequest, res: Response) => Promise<Response>;
   getUserBalance: (req: BillingRequest, res: Response) => Promise<Response>;
   grant: (req: BillingRequest, res: Response) => Promise<Response>;
+  grantBulk: (req: BillingRequest, res: Response) => Promise<Response>;
   listUsers: (req: BillingRequest, res: Response) => Promise<Response>;
   summary: (req: BillingRequest, res: Response) => Promise<Response>;
   userUsage: (req: BillingRequest, res: Response) => Promise<Response>;
@@ -198,6 +208,65 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     }
   }
 
+  /**
+   * `POST /grant-bulk`: the same pack or credit amount to several users, one ledger grant each.
+   * Answers with how many were granted and which ids failed, so a partial run is visible.
+   */
+  async function grantBulk(req: BillingRequest, res: Response) {
+    try {
+      const config = await deps.getBalanceConfig(req);
+      if (config?.enabled !== true) {
+        return res.status(409).json({
+          error: { code: 'balance_disabled', message: 'Enable `balance` in librechat.yaml first' },
+        });
+      }
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const userIds = readBulkUserIds(body.userIds);
+      if (!userIds) {
+        return res.status(400).json({
+          error: { code: 'invalid_user_ids', message: `Send 1 to ${MAX_BULK_USERS} user IDs` },
+        });
+      }
+      const resolution = resolveBalanceGrant(config.packs, body);
+      if (!resolution.ok) {
+        const status = resolution.error.code === 'pack_not_found' ? 404 : 400;
+        return res.status(status).json({ error: resolution.error });
+      }
+      const failed: string[] = [];
+      for (const userId of userIds) {
+        try {
+          const user = await deps.findUserById(userId);
+          if (!user) {
+            failed.push(userId);
+            continue;
+          }
+          await grantBalance(deps, {
+            userId: user.id,
+            credits: resolution.value.credits,
+            pack: resolution.value.pack,
+          });
+        } catch (error) {
+          logger.error(`[adminBalance] bulk grant to ${userId} failed:`, error);
+          failed.push(userId);
+        }
+      }
+      const pack = resolution.value.pack;
+      logger.info(
+        `[adminBalance] ${req.user?.id ?? 'unknown admin'} granted ${resolution.value.credits} credits` +
+          `${pack ? ` (pack ${pack.id})` : ''} to ${userIds.length - failed.length} users`,
+      );
+      return res.status(200).json({
+        granted: userIds.length - failed.length,
+        failed,
+        credits: resolution.value.credits,
+        pack: pack ? { id: pack.id, label: pack.label } : null,
+      });
+    } catch (error) {
+      logger.error('[adminBalance] grantBulk error:', error);
+      return res.status(500).json({ error: 'Failed to grant credits' });
+    }
+  }
+
   async function listUsers(req: BillingRequest, res: Response) {
     try {
       const query = (req.query ?? {}) as Record<string, unknown>;
@@ -227,15 +296,28 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         ...(access != null && { access }),
         ...(sort != null && { sort }),
       });
-      return res.status(200).json({
-        total,
-        limit,
-        offset,
-        users: users.map((user) => ({
+      const rules =
+        deps.getAccessRules && deps.getRoleAccess ? await deps.getAccessRules(req) : null;
+      /** One role read per role on the page */
+      const roleAccess = new Map<string, Promise<RoleAccess>>();
+      const accessOf = (role: string) => {
+        let pending = roleAccess.get(role);
+        if (!pending) {
+          pending = (deps.getRoleAccess as (role: string) => Promise<RoleAccess>)(role);
+          roleAccess.set(role, pending);
+        }
+        return pending;
+      };
+      const rows = await Promise.all(
+        users.map(async (user) => ({
           ...user,
           usedPercent: getAllotmentUsedPercent(user.balance),
+          ...(rules && {
+            effective: computeEffectiveAccess(user, rules, await accessOf(user.role)),
+          }),
         })),
-      });
+      );
+      return res.status(200).json({ total, limit, offset, users: rows });
     } catch (error) {
       logger.error('[adminBalance] listUsers error:', error);
       return res.status(500).json({ error: 'Failed to list users' });
@@ -300,5 +382,5 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     }
   }
 
-  return { listPacks, getUserBalance, grant, listUsers, summary, userUsage };
+  return { listPacks, getUserBalance, grant, grantBulk, listUsers, summary, userUsage };
 }
