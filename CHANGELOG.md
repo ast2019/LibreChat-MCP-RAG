@@ -33,6 +33,40 @@ LibreChat versions are tracked separately in `package.json`.
   includes and leaves out. A media refusal for a pack that excludes media says so to the model
   (`not_in_pack`), and an API call refused by the pack answers `403 api_not_in_pack`.
 
+### Changed
+- **A thumbs-down needs its reason, and the reason is learned.** Choosing a thumbs-down tag opens
+  a dialog («چه چیزی باید فرق می‌کرد؟»), and the feedback is saved only with a written reason.
+  Closing the dialog saves nothing. With the new `memory.learnFromFeedback`, the server adds the
+  reason as one line of the user's `preferences` memory (`- Disliked (tag): reason`; a
+  thumbs-up's note becomes `- Liked (tag): …`). The answer to the feedback request says whether
+  the line was saved, was already there, or did not fit, and a toast tells the user. The line is
+  not written when the user turned memory off, without the memory create and update
+  permissions, past `tokenLimit`, or for an answer from an endpoint in `excludeEndpoints`. The
+  manual «به خاطر بسپار» button is gone.
+- **Repeated memory lines are kept once.** Both the feedback line and a value the memory agent
+  writes drop a line that repeats an earlier one. Arabic letter forms, half-spaces, bullets and
+  closing punctuation do not make two lines different.
+- **Local models read memory without writing it.** With the new `memory.excludeEndpointsRead`,
+  chats on `excludeEndpoints` get the saved memories in their prompt, but no memory agent runs
+  and no memory tool is registered for them. Before, an excluded endpoint could not read memory,
+  yet inline memory tools could still be registered on it. Both are on in the saas config.
+
+### Added
+- **How we differ, before sign-in.** On wide screens the sign-in panel beside the form shows a
+  short comparison with similar services: what we share (the leading models, image, video and
+  voice), what sets us apart (new models within hours, confidential mode, special AIs on our own
+  servers, MCP tools, web search and documents, Persian skills, memory that learns from feedback)
+  and what we do not have yet (a mobile app, notifications). Narrow screens get a link under the
+  form to the public `/why` page, which shows the full table with sign-up and sign-in buttons.
+
+### Fixed
+- **Every model group in the menu has an icon.** Kimi uses the Moonshot icon in the saas config.
+  A group that `otherProviders` adds for a company not in `providers` (Unbiased, for example)
+  gets that company's built-in icon when there is one, else a generic AI icon, on the group
+  header and on its models. Before, such a group had no header icon and its models showed the
+  host's logo. The generic icon is `modelSpecs.autoDiscover.otherProvidersIcon` (default
+  `/assets/ai-provider.svg`).
+
 ## [0.26.0] - 2026-10-30
 
 ### Changed

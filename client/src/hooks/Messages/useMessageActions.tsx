@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRecoilValue } from 'recoil';
+import { useToastContext } from '@librechat/client';
 import { useUpdateFeedbackMutation } from 'librechat-data-provider/react-query';
 import {
   TFeedback,
@@ -11,6 +12,8 @@ import {
   isAssistantsEndpoint,
   TUpdateFeedbackRequest,
 } from 'librechat-data-provider';
+import type { TFeedbackMemoryOutcome } from 'librechat-data-provider';
+import type { TranslationKeys } from '~/hooks';
 import type { TMessageChatContext } from '~/common/types';
 import type { TMessageProps } from '~/common';
 import {
@@ -23,6 +26,18 @@ import useGetAddedConvo from '~/hooks/Conversations/useGetAddedConvo';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
+
+/** What the toast says about a feedback reason's place in memory; `skipped` says nothing. */
+const feedbackMemoryToasts: Partial<
+  Record<
+    TFeedbackMemoryOutcome,
+    { message: TranslationKeys; status: 'success' | 'info' | 'warning' }
+  >
+> = {
+  saved: { message: 'com_ui_feedback_memory_saved', status: 'success' },
+  duplicate: { message: 'com_ui_feedback_memory_duplicate', status: 'info' },
+  full: { message: 'com_ui_feedback_memory_full', status: 'warning' },
+};
 
 export type TMessageActions = Pick<
   TMessageProps,
@@ -40,6 +55,7 @@ export type TMessageActions = Pick<
 
 export default function useMessageActions(props: TMessageActions) {
   const localize = useLocalize();
+  const { showToast } = useToastContext();
   const { user } = useAuthContext();
   const UsernameDisplay = useRecoilValue<boolean>(store.UsernameDisplay);
   const { message, currentEditId, setCurrentEditId, searchResults, chatContext } = props;
@@ -161,6 +177,10 @@ export default function useMessageActions(props: TMessageActions) {
 
       feedbackMutation.mutate(payload, {
         onSuccess: (data) => {
+          const memoryToast = data.memory ? feedbackMemoryToasts[data.memory] : undefined;
+          if (memoryToast) {
+            showToast({ message: localize(memoryToast.message), status: memoryToast.status });
+          }
           if (!data.feedback) {
             setFeedback(undefined);
           } else {
@@ -177,7 +197,7 @@ export default function useMessageActions(props: TMessageActions) {
         },
       });
     },
-    [feedbackMutation],
+    [feedbackMutation, showToast, localize],
   );
 
   return {

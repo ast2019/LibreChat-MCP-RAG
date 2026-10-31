@@ -13,6 +13,7 @@ import {
   AgentCapabilities,
   hasActivePiiPatterns,
   stripAgentIdSuffix,
+  dedupeMemoryLines,
 } from 'librechat-data-provider';
 import type {
   OpenAIClientOptions,
@@ -169,7 +170,9 @@ export const createMemoryTool = ({
   const currentTokensByKey = new Map(tokenCountsByKey);
 
   return tool(
-    async ({ key, value }) => {
+    async ({ key, value: rawValue }) => {
+      /** A rewrite that repeats a line keeps it once (Persian letter forms and spacing aside). */
+      const value = dedupeMemoryLines(rawValue) || rawValue;
       const run = async (): Promise<[string, MemoryArtifactRecord?]> => {
         try {
           /** Mirror the REST memory routes' size guards so inline writes can't
