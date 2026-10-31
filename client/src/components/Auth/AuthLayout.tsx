@@ -4,7 +4,7 @@ import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import { hasPublishedPolicies } from '~/utils/policies';
 import { TranslationKeys, useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
-import { CompareTable } from './Compare';
+import { FeatureGrid } from './Features';
 import { BlinkAnimation } from './BlinkAnimation';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
@@ -101,10 +101,11 @@ function AuthLayout({
 
   return (
     <div className="bg-surface-primary flex min-h-screen">
-      {/* The brand side: the title, the tagline and how this service differs from similar
-          ones, only on screens wide enough to give the form a full column beside it. The
-          `/why` page shows the comparison itself, so there the panel keeps the logo alone. */}
-      <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-10 lg:flex">
+      {/* The brand side: the title, the tagline and what sets this service apart, only on
+          screens wide enough to give the form a full column beside it. It is wider on large
+          screens so the advantages fit without scrolling. The `/why` page shows the full
+          comparison itself, so there the panel keeps the logo alone. */}
+      <aside className="auth-brand-panel relative hidden min-h-screen w-1/2 shrink-0 flex-col items-center justify-center overflow-hidden px-10 lg:flex xl:w-3/5 xl:px-14">
         {isWhy ? (
           <>
             <div className="auth-brand-orbit relative flex size-72 items-center justify-center">
@@ -122,26 +123,23 @@ function AuthLayout({
             </p>
           </>
         ) : (
-          <div className="flex max-h-screen w-full max-w-md flex-col items-center overflow-y-auto py-10">
+          <div className="flex w-full max-w-3xl flex-col gap-6 py-8">
             <div className="flex items-center gap-4">
-              <div className="bg-surface-primary/80 border-border-light flex size-16 shrink-0 items-center justify-center rounded-2xl border p-3 shadow-lg backdrop-blur-sm">
+              <div className="bg-surface-primary/80 border-border-light flex size-14 shrink-0 items-center justify-center rounded-2xl border p-3 shadow-lg backdrop-blur-sm">
                 <BlinkAnimation active={isFetching}>
-                  <div className="h-10 w-10">
+                  <div className="h-8 w-8">
                     <img src="assets/logo.svg" className="h-full w-full object-contain" alt="" />
                   </div>
                 </BlinkAnimation>
               </div>
-              <p className="text-text-primary text-3xl font-bold">{appTitle}</p>
+              <div className="min-w-0">
+                <p className="text-text-primary text-3xl font-bold">{appTitle}</p>
+                <p className="text-text-secondary mt-1 text-base">
+                  {localize('com_auth_brand_tagline')}
+                </p>
+              </div>
             </div>
-            <p className="text-text-secondary mt-4 text-center text-lg">
-              {localize('com_auth_brand_tagline')}
-            </p>
-            <div className="bg-surface-primary/80 border-border-light mt-8 w-full rounded-2xl border p-4 backdrop-blur-sm">
-              <h2 className="text-text-primary mb-1 text-base font-semibold">
-                {localize('com_auth_compare_title')}
-              </h2>
-              <CompareTable appTitle={appTitle} compact />
-            </div>
+            <FeatureGrid appTitle={appTitle} />
           </div>
         )}
       </aside>
