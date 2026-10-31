@@ -83,7 +83,7 @@ describe('AccountSettings', () => {
     expect(ringOffsetShare()).toBe(25);
     const button = screen.getByTestId('nav-user');
     expect(button).toHaveAccessibleName('Account Settings');
-    expect(button).toHaveAccessibleDescription('25% of your pack left');
+    expect(button).toHaveAccessibleDescription('25% of your credit left');
   });
 
   it('turns the ring amber when the pack is nearly spent and red once it is empty', () => {
@@ -98,7 +98,7 @@ describe('AccountSettings', () => {
     renderAccount();
     expect(ringOffsetShare()).toBe(0);
     expect(screen.getByTestId('pack-ring-progress')).toHaveClass('stroke-status-error');
-    expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('0% of your pack left');
+    expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('0% of your credit left');
   });
 
   it('fills the ring when credit carried over is more than the pack', () => {
@@ -109,8 +109,15 @@ describe('AccountSettings', () => {
     expect(ringOffsetShare()).toBe(100);
   });
 
+  it('rings the avatar for the sign-up gift too, measured against the gift', () => {
+    mockBalanceView.mockReturnValue(withBalance({ tokenCredits: 150_000 }));
+    renderAccount();
+    expect(screen.getByTestId('pack-ring')).toBeInTheDocument();
+    expect(ringOffsetShare()).toBe(75);
+    expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('75% of your credit left');
+  });
+
   it.each([
-    ['the sign-up gift only', withBalance({ tokenCredits: 150_000 })],
     ['a loading balance', { enabled: true, state: { status: 'loading' } } as BalanceView],
     ['a failed balance', { enabled: true, state: { status: 'error' } } as BalanceView],
     ['balance off', { enabled: false, state: { status: 'loading' } } as BalanceView],

@@ -110,24 +110,21 @@ export function summarizeBalance(
 }
 
 export interface PackRemaining {
-  /** Whole percent of the granted pack still left, 0–100 */
+  /** Whole percent of the current allowance still left, 0–100 */
   percent: number;
   tone: BalanceTone;
 }
 
 /**
- * What is left of the user's granted pack, or null when no pack measures it (the sign-up
- * gift, a trial, auto-refill only), so the account ring never claims a pack the user has
- * not bought.
+ * What is left of the user's current allowance — the pack when there is one, else the
+ * auto-refill amount, else the sign-up gift — or null when nothing measures it. Any credit the
+ * user holds draws the account ring, bought, granted or gifted.
  */
 export function getPackRemaining(
   balance: TBalanceResponse | undefined,
   summary: BalanceSummary | null,
 ): PackRemaining | null {
-  if (balance == null || summary == null || positive(balance.packAllotment) == null) {
-    return null;
-  }
-  if (summary.usedPercent == null) {
+  if (balance == null || summary == null || summary.usedPercent == null) {
     return null;
   }
   return { percent: 100 - summary.usedPercent, tone: summary.tone };
