@@ -24,6 +24,7 @@ const {
   applyContextToAgent,
   isMemoryAgentEnabled,
   isMemoryExcludedForEndpoint,
+  isMemoryReadExcludedForEndpoint,
   recordCollectedUsage,
   resolveRunUsageContext,
   getScheduleMCPExecution,
@@ -3327,21 +3328,20 @@ class AgentClient extends BaseClient {
     if (!memoryConfig || memoryConfig.disabled === true) {
       return;
     }
-    if (
-      isMemoryExcludedForEndpoint(
-        memoryConfig,
-        this.options.agent?.endpoint ?? this.options.agent?.provider ?? this.options.endpoint,
-      )
-    ) {
+    const memoryEndpoint =
+      this.options.agent?.endpoint ?? this.options.agent?.provider ?? this.options.endpoint;
+    if (isMemoryReadExcludedForEndpoint(memoryConfig, memoryEndpoint)) {
       return;
     }
+    /** An excluded endpoint that may read (`excludeEndpointsRead`) still never writes. */
+    const writeExcluded = isMemoryExcludedForEndpoint(memoryConfig, memoryEndpoint);
 
     const userId = this.options.req.user.id + '';
     /** Memory partition of the primary agent; undefined = shared personal pool */
     const memoryAgentId = getMemoryAgentId(this.options.agent);
     this.processMemory = undefined;
 
-    if (!isMemoryAgentEnabled(memoryConfig)) {
+    if (!isMemoryAgentEnabled(memoryConfig) || writeExcluded) {
       try {
         const { withKeys, withoutKeys } = await getRequestMemories({
           req: this.options.req,

@@ -1,5 +1,5 @@
 import { Providers } from '@librechat/agents';
-import { logger } from '@librechat/data-schemas';
+import { logger, isMemoryExcludedForEndpoint } from '@librechat/data-schemas';
 import {
   Tools,
   Constants,
@@ -2437,7 +2437,13 @@ export async function initializeAgent(
    * per-agent opt-in. The runtime instances are created in the tool service.
    */
   const agentRequestsMemory = (agent.tools ?? []).includes(Tools.memory);
-  const inlineMemoryRegistered = params.memoryAvailable === true && agentRequestsMemory;
+  /** An endpoint `memory.excludeEndpoints` names never writes memory, even when it may read it. */
+  const memoryWriteExcluded = isMemoryExcludedForEndpoint(
+    appConfig?.memory,
+    agent.endpoint ?? agent.provider,
+  );
+  const inlineMemoryRegistered =
+    params.memoryAvailable === true && agentRequestsMemory && !memoryWriteExcluded;
   if (inlineMemoryRegistered) {
     const memoryResult = registerMemoryTools({
       toolRegistry,
@@ -2449,7 +2455,7 @@ export async function initializeAgent(
     appendAdditionalInstructions(agent, memoryToolUsageGuard);
   } else if (agentRequestsMemory) {
     logger.debug(
-      `[initializeAgent] Agent "${agent.id}" requests memory but memoryAvailable=${String(params.memoryAvailable)}; skipping set_memory + delete_memory registration.`,
+      `[initializeAgent] Agent "${agent.id}" requests memory but memoryAvailable=${String(params.memoryAvailable)}, writeExcluded=${String(memoryWriteExcluded)}; skipping set_memory + delete_memory registration.`,
     );
   }
 

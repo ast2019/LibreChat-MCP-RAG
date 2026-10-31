@@ -4115,11 +4115,25 @@ export const memorySchema = z.object({
   personalize: z.boolean().default(true),
   messageWindowSize: z.number().optional().default(5),
   /**
-   * Endpoints whose chats never touch memory: saved memories are not read into the prompt
-   * and the memory agent never receives the conversation (e.g. a local-only model).
+   * Endpoints whose chats never write memory: the memory agent never receives the
+   * conversation and no memory tool is registered (e.g. a local-only model). Saved memories
+   * are not read into their prompt either, unless `excludeEndpointsRead` is `true`.
    * Matched case-insensitively against the endpoint name. Omission keeps memory everywhere.
    */
   excludeEndpoints: z.array(z.string().min(1)).optional(),
+  /**
+   * With `true`, chats on `excludeEndpoints` still read saved memories into the prompt; they
+   * still never write memory (no memory agent, no memory tools, no learning from feedback on
+   * their answers). Omission keeps them out of memory entirely.
+   */
+  excludeEndpointsRead: z.boolean().optional(),
+  /**
+   * With `true`, a feedback reason (the text of a thumbs-down, or of a thumbs-up when given) is
+   * added as one line to the user's `preferences` memory, so later answers follow it. Repeated
+   * lines are kept once; nothing is written past `tokenLimit`, for a user who turned memory
+   * off, or without the memory create and update permissions. Off by default.
+   */
+  learnFromFeedback: z.boolean().optional(),
   agent: z
     .union([
       z.object({

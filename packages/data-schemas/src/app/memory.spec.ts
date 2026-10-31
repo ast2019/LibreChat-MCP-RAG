@@ -1,4 +1,4 @@
-import { isMemoryExcludedForEndpoint } from './memory';
+import { isMemoryExcludedForEndpoint, isMemoryReadExcludedForEndpoint } from './memory';
 
 describe('isMemoryExcludedForEndpoint', () => {
   it('matches excluded endpoints case-insensitively', () => {
@@ -13,5 +13,25 @@ describe('isMemoryExcludedForEndpoint', () => {
     expect(isMemoryExcludedForEndpoint(undefined, 'Local')).toBe(false);
     expect(isMemoryExcludedForEndpoint({ excludeEndpoints: ['Local'] }, undefined)).toBe(false);
     expect(isMemoryExcludedForEndpoint({ excludeEndpoints: ['Local'] }, '')).toBe(false);
+  });
+});
+
+describe('isMemoryReadExcludedForEndpoint', () => {
+  it('keeps an excluded endpoint from reading unless excludeEndpointsRead is on', () => {
+    const config = { excludeEndpoints: ['Local'] };
+    expect(isMemoryReadExcludedForEndpoint(config, 'Local')).toBe(true);
+    expect(
+      isMemoryReadExcludedForEndpoint({ ...config, excludeEndpointsRead: true }, 'Local'),
+    ).toBe(false);
+    /** Writing stays excluded either way */
+    expect(isMemoryExcludedForEndpoint({ ...config, excludeEndpointsRead: true }, 'Local')).toBe(
+      true,
+    );
+  });
+
+  it('never excludes an endpoint that is not listed', () => {
+    expect(isMemoryReadExcludedForEndpoint({ excludeEndpoints: ['Local'] }, 'OpenRouter')).toBe(
+      false,
+    );
   });
 });
