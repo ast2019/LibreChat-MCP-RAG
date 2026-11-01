@@ -54,6 +54,7 @@ import type { TServiceStatusResponse } from './types/status';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
 import type * as b from './browser';
+import type * as dbg from './debug';
 import type * as t from './types';
 import { codeSetupAttemptSchema, codeSetupApprovalRequestSchema } from './codeSetup';
 import { TOOL_CALL_PREVIEWS_PARAM, TOOL_CALL_PREVIEWS_VERSION } from './previews';
@@ -275,6 +276,34 @@ export function getAdminBrowserLog(
   params: b.TAdminBrowserLogParams = {},
 ): Promise<b.TAdminBrowserLogResponse> {
   return request.get(endpoints.adminBrowserLog(params));
+}
+
+export function getAdminDebugMode(): Promise<dbg.TDebugModeResponse> {
+  return request.get(endpoints.adminDebug());
+}
+
+export function updateAdminDebugMode(
+  update: dbg.TDebugModeUpdate,
+): Promise<dbg.TDebugModeResponse> {
+  return request.post(endpoints.adminDebug(), update);
+}
+
+export function getAdminDebugTraces(
+  params: dbg.TDebugTraceListParams = {},
+): Promise<dbg.TDebugTraceListResponse> {
+  return request.get(endpoints.adminDebugTraces(params));
+}
+
+export function getAdminDebugTrace(traceId: string): Promise<dbg.TDebugTrace> {
+  return request.get(endpoints.adminDebugTrace(traceId));
+}
+
+export function clearAdminDebugTraces(): Promise<{ deleted: number }> {
+  return request.delete(endpoints.adminDebugTraces());
+}
+
+export function getAdminDebugSystemLog(): Promise<dbg.TDebugSystemLogResponse> {
+  return request.get(endpoints.adminDebugSystemLog());
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {

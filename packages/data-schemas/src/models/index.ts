@@ -22,6 +22,7 @@ import { createAgentApiKeyModel } from './agentApiKey';
 import { createTransactionModel } from './transaction';
 import { createPromptGroupModel } from './promptGroup';
 import { createSystemGrantModel } from './systemGrant';
+import { createDebugTraceModel } from './debugTrace';
 import { createPluginAuthModel } from './pluginAuth';
 import { createSharedLinkModel } from './sharedLink';
 import { createAccessRoleModel } from './accessRole';
@@ -66,6 +67,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   Passkey: ReturnType<typeof createPasskeyModel>;
   PaymentOrder: ReturnType<typeof createPaymentOrderModel>;
   BrowserSession: ReturnType<typeof createBrowserSessionModel>;
+  DebugTrace: ReturnType<typeof createDebugTraceModel>;
   MediaJob: ReturnType<typeof createMediaJobModel>;
   Balance: ReturnType<typeof createBalanceModel>;
   Conversation: ReturnType<typeof createConversationModel>;
@@ -124,6 +126,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
     Passkey: createPasskeyModel(mongoose),
     PaymentOrder: createPaymentOrderModel(mongoose),
     BrowserSession: createBrowserSessionModel(mongoose),
+    DebugTrace: createDebugTraceModel(mongoose),
     MediaJob: createMediaJobModel(mongoose),
     Balance: createBalanceModel(mongoose),
     Conversation: createConversationModel(mongoose),

@@ -33,6 +33,7 @@ import { getChatPersianTools } from '~/persian/config';
 import { getChatBrowserTools } from '~/browser/config';
 import { getChatOfficeTools } from '~/office/config';
 import { getChatMediaTools } from '~/media/config';
+import { debugTrace } from '~/debug/recorder';
 
 const { mcp_all, mcp_delimiter } = Constants;
 type ModelParametersWithPromptPrefix = AgentModelParameters & { promptPrefix?: string | null };
@@ -227,6 +228,19 @@ export async function loadEphemeralAgent(
     model: model as string,
     sender,
   });
+
+  debugTrace('ephemeral_agent', () => ({
+    endpoint,
+    model,
+    spec: modelSpec?.name ?? null,
+    specFound: spec != null && spec !== '' ? modelSpec != null : null,
+    privacy: modelSpec?.privacy ?? null,
+    keepsDataInside,
+    requested,
+    applied: ephemeralAgent,
+    mcpServers: [...mcpServers],
+    tools,
+  }));
 
   const result: Partial<Agent> = {
     id: ephemeralId,

@@ -71,6 +71,13 @@ file, the repository or a chat.
   - The live view is an event stream (SSE) of frames plus POSTs for input, not a WebSocket, so it
     passes the proxies the chat stream passes. Only the owner may see or drive a browser.
   - Next: saved agents (only ordinary chats get the browser now).
+  - A chat tool outside `manifest.json` must be in `nativeTools` (`api/server/services/ToolService.js`),
+    or `loadToolDefinitions` drops it without an error while its tool context still reaches the
+    prompt. The browser and office tools were missing until 0.33.0.
+- **Debug mode (0.33.0):** admin «دیباگ» tab, `packages/api/src/debug`. Turn it on, reproduce, open
+  the trace: `tool_definitions.skipped` names any tool dropped before the model and why. New trace
+  points call `debugTrace(name, data)` from `~/debug/recorder` (a no-op unless a trace is
+  recording); never pass message text or secrets.
   - The sign-in comparison lists it under «فرق ما» with «آزمایشی» (0.32.1).
 - **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
   `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),

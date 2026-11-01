@@ -584,6 +584,13 @@ export const adminServerSessionClose = (sessionId: string) =>
   `${adminServer()}/sessions/${encodeURIComponent(sessionId)}/close`;
 export const adminBrowserLog = (params: Record<string, unknown> = {}) =>
   `${adminServer()}/browser-log${buildQuery(params)}`;
+/** Debug mode: its switch, the traced chat requests and the server's recent log lines */
+export const adminDebug = () => `${BASE_URL}/api/admin/debug`;
+export const adminDebugTraces = (params: Record<string, unknown> = {}) =>
+  `${adminDebug()}/traces${buildQuery(params)}`;
+export const adminDebugTrace = (traceId: string) =>
+  `${adminDebug()}/traces/${encodeURIComponent(traceId)}`;
+export const adminDebugSystemLog = () => `${adminDebug()}/logs`;
 export const adminUserApiAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/api-access`;
 export const adminUserModelAccess = (userId: string) =>

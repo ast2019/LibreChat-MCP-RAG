@@ -7,6 +7,32 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-01
+
+### Fixed
+- **The agent browser and the content tools now reach the model.** With «مرورگر Agent» on, the
+  model got the browser's instructions but none of its five tools, so it answered that it had no
+  browser. `loadToolDefinitions` keeps a non-MCP tool only when `isBuiltInTool` knows it, and
+  `nativeTools` in `ToolService.js` listed the media and Persian tools but not the browser
+  (`BROWSER_TOOL_NAMES`) or the Word and PowerPoint builders (`OFFICE_TOOL_NAMES`), which were
+  dropped the same way. Both sets are in `nativeTools` now, with a test that fails if a set goes
+  missing again.
+
+### Added
+- **Debug mode («دیباگ» in the admin panel).** An admin turns it on for 15 to 120 minutes (240 at
+  most) with a log level; it turns itself off when the time runs out, on every replica, since the
+  switch lives in the shared cache. While it is on, every chat request records a trace: the
+  toggles it sent, the tools the composer asked for, the browser access check, which tools the
+  definition loader kept or dropped and why, the tools each agent handed the model, the response
+  status, and the log lines the request caused. Its steps store settings and tool names, never
+  message text; at the `debug` level its log lines can quote parts of messages, as the debug log
+  file does. Mongo deletes a trace after 48 hours. The trace view lists dropped tools at the
+  top and copies the whole trace as JSON. «لاگ سرور» shows this process's last 1,000 log lines
+  from the window, redacted like the log files. Chat responses carry an `X-Debug-Trace` header
+  with the trace id. API: `GET/POST /api/admin/debug`, `GET/DELETE /api/admin/debug/traces`,
+  `GET /api/admin/debug/traces/:id` and `GET /api/admin/debug/logs`; reading needs
+  `read:configs`, switching and clearing need `manage:configs`.
+
 ## [0.32.1] - 2026-11-01
 
 ### Changed

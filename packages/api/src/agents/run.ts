@@ -128,6 +128,7 @@ import { buildEffectiveToolApprovalPolicy } from '~/agents/hitl/allow';
 import { prepareQueuedCodeFileContext } from '~/files/code/queued';
 import { getBuiltInBaseURL } from '~/endpoints/openai/initialize';
 import { getProviderConfig } from '~/endpoints/config/providers';
+import { debugTrace, getDebugRecorder } from '~/debug/recorder';
 import { buildToolApprovalHooks } from '~/agents/hitl/hooks';
 import { getAgentCheckpointer } from '~/agents/checkpointer';
 import { getPluginHookSource } from '~/agents/hooks/source';
@@ -2746,6 +2747,28 @@ export async function createRun({
     }
     agentInputs.push(agentInput);
   }
+
+  /** Debug mode: the tools each agent actually hands the model, after every gate above */
+  const debugConversationId = conversationId ?? requestBody?.conversationId;
+  if (typeof debugConversationId === 'string') {
+    getDebugRecorder()?.update({ conversationId: debugConversationId });
+  }
+  debugTrace('model_tools', () =>
+    agentInputs.map((input) => {
+      const clientOptions = input.clientOptions as { model?: string } | undefined;
+      return {
+        agentId: input.agentId,
+        provider: input.provider,
+        model: clientOptions?.model,
+        toolDefinitions: (input.toolDefinitions ?? []).map((def) => def.name),
+        tools: (input.tools ?? []).map((tool) => (tool as { name?: string }).name),
+        toolContextKeys: Object.keys(
+          (input as { toolContextMap?: Record<string, unknown> }).toolContextMap ?? {},
+        ),
+        subagents: input.subagentConfigs?.length ?? 0,
+      };
+    }),
+  );
 
   const graphConfig: RunConfig['graphConfig'] = {
     signal,

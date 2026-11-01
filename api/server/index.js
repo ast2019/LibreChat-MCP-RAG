@@ -94,6 +94,7 @@ const { jwtLogin, ldapLogin, passportLogin } = require('~/strategies');
 const { startExpiredFileSweep } = require('./services/Files/process');
 const { startServiceStatusRefresh } = require('./services/ServiceStatus');
 const { startBrowserLogSync } = require('./services/Browser');
+const { getDebugCapture } = require('./services/Debug');
 const { startMediaJobWorker } = require('./services/Media');
 const { checkMigrations } = require('./services/start/migration');
 const optionalJwtAuth = require('./middleware/optionalJwtAuth');
@@ -278,6 +279,7 @@ const startServer = async () => {
   startExpiredFileSweep({ appConfig, loadAppConfig: getAppConfig });
   startServiceStatusRefresh();
   startBrowserLogSync();
+  getDebugCapture();
   startMediaJobWorker();
   // Register any programmatic tool-approval policy hooks declared in
   // `endpoints.agents.toolApproval.hooks`. Honor the `enabled` kill switch: when tool
@@ -460,6 +462,7 @@ const startServer = async () => {
   app.use('/api/admin/balance', routes.adminBalance);
   app.use('/api/admin/status', routes.adminStatus);
   app.use('/api/admin/server', routes.adminServer);
+  app.use('/api/admin/debug', routes.adminDebug);
   app.use('/api/browser', routes.browser);
   app.use('/api/actions', routes.actions);
   app.use('/api/keys', routes.keys);

@@ -25,6 +25,7 @@ import { buildToolClassification } from './classification';
 import { getToolDefinition } from './registry/definitions';
 import { toolkitExpansion } from './toolkits/mapping';
 import { isMCPAllPlaceholder } from '~/mcp/utils';
+import { debugTrace } from '~/debug/recorder';
 
 export interface MCPServerTool {
   function?: {
@@ -185,9 +186,12 @@ export async function loadToolDefinitions(
   const actionToolNames: string[] = [];
   let expectedMCPToolCount = 0;
   let resolvedMCPToolCount = 0;
+  /** Names this loader dropped and why, for debug mode's trace */
+  const skipped: Array<{ name: string; reason: string }> = [];
 
   for (const toolName of tools) {
     if (toolName === GitHubCompareToolName && params.githubCompareEnabled !== true) {
+      skipped.push({ name: toolName, reason: 'github_compare_disabled' });
       continue;
     }
     if (isActionTool(toolName)) {
@@ -197,10 +201,12 @@ export async function loadToolDefinitions(
 
     if (!mcpToolPattern.test(toolName)) {
       if (!isBuiltInTool(toolName)) {
+        skipped.push({ name: toolName, reason: 'not_built_in' });
         continue;
       }
       const registryDef = getToolDefinition(toolName);
       if (!registryDef) {
+        skipped.push({ name: toolName, reason: 'no_registry_definition' });
         continue;
       }
       builtInToolDefs.push({
@@ -451,6 +457,14 @@ export async function loadToolDefinitions(
     ...actionToolDefs.filter((d) => !toolDefinitions.some((td) => td.name === d.name)),
     ...builtInToolDefs.filter((d) => !toolDefinitions.some((td) => td.name === d.name)),
   ];
+
+  debugTrace('tool_definitions', () => ({
+    requested: tools,
+    loaded: allDefinitions.map((def) => def.name),
+    skipped,
+    mcp: { expected: expectedMCPToolCount, resolved: resolvedMCPToolCount },
+    hasDeferredTools,
+  }));
 
   return {
     toolDefinitions: allDefinitions,
