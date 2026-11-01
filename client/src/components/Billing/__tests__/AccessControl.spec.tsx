@@ -6,6 +6,7 @@ import AccessControl from '../AccessControl';
 const mockModelMutate = jest.fn();
 const mockApiMutate = jest.fn();
 const mockMediaMutate = jest.fn();
+const mockBrowserMutate = jest.fn();
 const mockShowToast = jest.fn();
 
 /** Renders keys with their values, so assertions name the key and what fills it. */
@@ -23,6 +24,7 @@ jest.mock('~/data-provider', () => ({
   useAdminUserModelAccessMutation: () => ({ mutate: mockModelMutate, isLoading: false }),
   useAdminUserApiAccessMutation: () => ({ mutate: mockApiMutate, isLoading: false }),
   useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaMutate, isLoading: false }),
+  useAdminUserBrowserAccessMutation: () => ({ mutate: mockBrowserMutate, isLoading: false }),
 }));
 
 const packs = [{ id: 'pro', label: 'Pro', credits: 1, grants: { media: true } }];
@@ -41,6 +43,7 @@ const user: TAdminBillingUser = {
     private: { allowed: true, source: 'role' },
     media: { allowed: true, source: 'pack' },
     api: { allowed: false, source: 'role' },
+    browser: { allowed: false, source: 'rule' },
   },
 };
 
@@ -58,6 +61,7 @@ async function choose(testId: string, index: number) {
 describe('AccessControl', () => {
   beforeEach(() => {
     mockModelMutate.mockReset();
+    mockBrowserMutate.mockReset();
     mockApiMutate.mockReset();
     mockMediaMutate.mockReset();
     mockShowToast.mockReset();
@@ -116,6 +120,22 @@ describe('AccessControl', () => {
     await choose('api-access-u1', ALLOW);
     expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }));
     expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it('sends the browser through its own switch', async () => {
+    render(<AccessControl user={user} field="browser" packs={packs} />);
+    await choose('browser-access-u1', ALLOW);
+    expect(mockBrowserMutate).toHaveBeenCalledWith(
+      { userId: 'u1', browserAccess: true },
+      expect.any(Object),
+    );
+    expect(mockModelMutate).not.toHaveBeenCalled();
+  });
+
+  it('shows the browser as always on for admins, with no switch', () => {
+    render(<AccessControl user={{ ...user, role: 'ADMIN' }} field="browser" packs={packs} />);
+    expect(screen.queryByTestId('browser-access-u1')).toBeNull();
+    expect(screen.getByText('com_admin_access_source_admin')).toBeInTheDocument();
   });
 
   it('explains instead of offering a choice of model classes for admins', () => {

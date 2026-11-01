@@ -9,6 +9,7 @@ const {
   createAdminModelAccessHandlers,
   createAdminApiAccessHandlers,
   createAdminMediaAccessHandlers,
+  createAdminBrowserAccessHandlers,
   createAdminBulkAccessHandler,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
@@ -101,6 +102,11 @@ const mediaAccess = createAdminMediaAccessHandlers({
     db.updateUser(id, { mediaAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
+const browserAccess = createAdminBrowserAccessHandlers({
+  saveUserBrowserAccess: (id, value) =>
+    db.updateUser(id, { browserAccess: value }, {}, { preserveExpiresAt: true }),
+});
+
 const bulkAccess = createAdminBulkAccessHandler({
   findUserModelAccess: (id) => db.findUser({ _id: id }, '_id modelAccess'),
   saveUserModelAccess: (id, value) =>
@@ -109,6 +115,8 @@ const bulkAccess = createAdminBulkAccessHandler({
     db.updateUser(id, { apiAccess: value }, {}, { preserveExpiresAt: true }),
   saveMediaAccess: (id, value) =>
     db.updateUser(id, { mediaAccess: value }, {}, { preserveExpiresAt: true }),
+  saveBrowserAccess: (id, value) =>
+    db.updateUser(id, { browserAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -119,6 +127,7 @@ router.get('/search', requireReadUsers, handlers.searchUsers);
 router.patch('/:id/model-access', requireManageUsers, modelAccess.updateModelAccess);
 router.patch('/:id/api-access', requireManageUsers, apiAccess.updateApiAccess);
 router.patch('/:id/media-access', requireManageUsers, mediaAccess.updateMediaAccess);
+router.patch('/:id/browser-access', requireManageUsers, browserAccess.updateBrowserAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;

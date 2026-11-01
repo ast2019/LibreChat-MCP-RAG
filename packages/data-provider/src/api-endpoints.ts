@@ -568,6 +568,13 @@ export const adminServiceStatus = () => `${BASE_URL}/api/admin/status`;
 export const adminServiceStatusRefresh = () => `${adminServiceStatus()}/refresh`;
 export const adminUserMediaAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/media-access`;
+export const adminUserBrowserAccess = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/browser-access`;
+export const adminServer = () => `${BASE_URL}/api/admin/server`;
+export const adminServerSessionClose = (sessionId: string) =>
+  `${adminServer()}/sessions/${encodeURIComponent(sessionId)}/close`;
+export const adminBrowserLog = (params: Record<string, unknown> = {}) =>
+  `${adminServer()}/browser-log${buildQuery(params)}`;
 export const adminUserApiAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/api-access`;
 export const adminUserModelAccess = (userId: string) =>

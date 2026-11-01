@@ -22,6 +22,8 @@ import type {
   TAdminApiAccessRequest,
   TAdminApiAccessResponse,
   TAdminMediaAccessRequest,
+  TAdminBrowserAccessRequest,
+  TAdminBrowserAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -237,7 +239,7 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
   );
 };
 
-type UserSwitchField = 'apiAccess' | 'mediaAccess';
+type UserSwitchField = 'apiAccess' | 'mediaAccess' | 'browserAccess';
 
 /** Sets or clears one per-user switch; the lists show it at once and roll back if refused. */
 function useAdminUserSwitchMutation<P extends { userId: string }, R>(
@@ -297,6 +299,14 @@ export const useAdminUserMediaAccessMutation = (): UseMutationResult<
   TAdminMediaAccessRequest,
   ModelAccessContext
 > => useAdminUserSwitchMutation('mediaAccess', dataService.updateAdminUserMediaAccess);
+
+/** One user's agent browser override (`null` follows the pack; admins always have it). */
+export const useAdminUserBrowserAccessMutation = (): UseMutationResult<
+  TAdminBrowserAccessResponse,
+  unknown,
+  TAdminBrowserAccessRequest,
+  ModelAccessContext
+> => useAdminUserSwitchMutation('browserAccess', dataService.updateAdminUserBrowserAccess);
 
 /** Where one user's credits went in the window, for the admin users table. */
 export const useAdminBillingUserUsageQuery = (

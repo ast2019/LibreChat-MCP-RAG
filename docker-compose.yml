@@ -69,6 +69,10 @@ services:
       # One api replica in this stack; lets the (unused) scheduler arm instead of logging an error.
       SCHEDULES_SINGLE_PROCESS: 'true'
 
+      # Agent browser (experimental): the `browser` service below. Coolify generates the token.
+      BROWSER_SERVICE_URL: http://browser:3100
+      BROWSER_SERVICE_TOKEN: ${SERVICE_HEX_64_BROWSER}
+
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
       KEENABLE_API_KEY: ${KEENABLE_API_KEY:-}
@@ -231,6 +235,33 @@ services:
     environment:
       SEARXNG_SECRET: ${SERVICE_HEX_64_SEARXNG}
       SEARXNG_BASE_URL: http://searxng:8080/
+
+  # Agent browser (experimental): one headless Chromium per session, each behind its own
+  # filtering proxy, so pages reach only public addresses on ports 80 and 443 (never this
+  # server, the other services or the cloud metadata address). Only the api calls it; leave
+  # its domain empty. Sessions, limits and the RAM/CPU check are in docs/plans/agent-browser-fa.md.
+  browser:
+    build:
+      context: ./deploy/browser
+    restart: unless-stopped
+    environment:
+      BROWSER_SERVICE_TOKEN: ${SERVICE_HEX_64_BROWSER}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3100/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          # About 300-500 MB per open browser; the api refuses new ones at 85% of this.
+          cpus: ${BROWSER_CPUS:-4}
+          memory: ${BROWSER_MEMORY:-6g}
 
   # Local models (nothing leaves the server). CPU-only.
   # - hivegpt-local: the "داخلی" chat for everyone, built from LOCAL_MODEL (gemma3:4b, ~4 GB).

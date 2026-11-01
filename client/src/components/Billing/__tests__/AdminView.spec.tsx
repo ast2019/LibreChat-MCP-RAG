@@ -63,6 +63,8 @@ jest.mock('~/data-provider', () => ({
   useAdminSetUserRoleMutation: () => ({ mutate: mockSetRoleMutate, isLoading: false }),
   useAdminUserApiAccessMutation: () => ({ mutate: mockApiAccessMutate, isLoading: false }),
   useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
+
+  useAdminUserBrowserAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
   useAdminGiftsQuery: () => ({
     data: {
       startBalance: 200_000,

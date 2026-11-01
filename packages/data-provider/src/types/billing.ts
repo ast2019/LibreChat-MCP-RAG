@@ -1,5 +1,5 @@
-import type { TUserModelAccess } from '../permissions';
 import type { TAccessClass, TEffectiveAccessMap, TPackGrants } from '../access';
+import type { TUserModelAccess } from '../permissions';
 
 /** Admin billing page wire types (`/api/admin/balance/*`). */
 export type TAdminBillingBalance = {
@@ -25,6 +25,8 @@ export type TAdminBillingUser = {
   apiAccess?: boolean;
   /** Media generation override; absent follows the deployment rule. Older servers omit it. */
   mediaAccess?: boolean;
+  /** Agent browser override; absent follows the pack. Older servers omit it. */
+  browserAccess?: boolean;
   /** The pack copied onto the user on its last grant; its `grants` decide local, private and API */
   packId?: string;
   balance: TAdminBillingBalance | null;
@@ -82,6 +84,8 @@ export type TAdminBillingPack = {
   description?: string;
   /** Access the pack grants or withholds while it is the user's pack */
   grants?: TPackGrants;
+  /** Agent browsers one user of the pack may have open at once; absent means 1 */
+  browserSessions?: number;
 };
 
 /** `PUT /api/admin/balance/packs`: the whole pack list as the admin page saves it. */
@@ -180,6 +184,11 @@ export type TAdminApiAccessResponse = { id: string; apiAccess: boolean | null };
 export type TAdminMediaAccessRequest = { userId: string; mediaAccess: boolean | null };
 
 export type TAdminMediaAccessResponse = { id: string; mediaAccess: boolean | null };
+
+/** `PATCH /api/admin/users/:id/browser-access`: `true`/`false` sets the override, `null` clears it */
+export type TAdminBrowserAccessRequest = { userId: string; browserAccess: boolean | null };
+
+export type TAdminBrowserAccessResponse = { id: string; browserAccess: boolean | null };
 
 /** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
 export interface TAdminBillingUserUsage {

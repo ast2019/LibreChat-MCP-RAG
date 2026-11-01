@@ -1,5 +1,5 @@
-import { ACCESS_CLASSES, userModelAccessUpdateSchema } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
+import { ACCESS_CLASSES, userModelAccessUpdateSchema } from 'librechat-data-provider';
 import type { TAccessClass, TUserModelAccess } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
@@ -150,12 +150,35 @@ export function createAdminMediaAccessHandlers(deps: AdminMediaAccessDeps): {
   };
 }
 
+export interface AdminBrowserAccessDeps {
+  /** Sets or clears the user's agent browser override and evicts their cached auth document. */
+  saveUserBrowserAccess: SaveUserSwitch<'browserAccess'>;
+}
+
+/**
+ * `PATCH /api/admin/users/:id/browser-access`: lets one user open the agent browser (`true`,
+ * even without a pack that includes it), stops them (`false`) or follows the pack (`null`).
+ * Admins always have it, whatever is stored.
+ */
+export function createAdminBrowserAccessHandlers(deps: AdminBrowserAccessDeps): {
+  updateBrowserAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  return {
+    updateBrowserAccess: createUserSwitchHandler(
+      'browserAccess',
+      deps.saveUserBrowserAccess,
+      'browser access',
+    ),
+  };
+}
+
 /** Most users one bulk request may change; the users list shows at most 100 per page. */
 export const MAX_BULK_USERS = 100;
 
 export interface AdminBulkAccessDeps extends AdminModelAccessDeps {
   saveApiAccess: SaveUserSwitch<'apiAccess'>;
   saveMediaAccess: SaveUserSwitch<'mediaAccess'>;
+  saveBrowserAccess: SaveUserSwitch<'browserAccess'>;
 }
 
 /** The user ids of a bulk request: 1 to {@link MAX_BULK_USERS} valid ids, kept once each. */
@@ -170,8 +193,8 @@ export function readBulkUserIds(value: unknown): string[] | null {
 }
 
 /**
- * `POST /api/admin/users/bulk-access`: sets one access class (`local`, `private`, `api` or
- * `media`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
+ * `POST /api/admin/users/bulk-access`: sets one access class (`local`, `private`, `api`,
+ * `media` or `browser`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
  * through the same saves as the per-user switches. Answers with how many changed and which ids
  * no longer exist.
  */
@@ -184,6 +207,9 @@ export function createAdminBulkAccessHandler(deps: AdminBulkAccessDeps): {
     }
     if (field === 'media') {
       return deps.saveMediaAccess(id, value);
+    }
+    if (field === 'browser') {
+      return deps.saveBrowserAccess(id, value);
     }
     const user = await deps.findUserModelAccess(id);
     if (!user) {

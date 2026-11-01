@@ -26,6 +26,8 @@ export interface BillingUserRow {
   apiAccess?: boolean;
   /** The user's own media generation override; absent follows the deployment rule */
   mediaAccess?: boolean;
+  /** The user's own agent browser override; absent follows the pack */
+  browserAccess?: boolean;
   /** `user.packId`: the pack copied onto the user on its last grant, whose `grants` apply */
   packId?: string;
   balance: {
@@ -136,6 +138,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       { 'modelAccess.private': { $in: [true, false] } },
       { apiAccess: { $in: [true, false] } },
       { mediaAccess: { $in: [true, false] } },
+      { browserAccess: { $in: [true, false] } },
     ];
     if (access === 'custom') {
       filters.push({ $or: customAccess });
@@ -180,7 +183,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       users()
         .find(
           filter,
-          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess packId',
+          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess browserAccess packId',
         )
         .sort(sortBy)
         .skip(skip)
@@ -219,6 +222,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           },
           ...(typeof doc.apiAccess === 'boolean' && { apiAccess: doc.apiAccess }),
           ...(typeof doc.mediaAccess === 'boolean' && { mediaAccess: doc.mediaAccess }),
+          ...(typeof doc.browserAccess === 'boolean' && { browserAccess: doc.browserAccess }),
           ...(typeof doc.packId === 'string' && doc.packId !== '' && { packId: doc.packId }),
           balance: balance
             ? {

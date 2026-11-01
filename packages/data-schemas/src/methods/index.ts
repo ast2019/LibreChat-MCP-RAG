@@ -41,6 +41,7 @@ import {
 import { createSessionMethods, DEFAULT_REFRESH_TOKEN_EXPIRY, type SessionMethods } from './session';
 import { createPasskeyMethods, type PasskeyMethods } from './passkey';
 import { createPaymentMethods, type PaymentMethods } from './payment';
+import { createBrowserSessionMethods, type BrowserSessionMethods } from './browserSession';
 import { createMediaJobMethods, type MediaJobMethods } from './mediaJob';
 import { createUserMethods, DEFAULT_SESSION_EXPIRY, type UserMethods } from './user';
 import { createTokenMethods, type TokenMethods } from './token';
@@ -290,6 +291,7 @@ export type AllMethods = SubagentContentMethods &
   ResourceLockMethods &
   PasskeyMethods &
   PaymentMethods &
+  BrowserSessionMethods &
   MediaJobMethods &
   RoleMethods &
   KeyMethods &
@@ -536,6 +538,7 @@ export function createMethods(
     ...createSubagentContentMethods(mongoose),
     ...createPasskeyMethods(mongoose),
     ...createPaymentMethods(mongoose),
+    ...createBrowserSessionMethods(mongoose),
     ...createMediaJobMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
@@ -606,6 +609,7 @@ export type {
   UserMethods,
   PasskeyMethods,
   PaymentMethods,
+  BrowserSessionMethods,
   MediaJobMethods,
   SessionMethods,
   TokenMethods,
