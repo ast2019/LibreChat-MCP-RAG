@@ -7,6 +7,13 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-11-01
+
+### Changed
+- **The sign-in comparison lists the agent browser as ours (phase B4).** «مرورگر Agent» moves from
+  «هنوز نداریم», where it read «به‌زودی», to «فرق ما» beside the article wizard and the slide
+  builder, marked «آزمایشی». The competitor column stays «بعضی».
+
 ## [0.32.0] - 2026-11-01
 
 ### Added

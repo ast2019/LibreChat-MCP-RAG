@@ -14,6 +14,7 @@ import {
   BadgeCheck,
   NotebookPen,
   ShieldCheck,
+  AppWindow,
   Presentation,
   Clapperboard,
 } from 'lucide-react';
@@ -153,6 +154,14 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         others: 'some',
         experimental: true,
       },
+      {
+        icon: AppWindow,
+        title: 'com_auth_compare_row_browser',
+        detail: 'com_auth_compare_row_browser_body',
+        ours: 'yes',
+        others: 'some',
+        experimental: true,
+      },
     ],
   },
   {
@@ -172,12 +181,6 @@ export const COMPARE_SECTIONS: CompareSection[] = [
     rows: [
       { title: 'com_auth_compare_row_app', ours: 'no', others: 'yes' },
       { title: 'com_auth_compare_row_notifications', ours: 'no', others: 'some' },
-      {
-        title: 'com_auth_compare_row_browser',
-        detail: 'com_auth_compare_row_browser_body',
-        ours: 'soon',
-        others: 'some',
-      },
     ],
   },
 ];

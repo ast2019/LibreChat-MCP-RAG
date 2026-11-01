@@ -28,20 +28,24 @@ describe('CompareCard', () => {
     expect(cells[1]).toHaveTextContent('Yes');
   });
 
-  it('marks the article wizard and the slide builder experimental', () => {
+  it('marks the article wizard, the slide builder and the agent browser experimental', () => {
     render(<CompareCard appTitle="HiveGPT" />);
-    for (const name of [/^Article wizard Experimental/, /^Slide builder Experimental/]) {
+    for (const name of [
+      /^Article wizard Experimental/,
+      /^Slide builder Experimental/,
+      /^Agent browser Experimental/,
+    ]) {
       const row = screen.getByRole('rowheader', { name }).closest('tr');
       expect(within(row as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Yes');
     }
   });
 
-  it('lists the agent browser as coming, not as something the service has', () => {
+  it('lists the agent browser among the differences, not among what is missing', () => {
     render(<CompareCard appTitle="HiveGPT" />);
     const browser = screen.getByRole('rowheader', { name: /^Agent browser/ }).closest('tr');
     const cells = within(browser as HTMLElement).getAllByRole('cell');
-    expect(cells[0]).toHaveTextContent('Soon');
     expect(cells[1]).toHaveTextContent('Some');
-    expect(browser?.closest('tbody')).toHaveTextContent('Not here yet');
+    expect(browser?.closest('tbody')).not.toHaveTextContent('Not here yet');
+    expect(screen.queryByText('Soon')).toBeNull();
   });
 });

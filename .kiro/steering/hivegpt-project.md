@@ -55,7 +55,7 @@ file, the repository or a chat.
   - Codex CLI is not supported (it needs custom tools on `/responses`).
   - The packaged host `createAgentChatCompletion` does not bind caller tools.
   - The local `gemma3:4b` model is not suited to agent mode.
-- **Agent browser (B1-B2 in 0.31.0, B3 in 0.32.0):** see `docs/plans/agent-browser-fa.md`.
+- **Agent browser (B1-B2 in 0.31.0, B3 in 0.32.0, B4 in 0.32.1):** see `docs/plans/agent-browser-fa.md`.
   - The owner's decisions: access per pack and per user in the admin panel like the other
     classes (off without a pack that includes it; admins always), `browserSessions` per pack
     (default 1), 10 browsers per server, refuse at RAM 85% or CPU 90% over the last minute with
@@ -70,8 +70,8 @@ file, the repository or a chat.
     routes `/api/browser` (`user.ts`), the bar and live view `client/src/components/Chat/Input/Browser`.
   - The live view is an event stream (SSE) of frames plus POSTs for input, not a WebSocket, so it
     passes the proxies the chat stream passes. Only the owner may see or drive a browser.
-  - Next: B4 (the sign-in row to «آزمایشی» once tested on the server); saved agents later.
-  - The sign-in comparison lists it as «به‌زودی»; switch it to «آزمایشی» when it ships.
+  - Next: saved agents (only ordinary chats get the browser now).
+  - The sign-in comparison lists it under «فرق ما» with «آزمایشی» (0.32.1).
 - **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
   `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),
   in `packages/api/src/office`.
