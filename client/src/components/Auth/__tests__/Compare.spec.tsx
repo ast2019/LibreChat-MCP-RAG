@@ -1,5 +1,5 @@
-import { render, screen, within } from 'test/layout-test-utils';
 import { COMPARE_SECTIONS, CompareCard } from '~/components/Auth/Compare';
+import { render, screen, within } from 'test/layout-test-utils';
 
 describe('CompareCard', () => {
   it('lists every row under its section, with the service name as a column', () => {
@@ -26,5 +26,22 @@ describe('CompareCard', () => {
     const cells = within(app as HTMLElement).getAllByRole('cell');
     expect(cells[0]).toHaveTextContent('No');
     expect(cells[1]).toHaveTextContent('Yes');
+  });
+
+  it('marks the article wizard and the slide builder experimental', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    for (const name of [/^Article wizard Experimental/, /^PowerPoint builder Experimental/]) {
+      const row = screen.getByRole('rowheader', { name }).closest('tr');
+      expect(within(row as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Yes');
+    }
+  });
+
+  it('lists the agent browser as coming, not as something the service has', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    const browser = screen.getByRole('rowheader', { name: /^Agent browser/ }).closest('tr');
+    const cells = within(browser as HTMLElement).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Soon');
+    expect(cells[1]).toHaveTextContent('Some');
+    expect(browser?.closest('tbody')).toHaveTextContent('Not here yet');
   });
 });

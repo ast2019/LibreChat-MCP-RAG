@@ -1,4 +1,4 @@
-import { Constants, splitToolCallName } from 'librechat-data-provider';
+import { Constants, OfficeTools, splitToolCallName } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 
 /**
@@ -29,6 +29,8 @@ export const TOOL_FRIENDLY_NAME_KEYS: Record<string, TranslationKeys> = {
   delete_memory: 'com_ui_tool_name_delete_memory',
   skill: 'com_ui_skill',
   read_file: 'com_ui_tool_name_read_file',
+  [OfficeTools.word]: 'com_ui_tool_name_word_document',
+  [OfficeTools.slides]: 'com_ui_tool_name_presentation',
 };
 
 export interface ParsedToolName {

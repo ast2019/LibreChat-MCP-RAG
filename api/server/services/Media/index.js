@@ -97,4 +97,4 @@ const startMediaJobWorker = () => {
   return worker;
 };
 
-module.exports = { loadMediaTools, startMediaJobWorker };
+module.exports = { loadMediaTools, loadImage, startMediaJobWorker };

@@ -55,6 +55,20 @@ file, the repository or a chat.
   - Codex CLI is not supported (it needs custom tools on `/responses`).
   - The packaged host `createAgentChatCompletion` does not bind caller tools.
   - The local `gemma3:4b` model is not suited to agent mode.
-- **Agent browser:** see `docs/plans/agent-browser-fa.md`. Waiting for the owner on server
-  resources, priority sites and pack gating.
-- **Content tools:** an article wizard and a PowerPoint builder were proposed; nothing built yet.
+- **Agent browser:** decided, not built; see `docs/plans/agent-browser-fa.md`.
+  - The owner's decisions: pack access with a per-pack limit (1 for now), a RAM and CPU check
+    that refuses with «ظرفیت فعلاً وجود ندارد، با پشتیبانی تماس بگیرید», admin views of server
+    status and browser logs, a 3-minute idle close, and sign-in, CAPTCHA and payment by the user
+    in a live view. Nothing is kept after the browser closes, and there is no automated CAPTCHA
+    bypass.
+  - It is built in phases B1 to B4. Still open: the default thresholds, the server-wide browser
+    limit, and which packs get it.
+  - The sign-in comparison lists it as «به‌زودی»; switch it to «آزمایشی» when it ships.
+- **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
+  `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),
+  in `packages/api/src/office`.
+  - Plans: `docs/plans/article-wizard-fa.md` and `docs/plans/slides-builder-fa.md`.
+  - Vazirmatn's TTFs for Word embedding live in `api/server/services/Office/fonts`.
+  - The comparison marks «سرویس‌های مشابه» as «بعضی» for these rows: no competitor page was
+    found to confirm or rule them out.
+  - Not built yet: an in-chat preview of the pages and slides.

@@ -30,6 +30,7 @@ import { mergeSynthesizedToolOptions } from '~/agents/selection';
 import { synthesizeIntentToolOptions } from '~/agents/intent';
 import { getCustomEndpointConfig } from '~/app/config';
 import { getChatPersianTools } from '~/persian/config';
+import { getChatOfficeTools } from '~/office/config';
 import { getChatMediaTools } from '~/media/config';
 
 const { mcp_all, mcp_delimiter } = Constants;
@@ -160,6 +161,8 @@ export async function loadEphemeralAgent(
   tools.push(...getChatMediaTools(req.config, req.user, modelSpec));
   /** Exact dates and Persian spelling fixes, so the model never works them out itself. */
   tools.push(...getChatPersianTools(req.config, modelSpec));
+  /** Word and PowerPoint files built from the conversation (the article and slide builders). */
+  tools.push(...getChatOfficeTools(req.config, modelSpec));
 
   const addedServers = new Set<string>();
   if (mcpServers.size > 0) {

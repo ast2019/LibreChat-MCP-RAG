@@ -13,6 +13,7 @@ import useCreateEntries from '~/hooks/Input/useCreateEntries';
 import useToolFavorites from '~/hooks/Input/useToolFavorites';
 import useElementSize from '~/hooks/Generic/useElementSize';
 import useChipPacking from '~/hooks/Input/useChipPacking';
+import useStageSkill from '~/hooks/Input/useStageSkill';
 import { MediaToolsDialog } from '~/components/Media';
 import TokenUsage from '../TokenUsage';
 import { useLocalize } from '~/hooks';
@@ -291,10 +292,12 @@ function Bar({
     [form, anchorRef],
   );
   const showAllMedia = useCallback(() => setShowMediaTools(true), []);
+  const stageSkill = useStageSkill(conversationId);
   const createEntries = useCreateEntries({
     enabled: showTools && catalogWanted,
     onCompose: compose,
     onShowAll: showAllMedia,
+    onStageSkill: stageSkill,
   });
   /* `usePaletteEntries` already returns nothing once `enabled` is false, so the
      gate lives in one place rather than being re-applied to its result here. */

@@ -7,7 +7,7 @@ import { cn } from '~/utils';
 
 type ChipVariantProps = {
   tone?: 'surface' | 'neutral' | 'info' | 'success' | 'warning' | 'error' | 'merged' | null;
-  size?: 'sm' | 'md' | 'theme' | null;
+  size?: 'xs' | 'sm' | 'md' | 'theme' | null;
   shape?: 'round' | 'theme' | null;
 };
 
@@ -25,6 +25,8 @@ const chipVariants: (props?: ChipVariantProps & ClassProp) => string = cva(
         merged: 'border-brand-purple/40 bg-transparent text-brand-purple',
       },
       size: {
+        /** A status tag beside a line of text, such as «آزمایشی»: no taller than the line. */
+        xs: 'min-h-4 px-1.5 text-3xs leading-4',
         sm: 'min-h-6 px-2 py-0.5',
         md: 'min-h-8 px-2.5 py-1',
         theme: 'h-theme-control gap-theme-control-gap px-theme-control-x',

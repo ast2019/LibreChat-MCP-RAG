@@ -38,6 +38,7 @@ const {
   collectToolCallIds,
   createToolTimingAdapter,
   stampCommandExecutor,
+  getOfficeAttachments,
 } = require('@librechat/api');
 const { processFileCitations } = require('~/server/services/Files/Citations');
 const { processCodeOutput, runPreviewFinalize } = require('~/server/services/Files/Code/process');
@@ -1081,6 +1082,18 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
       );
     }
 
+    /* Word and PowerPoint files the Office tools already saved: attach them to the message. */
+    for (const attachment of getOfficeAttachments(output.artifact, {
+      messageId: metadata.run_id,
+      toolCallId: output.tool_call_id,
+      conversationId: metadata.thread_id,
+    })) {
+      if (streamId || res.headersSent) {
+        writeAttachment(res, streamId, attachment, jobCreatedAt);
+      }
+      artifactPromises.push(Promise.resolve(attachment));
+    }
+
     if (output.artifact.content) {
       /** @type {FormattedContent[]} */
       const content = output.artifact.content;
@@ -1445,6 +1458,26 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
           return null;
         }),
       );
+    }
+
+    for (const attachment of getOfficeAttachments(output.artifact, {
+      toolCallId: output.tool_call_id,
+    })) {
+      if (res.headersSent && !res.writableEnded) {
+        writeResponsesAttachment(
+          res,
+          tracker,
+          {
+            file_id: attachment.file_id,
+            filename: attachment.filename,
+            type: attachment.type,
+            url: attachment.filepath,
+            tool_call_id: attachment.toolCallId,
+          },
+          metadata,
+        );
+      }
+      artifactPromises.push(Promise.resolve(attachment));
     }
 
     if (output.artifact.content) {

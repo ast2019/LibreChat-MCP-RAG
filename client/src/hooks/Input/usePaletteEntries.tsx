@@ -67,6 +67,8 @@ export interface PaletteEntry {
   itemId: string;
   label: string;
   description?: string;
+  /** A status tag after the label, such as «آزمایشی» */
+  badge?: React.ReactNode;
   icon: React.ReactNode;
   section: PaletteSection;
   active: boolean;

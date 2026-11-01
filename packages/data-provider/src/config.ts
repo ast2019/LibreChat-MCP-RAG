@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ZodError } from 'zod';
 import type { TEndpointsConfig, TModelsConfig, TConfig } from './types';
+import type { TOfficeToolsStartupConfig } from './office';
 import type { TPaymentsStartupConfig } from './payments';
 import type { TReferralStartupConfig } from './referral';
 import {
@@ -46,6 +47,7 @@ import { referralConfigSchema } from './referral';
 import { phoneLoginConfigSchema } from './phone';
 import { mediaGenerationSchema } from './media';
 import { persianToolsSchema } from './persian';
+import { officeToolsSchema } from './office';
 import { packGrantsSchema } from './access';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
@@ -3633,6 +3635,8 @@ export type TStartupConfig = {
   payments?: TPaymentsStartupConfig;
   /** Present while invite rewards are on */
   referral?: TReferralStartupConfig;
+  /** The Word and PowerPoint builders ordinary chats offer, from `officeTools` */
+  officeTools?: TOfficeToolsStartupConfig;
   /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
   currencyRate?: TCurrencyRateInfo;
   transactions?: TTransactionsConfig;
@@ -4768,6 +4772,8 @@ export const configSchema = z.object({
   mediaGeneration: mediaGenerationSchema.optional(),
   /** The Persian calendar and spelling tools, and the year's official lunar holidays. */
   persianTools: persianToolsSchema.optional(),
+  /** The in-chat Word and PowerPoint builders (the article wizard and the slide builder). */
+  officeTools: officeToolsSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({
