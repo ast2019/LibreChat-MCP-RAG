@@ -107,7 +107,11 @@ export interface BrowserServiceClient {
   getSession(id: string): Promise<ServiceSession | null>;
   open(id: string, url: string, options?: BrowserStepOptions): Promise<ServicePage>;
   read(id: string, options?: { offset?: number; chars?: number }): Promise<ServicePage>;
-  act(id: string, step: Record<string, unknown>, options?: BrowserStepOptions): Promise<ServicePage>;
+  act(
+    id: string,
+    step: Record<string, unknown>,
+    options?: BrowserStepOptions,
+  ): Promise<ServicePage>;
   setControl(id: string, to: TBrowserControl, handoff?: TBrowserHandoff): Promise<ServiceSession>;
   input(id: string, input: TBrowserInput): Promise<TBrowserInputResult>;
   /** The live view's event stream, as the service sends it */

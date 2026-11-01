@@ -162,7 +162,9 @@ export function createServer({ manager, monitor, token, policy = {} }) {
             const step = await run(handle);
             /* The page after the step, so the model needs no separate read. */
             const page =
-              parts[2] !== 'read' && body.snapshot === true ? await readPage(handle, { chars }) : {};
+              parts[2] !== 'read' && body.snapshot === true
+                ? await readPage(handle, { chars })
+                : {};
             return { ...step, ...page, blocked: handle.blocked().slice(-5) };
           },
           { by: 'model' },

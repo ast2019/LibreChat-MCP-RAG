@@ -107,16 +107,7 @@ export function createSessionManager({
     return ended;
   }
 
-  async function create({
-    owner,
-    context = '',
-    ownerLimit,
-    serverLimit,
-    ram,
-    cpu,
-    idleMs,
-    maxMs,
-  }) {
+  async function create({ owner, context = '', ownerLimit, serverLimit, ram, cpu, idleMs, maxMs }) {
     if (ownerCount(owner) >= ownerLimit) {
       throw new BrowserError('user_limit', 'This user has the most browsers open already', 409);
     }

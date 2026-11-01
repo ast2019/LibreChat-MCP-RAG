@@ -40,7 +40,12 @@ describe('createBrowserUserHandlers', () => {
   it('shows the user their own browser in the conversation, without the owner id', async () => {
     const client = fakeClient({
       listSessions: jest.fn(async () => [
-        fakeSession({ context: 'c1', control: 'user', handoff: { reason: 'login' }, url: 'https://x.ir/' }),
+        fakeSession({
+          context: 'c1',
+          control: 'user',
+          handoff: { reason: 'login' },
+          url: 'https://x.ir/',
+        }),
       ]),
     });
     const handlers = createBrowserUserHandlers({ getClient: () => client, log: fakeLog() });
@@ -53,7 +58,9 @@ describe('createBrowserUserHandlers', () => {
   });
 
   it("answers someone else's browser as not found, for every action", async () => {
-    const client = fakeClient({ getSession: jest.fn(async () => fakeSession({ owner: 'someone-else' })) });
+    const client = fakeClient({
+      getSession: jest.fn(async () => fakeSession({ owner: 'someone-else' })),
+    });
     const handlers = createBrowserUserHandlers({ getClient: () => client, log: fakeLog() });
     for (const [handler, body] of [
       [handlers.input, { type: 'key', key: 'Enter' }],
@@ -77,7 +84,9 @@ describe('createBrowserUserHandlers', () => {
       input: jest
         .fn()
         .mockResolvedValueOnce({ url: 'https://x.ir/', title: 'X', focus: 'password' })
-        .mockRejectedValueOnce(new BrowserServiceError('model_control', 'Take the browser first', 409))
+        .mockRejectedValueOnce(
+          new BrowserServiceError('model_control', 'Take the browser first', 409),
+        )
         .mockRejectedValueOnce(new BrowserServiceError('internal', 'stack trace /app/src', 500)),
     });
     const handlers = createBrowserUserHandlers({ getClient: () => client, log: fakeLog() });
@@ -102,7 +111,12 @@ describe('createBrowserUserHandlers', () => {
     const client = fakeClient({
       getSession: jest.fn(async () => fakeSession()),
       setControl: jest.fn(async () => fakeSession({ control: 'model', handoff: null })),
-      closeSession: jest.fn(async () => ({ ...fakeSession(), endedAt: 9, durationMs: 8, reason: 'closed' as const })),
+      closeSession: jest.fn(async () => ({
+        ...fakeSession(),
+        endedAt: 9,
+        durationMs: 8,
+        reason: 'closed' as const,
+      })),
     });
     const handlers = createBrowserUserHandlers({ getClient: () => client, log });
     const given = response();

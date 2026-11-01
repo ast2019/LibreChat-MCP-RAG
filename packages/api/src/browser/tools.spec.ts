@@ -108,7 +108,12 @@ describe('createBrowserTools', () => {
       listSessions: jest.fn(async (filter?: { context?: string }) =>
         filter?.context === 'convo-1' ? [] : [other],
       ),
-      closeSession: jest.fn(async () => ({ ...other, endedAt: 2, durationMs: 1, reason: 'replaced' as const })),
+      closeSession: jest.fn(async () => ({
+        ...other,
+        endedAt: 2,
+        durationMs: 1,
+        reason: 'replaced' as const,
+      })),
     });
     const { run } = setup(client);
     await run(BrowserTools.open, { url: 'https://example.com' });

@@ -8,7 +8,15 @@ export interface BrowserToolDefinition {
 }
 
 /** Steps `browser_act` takes; the browser service checks the same list. */
-export const BROWSER_ACTIONS: readonly string[] = ['click', 'type', 'select', 'press', 'scroll', 'back', 'wait'];
+export const BROWSER_ACTIONS: readonly string[] = [
+  'click',
+  'type',
+  'select',
+  'press',
+  'scroll',
+  'back',
+  'wait',
+];
 
 /** Keys `browser_act` may press. */
 export const BROWSER_ACT_KEYS: readonly string[] = [

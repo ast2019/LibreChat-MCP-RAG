@@ -131,51 +131,61 @@ test('secret field values never reach the snapshot', () => {
   assert.match(redacted, /textbox "CVV2" \[ref=e7\]: ••••••/);
 });
 
-test('the user signs in in the live view while the model waits, and the model never reads the password', { skip }, async () => {
-  const created = await call('POST', '/sessions', { owner: 'u1', context: 'chat-1' });
-  const id = created.body.session.id;
-  assert.equal(created.body.session.control, 'model');
-  assert.deepEqual(
-    (await call('GET', '/sessions?owner=u1&context=chat-1')).body.sessions.map((s) => s.id),
-    [id],
-  );
-  assert.deepEqual((await call('GET', '/sessions?owner=u1&context=chat-2')).body.sessions, []);
+test(
+  'the user signs in in the live view while the model waits, and the model never reads the password',
+  { skip },
+  async () => {
+    const created = await call('POST', '/sessions', { owner: 'u1', context: 'chat-1' });
+    const id = created.body.session.id;
+    assert.equal(created.body.session.control, 'model');
+    assert.deepEqual(
+      (await call('GET', '/sessions?owner=u1&context=chat-1')).body.sessions.map((s) => s.id),
+      [id],
+    );
+    assert.deepEqual((await call('GET', '/sessions?owner=u1&context=chat-2')).body.sessions, []);
 
-  const opened = await call('POST', `/sessions/${id}/open`, {
-    url: `http://127.0.0.1:${targetPort}/`,
-    snapshot: true,
-  });
-  assert.equal(opened.body.title, 'ورود');
-  assert.match(opened.body.snapshot, /textbox "رمز" \[ref=e\d+\]/);
+    const opened = await call('POST', `/sessions/${id}/open`, {
+      url: `http://127.0.0.1:${targetPort}/`,
+      snapshot: true,
+    });
+    assert.equal(opened.body.title, 'ورود');
+    assert.match(opened.body.snapshot, /textbox "رمز" \[ref=e\d+\]/);
 
-  /* Only the user may type into the live view, and only after the model hands it over. */
-  assert.equal((await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'x' })).body.error, 'model_control');
-  const handed = await call('POST', `/sessions/${id}/control`, {
-    to: 'user',
-    handoff: { reason: 'login', message: 'وارد حساب شوید' },
-  });
-  assert.deepEqual(handed.body.session.handoff, { reason: 'login', message: 'وارد حساب شوید' });
-  assert.equal((await call('POST', `/sessions/${id}/read`, {})).body.error, 'user_control');
+    /* Only the user may type into the live view, and only after the model hands it over. */
+    assert.equal(
+      (await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'x' })).body.error,
+      'model_control',
+    );
+    const handed = await call('POST', `/sessions/${id}/control`, {
+      to: 'user',
+      handoff: { reason: 'login', message: 'وارد حساب شوید' },
+    });
+    assert.deepEqual(handed.body.session.handoff, { reason: 'login', message: 'وارد حساب شوید' });
+    assert.equal((await call('POST', `/sessions/${id}/read`, {})).body.error, 'user_control');
 
-  const email = await call('POST', `/sessions/${id}/input`, { type: 'click', x: 100, y: 35 });
-  assert.equal(email.body.focus, 'text');
-  await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'sara@example.com' });
-  const password = await call('POST', `/sessions/${id}/input`, { type: 'click', x: 100, y: 95 });
-  assert.equal(password.body.focus, 'password');
-  await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'SuperSecret123' });
-  const submitted = await call('POST', `/sessions/${id}/input`, { type: 'key', key: 'Enter' });
-  assert.equal(submitted.body.title, 'خوش آمدید sara@example.com');
-  assert.equal((await call('POST', `/sessions/${id}/input`, { type: 'key', key: 'F12' })).body.error, 'invalid_input');
+    const email = await call('POST', `/sessions/${id}/input`, { type: 'click', x: 100, y: 35 });
+    assert.equal(email.body.focus, 'text');
+    await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'sara@example.com' });
+    const password = await call('POST', `/sessions/${id}/input`, { type: 'click', x: 100, y: 95 });
+    assert.equal(password.body.focus, 'password');
+    await call('POST', `/sessions/${id}/input`, { type: 'type', text: 'SuperSecret123' });
+    const submitted = await call('POST', `/sessions/${id}/input`, { type: 'key', key: 'Enter' });
+    assert.equal(submitted.body.title, 'خوش آمدید sara@example.com');
+    assert.equal(
+      (await call('POST', `/sessions/${id}/input`, { type: 'key', key: 'F12' })).body.error,
+      'invalid_input',
+    );
 
-  const back = await call('POST', `/sessions/${id}/control`, { to: 'model' });
-  assert.equal(back.body.session.handoff, null);
-  const read = await call('POST', `/sessions/${id}/read`, {});
-  assert.equal(read.status, 200);
-  assert.doesNotMatch(read.body.snapshot, /SuperSecret123/);
-  assert.match(read.body.snapshot, /textbox "رمز" (\[active\] )?\[ref=e\d+\]: ••••••/);
-  assert.match(read.body.snapshot, /sara@example\.com/);
-  await call('DELETE', `/sessions/${id}`);
-});
+    const back = await call('POST', `/sessions/${id}/control`, { to: 'model' });
+    assert.equal(back.body.session.handoff, null);
+    const read = await call('POST', `/sessions/${id}/read`, {});
+    assert.equal(read.status, 200);
+    assert.doesNotMatch(read.body.snapshot, /SuperSecret123/);
+    assert.match(read.body.snapshot, /textbox "رمز" (\[active\] )?\[ref=e\d+\]: ••••••/);
+    assert.match(read.body.snapshot, /sara@example\.com/);
+    await call('DELETE', `/sessions/${id}`);
+  },
+);
 
 test('the frames stream sends the state and JPEG frames of the page', { skip }, async () => {
   const { body } = await call('POST', '/sessions', { owner: 'u2', context: 'chat-9' });
@@ -190,7 +200,11 @@ test('the frames stream sends the state and JPEG frames of the page', { skip }, 
     url: `http://127.0.0.1:${targetPort}/`,
     title: 'ورود',
   });
-  assert.ok(Buffer.from(frame.data.data, 'base64').subarray(0, 2).equals(Buffer.from([0xff, 0xd8])));
+  assert.ok(
+    Buffer.from(frame.data.data, 'base64')
+      .subarray(0, 2)
+      .equals(Buffer.from([0xff, 0xd8])),
+  );
   assert.deepEqual([frame.data.width, frame.data.height], [1280, 800]);
   assert.equal((await call('GET', '/sessions/nope/frames')).status, 404);
   await call('DELETE', `/sessions/${id}?reason=replaced`);

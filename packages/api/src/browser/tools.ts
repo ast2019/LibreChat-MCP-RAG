@@ -144,7 +144,9 @@ export function createBrowserTools(
       log: deps.log,
       context: conversationId,
     });
-    return opened.ok ? { session: opened.session, fresh: true } : { refusal: REFUSALS[opened.reason] };
+    return opened.ok
+      ? { session: opened.session, fresh: true }
+      : { refusal: REFUSALS[opened.reason] };
   }
 
   /** Runs a tool body with the checks every browser tool shares. */
@@ -168,7 +170,8 @@ export function createBrowserTools(
       if (!conversationId) {
         return reply('The browser works inside a conversation, and this request has none.');
       }
-      const args = input != null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+      const args =
+        input != null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
       try {
         return reply(await body(client, args, conversationId));
       } catch (error) {
@@ -182,8 +185,7 @@ export function createBrowserTools(
   }
 
   const chars = () => getBrowserConfig(req.config).snapshotChars;
-  const noBrowser =
-    'No browser is open in this chat. Open a page with browser_open first.';
+  const noBrowser = 'No browser is open in this chat. Open a page with browser_open first.';
 
   const bodies: Record<
     BrowserTools,
@@ -205,7 +207,9 @@ export function createBrowserTools(
       const page = await client.open(ensured.session.id, url, { snapshot: true, chars: chars() });
       return describePage(
         page,
-        ensured.fresh ? 'A new browser opened for this chat; nothing from earlier browsing is kept.' : '',
+        ensured.fresh
+          ? 'A new browser opened for this chat; nothing from earlier browsing is kept.'
+          : '',
       );
     },
     [BrowserTools.read]: async (client, input, conversationId) => {
@@ -227,9 +231,7 @@ export function createBrowserTools(
           step[key] = input[key];
         }
       }
-      return describePage(
-        await client.act(session.id, step, { snapshot: true, chars: chars() }),
-      );
+      return describePage(await client.act(session.id, step, { snapshot: true, chars: chars() }));
     },
     [BrowserTools.handoff]: async (client, input, conversationId) => {
       const session = await findSession(client, conversationId);

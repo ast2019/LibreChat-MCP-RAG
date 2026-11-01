@@ -114,7 +114,12 @@ async function secretValues(page) {
               if (!field.value) {
                 return false;
               }
-              const hints = [field.name, field.id, field.getAttribute('aria-label'), field.placeholder]
+              const hints = [
+                field.name,
+                field.id,
+                field.getAttribute('aria-label'),
+                field.placeholder,
+              ]
                 .filter(Boolean)
                 .join(' ');
               return (
@@ -168,14 +173,20 @@ export function redactSnapshot(snapshot, values) {
  * The page as an accessibility tree with element refs (`[ref=e12]`), without the values of
  * secret fields, `chars` at a time from `offset`; optionally a screenshot.
  */
-export async function readPage(handle, { offset = 0, chars = SNAPSHOT_CHARS, screenshot = false } = {}) {
+export async function readPage(
+  handle,
+  { offset = 0, chars = SNAPSHOT_CHARS, screenshot = false } = {},
+) {
   const page = activePage(handle);
   const [raw, secrets] = await Promise.all([
     page.ariaSnapshot({ mode: 'ai', timeout: ACTION_TIMEOUT_MS }),
     secretValues(page),
   ]);
   const snapshot = redactSnapshot(raw, secrets);
-  const size = Math.min(Math.max(Math.round(Number(chars) || SNAPSHOT_CHARS), 1_000), MAX_SNAPSHOT_CHARS);
+  const size = Math.min(
+    Math.max(Math.round(Number(chars) || SNAPSHOT_CHARS), 1_000),
+    MAX_SNAPSHOT_CHARS,
+  );
   const start = Math.min(Math.max(Math.round(Number(offset) || 0), 0), snapshot.length);
   const result = {
     ...(await where(page)),

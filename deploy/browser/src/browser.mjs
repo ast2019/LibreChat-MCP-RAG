@@ -175,7 +175,11 @@ export function createBrowserLauncher({
           }
         });
       }
-      const screencast = createScreencast({ context, viewport, page: () => pages[pages.length - 1] });
+      const screencast = createScreencast({
+        context,
+        viewport,
+        page: () => pages[pages.length - 1],
+      });
       context.on('page', (page) => {
         watch(page);
         /* A link that opens a tab moves the work there, so the live view follows. */
