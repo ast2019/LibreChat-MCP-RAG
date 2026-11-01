@@ -51,12 +51,11 @@ const renderAccount = (collapsed = true) =>
     </MemoryRouter>,
   );
 
-const ringOffsetShare = () => {
-  const progress = screen.getByTestId('pack-ring-progress');
-  const dash = Number(progress.getAttribute('stroke-dasharray'));
-  const offset = Number(progress.getAttribute('stroke-dashoffset'));
-  return Math.round(((dash - offset) / dash) * 100);
-};
+const ringPercent = () =>
+  Number(screen.getByTestId('pack-ring-progress').getAttribute('data-percent'));
+
+const ringInk = () =>
+  screen.getByTestId('pack-ring-progress').style.getPropertyValue('--pack-ring-ink');
 
 describe('AccountSettings', () => {
   beforeEach(() => {
@@ -80,7 +79,9 @@ describe('AccountSettings', () => {
     );
     renderAccount();
     expect(screen.getByTestId('pack-ring')).toBeInTheDocument();
-    expect(ringOffsetShare()).toBe(25);
+    expect(ringPercent()).toBe(25);
+    expect(screen.getByTestId('pack-ring-progress')).toHaveClass('pack-ring-arc');
+    expect(ringInk()).toBe('var(--text-secondary)');
     const button = screen.getByTestId('nav-user');
     expect(button).toHaveAccessibleName('Account Settings');
     expect(button).toHaveAccessibleDescription('25% of your credit left');
@@ -91,13 +92,14 @@ describe('AccountSettings', () => {
       withBalance({ tokenCredits: 100_000, packAllotment: 4_000_000 }),
     );
     const { unmount } = renderAccount();
-    expect(screen.getByTestId('pack-ring-progress')).toHaveClass('stroke-status-warning');
+    expect(ringInk()).toBe('var(--status-warning)');
     unmount();
 
     mockBalanceView.mockReturnValue(withBalance({ tokenCredits: 0, packAllotment: 4_000_000 }));
     renderAccount();
-    expect(ringOffsetShare()).toBe(0);
-    expect(screen.getByTestId('pack-ring-progress')).toHaveClass('stroke-status-error');
+    expect(ringPercent()).toBe(0);
+    expect(screen.getByTestId('pack-ring-progress')).toHaveAttribute('data-tone', 'danger');
+    expect(ringInk()).toBe('var(--status-error)');
     expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('0% of your credit left');
   });
 
@@ -106,14 +108,17 @@ describe('AccountSettings', () => {
       withBalance({ tokenCredits: 9_000_000, packAllotment: 4_000_000 }),
     );
     renderAccount(false);
-    expect(ringOffsetShare()).toBe(100);
+    expect(ringPercent()).toBe(100);
+    expect(screen.getByTestId('pack-ring-progress').style.getPropertyValue('--pack-ring-tip')).toBe(
+      '359.2deg',
+    );
   });
 
   it('rings the avatar for the sign-up gift too, measured against the gift', () => {
     mockBalanceView.mockReturnValue(withBalance({ tokenCredits: 150_000 }));
     renderAccount();
     expect(screen.getByTestId('pack-ring')).toBeInTheDocument();
-    expect(ringOffsetShare()).toBe(75);
+    expect(ringPercent()).toBe(75);
     expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('75% of your credit left');
   });
 

@@ -1,21 +1,23 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { BalanceTone } from '~/utils';
-import { cn } from '~/utils';
 
+const STROKE = 2;
 const SIZE = 32;
-const STROKE_WIDTH = 2;
-const RADIUS = (SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const RADIUS = (SIZE - STROKE) / 2;
 
-const TONE_CLASS: Record<BalanceTone, string> = {
-  normal: 'stroke-text-secondary',
-  warning: 'stroke-status-warning',
-  danger: 'stroke-status-error',
-};
+const TONE_TOKEN: Record<BalanceTone, '--text-secondary' | '--status-warning' | '--status-error'> =
+  {
+    normal: '--text-secondary',
+    warning: '--status-warning',
+    danger: '--status-error',
+  };
 
 /**
- * A ring around the user's avatar showing what is left of their pack: full right after a
- * purchase, empty once it is spent. Decorative; the caller describes it in words.
+ * A ring around the user's avatar showing what is left of their pack: full right
+ * after a purchase, empty once it is spent. `.pack-ring-arc` paints the sweep
+ * from a darker shade of the tone at 12 o'clock to a lighter one at the tip, so
+ * the point where the allowance runs out stays visible. Decorative; the caller
+ * describes it in words.
  */
 export default function PackRing({
   percent,
@@ -27,8 +29,10 @@ export default function PackRing({
   tone: BalanceTone;
   children: ReactNode;
 }) {
-  const clamped = Math.min(Math.max(percent, 0), 100);
-  const offset = CIRCUMFERENCE - (clamped / 100) * CIRCUMFERENCE;
+  const clamped = Math.min(Math.max(Math.round(percent), 0), 100);
+  const degrees = Math.round(clamped * 36) / 10;
+  const tip = degrees >= 360 ? 359.2 : degrees;
+
   return (
     <span
       className="relative flex size-8 shrink-0 items-center justify-center"
@@ -38,7 +42,7 @@ export default function PackRing({
         width={SIZE}
         height={SIZE}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="pointer-events-none absolute inset-0 size-8 -rotate-90"
+        className="pointer-events-none absolute inset-0 size-8"
         aria-hidden="true"
         focusable="false"
       >
@@ -47,25 +51,24 @@ export default function PackRing({
           cy={SIZE / 2}
           r={RADIUS}
           fill="transparent"
-          strokeWidth={STROKE_WIDTH}
+          strokeWidth={STROKE}
           className="stroke-border-medium"
         />
-        <circle
-          cx={SIZE / 2}
-          cy={SIZE / 2}
-          r={RADIUS}
-          fill="transparent"
-          strokeWidth={STROKE_WIDTH}
-          strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          data-testid="pack-ring-progress"
-          className={cn(
-            'transition-all duration-300 motion-reduce:transition-none',
-            TONE_CLASS[tone],
-          )}
-        />
       </svg>
+      <span
+        aria-hidden="true"
+        data-testid="pack-ring-progress"
+        data-percent={clamped}
+        data-tone={tone}
+        className="pack-ring-arc pointer-events-none absolute inset-0 rounded-full transition-all duration-300 motion-reduce:transition-none"
+        style={
+          {
+            '--pack-ring-ink': `var(${TONE_TOKEN[tone]})`,
+            '--pack-ring-tip': `${tip}deg`,
+            '--pack-ring-end': `${degrees}deg`,
+          } as CSSProperties
+        }
+      />
       {children}
     </span>
   );
