@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+/** The agent browser's tools, as the model calls them (experimental). */
+export enum BrowserTools {
+  /** Opens an address, starting the conversation's browser when none is open */
+  open = 'browser_open',
+  /** The page as text with element refs */
+  read = 'browser_read',
+  /** One step on the page: click, type, select, a key, scroll, back or wait */
+  act = 'browser_act',
+  /** Gives the browser to the user for a sign-in, a CAPTCHA or a payment */
+  handoff = 'browser_handoff',
+  /** Closes the browser; nothing from it is kept */
+  close = 'browser_close',
+}
+
+export const BROWSER_TOOL_NAMES: readonly string[] = Object.values(BrowserTools);
+
 /**
  * `browser` in librechat.yaml: the agent browser (experimental). Limits are checked by the
  * browser service before each launch; access comes from packs, user overrides and the admin role.
@@ -24,6 +40,12 @@ export const browserConfigSchema = z.object({
     .default({}),
   /** Days the browser log keeps an entry */
   logDays: z.number().int().min(1).max(365).default(90),
+  /** Characters of page text the model gets after each step */
+  snapshotChars: z.number().int().min(2_000).max(60_000).default(12_000),
+  /** Most frames a second the live view sends */
+  liveFps: z.number().int().min(1).max(10).default(3),
+  /** JPEG quality of the live view's frames */
+  liveQuality: z.number().int().min(20).max(90).default(50),
 });
 
 export type TBrowserConfig = z.infer<typeof browserConfigSchema>;
@@ -52,6 +74,8 @@ export const BROWSER_END_REASONS = [
   'crashed',
   'shutdown',
   'lost',
+  /** The user opened a browser in another conversation and this idle one made room */
+  'replaced',
 ] as const;
 
 export type TBrowserEndReason = (typeof BROWSER_END_REASONS)[number];
@@ -124,3 +148,63 @@ export type TAdminBrowserLogResponse = {
   offset: number;
   entries: TAdminBrowserLogEntry[];
 };
+
+/** Who drives the browser: the model's steps, or the user in the live view. */
+export type TBrowserControl = 'model' | 'user';
+
+/** Why the model gave the browser to the user. */
+export const BROWSER_HANDOFF_REASONS = ['login', 'captcha', 'payment', 'confirm', 'other'] as const;
+
+export type TBrowserHandoffReason = (typeof BROWSER_HANDOFF_REASONS)[number];
+
+export type TBrowserHandoff = { reason: TBrowserHandoffReason; message?: string };
+
+/** The user's browser in one conversation, as the live view shows it. */
+export type TBrowserSessionView = {
+  id: string;
+  control: TBrowserControl;
+  handoff: TBrowserHandoff | null;
+  url: string;
+  title: string;
+  startedAt: number;
+  lastActiveAt: number;
+  idleMs: number;
+  maxMs: number;
+};
+
+export type TBrowserSessionResponse = { session: TBrowserSessionView | null };
+
+/** Keys the live view sends on its own buttons. */
+export const BROWSER_INPUT_KEYS = [
+  'Enter',
+  'Tab',
+  'Escape',
+  'Backspace',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'PageUp',
+  'PageDown',
+] as const;
+
+/** What the user does in the live view; coordinates are CSS pixels of the page's viewport. */
+export type TBrowserInput =
+  | { type: 'click'; x: number; y: number }
+  | { type: 'type'; text: string }
+  | { type: 'key'; key: (typeof BROWSER_INPUT_KEYS)[number] }
+  | { type: 'scroll'; dy: number }
+  | { type: 'back' };
+
+export type TBrowserInputResult = {
+  url: string;
+  title: string;
+  /** The field the click focused, so the live view can hide what is typed into a password */
+  focus: 'password' | 'text' | null;
+};
+
+/** One frame of the live view: a JPEG and the viewport it shows. */
+export type TBrowserFrame = { data: string; width: number; height: number };
+
+/** The composer offers the browser: it is on in the config and the service is set up. */
+export type TBrowserStartupConfig = { enabled: boolean };

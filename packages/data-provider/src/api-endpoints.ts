@@ -571,6 +571,15 @@ export const adminUserMediaAccess = (userId: string) =>
 export const adminUserBrowserAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/browser-access`;
 export const adminServer = () => `${BASE_URL}/api/admin/server`;
+/** The signed-in user's agent browser in one conversation */
+export const browserSession = (conversationId: string) =>
+  `${BASE_URL}/api/browser/session?conversationId=${encodeURIComponent(conversationId)}`;
+export const browserSessionById = (sessionId: string) =>
+  `${BASE_URL}/api/browser/sessions/${encodeURIComponent(sessionId)}`;
+/** The live view's frames (event stream) */
+export const browserView = (sessionId: string) => `${browserSessionById(sessionId)}/view`;
+export const browserInput = (sessionId: string) => `${browserSessionById(sessionId)}/input`;
+export const browserControl = (sessionId: string) => `${browserSessionById(sessionId)}/control`;
 export const adminServerSessionClose = (sessionId: string) =>
   `${adminServer()}/sessions/${encodeURIComponent(sessionId)}/close`;
 export const adminBrowserLog = (params: Record<string, unknown> = {}) =>

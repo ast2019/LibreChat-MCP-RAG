@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { Spinner } from '@librechat/client';
 import { useParams } from 'react-router-dom';
+import { isFeatureSkill } from 'librechat-data-provider';
 import type { TSkillListResponse } from 'librechat-data-provider';
 import { useLocalize, useDebounce, useNavScrolling } from '~/hooks';
 import SkillListSkeleton from '../lists/SkillListSkeleton';
@@ -31,7 +32,12 @@ export default function SkillsSidePanel({ className }: SkillsSidePanelProps) {
   const listQuery = useSkillsInfiniteQuery({ search: debouncedSearch || undefined, limit: 20 });
 
   const pages = useMemo(() => listQuery.data?.pages ?? [], [listQuery.data]);
-  const skills = useMemo(() => pages.flatMap((page) => page.skills), [pages]);
+  /* A feature's own skill (the article wizard's, the slide builder's) is started from its
+     «ساختن» row in the composer, so it is not listed here as a second way in. */
+  const skills = useMemo(
+    () => pages.flatMap((page) => page.skills).filter((skill) => !isFeatureSkill(skill)),
+    [pages],
+  );
 
   const lastPage = pages[pages.length - 1];
   const nextCursor = lastPage?.has_more === true ? lastPage.after : null;

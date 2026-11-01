@@ -68,7 +68,7 @@ describe('shipped article and slide skills', () => {
 
   it.each([
     ['article-writer', 'ویزارد مقاله', [OfficeTools.word]],
-    ['slide-builder', 'ساخت پاورپوینت', [OfficeTools.slides]],
+    ['slide-builder', 'پاورپوینت‌ساز', [OfficeTools.slides]],
   ])('loads %s with its Persian title and tool', (name, title, tools) => {
     expect(getDeploymentSkillByName(name)).toMatchObject({
       name,

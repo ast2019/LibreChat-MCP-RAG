@@ -34,6 +34,7 @@ export const REASON_KEYS: Record<NonNullable<TAdminBrowserLogEntry['reason']>, T
   crashed: 'com_admin_browser_reason_crashed',
   shutdown: 'com_admin_browser_reason_shutdown',
   lost: 'com_admin_browser_reason_lost',
+  replaced: 'com_admin_browser_reason_replaced',
 };
 
 /** «۳ دقیقه» / "45 seconds". */

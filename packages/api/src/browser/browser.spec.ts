@@ -1,49 +1,16 @@
 import type { AppConfig } from '@librechat/data-schemas';
-import type { BrowserServiceClient, EndedServiceSession, ServiceSession } from './client';
-import type { BrowserLogStore } from './sessions';
+import type { EndedServiceSession } from './client';
 import { getBrowserConfig, getBrowserService, resolveUserBrowserAccess } from './config';
 import { BrowserServiceError, createBrowserServiceClient } from './client';
+import { TEST_USER_ID, fakeClient, fakeLog, fakeSession } from './testing';
 import { createBrowserAdminHandlers, describeServerLoad } from './admin';
 import { createBrowserLogSync, openUserBrowser } from './sessions';
 
-const USER_ID = '6650f0a1b2c3d4e5f6a7b8c9';
+const USER_ID = TEST_USER_ID;
+const session = fakeSession;
 
 const appConfig = (browser: Record<string, unknown> = {}, packs: unknown[] = []) =>
   ({ browser, balance: { enabled: true, packs } }) as unknown as AppConfig;
-
-const session = (overrides: Partial<ServiceSession> = {}): ServiceSession => ({
-  id: 's1',
-  owner: USER_ID,
-  startedAt: 1_000,
-  lastActiveAt: 1_000,
-  idleMs: 180_000,
-  maxMs: 1_200_000,
-  domains: [],
-  ...overrides,
-});
-
-function fakeLog(open: string[] = []) {
-  return {
-    recordBrowserSessionStart: jest.fn(async () => undefined),
-    recordBrowserSessionEnd: jest.fn(async () => true),
-    recordBrowserRefusal: jest.fn(async () => undefined),
-    listOpenBrowserSessionIds: jest.fn(async () => open),
-  } satisfies BrowserLogStore;
-}
-
-function fakeClient(overrides: Partial<BrowserServiceClient> = {}): BrowserServiceClient {
-  return {
-    status: jest.fn(async () => ({
-      load: { at: 5, ram: null, cpu: null, container: null },
-      history: [],
-      sessions: [],
-    })),
-    events: jest.fn(async () => ({ events: [], last: 0 })),
-    createSession: jest.fn(async () => session()),
-    closeSession: jest.fn(async () => null),
-    ...overrides,
-  };
-}
 
 describe('browser config', () => {
   it('fills the owner’s defaults: 10 browsers, 3 idle minutes, refuse at 85% RAM or 90% CPU', () => {
@@ -54,6 +21,9 @@ describe('browser config', () => {
       maxMinutes: 20,
       capacity: { ram: 85, cpu: 90 },
       logDays: 90,
+      snapshotChars: 12_000,
+      liveFps: 3,
+      liveQuality: 50,
     });
     expect(getBrowserConfig(appConfig({ capacity: { ram: 70 } })).capacity).toEqual({
       ram: 70,

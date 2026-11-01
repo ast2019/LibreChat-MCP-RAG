@@ -40,6 +40,7 @@ export enum QueryKeys {
   adminServiceStatus = 'adminServiceStatus',
   adminServerStatus = 'adminServerStatus',
   adminBrowserLog = 'adminBrowserLog',
+  browserSession = 'browserSession',
   paymentOptions = 'paymentOptions',
   referral = 'referral',
   paymentOrder = 'paymentOrder',

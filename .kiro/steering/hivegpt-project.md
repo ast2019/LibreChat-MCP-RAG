@@ -55,7 +55,7 @@ file, the repository or a chat.
   - Codex CLI is not supported (it needs custom tools on `/responses`).
   - The packaged host `createAgentChatCompletion` does not bind caller tools.
   - The local `gemma3:4b` model is not suited to agent mode.
-- **Agent browser (0.31.0: phases B1 and B2 built):** see `docs/plans/agent-browser-fa.md`.
+- **Agent browser (B1-B2 in 0.31.0, B3 in 0.32.0):** see `docs/plans/agent-browser-fa.md`.
   - The owner's decisions: access per pack and per user in the admin panel like the other
     classes (off without a pack that includes it; admins always), `browserSessions` per pack
     (default 1), 10 browsers per server, refuse at RAM 85% or CPU 90% over the last minute with
@@ -65,8 +65,12 @@ file, the repository or a chat.
   - The service is `deploy/browser` (plain Node ESM, tests with `node --test test/*.test.mjs`,
     real Chromium when Playwright's headless shell is installed). Its egress proxy is the barrier:
     Coolify puts every compose service on one network.
-  - Next: B3 (model tools on top of `openUserBrowser`/`closeUserBrowser` in
-    `packages/api/src/browser`, and the live view with hand-over) and B4.
+  - Users turn it on per chat from the composer's `+` menu («مرورگر Agent», a tool toggle that
+    sets `ephemeralAgent.browser`); the tools are `packages/api/src/browser/tools.ts`, the user
+    routes `/api/browser` (`user.ts`), the bar and live view `client/src/components/Chat/Input/Browser`.
+  - The live view is an event stream (SSE) of frames plus POSTs for input, not a WebSocket, so it
+    passes the proxies the chat stream passes. Only the owner may see or drive a browser.
+  - Next: B4 (the sign-in row to «آزمایشی» once tested on the server); saved agents later.
   - The sign-in comparison lists it as «به‌زودی»; switch it to «آزمایشی» when it ships.
 - **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
   `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),
@@ -76,3 +80,6 @@ file, the repository or a chat.
   - The comparison marks «سرویس‌های مشابه» as «بعضی» for these rows: no competitor page was
     found to confirm or rule them out.
   - Not built yet: an in-chat preview of the pages and slides.
+  - Each has one entry point, its «ساختن» row in the `+` menu. `isFeatureSkill` (data-provider
+    `office.ts`) keeps their skills out of the skill lists; add a feature skill to
+    `FEATURE_SKILL_NAMES` and `client/src/hooks/Input/featureSkills.ts` the same way.

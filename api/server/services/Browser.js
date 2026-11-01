@@ -1,6 +1,7 @@
 const { logger } = require('@librechat/data-schemas');
 const {
   getBrowserService,
+  createBrowserTools,
   createBrowserLogSync,
   createBrowserServiceClient,
 } = require('@librechat/api');
@@ -35,4 +36,8 @@ const startBrowserLogSync = () => {
   createBrowserLogSync({ client: browser, log: browserLog }).start();
 };
 
-module.exports = { getBrowserClient, browserLog, startBrowserLogSync };
+/** The model's browser tools for one request; behavior lives in `@librechat/api`. */
+const loadBrowserTools = (req, toolNames) =>
+  createBrowserTools({ req, toolNames }, { getClient: getBrowserClient, log: browserLog });
+
+module.exports = { getBrowserClient, browserLog, loadBrowserTools, startBrowserLogSync };

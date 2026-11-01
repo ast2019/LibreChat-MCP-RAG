@@ -28,6 +28,7 @@ const {
   getPaymentsStartupConfig,
   getReferralStartupConfig,
   getOfficeStartupConfig,
+  getBrowserStartupConfig,
   getPhoneLoginStartupFlags,
 } = require('@librechat/api');
 const {
@@ -310,6 +311,7 @@ router.get('/', async function (req, res) {
       payments: getPaymentsStartupConfig(appConfig),
       referral: getReferralStartupConfig(appConfig),
       officeTools: getOfficeStartupConfig(appConfig),
+      browser: getBrowserStartupConfig(appConfig),
       bundlerURL: process.env.SANDPACK_BUNDLER_URL,
       staticBundlerURL: process.env.SANDPACK_STATIC_BUNDLER_URL,
       sharePointFilePickerEnabled,

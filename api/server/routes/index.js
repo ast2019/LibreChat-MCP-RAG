@@ -14,6 +14,7 @@ const adminAuditLog = require('./admin/audit');
 const adminBalance = require('./admin/balance');
 const adminStatus = require('./admin/status');
 const adminServer = require('./admin/server');
+const browser = require('./browser');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
 const messages = require('./messages');
@@ -69,6 +70,7 @@ module.exports = {
   adminBalance,
   adminStatus,
   adminServer,
+  browser,
   keys,
   apiKeys,
   media,

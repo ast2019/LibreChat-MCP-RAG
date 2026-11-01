@@ -15,6 +15,7 @@ import type {
 } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import type { PaletteEntry } from './usePaletteEntries';
+import type { StagedSkills } from './useStageSkill';
 import { useMediaStatusQuery, useGetStartupConfig } from '~/data-provider';
 import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import useLocalize from '~/hooks/useLocalize';
@@ -94,21 +95,22 @@ const STATE_LABEL: Partial<Record<TMediaWayState, TranslationKeys>> = {
  * then the article wizard and the slide builder, marked «آزمایشی». An available media way starts
  * the request in the composer; an unavailable one, and «همه روش‌ها», open the media dialog that
  * says what turns it on. The article and slide rows also turn their skill on for the next
- * message, when the user may use skills. Ways the deployment has not set up are left out rather
- * than offered as dead rows.
+ * message, when the user may use skills, and show as on until it is sent; picking one that is on
+ * turns it off again. Ways the deployment has not set up are left out rather than offered as
+ * dead rows.
  */
 export default function useCreateEntries({
   enabled,
   onCompose,
   onShowAll,
-  onStageSkill,
+  skills,
 }: {
   enabled: boolean;
   /** Puts the starting words of a request into the composer and focuses it */
   onCompose: (starter: string) => void;
   onShowAll: () => void;
-  /** Turns a skill on for the next message; absent when the user cannot use skills */
-  onStageSkill?: ((name: string) => void) | null;
+  /** The staged skills and turning one on or off; absent when the user cannot use skills */
+  skills?: StagedSkills | null;
 }): PaletteEntry[] {
   const localize = useLocalize();
   const status = useMediaStatusQuery(enabled);
@@ -149,6 +151,7 @@ export default function useCreateEntries({
         continue;
       }
       const Icon = way.icon;
+      const staged = skills?.staged.includes(way.skill) === true;
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
@@ -158,14 +161,16 @@ export default function useCreateEntries({
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: false,
+        active: staged,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect: () => {
-          onStageSkill?.(way.skill);
-          onCompose(localize(way.starter));
-        },
+        onSelect: staged
+          ? () => skills?.unstage(way.skill)
+          : () => {
+              skills?.stage(way.skill);
+              onCompose(localize(way.starter));
+            },
       });
     }
     if (ways != null) {
@@ -185,5 +190,5 @@ export default function useCreateEntries({
       });
     }
     return entries;
-  }, [enabled, ways, office, localize, onCompose, onShowAll, onStageSkill]);
+  }, [enabled, ways, office, localize, onCompose, onShowAll, skills]);
 }

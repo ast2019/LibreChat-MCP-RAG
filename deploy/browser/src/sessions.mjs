@@ -4,6 +4,17 @@ import { capacityProblem } from './load.mjs';
 const SWEEP_MS = 5_000;
 const EVENT_LIMIT = 1_000;
 const DOMAIN_LIMIT = 50;
+const HANDOFF_REASONS = new Set(['login', 'captcha', 'payment', 'confirm', 'other']);
+
+/** A handoff as stored: a known reason and a short message, or null. */
+function readHandoff(value) {
+  if (value == null || typeof value !== 'object') {
+    return null;
+  }
+  const reason = HANDOFF_REASONS.has(value.reason) ? value.reason : 'other';
+  const message = typeof value.message === 'string' ? value.message.trim().slice(0, 300) : '';
+  return message ? { reason, message } : { reason };
+}
 
 /** A refusal or failure with a stable code the api maps to the user's message. */
 export class BrowserError extends Error {
@@ -53,6 +64,11 @@ export function createSessionManager({
   const summary = (session) => ({
     id: session.id,
     owner: session.owner,
+    context: session.context,
+    control: session.control,
+    handoff: session.handoff,
+    url: session.url,
+    title: session.title,
     startedAt: session.startedAt,
     lastActiveAt: session.lastActiveAt,
     idleMs: session.idleMs,
@@ -91,7 +107,7 @@ export function createSessionManager({
     return ended;
   }
 
-  async function create({ owner, ownerLimit, serverLimit, ram, cpu, idleMs, maxMs }) {
+  async function create({ owner, context = '', ownerLimit, serverLimit, ram, cpu, idleMs, maxMs }) {
     if (ownerCount(owner) >= ownerLimit) {
       throw new BrowserError('user_limit', 'This user has the most browsers open already', 409);
     }
@@ -133,6 +149,13 @@ export function createSessionManager({
     const session = {
       id,
       owner,
+      /* The conversation the browser belongs to, so each chat keeps its own */
+      context: String(context).slice(0, 64),
+      /* The model drives it until it hands it over, or the user takes it */
+      control: 'model',
+      handoff: null,
+      url: 'about:blank',
+      title: '',
       startedAt,
       lastActiveAt: startedAt,
       idleMs,
@@ -145,17 +168,40 @@ export function createSessionManager({
     return summary(session);
   }
 
-  /** Runs one step on an open browser and counts it as activity. */
-  async function use(id, step) {
+  /**
+   * Runs one step on an open browser and counts it as activity. `by` is who acts: the model's
+   * steps wait while the user has the browser, and the user's input waits while the model has it.
+   */
+  async function use(id, step, { by } = {}) {
     const session = find(id);
+    if (by === 'model' && session.control === 'user') {
+      throw new BrowserError('user_control', 'The user has the browser', 409);
+    }
+    if (by === 'user' && session.control !== 'user') {
+      throw new BrowserError('model_control', 'Take the browser before using it', 409);
+    }
     session.lastActiveAt = now();
     try {
-      return await step(session.handle);
+      const result = await step(session.handle);
+      if (result && typeof result.url === 'string') {
+        session.url = result.url;
+        session.title = typeof result.title === 'string' ? result.title : session.title;
+      }
+      return result;
     } finally {
       if (sessions.get(id) === session) {
         session.lastActiveAt = now();
       }
     }
+  }
+
+  /** Gives the browser to the user (with why) or back to the model. */
+  function setControl(id, to, handoff) {
+    const session = find(id);
+    session.control = to === 'user' ? 'user' : 'model';
+    session.handoff = session.control === 'user' ? readHandoff(handoff) : null;
+    session.lastActiveAt = now();
+    return summary(session);
   }
 
   async function sweep() {
@@ -182,8 +228,17 @@ export function createSessionManager({
     touch: (id) => {
       find(id).lastActiveAt = now();
     },
+    setControl,
     get: (id) => summary(find(id)),
-    list: () => [...sessions.values()].filter((session) => !session.closing).map(summary),
+    /** Open browsers, optionally one owner's, and optionally one conversation's. */
+    list: ({ owner, context } = {}) =>
+      [...sessions.values()]
+        .filter((session) => !session.closing)
+        .filter((session) => owner == null || session.owner === owner)
+        .filter((session) => context == null || session.context === context)
+        .map(summary),
+    /** The handle of an open browser, for the live view */
+    handle: (id) => find(id).handle,
     count: openCount,
     /** Ended sessions after `after` (a sequence number), oldest first. */
     events: (after = 0) => ({ events: events.filter((event) => event.seq > after), last: seq }),

@@ -27,7 +27,7 @@ function setup() {
   );
   const { result } = renderHook(
     () => ({
-      stage: useStageSkill('convo1'),
+      skills: useStageSkill('convo1'),
       agent: useRecoilValue(ephemeralAgentByConvoId('convo1')),
     }),
     { wrapper },
@@ -44,20 +44,31 @@ describe('useStageSkill', () => {
   it('turns skills on and stages the skill once for the next message', () => {
     const { result, store } = setup();
     act(() => {
-      result.current.stage?.('article-writer');
-      result.current.stage?.('article-writer');
+      result.current.skills?.stage('article-writer');
+      result.current.skills?.stage('article-writer');
     });
     expect(store.get(pendingManualSkillsByConvoId('convo1'))).toEqual(['article-writer']);
+    expect(result.current.skills?.staged).toEqual(['article-writer']);
     expect(result.current.agent?.skills).toBe(true);
+  });
+
+  it('takes a staged skill off again', () => {
+    const { result, store } = setup();
+    act(() => {
+      result.current.skills?.stage('article-writer');
+      result.current.skills?.stage('slide-builder');
+    });
+    act(() => result.current.skills?.unstage('article-writer'));
+    expect(store.get(pendingManualSkillsByConvoId('convo1'))).toEqual(['slide-builder']);
   });
 
   it('offers nothing to stage when the user may not use skills', () => {
     mockCanUseSkills = false;
-    expect(setup().result.current.stage).toBeNull();
+    expect(setup().result.current.skills).toBeNull();
   });
 
   it('offers nothing to stage when the deployment has skills off', () => {
     mockSkillsEnabled = false;
-    expect(setup().result.current.stage).toBeNull();
+    expect(setup().result.current.skills).toBeNull();
   });
 });

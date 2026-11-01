@@ -74,7 +74,11 @@ export function chipMenuModes(modes?: PaletteMode[]) {
 
 /** Projects palette state into the persistent quick controls in one pass. */
 export function projectBarEntries(entries: PaletteEntry[]): PaletteEntry[] {
-  return entries.filter((entry) => entry.section !== 'skill' && (entry.active || entry.pinned));
+  /* Skills and the «ساختن» rows that stage one are staged context: their chip is in the tray. */
+  return entries.filter(
+    (entry) =>
+      entry.section !== 'skill' && entry.section !== 'create' && (entry.active || entry.pinned),
+  );
 }
 
 interface RoundButtonProps {
@@ -292,12 +296,12 @@ function Bar({
     [form, anchorRef],
   );
   const showAllMedia = useCallback(() => setShowMediaTools(true), []);
-  const stageSkill = useStageSkill(conversationId);
+  const stagedSkills = useStageSkill(conversationId);
   const createEntries = useCreateEntries({
     enabled: showTools && catalogWanted,
     onCompose: compose,
     onShowAll: showAllMedia,
-    onStageSkill: stageSkill,
+    skills: stagedSkills,
   });
   /* `usePaletteEntries` already returns nothing once `enabled` is false, so the
      gate lives in one place rather than being re-applied to its result here. */

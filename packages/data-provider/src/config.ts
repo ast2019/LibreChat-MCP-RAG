@@ -4,6 +4,7 @@ import type { TEndpointsConfig, TModelsConfig, TConfig } from './types';
 import type { TOfficeToolsStartupConfig } from './office';
 import type { TPaymentsStartupConfig } from './payments';
 import type { TReferralStartupConfig } from './referral';
+import type { TBrowserStartupConfig } from './browser';
 import {
   MAX_SUBAGENTS,
   MAX_SUBAGENTS_CEILING,
@@ -3638,6 +3639,8 @@ export type TStartupConfig = {
   referral?: TReferralStartupConfig;
   /** The Word and PowerPoint builders ordinary chats offer, from `officeTools` */
   officeTools?: TOfficeToolsStartupConfig;
+  /** The agent browser is set up, so the composer may offer it to users who have it */
+  browser?: TBrowserStartupConfig;
   /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
   currencyRate?: TCurrencyRateInfo;
   transactions?: TTransactionsConfig;
@@ -6118,6 +6121,8 @@ export enum LocalStorageKeys {
   LAST_SKILLS_TOGGLE_ = 'LAST_SKILLS_TOGGLE_',
   /** Last checked toggle for Memory per conversation ID */
   LAST_MEMORY_TOGGLE_ = 'LAST_MEMORY_TOGGLE_',
+  /** Last agent browser toggle, per conversation */
+  LAST_BROWSER_TOGGLE_ = 'LAST_BROWSER_TOGGLE_',
   /** Key for the last selected agent provider */
   LAST_AGENT_PROVIDER = 'lastAgentProvider',
   /** Key for the last selected agent model */

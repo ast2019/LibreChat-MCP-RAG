@@ -460,6 +460,7 @@ const startServer = async () => {
   app.use('/api/admin/balance', routes.adminBalance);
   app.use('/api/admin/status', routes.adminStatus);
   app.use('/api/admin/server', routes.adminServer);
+  app.use('/api/browser', routes.browser);
   app.use('/api/actions', routes.actions);
   app.use('/api/keys', routes.keys);
   app.use('/api/api-keys', routes.apiKeys);

@@ -85,6 +85,7 @@ import composerClearance from './clearance';
 import Waveform from './Composer/Waveform';
 import { mainTextareaId } from '~/common';
 import CollapseChat from './CollapseChat';
+import { BrowserDock } from './Browser';
 import QuoteButton from './QuoteButton';
 import ToolDialogs from './ToolDialogs';
 import StopButton from './StopButton';
@@ -783,6 +784,7 @@ const ChatForm = memo(function ChatForm({
               onStartNewChat={startQueuedInNewChat}
             />
           )}
+          {index === 0 && <BrowserDock conversationId={conversationId} />}
           {(project || codeWorkspace.visible) && (
             <div
               data-testid="composer-context-rail"

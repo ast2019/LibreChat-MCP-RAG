@@ -28,10 +28,12 @@ const office = (officeTools?: TOfficeToolsStartupConfig) => ({ data: { officeToo
 describe('useCreateEntries', () => {
   const onCompose = jest.fn();
   const onShowAll = jest.fn();
-  const onStageSkill = jest.fn();
-  const render = (enabled = true, stage: typeof onStageSkill | null = onStageSkill) =>
-    renderHook(() => useCreateEntries({ enabled, onCompose, onShowAll, onStageSkill: stage }))
-      .result.current;
+  const stage = jest.fn();
+  const unstage = jest.fn();
+  const skills = (staged: string[] = []) => ({ staged, stage, unstage });
+  const render = (enabled = true, staged: ReturnType<typeof skills> | null = skills()) =>
+    renderHook(() => useCreateEntries({ enabled, onCompose, onShowAll, skills: staged })).result
+      .current;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -105,8 +107,22 @@ describe('useCreateEntries', () => {
     mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
     const slides = render().find((entry) => entry.key === 'create:slides')!;
     slides.onSelect();
-    expect(onStageSkill).toHaveBeenCalledWith('slide-builder');
+    expect(stage).toHaveBeenCalledWith('slide-builder');
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_slides_starter');
+  });
+
+  it('shows a staged row as on, and picking it again takes the skill off', () => {
+    mockStatus.mockReturnValue(availability([]));
+    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
+    const entries = render(true, skills(['article-writer']));
+    const article = entries.find((entry) => entry.key === 'create:article')!;
+    const slides = entries.find((entry) => entry.key === 'create:slides')!;
+    expect(article.active).toBe(true);
+    expect(slides.active).toBe(false);
+    article.onSelect();
+    expect(unstage).toHaveBeenCalledWith('article-writer');
+    expect(stage).not.toHaveBeenCalled();
+    expect(onCompose).not.toHaveBeenCalled();
   });
 
   it('still starts the request when the user cannot use skills', () => {

@@ -1,6 +1,8 @@
 import { useMemo, useCallback } from 'react';
 import { useAtom } from 'jotai';
 import { pendingQuotesByConvoId, pendingManualSkillsByConvoId } from '@librechat/chat/react';
+import { FEATURE_SKILL_LABELS } from './featureSkills';
+import useLocalize from '~/hooks/useLocalize';
 
 export type ComposerItemKind = 'quote' | 'skill';
 
@@ -33,6 +35,7 @@ export default function useComposerItems(
   includeQuotes = true,
 ): ComposerItem[] {
   const [quotes, setQuotes] = useAtom(pendingQuotesByConvoId(conversationId));
+  const localize = useLocalize();
   const [skills, setSkills] = useAtom(pendingManualSkillsByConvoId(conversationId));
 
   const removeQuoteAt = useCallback(
@@ -65,15 +68,18 @@ export default function useComposerItems(
     }
 
     for (const name of skills) {
+      /* A feature's own skill reads as the feature («ویزارد مقاله»), not as its file name. */
+      const feature = FEATURE_SKILL_LABELS[name];
+      const label = feature ? localize(feature) : name;
       items.push({
         id: `skill:${name}`,
         kind: 'skill',
-        label: name,
-        title: name,
+        label,
+        title: label,
         remove: () => removeSkill(name),
       });
     }
 
     return items;
-  }, [quotes, skills, includeQuotes, removeQuoteAt, removeSkill]);
+  }, [quotes, skills, includeQuotes, removeQuoteAt, removeSkill, localize]);
 }
