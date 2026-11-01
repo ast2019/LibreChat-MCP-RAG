@@ -149,6 +149,34 @@ describe('Browser Dock', () => {
     expect(chat.ask).not.toHaveBeenCalled();
   });
 
+  it('Enter in the typing field types into the page and never submits the chat', async () => {
+    mockSession = session({ control: 'user', handoff: { reason: 'login' } });
+    const chatSubmit = jest.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <RecoilRoot>
+        <ChatContext.Provider value={{ ask: jest.fn(), isSubmitting: false } as never}>
+          {/* The dock lives inside the chat's form, as in ChatForm. */}
+          <form onSubmit={chatSubmit}>
+            <Dock conversationId="c1" />
+          </form>
+        </ChatContext.Provider>
+      </RecoilRoot>,
+    );
+    const field = screen.getByTestId('browser-type');
+
+    await userEvent.type(field, '{Enter}');
+    expect(mockInput).not.toHaveBeenCalled();
+
+    await userEvent.type(field, 'sara@example.com{Enter}');
+    expect(mockInput).toHaveBeenCalledTimes(1);
+    expect(mockInput).toHaveBeenLastCalledWith(
+      { sessionId: 's1', input: { type: 'type', text: 'sara@example.com' } },
+      expect.any(Object),
+    );
+    expect(field).toHaveValue('');
+    expect(chatSubmit).not.toHaveBeenCalled();
+  });
+
   it('closes the browser', async () => {
     renderDock();
     await userEvent.click(screen.getByRole('button', { name: 'com_ui_browser_close' }));

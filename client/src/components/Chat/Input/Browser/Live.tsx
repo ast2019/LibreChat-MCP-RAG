@@ -117,13 +117,30 @@ export default function Live({
     }, SCROLL_FLUSH_MS);
   };
 
-  const submitText = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const sendText = () => {
     if (text === '') {
       return;
     }
     send({ type: 'type', text });
     setText('');
+  };
+
+  /**
+   * Enter in the field types its text into the page, like «ارسال متن», and goes no further.
+   * The live view sits inside the chat's form: a form of its own here would hand its submit
+   * to the chat's, which sent the chat message and left the page mid sign-in. Pressing the
+   * page's own Enter (to submit a site's form) stays the explicit «Enter» button.
+   */
+  const typeKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const composing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+    if (!composing && !event.repeat) {
+      sendText();
+    }
   };
 
   const controlError = () =>
@@ -191,19 +208,27 @@ export default function Live({
 
       {userHasIt ? (
         <>
-          <form onSubmit={submitText} className="flex flex-wrap items-center gap-2">
+          <div role="group" className="flex flex-wrap items-center gap-2">
             <Input
               type={secret ? 'password' : 'text'}
               dir="auto"
               autoComplete="off"
               value={text}
               onChange={(event) => setText(event.target.value)}
+              onKeyDown={typeKeyDown}
+              enterKeyHint="send"
               placeholder={localize('com_ui_browser_type_placeholder')}
               aria-label={localize('com_ui_browser_type')}
               data-testid="browser-type"
               className="min-w-40 flex-1"
             />
-            <Button type="submit" size="compact" variant="outline" disabled={text === ''}>
+            <Button
+              type="button"
+              size="compact"
+              variant="outline"
+              disabled={text === ''}
+              onClick={sendText}
+            >
               {localize('com_ui_browser_send_text')}
             </Button>
             {KEYS.map(({ key, label }) => (
@@ -225,7 +250,7 @@ export default function Live({
             >
               {localize('com_ui_browser_back')}
             </Button>
-          </form>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-text-secondary text-xs">{localize('com_ui_browser_click_hint')}</p>
             <Button size="compact" onClick={finish} disabled={control.isLoading}>
