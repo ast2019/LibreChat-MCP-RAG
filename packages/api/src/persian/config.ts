@@ -3,11 +3,10 @@ import {
   PERSIAN_TOOL_SKILLS,
   persianToolsSchema,
 } from 'librechat-data-provider';
-import type { PersianTools, TModelSpec, TPersianToolsConfig } from 'librechat-data-provider';
+import type { TModelSpec, TPersianToolsConfig } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
-import type { Types } from 'mongoose';
-import { getDeploymentSkillByName } from '~/skills/deployment';
-import { resolveSkillActive } from '~/agents/skills';
+import type { SkillScopeParams } from '~/skills/scoped';
+import { getSkillScopedTools } from '~/skills/scoped';
 import { readConfigSection } from '~/app/config';
 
 /** The deployment's Persian tools settings; the defaults when the section is absent or invalid. */
@@ -35,27 +34,6 @@ export function getChatPersianTools(
  * that declares it, when that skill is in the agent's scope and active for the user. Loaded with
  * the agent so a skill the model picks mid-turn finds its tool.
  */
-export function getSkillPersianTools({
-  accessibleSkillIds,
-  skillStates,
-  userId,
-}: {
-  accessibleSkillIds: readonly Types.ObjectId[];
-  skillStates?: Record<string, boolean>;
-  userId?: string;
-}): string[] {
-  if (accessibleSkillIds.length === 0) {
-    return [];
-  }
-  const scoped = new Set(accessibleSkillIds.map((id) => id.toString()));
-  const isOn = (skillName: string): boolean => {
-    const skill = getDeploymentSkillByName(skillName);
-    return (
-      skill != null &&
-      scoped.has(skill._id.toString()) &&
-      resolveSkillActive({ skill, skillStates, userId })
-    );
-  };
-  const entries = Object.entries(PERSIAN_TOOL_SKILLS) as Array<[PersianTools, readonly string[]]>;
-  return entries.filter(([, skills]) => skills.some(isOn)).map(([tool]) => tool);
+export function getSkillPersianTools(params: SkillScopeParams): string[] {
+  return getSkillScopedTools(PERSIAN_TOOL_SKILLS, params);
 }

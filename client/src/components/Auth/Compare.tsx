@@ -12,16 +12,22 @@ import {
   Sparkles,
   ThumbsUp,
   BadgeCheck,
+  NotebookPen,
   ShieldCheck,
+  Presentation,
   Clapperboard,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TranslationKeys } from '~/hooks';
+import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
-/** Whether a service offers a feature: yes, no, or only some of the similar services do. */
-type Offer = 'yes' | 'no' | 'some';
+/**
+ * Whether a service offers a feature: yes, no, only some of the similar services do, or (for
+ * this service) not yet but being built.
+ */
+type Offer = 'yes' | 'no' | 'some' | 'soon';
 
 interface CompareRow {
   icon?: LucideIcon;
@@ -29,6 +35,8 @@ interface CompareRow {
   detail?: TranslationKeys;
   ours: Offer;
   others: Offer;
+  /** Live and still being shaped: marked «آزمایشی» beside its title */
+  experimental?: boolean;
 }
 
 interface CompareSection {
@@ -129,6 +137,22 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         ours: 'yes',
         others: 'some',
       },
+      {
+        icon: NotebookPen,
+        title: 'com_auth_feature_article',
+        detail: 'com_auth_feature_article_body',
+        ours: 'yes',
+        others: 'some',
+        experimental: true,
+      },
+      {
+        icon: Presentation,
+        title: 'com_auth_feature_slides',
+        detail: 'com_auth_feature_slides_body',
+        ours: 'yes',
+        others: 'some',
+        experimental: true,
+      },
     ],
   },
   {
@@ -148,6 +172,12 @@ export const COMPARE_SECTIONS: CompareSection[] = [
     rows: [
       { title: 'com_auth_compare_row_app', ours: 'no', others: 'yes' },
       { title: 'com_auth_compare_row_notifications', ours: 'no', others: 'some' },
+      {
+        title: 'com_auth_compare_row_browser',
+        detail: 'com_auth_compare_row_browser_body',
+        ours: 'soon',
+        others: 'some',
+      },
     ],
   },
 ];
@@ -156,6 +186,7 @@ const offerLabel: Record<Offer, TranslationKeys> = {
   yes: 'com_auth_compare_yes',
   no: 'com_auth_compare_no',
   some: 'com_auth_compare_some',
+  soon: 'com_auth_compare_soon',
 };
 
 function OfferMark({ offer }: { offer: Offer }) {
@@ -163,6 +194,9 @@ function OfferMark({ offer }: { offer: Offer }) {
   const label = localize(offerLabel[offer]);
   if (offer === 'some') {
     return <span className="text-text-secondary text-xs">{label}</span>;
+  }
+  if (offer === 'soon') {
+    return <span className="text-text-primary text-xs font-medium">{label}</span>;
   }
   const Icon = offer === 'yes' ? Check : Minus;
   return (
@@ -181,7 +215,8 @@ function OfferMark({ offer }: { offer: Offer }) {
 
 /**
  * The comparison on the sign-in page: one line per feature, with this service's column marked,
- * sized to sit beside the form on a laptop screen without scrolling.
+ * sized to sit beside the form on a laptop screen without scrolling. The rows are tight (two
+ * pixels of padding) so the newest features fit without making the table taller.
  */
 export function CompareTable({ appTitle }: { appTitle: string }) {
   const localize = useLocalize();
@@ -216,9 +251,9 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
                 {localize(section.title)}
               </th>
             </tr>
-            {section.rows.map(({ icon: Icon, title, detail, ours, others }) => (
+            {section.rows.map(({ icon: Icon, title, detail, ours, others, experimental }) => (
               <tr key={title} className="border-border-light border-b last:border-b-0">
-                <th scope="row" className="py-1 pe-3 text-start font-normal">
+                <th scope="row" className="py-0.5 pe-3 text-start font-normal">
                   <span className="flex items-start gap-2">
                     {Icon && (
                       <Icon
@@ -228,6 +263,7 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
                     )}
                     <span className="min-w-0 leading-5">
                       <span className="text-text-primary font-medium">{localize(title)}</span>
+                      {experimental && <ExperimentalBadge className="ms-1.5 align-middle" />}
                       {detail && (
                         <span className="text-text-secondary text-xs">
                           {' — '}
@@ -237,10 +273,10 @@ export function CompareTable({ appTitle }: { appTitle: string }) {
                     </span>
                   </span>
                 </th>
-                <td className="bg-surface-secondary px-2 py-1 text-center">
+                <td className="bg-surface-secondary px-2 py-0.5 text-center">
                   <OfferMark offer={ours} />
                 </td>
-                <td className="py-1.5 ps-2 text-center">
+                <td className="py-1 ps-2 text-center">
                   <OfferMark offer={others} />
                 </td>
               </tr>

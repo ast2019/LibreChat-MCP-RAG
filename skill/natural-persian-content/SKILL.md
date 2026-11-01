@@ -1,7 +1,7 @@
 ---
 name: natural-persian-content
 display-title: نوشتن محتوای فارسی
-description: Writes Persian that reads as if a skilled native writer wrote it, not a translation - posts and captions (اینستاگرام، X، لینکدین), emails, articles, product and ad copy, scripts and messages. Use when the user asks to write, draft or rewrite Persian content (بنویس، متن بساز، کپشن، پست، ایمیل، مقاله).
+description: Writes Persian that reads as if a skilled native writer wrote it, not a translation - posts and captions (اینستاگرام، X، لینکدین), emails, articles, product and ad copy, scripts and messages. Use when the user asks to write, draft or rewrite Persian content (بنویس، متن بساز، کپشن، پست، ایمیل، مقاله). For a full researched article or a Word file, article-writer leads the work.
 allowed-tools:
   - persian_normalize
 license: MIT

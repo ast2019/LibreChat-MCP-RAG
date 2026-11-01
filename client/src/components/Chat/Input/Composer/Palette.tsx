@@ -1032,6 +1032,7 @@ function Palette({
       const departing = row.type === 'attach' && row.entry.primary !== true && collapsing;
       const { label, icon } = row.entry;
       const description = isEntry ? row.entry.description : undefined;
+      const badge = isEntry ? row.entry.badge : undefined;
       const status = isEntry ? row.entry.status : undefined;
       const checked = isEntry ? row.entry.active : false;
       const favorited = isEntry && row.isFavorite;
@@ -1096,7 +1097,14 @@ function Palette({
                 )}
               </span>
               <span className="flex min-w-0 flex-1 flex-col justify-center">
-                <span className={cn('truncate', checked && 'font-medium')}>{label}</span>
+                {badge != null ? (
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={cn('truncate', checked && 'font-medium')}>{label}</span>
+                    <span className="shrink-0">{badge}</span>
+                  </span>
+                ) : (
+                  <span className={cn('truncate', checked && 'font-medium')}>{label}</span>
+                )}
                 {/* The dot is color only, so the status is still said aloud. */}
                 {status != null && <span className="sr-only">{status.label}</span>}
                 {description != null && description !== '' && (

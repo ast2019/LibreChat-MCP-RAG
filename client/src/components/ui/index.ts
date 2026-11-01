@@ -8,4 +8,5 @@ export { default as PanelHeader } from './PanelHeader';
 export { default as TermsAndConditionsModal } from './TermsAndConditionsModal';
 export { default as AdminSettingsDialog } from './AdminSettingsDialog';
 export { default as LocalizedDateRangePicker } from './LocalizedDateRangePicker';
+export { default as ExperimentalBadge } from './ExperimentalBadge';
 export type { PermissionConfig } from './AdminSettingsDialog';

@@ -78,6 +78,7 @@ const {
   resolveMCPClientCapabilityProfile,
   getOutboundTimeoutMs,
   buildMediaToolContext,
+  buildOfficeToolContext,
 } = require('@librechat/api');
 const {
   Time,
@@ -1617,6 +1618,7 @@ async function loadToolDefinitionsWrapper({
   Object.assign(dynamicToolContextMap, buildMediaToolContext(req.config, filteredTools));
 
   const imageFiles = tool_resources?.[EToolResources.image_edit]?.files ?? [];
+  Object.assign(dynamicToolContextMap, buildOfficeToolContext(filteredTools, imageFiles));
   if (imageFiles.length > 0) {
     const hasOaiImageGen = filteredTools.includes('image_gen_oai');
     const hasGeminiImageGen = filteredTools.includes('gemini_image_gen');

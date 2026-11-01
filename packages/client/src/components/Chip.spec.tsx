@@ -53,6 +53,18 @@ describe('Chip', () => {
     expect(onParentClick).not.toHaveBeenCalled();
   });
 
+  it('has an extra-small size for a status tag beside a line of text', () => {
+    render(
+      <Chip tone="merged" size="xs">
+        Experimental
+      </Chip>,
+    );
+
+    const chip = screen.getByText('Experimental').parentElement;
+    expect(chip).toHaveClass('min-h-4', 'text-3xs');
+    expect(chip).not.toHaveClass('text-xs');
+  });
+
   it('exposes theme-owned shape and density recipes', () => {
     render(
       <Chip size="theme" shape="theme" onRemove={jest.fn()} removeLabel="Remove theme">

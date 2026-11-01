@@ -34,6 +34,7 @@ const {
   resolveAgentCodeExecution,
   resolveMCPClientCapabilityProfile,
   createPersianTools,
+  buildOfficeToolContext,
 } = require('@librechat/api');
 const {
   AuthType,
@@ -44,6 +45,7 @@ const {
   PermissionTypes,
   AgentCapabilities,
   MEDIA_TOOL_NAMES,
+  OFFICE_TOOL_NAMES,
   PERSIAN_TOOL_NAMES,
   resolveMCPAppsPolicy,
 } = require('librechat-data-provider');
@@ -203,6 +205,16 @@ const loadTools = async ({
       PERSIAN_TOOL_NAMES.map((name) => [
         name,
         async () => createPersianTools({ req: options.req, toolNames: [name] }),
+      ]),
+    ),
+    ...Object.fromEntries(
+      OFFICE_TOOL_NAMES.map((name) => [
+        name,
+        async (_toolContextMap, dynamicToolContextMap) => {
+          const imageFiles = options.tool_resources?.[EToolResources.image_edit]?.files ?? [];
+          Object.assign(dynamicToolContextMap, buildOfficeToolContext([name], imageFiles));
+          return require('~/server/services/Office').loadOfficeTools(options.req, [name]);
+        },
       ]),
     ),
     gemini_image_gen: async (_toolContextMap, dynamicToolContextMap) => {

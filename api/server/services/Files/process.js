@@ -1837,6 +1837,71 @@ async function saveGeneratedMedia(req, { buffer, type, filename: _filename, cont
 }
 
 /**
+ * Saves a generated Office document (Word, PowerPoint) for the request's user with the document
+ * storage strategy, under uploads rather than the public images path, so it is downloaded through
+ * the authenticated files route. The record keeps the readable name the user downloads; the stored
+ * object is named by its id. Returns the record as the message attaches it.
+ */
+async function saveGeneratedDocument(req, { buffer, type, filename, context, conversationId }) {
+  const retentionExpiryPromise = getRetentionExpiry(req);
+  const appConfig = req.config;
+  const file_id = v4();
+  const extension = path.extname(filename) || `.${mime.getExtension(type) ?? 'bin'}`;
+  const source = getFileStrategy(appConfig, { isImage: false });
+  const { saveBuffer } = getStrategyFunctions(source);
+  const filepath = await saveBuffer({
+    userId: req.user.id,
+    fileName: `${file_id}${extension}`,
+    buffer,
+    basePath: 'uploads',
+    tenantId: req.user.tenantId,
+  });
+  const storageMetadata = getStorageMetadata({ filepath, source });
+  const file = await withStoredUploadCleanup(
+    {
+      req,
+      logger,
+      recordExists: fileRecordExists,
+      resolveDeleteFile: () => getStrategyFunctions(source).deleteFile,
+      stored: { file_id, filepath, source, ...storageMetadata },
+      trackWrite: true,
+    },
+    async (beginWrite) => {
+      const retentionExpiry = await retentionExpiryPromise;
+      beginWrite();
+      return db.createFile(
+        {
+          type,
+          source,
+          context,
+          file_id,
+          filepath,
+          ...storageMetadata,
+          filename,
+          user: req.user.id,
+          bytes: buffer.length,
+          ...(conversationId ? { conversationId } : {}),
+          ...retentionExpiry,
+          tenantId: req.user.tenantId,
+        },
+        true,
+      );
+    },
+  );
+  return {
+    file_id,
+    filename,
+    filepath: file?.filepath ?? filepath,
+    type,
+    bytes: buffer.length,
+    source,
+    user: req.user.id,
+    context,
+    ...(conversationId ? { conversationId } : {}),
+  };
+}
+
+/**
  * Filters a file based on its size and the endpoint origin.
  *
  * @param {Object} params - The parameters for the function.
@@ -1943,6 +2008,7 @@ module.exports = {
   processFileURL,
   saveBase64Image,
   saveGeneratedMedia,
+  saveGeneratedDocument,
   processImageFile,
   uploadImageBuffer,
   sweepExpiredFiles,

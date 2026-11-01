@@ -7,6 +7,50 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-01
+
+### Added
+- **The article wizard (experimental).** The skill «ویزارد مقاله» (`skill/article-writer`) takes
+  the model through a brief, research, an outline the user approves and the full text. The new
+  `create_word_document` tool turns the result into an editable Word file: right to left, with
+  Vazirmatn embedded so Word shows it without installing anything; a cover with the Solar Hijri
+  date and an optional logo; a linked table of contents in Word's own Heading styles; page
+  numbers, tables, quotes, images with captions, native editable charts from `chart` code blocks,
+  references and an SEO page. Spelling is tidied with the `persian_normalize` rules first. Each
+  revision is a new file («... - نسخه ۲.docx»), and earlier ones stay in the chat's outputs.
+- **The slide builder (experimental).** The skill «ساخت پاورپوینت» (`skill/slide-builder`) and
+  the `create_presentation` tool build an editable 16:9 PowerPoint deck: right to left, with the
+  first column, timeline step and table column on the right; Vazirmatn throughout; five styles and
+  fourteen layouts (title, section, agenda, bullets, two columns, comparison, timeline, key
+  numbers, table, native chart, quote, image beside text, full image, closing); the user's logo
+  on every slide with its brand color as the deck's color; speaker notes; and text sizes chosen
+  from the amount of text. Slides that stay crowded are reported, so the model offers to split
+  them. The reply tells the user to install Vazirmatn for PowerPoint; Google Slides has it.
+- **How the two tools work.** Files are built on the server and cost nothing beyond the chat.
+  They are saved to the user's files under uploads, downloaded through the authenticated files
+  route, and attached to the message, so they show as file cards and in «خروجی‌های این گفتگو».
+  Images come only from the user: pictures generated in the chat (a call waits briefly for one
+  still being saved) or attached to the request, which are listed to the model by id. Ordinary
+  chats get the tools and confidential and local models do not; saved agents get them with the
+  two skills in scope. Settings live under `officeTools` in `librechat.yaml`: `word`, `slides`,
+  `maxSlides` (40), `maxImages` (20), `maxDocumentChars` (150000) and `embedFonts`.
+- **«ساختن» offers «مقاله» and «پاورپوینت»**, marked «آزمایشی». Picking one turns its skill on
+  for the next message and starts the request in the composer. Their tool cards read
+  «فایل Word» and «پاورپوینت».
+- **The sign-in comparison shows the three new features.** «ویزارد مقاله» and «ساخت پاورپوینت»
+  are under «فرق ما» with «آزمایشی». «مرورگر Agent» is under «هنوز نداریم», marked «به‌زودی»,
+  until it ships. Rows are two pixels tighter, so the table stays about as tall as before.
+- **Plans.** `docs/plans/article-wizard-fa.md` and `docs/plans/slides-builder-fa.md` are new.
+  `docs/plans/agent-browser-fa.md` now holds the owner's decisions: pack access with a per-pack
+  session limit, the server-capacity check and the admin views, closing after 3 idle minutes,
+  sign-in and CAPTCHA by the user in a live view, and nothing kept after the browser closes. It
+  also records how ChatGPT, Claude and Google offer a browser today.
+
+### Changed
+- `getSkillPersianTools` now uses a shared `getSkillScopedTools`, which the Office tools use too.
+- `Chip` in `@librechat/client` has an `xs` size for a status tag beside a line of text.
+- New dependencies: `docx`, `pptxgenjs` and `markdown-it`.
+
 ## [0.29.0] - 2026-10-31
 
 ### Added

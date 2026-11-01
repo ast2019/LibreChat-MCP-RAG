@@ -290,6 +290,19 @@ persianTools:
   timezone: 'Asia/Tehran'
   holidays: []
 
+# The article wizard and the slide builder (experimental): ordinary chats get two tools that turn
+# the conversation into an editable Word file (`create_word_document`) and an editable PowerPoint
+# deck (`create_presentation`), right to left in Vazirmatn. Files are built on this server and
+# cost nothing beyond the chat; confidential and local models do not get them. The «ساختن» rows
+# of the composer's `+` menu follow `word` and `slides`; the skills «ویزارد مقاله» and
+# «ساخت پاورپوینت» carry the step-by-step flow.
+officeTools:
+  word: true
+  slides: true
+  maxSlides: 40
+  maxImages: 20
+  embedFonts: true
+
 webSearch:
   # Paid Google results first; when one provider's plan runs out (or it rejects its key) the
   # next answers, and the free self-hosted SearXNG is the last resort. Providers without a key

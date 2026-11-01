@@ -8,6 +8,7 @@ export * from './payments';
 export * from './referral';
 export * from './media';
 export * from './persian';
+export * from './office';
 export * from './footer';
 export * from './theme';
 export * from './themes';
