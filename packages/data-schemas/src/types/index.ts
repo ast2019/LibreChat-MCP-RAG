@@ -15,6 +15,7 @@ export * from './session';
 export * from './passkey';
 export * from './payment';
 export * from './browserSession';
+export * from './debugTrace';
 export * from './mediaJob';
 export * from './balance';
 export * from './banner';

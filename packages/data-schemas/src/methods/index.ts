@@ -42,6 +42,7 @@ import { createSessionMethods, DEFAULT_REFRESH_TOKEN_EXPIRY, type SessionMethods
 import { createPasskeyMethods, type PasskeyMethods } from './passkey';
 import { createPaymentMethods, type PaymentMethods } from './payment';
 import { createBrowserSessionMethods, type BrowserSessionMethods } from './browserSession';
+import { createDebugTraceMethods, type DebugTraceMethods } from './debugTrace';
 import { createMediaJobMethods, type MediaJobMethods } from './mediaJob';
 import { createUserMethods, DEFAULT_SESSION_EXPIRY, type UserMethods } from './user';
 import { createTokenMethods, type TokenMethods } from './token';
@@ -292,6 +293,7 @@ export type AllMethods = SubagentContentMethods &
   PasskeyMethods &
   PaymentMethods &
   BrowserSessionMethods &
+  DebugTraceMethods &
   MediaJobMethods &
   RoleMethods &
   KeyMethods &
@@ -539,6 +541,7 @@ export function createMethods(
     ...createPasskeyMethods(mongoose),
     ...createPaymentMethods(mongoose),
     ...createBrowserSessionMethods(mongoose),
+    ...createDebugTraceMethods(mongoose),
     ...createMediaJobMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
@@ -610,6 +613,7 @@ export type {
   PasskeyMethods,
   PaymentMethods,
   BrowserSessionMethods,
+  DebugTraceMethods,
   MediaJobMethods,
   SessionMethods,
   TokenMethods,

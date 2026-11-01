@@ -19,7 +19,7 @@
  */
 import { ContentTypes } from 'librechat-data-provider';
 import type { LCTool } from '@librechat/agents';
-import type { ChatMessage } from './types';
+import type { ChatMessage, ChatToolChoice, ChatFunctionTool } from './types';
 
 /** JSON Schema stand-in for a tool that declares no parameters. */
 const EMPTY_PARAMETERS = { type: 'object', properties: {} } as const;
@@ -29,24 +29,6 @@ const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Most tools one request may declare. */
 export const MAX_CHAT_TOOLS = 128;
-
-/** A function tool as Chat Completions declares it. */
-export interface ChatFunctionTool {
-  type: 'function';
-  function: {
-    name: string;
-    description?: string | null;
-    parameters?: Record<string, unknown> | null;
-    strict?: boolean | null;
-  };
-}
-
-/** `tool_choice` as Chat Completions sends it. */
-export type ChatToolChoice =
-  | 'none'
-  | 'auto'
-  | 'required'
-  | { type: 'function'; function: { name: string } };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value != null && typeof value === 'object' && !Array.isArray(value);

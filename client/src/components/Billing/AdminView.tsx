@@ -7,6 +7,7 @@ import { StatusAlert, StatusPanel } from '~/components/Admin/Status';
 import { BrowserLog, ServerPanel } from '~/components/Admin/Server';
 import AdminPayments from '~/components/Payments/AdminPayments';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
+import { DebugPanel } from '~/components/Admin/Debug';
 import Overview from './Overview';
 import Advanced from './Advanced';
 import Access from './Access';
@@ -24,6 +25,7 @@ const TABS: { id: string; label: TranslationKeys }[] = [
   { id: 'status', label: 'com_admin_tab_status' },
   { id: 'server', label: 'com_admin_tab_server' },
   { id: 'browser-log', label: 'com_admin_tab_browser_log' },
+  { id: 'debug', label: 'com_admin_tab_debug' },
   { id: 'advanced', label: 'com_admin_tab_advanced' },
 ];
 
@@ -102,6 +104,9 @@ export default function AdminView() {
             </Tabs.Content>
             <Tabs.Content value="browser-log" className="focus-visible:outline-none">
               <BrowserLog />
+            </Tabs.Content>
+            <Tabs.Content value="debug" className="focus-visible:outline-none">
+              <DebugPanel />
             </Tabs.Content>
             <Tabs.Content value="advanced" className="focus-visible:outline-none">
               <Advanced />

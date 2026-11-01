@@ -14,6 +14,7 @@ import type {
 } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { getBalanceConfig, readConfigSection } from '~/app/config';
+import { debugTrace } from '~/debug/recorder';
 
 /** The deployment's `browser` settings; the defaults when the section is absent or invalid. */
 export function getBrowserConfig(appConfig: AppConfig | null | undefined): TBrowserConfig {
@@ -91,10 +92,23 @@ export function getChatBrowserTools(
   env: Record<string, string | undefined> = process.env,
 ): string[] {
   if (spec?.privacy === 'private' || spec?.privacy === 'local') {
+    debugTrace('browser_gate', { result: 'refused', reason: `spec_${spec.privacy}` });
     return [];
   }
   if (!getBrowserStartupConfig(appConfig, env).enabled) {
+    debugTrace('browser_gate', () => ({
+      result: 'refused',
+      reason: 'browser_off',
+      configEnabled: getBrowserConfig(appConfig).enabled,
+      serviceConfigured: getBrowserService(env) != null,
+    }));
     return [];
   }
-  return resolveUserBrowserAccess(user, appConfig).allowed ? [...BROWSER_TOOL_NAMES] : [];
+  const access = resolveUserBrowserAccess(user, appConfig);
+  debugTrace('browser_gate', {
+    result: access.allowed ? 'allowed' : 'refused',
+    ...(!access.allowed && { reason: 'no_access' }),
+    access,
+  });
+  return access.allowed ? [...BROWSER_TOOL_NAMES] : [];
 }

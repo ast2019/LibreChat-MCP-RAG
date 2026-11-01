@@ -1,10 +1,10 @@
 import { response } from 'express';
-import { Run, Providers, formatAgentMessages } from '@librechat/agents';
 import { AIMessageChunk } from '@librechat/agents/langchain/messages';
+import { Run, Providers, formatAgentMessages } from '@librechat/agents';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { Response } from 'express';
 import type { ChatCompletionChunk, ChatMessage } from './types';
-import type { ChatFunctionTool } from './clientTools';
+import type { ChatFunctionTool } from './types';
 import {
   sendFinalChunk,
   createOpenAIHandlers,
