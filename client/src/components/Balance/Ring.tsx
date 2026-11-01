@@ -5,19 +5,21 @@ const STROKE = 2;
 const SIZE = 32;
 const RADIUS = (SIZE - STROKE) / 2;
 
-const TONE_TOKEN: Record<BalanceTone, '--text-secondary' | '--status-warning' | '--status-error'> =
+const TONE_TOKEN: Record<BalanceTone, '--status-success' | '--status-warning' | '--status-error'> =
   {
-    normal: '--text-secondary',
+    /** A full or partly spent pack is green. Gray is only the empty track. */
+    normal: '--status-success',
     warning: '--status-warning',
     danger: '--status-error',
   };
 
 /**
- * A ring around the user's avatar showing what is left of their pack: full right
- * after a purchase, empty once it is spent. `.pack-ring-arc` paints the sweep
- * from a darker shade of the tone at 12 o'clock to a lighter one at the tip, so
- * the point where the allowance runs out stays visible. Decorative; the caller
- * describes it in words.
+ * A ring around the user's avatar showing what is left of their pack: green while
+ * credit remains, amber once it is nearly spent, and gone once it is empty. The
+ * gray circle underneath is only the unspent track. `.pack-ring-arc` paints the
+ * sweep from a darker shade of that tone at 12 o'clock to a lighter one at the
+ * tip, so the point where the allowance runs out stays visible. Decorative; the
+ * caller describes it in words.
  */
 export default function PackRing({
   percent,

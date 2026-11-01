@@ -29,7 +29,7 @@ describe('PackRing', () => {
     expect(progress()).toHaveClass('pack-ring-arc');
     expect(progress()).toHaveAttribute('data-percent', '25');
     expect(progress()).toHaveAttribute('data-tone', 'normal');
-    expect(paint('--pack-ring-ink')).toBe('var(--text-secondary)');
+    expect(paint('--pack-ring-ink')).toBe('var(--status-success)');
     expect(paint('--pack-ring-tip')).toBe('90deg');
     expect(paint('--pack-ring-end')).toBe('90deg');
   });
@@ -42,6 +42,7 @@ describe('PackRing', () => {
     );
 
     expect(progress()).toHaveAttribute('data-percent', '100');
+    expect(paint('--pack-ring-ink')).toBe('var(--status-success)');
     expect(paint('--pack-ring-tip')).toBe('359.2deg');
     expect(paint('--pack-ring-end')).toBe('360deg');
   });

@@ -332,10 +332,10 @@ html.high-contrast.dark .btn-neutral:hover {
  * starts darker than the tone and lightens toward the tip (12 o'clock, clockwise),
  * which is where the allowance runs out. */
 .pack-ring-arc {
-  /* Light sidebar: a near-black start against a mid-gray tip. A narrow mix
-   * disappears on a 2px stroke. */
-  --pack-ring-dark: color-mix(in srgb, rgb(var(--pack-ring-ink)) 15%, rgb(var(--black)));
-  --pack-ring-light: color-mix(in srgb, rgb(var(--pack-ring-ink)) 80%, rgb(var(--white)));
+  /* Light sidebar: keep enough of the ink that a full ring stays colored, not a
+   * black stroke with a pale tip. A narrower mix disappears on a 2px stroke. */
+  --pack-ring-dark: color-mix(in srgb, rgb(var(--pack-ring-ink)) 40%, rgb(var(--black)));
+  --pack-ring-light: color-mix(in srgb, rgb(var(--pack-ring-ink)) 85%, rgb(var(--white)));
   background-image: conic-gradient(
     from -90deg,
     var(--pack-ring-dark) 0deg,

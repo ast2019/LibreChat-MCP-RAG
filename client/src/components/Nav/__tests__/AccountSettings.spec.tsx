@@ -81,7 +81,7 @@ describe('AccountSettings', () => {
     expect(screen.getByTestId('pack-ring')).toBeInTheDocument();
     expect(ringPercent()).toBe(25);
     expect(screen.getByTestId('pack-ring-progress')).toHaveClass('pack-ring-arc');
-    expect(ringInk()).toBe('var(--text-secondary)');
+    expect(ringInk()).toBe('var(--status-success)');
     const button = screen.getByTestId('nav-user');
     expect(button).toHaveAccessibleName('Account Settings');
     expect(button).toHaveAccessibleDescription('25% of your credit left');
@@ -109,6 +109,7 @@ describe('AccountSettings', () => {
     );
     renderAccount(false);
     expect(ringPercent()).toBe(100);
+    expect(ringInk()).toBe('var(--status-success)');
     expect(screen.getByTestId('pack-ring-progress').style.getPropertyValue('--pack-ring-tip')).toBe(
       '359.2deg',
     );
