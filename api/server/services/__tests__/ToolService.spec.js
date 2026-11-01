@@ -12,6 +12,10 @@ const {
   actionDelimiter,
   PermissionTypes,
   AgentCapabilities,
+  MEDIA_TOOL_NAMES,
+  OFFICE_TOOL_NAMES,
+  BROWSER_TOOL_NAMES,
+  PERSIAN_TOOL_NAMES,
   defaultAgentCapabilities,
 } = require('librechat-data-provider');
 
@@ -186,6 +190,7 @@ jest.mock('~/cache', () => ({
   getLogStores: jest.fn(() => ({})),
 }));
 const {
+  isBuiltInTool,
   loadAgentTools,
   loadToolsForExecution,
   processRequiredActions,
@@ -229,6 +234,26 @@ function createEndpointsConfig(capabilities) {
 
 beforeAll(() => {
   process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || 'ghp_test';
+});
+
+describe('isBuiltInTool — chat tools outside the manifest', () => {
+  /** `loadToolDefinitions` silently skips any non-MCP name this rejects, so a missing set
+   *  leaves the model with the tool's instructions but not the tool. */
+  it.each([
+    ['media', MEDIA_TOOL_NAMES],
+    ['office', OFFICE_TOOL_NAMES],
+    ['browser', BROWSER_TOOL_NAMES],
+    ['persian', PERSIAN_TOOL_NAMES],
+  ])('accepts every %s tool', (_label, names) => {
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      expect(isBuiltInTool(name)).toBe(true);
+    }
+  });
+
+  it('still rejects an unknown name', () => {
+    expect(isBuiltInTool('not_a_real_tool')).toBe(false);
+  });
 });
 
 describe('ToolService - Action Capability Gating', () => {

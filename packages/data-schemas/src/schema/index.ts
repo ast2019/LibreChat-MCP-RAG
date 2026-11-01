@@ -25,6 +25,7 @@ export { default as roleSchema } from './role';
 export { default as passkeySchema } from './passkey';
 export { default as paymentOrderSchema } from './payment';
 export { default as browserSessionSchema } from './browserSession';
+export { default as debugTraceSchema } from './debugTrace';
 export { default as mediaJobSchema } from './mediaJob';
 export { default as sessionSchema } from './session';
 export { default as shareSchema } from './share';

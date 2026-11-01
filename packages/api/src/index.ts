@@ -24,6 +24,8 @@ export * from './media';
 export * from './persian';
 export * from './office';
 export * from './browser';
+/* admin debug mode */
+export * from './debug';
 export * from './payments';
 export * from './referral';
 /* MCP */

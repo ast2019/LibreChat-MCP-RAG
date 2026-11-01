@@ -13,6 +13,7 @@ jest.mock('@librechat/data-schemas', () => ({
 }));
 
 jest.mock('@librechat/api', () => ({
+  createDebugTraceMiddleware: jest.fn(() => (_req, _res, next) => next()),
   createMessageFilterPii: mockCreateMessageFilterPii,
   generateCheckAccess: jest.fn(() => (_req, _res, next) => next()),
   skipAgentCheck: jest.fn(),
@@ -35,6 +36,7 @@ jest.mock('~/server/middleware/validate/subagentThreadTurn', () => (_req, _res, 
 jest.mock('~/server/services/Endpoints/agents', () => ({
   initializeClient: jest.fn(),
 }));
+jest.mock('~/server/services/Debug', () => ({ debugMode: {}, debugTraces: {} }));
 jest.mock('~/server/controllers/agents/request', () => jest.fn());
 jest.mock('~/server/controllers/agents/resume', () => jest.fn());
 jest.mock('~/server/services/Endpoints/agents/title', () => jest.fn());

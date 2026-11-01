@@ -19,9 +19,7 @@
  */
 import { ContentTypes } from 'librechat-data-provider';
 import type { LCTool } from '@librechat/agents';
-import type { ChatFunctionTool, ChatMessage, ChatToolChoice } from './types';
-
-export type { ChatFunctionTool, ChatToolChoice } from './types';
+import type { ChatMessage, ChatToolChoice, ChatFunctionTool } from './types';
 
 /** JSON Schema stand-in for a tool that declares no parameters. */
 const EMPTY_PARAMETERS = { type: 'object', properties: {} } as const;

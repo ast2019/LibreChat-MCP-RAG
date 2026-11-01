@@ -9,6 +9,7 @@ const {
   applyResumeRequest,
   GenerationJobManager,
   getSafeErrorMetadata,
+  createDebugTraceMiddleware,
 } = require('@librechat/api');
 const { PermissionTypes, Permissions, PermissionBits } = require('librechat-data-provider');
 const {
@@ -23,6 +24,7 @@ const guardSubagentThreadTurn = require('~/server/middleware/validate/subagentTh
 const AgentController = require('~/server/controllers/agents/request');
 const ResumeController = require('~/server/controllers/agents/resume');
 const addTitle = require('~/server/services/Endpoints/agents/title');
+const { debugMode, debugTraces } = require('~/server/services/Debug');
 const { getFiles, getRoleByName } = require('~/models');
 
 const router = express.Router();
@@ -61,6 +63,8 @@ const restoreResumeContext = async (req, res, next) => {
   next();
 };
 
+/** Debug mode: while an admin has it on, each chat request below records a trace. */
+router.use(createDebugTraceMiddleware({ debugMode, sink: debugTraces }));
 router.use(restoreResumeContext);
 router.use(
   createMessageFilterPii({

@@ -10,6 +10,7 @@ export * from './media';
 export * from './persian';
 export * from './office';
 export * from './browser';
+export * from './debug';
 export * from './footer';
 export * from './theme';
 export * from './themes';

@@ -8,6 +8,7 @@ export * from './Billing';
 export * from './Media';
 export * from './Status';
 export * from './Server';
+export * from './Debug';
 export * from './Browser';
 export * from './Payments';
 export * from './Referral';
