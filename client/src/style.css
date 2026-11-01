@@ -326,6 +326,52 @@ html.high-contrast.dark .btn-neutral:hover {
   }
 }
 
+/* Remaining-credit arc on the account avatar. A utility cannot put a conic stop
+ * at a measured angle or cut that sweep into the 2px track, so the paint lives
+ * here and the component only supplies the ink role and the tip angle. The sweep
+ * starts darker than the tone and lightens toward the tip (12 o'clock, clockwise),
+ * which is where the allowance runs out. */
+.pack-ring-arc {
+  /* Light sidebar: a near-black start against a mid-gray tip. A narrow mix
+   * disappears on a 2px stroke. */
+  --pack-ring-dark: color-mix(in srgb, rgb(var(--pack-ring-ink)) 15%, rgb(var(--black)));
+  --pack-ring-light: color-mix(in srgb, rgb(var(--pack-ring-ink)) 80%, rgb(var(--white)));
+  background-image: conic-gradient(
+    from -90deg,
+    var(--pack-ring-dark) 0deg,
+    var(--pack-ring-light) var(--pack-ring-tip),
+    transparent var(--pack-ring-end)
+  );
+  -webkit-mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.25px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.25px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-repeat: no-repeat;
+}
+/* Dark sidebar: the tone itself is already light, so the start stays a step
+ * darker than that ink and the tip goes toward white. The light-mode mix
+ * would sink the start into the page. */
+.dark .pack-ring-arc {
+  --pack-ring-dark: color-mix(in srgb, rgb(var(--pack-ring-ink)) 70%, rgb(var(--black)));
+  --pack-ring-light: color-mix(in srgb, rgb(var(--pack-ring-ink)) 40%, rgb(var(--white)));
+}
+.pack-ring-arc[data-percent='100'] {
+  background-image: conic-gradient(
+    from -90deg,
+    var(--pack-ring-dark) 0deg,
+    var(--pack-ring-light) var(--pack-ring-tip)
+  );
+}
+.pack-ring-arc[data-percent='0'] {
+  background-image: none;
+}
+
 .ellipsis {
   overflow: hidden;
   white-space: nowrap;
