@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-11-01
+
+### Fixed
+- **Enter in the agent browser's typing field no longer leaves the page.** The live view sat
+  inside the chat's form with a form of its own, so Enter in its field also submitted the chat:
+  a sign-in being filled by hand was cut off by a chat message. Enter now types the field's
+  text into the page, like «ارسال متن», and does nothing when the field is empty; it never
+  reaches the chat. The page's own Enter (to submit a site's form) stays the «Enter» button.
+
 ## [0.34.0] - 2026-11-01
 
 ### Added
