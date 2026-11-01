@@ -107,6 +107,8 @@ const {
   validateAndParseOpenAPISpec,
   resolveMCPAppsPolicy,
   MEDIA_TOOL_NAMES,
+  OFFICE_TOOL_NAMES,
+  BROWSER_TOOL_NAMES,
   PERSIAN_TOOL_NAMES,
 } = require('librechat-data-provider');
 const {
@@ -779,13 +781,19 @@ async function processRequiredActions(client, requiredActions) {
  *   hasDeferredTools?: boolean;
  * }>} The agent tools and registry.
  */
-/** Native LibreChat tools that are not in the manifest */
+/**
+ * Native LibreChat tools that are not in the manifest. A chat tool missing here is dropped
+ * without an error before its definition reaches the model (`loadToolDefinitions` skips any
+ * non-MCP name `isBuiltInTool` rejects), while its tool context still lands in the prompt.
+ */
 const nativeTools = new Set([
   Tools.execute_code,
   Tools.file_search,
   Tools.web_search,
   Tools.memory,
   ...MEDIA_TOOL_NAMES,
+  ...OFFICE_TOOL_NAMES,
+  ...BROWSER_TOOL_NAMES,
   ...PERSIAN_TOOL_NAMES,
 ]);
 
