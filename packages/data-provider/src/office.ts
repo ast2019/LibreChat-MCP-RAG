@@ -16,6 +16,17 @@ export const OFFICE_TOOL_SKILLS: Readonly<Record<OfficeTools, readonly string[]>
   [OfficeTools.slides]: ['slide-builder'],
 };
 
+/**
+ * Deployment skills behind a feature with its own row in the composer's «ساختن» menu. They are
+ * left out of the skill lists, so each feature has one entry point, and that row stages them.
+ */
+export const FEATURE_SKILL_NAMES: readonly string[] = Object.values(OFFICE_TOOL_SKILLS).flat();
+
+/** A deployment skill that belongs to a feature row rather than the skill lists. */
+export function isFeatureSkill(skill: { name: string; source?: string }): boolean {
+  return skill.source === 'deployment' && FEATURE_SKILL_NAMES.includes(skill.name);
+}
+
 /** The file context generated Office files are stored under. */
 export const OFFICE_FILE_CONTEXT = 'document_generation';
 

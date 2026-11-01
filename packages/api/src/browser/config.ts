@@ -1,11 +1,17 @@
 import {
   SystemRoles,
   findPackGrants,
+  BROWSER_TOOL_NAMES,
   browserConfigSchema,
   resolveBrowserAccess,
   findPackBrowserSessions,
 } from 'librechat-data-provider';
-import type { TBrowserConfig, TEffectiveAccess } from 'librechat-data-provider';
+import type {
+  TModelSpec,
+  TBrowserConfig,
+  TEffectiveAccess,
+  TBrowserStartupConfig,
+} from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { getBalanceConfig, readConfigSection } from '~/app/config';
 
@@ -63,4 +69,32 @@ export function resolveUserBrowserAccess(
     packGrant: findPackGrants(packs, user?.packId)?.browser,
   });
   return { ...access, sessions: findPackBrowserSessions(packs, user?.packId) };
+}
+
+/** Whether the composer may offer the browser: on in the config, with the service set up. */
+export function getBrowserStartupConfig(
+  appConfig: AppConfig | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): TBrowserStartupConfig {
+  return { enabled: getBrowserConfig(appConfig).enabled && getBrowserService(env) != null };
+}
+
+/**
+ * The browser tools a chat gets when the user turned the browser on in the composer: none
+ * unless the deployment has it, the user may use it, and the spec is not a confidential or
+ * local one (whose conversations reach no third party).
+ */
+export function getChatBrowserTools(
+  appConfig: AppConfig | null | undefined,
+  user: BrowserUser | null | undefined,
+  spec?: Pick<TModelSpec, 'privacy'> | null,
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  if (spec?.privacy === 'private' || spec?.privacy === 'local') {
+    return [];
+  }
+  if (!getBrowserStartupConfig(appConfig, env).enabled) {
+    return [];
+  }
+  return resolveUserBrowserAccess(user, appConfig).allowed ? [...BROWSER_TOOL_NAMES] : [];
 }

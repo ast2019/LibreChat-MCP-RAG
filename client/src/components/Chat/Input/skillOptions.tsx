@@ -6,6 +6,7 @@ import { pendingManualSkillsByConvoId } from '@librechat/chat/react';
 import {
   Permissions,
   SkillsScope,
+  isFeatureSkill,
   PermissionTypes,
   isAssistantsEndpoint,
   resolveAgentSkillsScope,
@@ -46,6 +47,8 @@ export function isUserInvocable(skill: TSkillSummary): boolean {
  * 2. Active state — per-user ownership-aware toggle.
  * 3. Invocation mode — `manual` / `both` / undefined are visible; `auto`
  *    is model-only and hidden.
+ * 4. Feature skills (the article wizard's, the slide builder's) are left out:
+ *    their own «ساختن» row is the one way to start them.
  *
  * Pure function; exported so tests can exercise the filter in isolation
  * without rendering the component.
@@ -71,7 +74,7 @@ export function filterSkillsForPopover(
     if (!isActive(skill)) {
       continue;
     }
-    if (!isUserInvocable(skill)) {
+    if (!isUserInvocable(skill) || isFeatureSkill(skill)) {
       continue;
     }
     result.push(skill);

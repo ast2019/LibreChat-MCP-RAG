@@ -3,11 +3,12 @@ import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { createBrowserLauncher } from './browser.mjs';
 import { createLoadMonitor } from './load.mjs';
-import { act, openUrl, readPage } from './page.mjs';
+import { act, openUrl, readPage, userInput } from './page.mjs';
+import { streamFrames } from './frames.mjs';
 import { BrowserError, createSessionManager } from './sessions.mjs';
 
 const BODY_LIMIT = 64 * 1024;
-const END_REASONS = new Set(['closed', 'admin']);
+const END_REASONS = new Set(['closed', 'admin', 'replaced']);
 
 /** An integer within bounds, or the fallback when absent or not a number. */
 const bounded = (value, min, max, fallback) => {
@@ -94,6 +95,11 @@ export function createServer({ manager, monitor, token, policy = {} }) {
       if (parts[0] !== 'sessions') {
         return send(res, 404, { error: 'not_found' });
       }
+      if (parts.length === 1 && req.method === 'GET') {
+        const owner = url.searchParams.get('owner') ?? undefined;
+        const context = url.searchParams.get('context') ?? undefined;
+        return send(res, 200, { sessions: manager.list({ owner, context }) });
+      }
       if (parts.length === 1 && req.method === 'POST') {
         const body = await readBody(req);
         const owner = typeof body.owner === 'string' ? body.owner.slice(0, 64) : '';
@@ -102,6 +108,7 @@ export function createServer({ manager, monitor, token, policy = {} }) {
         }
         const session = await manager.create({
           owner,
+          context: typeof body.context === 'string' ? body.context : '',
           ownerLimit: bounded(body.ownerLimit, 1, 10, 1),
           serverLimit: bounded(body.serverLimit, 1, 100, 10),
           ram: bounded(body.ram, 10, 100, 85),
@@ -120,20 +127,46 @@ export function createServer({ manager, monitor, token, policy = {} }) {
         const ended = await manager.close(id, END_REASONS.has(reason) ? reason : 'closed');
         return send(res, ended ? 200 : 404, ended ? { session: ended } : { error: 'not_found' });
       }
+      if (parts.length === 3 && req.method === 'GET' && parts[2] === 'frames') {
+        return streamFrames(req, res, {
+          manager,
+          id,
+          fps: bounded(url.searchParams.get('fps'), 1, 10, 3),
+          quality: bounded(url.searchParams.get('quality'), 20, 90, 50),
+        });
+      }
+      if (parts.length === 3 && req.method === 'POST' && parts[2] === 'control') {
+        const body = await readBody(req);
+        return send(res, 200, { session: manager.setControl(id, body.to, body.handoff) });
+      }
+      if (parts.length === 3 && req.method === 'POST' && parts[2] === 'input') {
+        const body = await readBody(req);
+        const result = await manager.use(id, (handle) => userInput(handle, body), { by: 'user' });
+        return send(res, 200, result);
+      }
       if (parts.length === 3 && req.method === 'POST') {
         const body = await readBody(req);
+        const chars = bounded(body.chars, 1_000, 60_000, 12_000);
         const run = {
           open: (handle) => openUrl(handle, body.url, policy),
-          read: (handle) => readPage(handle, { screenshot: body.screenshot === true }),
+          read: (handle) =>
+            readPage(handle, { offset: body.offset, chars, screenshot: body.screenshot === true }),
           act: (handle) => act(handle, body),
         }[parts[2]];
         if (!run) {
           return send(res, 404, { error: 'not_found' });
         }
-        const result = await manager.use(id, async (handle) => ({
-          ...(await run(handle)),
-          blocked: handle.blocked().slice(-5),
-        }));
+        const result = await manager.use(
+          id,
+          async (handle) => {
+            const step = await run(handle);
+            /* The page after the step, so the model needs no separate read. */
+            const page =
+              parts[2] !== 'read' && body.snapshot === true ? await readPage(handle, { chars }) : {};
+            return { ...step, ...page, blocked: handle.blocked().slice(-5) };
+          },
+          { by: 'model' },
+        );
         return send(res, 200, result);
       }
       return send(res, 404, { error: 'not_found' });

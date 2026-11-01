@@ -58,11 +58,14 @@ export async function openUserBrowser({
   appConfig,
   client,
   log,
+  context,
 }: {
   user: BrowserUser;
   appConfig: AppConfig | null | undefined;
   client: BrowserServiceClient | null;
   log: BrowserLogStore;
+  /** The conversation the browser belongs to */
+  context?: string;
 }): Promise<OpenBrowserResult> {
   const config = getBrowserConfig(appConfig);
   const userId = String(user.id ?? user._id ?? '');
@@ -82,6 +85,7 @@ export async function openUserBrowser({
   try {
     const session = await client.createSession({
       owner: userId,
+      ...(context && { context }),
       ownerLimit: access.sessions,
       serverLimit: config.maxSessions,
       ram: config.capacity.ram,
@@ -136,7 +140,7 @@ export async function closeUserBrowser({
   log,
 }: {
   sessionId: string;
-  reason?: 'closed' | 'admin';
+  reason?: 'closed' | 'admin' | 'replaced';
   client: BrowserServiceClient;
   log: BrowserLogStore;
 }): Promise<EndedServiceSession | null> {

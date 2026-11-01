@@ -553,6 +553,20 @@ describe('SkillsCommand', () => {
 });
 
 describe('filterSkillsForPopover', () => {
+  it('leaves out the deployment skills that belong to a «ساختن» row', () => {
+    const skills = [
+      makeSkill({ _id: 'a', name: 'article-writer', source: 'deployment' }),
+      makeSkill({ _id: 'b', name: 'slide-builder', source: 'deployment' }),
+      makeSkill({ _id: 'c', name: 'article-writer', source: 'inline' }),
+      makeSkill({ _id: 'd', name: 'natural-persian-content', source: 'deployment' }),
+    ];
+    const result = filterSkillsForPopover(skills, {
+      agentSkillIds: undefined,
+      isActive: () => true,
+    });
+    expect(result.map((skill) => skill._id)).toEqual(['c', 'd']);
+  });
+
   const active = () => true;
   const inactive = () => false;
   const s1 = makeSkill({ _id: '1', name: 'a' });

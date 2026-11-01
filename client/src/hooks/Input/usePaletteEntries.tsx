@@ -7,6 +7,7 @@ import {
   Brain,
   Globe,
   Layers,
+  AppWindow,
   Settings,
   X,
   FolderSearch,
@@ -15,13 +16,17 @@ import {
 } from 'lucide-react';
 import {
   AuthType,
+  SystemRoles,
   Permissions,
   ArtifactModes,
   PermissionBits,
   PermissionTypes,
   hasPermissions,
   SkillsScope,
+  FEATURE_SKILL_NAMES,
   isEphemeralAgentId,
+  findPackGrants,
+  resolveBrowserAccess,
   defaultAgentCapabilities,
   resolveAgentSkillsScope,
 } from 'librechat-data-provider';
@@ -37,8 +42,9 @@ import {
 } from '~/hooks';
 import { getStatusColor, getStatusTextKey } from '~/components/MCP/mcpServerUtils';
 import { filterSkillsForPopover } from '~/components/Chat/Input/SkillsCommand';
+import { useSkillsInfiniteQuery, useGetStartupConfig } from '~/data-provider';
 import { useAgentsMapContext, useBadgeRowContext } from '~/Providers';
-import { useSkillsInfiniteQuery } from '~/data-provider';
+import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import { ephemeralAgentByConvoId } from '~/store';
 import { favoriteKey } from './useToolFavorites';
 import useLocalize from '~/hooks/useLocalize';
@@ -218,6 +224,16 @@ export default function usePaletteEntries({
      register the memory tools once it is off, so role access and the global
      capability are not enough to offer the toggle. */
   const canUseMemory = useHasMemoryAccess() && user?.personalization?.memories !== false;
+  /* The agent browser: set up on this deployment, and the user's own access (an admin always,
+     else the user's switch or the current pack). The server checks the same before each use. */
+  const { data: startupConfig } = useGetStartupConfig();
+  const canUseBrowser =
+    startupConfig?.browser?.enabled === true &&
+    resolveBrowserAccess({
+      isAdmin: user?.role === SystemRoles.ADMIN,
+      override: user?.browserAccess,
+      packGrant: findPackGrants(startupConfig.balance?.packs, user?.packId)?.browser,
+    }).allowed;
 
   /* Mirrors backend `resolveAgentScopedSkillIds`: ephemeral agents see the full
      catalog; persisted agents gate on `skills_enabled` and the resolved scope,
@@ -339,6 +355,24 @@ export default function usePaletteEntries({
             ]
           : undefined,
       );
+    }
+
+    const browser = context.browser;
+    if (toolsEnabled && canUseBrowser && browser != null) {
+      entries.push({
+        key: 'builtin:browser',
+        itemType: 'builtin',
+        itemId: 'browser',
+        label: localize('com_ui_browser_agent'),
+        description: localize('com_ui_browser_agent_hint'),
+        badge: <ExperimentalBadge />,
+        icon: <AppWindow className="icon-md" aria-hidden="true" />,
+        section: 'tool',
+        active: browser.toggleState === true,
+        pinned: browser.isPinned === true,
+        onSelect: () => browser.debouncedChange({ value: !browser.toggleState }),
+        onUnpin: () => browser.setIsPinned(false),
+      });
     }
 
     if (toolsEnabled && canRunCode && codeEnabled) {
@@ -468,7 +502,8 @@ export default function usePaletteEntries({
          the catalog loads) still need an entry, or their chips in the bar
          would vanish while the catalog is not held. */
       for (const name of staged) {
-        if (listed.has(name)) {
+        /* A feature's skill is staged by its «ساختن» row, which shows it as on. */
+        if (listed.has(name) || FEATURE_SKILL_NAMES.includes(name)) {
           continue;
         }
         entries.push({
@@ -627,6 +662,7 @@ export default function usePaletteEntries({
     agentSkillIds,
     skillsListable,
     canUseWebSearch,
+    canUseBrowser,
     webSearchEnabled,
     artifactsEnabled,
     canUseFileSearch,

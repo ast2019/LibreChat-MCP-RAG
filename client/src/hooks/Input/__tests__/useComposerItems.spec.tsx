@@ -4,6 +4,11 @@ import { Provider as JotaiProvider, createStore, useAtomValue } from 'jotai';
 import { pendingQuotesByConvoId, pendingManualSkillsByConvoId } from '@librechat/chat/react';
 import useComposerItems from '../useComposerItems';
 
+jest.mock('~/hooks/useLocalize', () => ({
+  __esModule: true,
+  default: () => (key: string) => `t:${key}`,
+}));
+
 /**
  * The tray's staged context. Removal is the whole surface here, and quotes are
  * addressed by position, which is the way to dismiss the wrong one.
@@ -48,6 +53,17 @@ describe('useComposerItems', () => {
     const { result } = withStaged(['first', 'second', 'third']);
     act(() => result.current.items[1].remove());
     expect(result.current.quotes).toEqual(['first', 'third']);
+  });
+
+  it('names a feature skill by its feature, not by its file name', () => {
+    const { result } = withStaged([], ['article-writer', 'slide-builder', 'writer']);
+    expect(result.current.items.map((item) => item.label)).toEqual([
+      't:com_ui_create_article',
+      't:com_ui_create_slides',
+      'writer',
+    ]);
+    act(() => result.current.items[0].remove());
+    expect(result.current.skills).toEqual(['slide-builder', 'writer']);
   });
 
   it('removes a skill by name', () => {

@@ -19,7 +19,15 @@ let mockContext: Record<string, unknown> | null;
 let mockSkills: Array<Record<string, unknown>>;
 let mockAgentsMap: Record<string, Record<string, unknown>>;
 let mockSkillsActive: boolean;
-let mockUser: { personalization?: { memories?: boolean } } | undefined;
+let mockUser:
+  | {
+      role?: string;
+      packId?: string;
+      browserAccess?: boolean;
+      personalization?: { memories?: boolean };
+    }
+  | undefined;
+let mockStartupConfig: Record<string, unknown> | undefined;
 let mockSkillsQuery: Record<string, unknown>;
 let mockSkillsQueryEnabled: boolean | undefined;
 
@@ -49,6 +57,12 @@ jest.mock('~/data-provider', () => ({
     mockSkillsQueryEnabled = options?.enabled;
     return mockSkillsQuery;
   },
+  useGetStartupConfig: () => ({ data: mockStartupConfig }),
+}));
+
+jest.mock('~/components/ui/ExperimentalBadge', () => ({
+  __esModule: true,
+  default: () => 'experimental-badge',
 }));
 
 const toggle = (state: unknown, isPinned = false): ToggleFixture => ({
@@ -146,6 +160,7 @@ describe('usePaletteEntries', () => {
     mockPermissions = { ...allPermissions };
     mockMemoryAccess = true;
     mockUser = { personalization: { memories: true } };
+    mockStartupConfig = undefined;
     mockCapabilities = { ...allCapabilities };
     mockContext = fullContext();
     mockSkills = [];
@@ -186,6 +201,68 @@ describe('usePaletteEntries', () => {
     expect(refetch).not.toHaveBeenCalled();
     rerender({ revision: 2 });
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  describe('the agent browser', () => {
+    const browserContext = (state = false) => ({ ...fullContext(), browser: toggle(state) });
+    const browserConfig = (enabled = true) => ({
+      browser: { enabled },
+      balance: { packs: [{ id: 'pro', label: 'Pro', credits: 1, grants: { browser: true } }] },
+    });
+
+    it('offers it, marked experimental, after web search to admins and to packs that include it', () => {
+      mockStartupConfig = browserConfig();
+      mockContext = browserContext();
+      mockUser = { role: 'ADMIN' };
+      const { result } = entries();
+      expect(keysOf(result).slice(0, 2)).toEqual(['builtin:web_search', 'builtin:browser']);
+      const row = result.current.find((item) => item.key === 'builtin:browser')!;
+      expect(row).toMatchObject({
+        label: 'com_ui_browser_agent',
+        description: 'com_ui_browser_agent_hint',
+        section: 'tool',
+      });
+      expect(row.badge).toBeTruthy();
+      mockUser = { role: 'USER', packId: 'pro' };
+      expect(keysOf(entries().result)).toContain('builtin:browser');
+    });
+
+    it('turns on for this chat when picked', () => {
+      mockStartupConfig = browserConfig();
+      const context = browserContext();
+      mockContext = context;
+      mockUser = { role: 'ADMIN' };
+      const row = entries().result.current.find((item) => item.key === 'builtin:browser')!;
+      act(() => row.onSelect());
+      expect((context.browser as ReturnType<typeof toggle>).debouncedChange).toHaveBeenCalledWith({
+        value: true,
+      });
+    });
+
+    it('is not offered without access, or when the deployment has not set it up', () => {
+      mockContext = browserContext();
+      mockUser = { role: 'USER', packId: 'basic' };
+      mockStartupConfig = browserConfig();
+      expect(keysOf(entries().result)).not.toContain('builtin:browser');
+      mockUser = { role: 'ADMIN' };
+      mockStartupConfig = browserConfig(false);
+      expect(keysOf(entries().result)).not.toContain('builtin:browser');
+    });
+  });
+
+  it('leaves the article wizard and slide builder skills to their «ساختن» rows', () => {
+    mockSkills = [
+      { _id: 'a', name: 'article-writer', source: 'deployment', displayTitle: 'ویزارد مقاله' },
+      { _id: 'b', name: 'natural-persian-content', source: 'deployment' },
+      { _id: 'c', name: 'article-writer', source: 'inline', author: 'u9' },
+    ];
+    const { result } = renderHook(
+      () => usePaletteEntries({ conversationId: 'convo-1', catalogEnabled: true }),
+      { wrapper: stagedWrapper(['slide-builder']) },
+    );
+    const skillRows = result.current.filter((item) => item.section === 'skill');
+    /* A user's own skill that happens to share the name is still theirs to pick. */
+    expect(skillRows.map((item) => item.key)).toEqual(['skill:b', 'skill:c']);
   });
 
   it('offers nothing before the badge row has a context to read', () => {

@@ -16,6 +16,94 @@ const ARGS = [
   '--lang=fa-IR',
 ];
 
+/**
+ * The live view's frames: a CDP screencast of the active tab while anyone watches. Chromium
+ * sends a frame when the page repaints; each is acknowledged at once so the next one comes, and
+ * subscribers decide how many to forward.
+ */
+function createScreencast({ context, viewport, page }) {
+  const listeners = new Map();
+  let cdp = null;
+  let castPage = null;
+  let latest = null;
+  let switching = Promise.resolve();
+
+  async function stopCast() {
+    const session = cdp;
+    cdp = null;
+    castPage = null;
+    if (session) {
+      await session.send('Page.stopScreencast').catch(() => {});
+      await session.detach().catch(() => {});
+    }
+  }
+
+  async function startCast() {
+    const target = page();
+    if (listeners.size === 0 || !target || target === castPage) {
+      return;
+    }
+    await stopCast();
+    const quality = Math.max(...listeners.values());
+    const session = await context.newCDPSession(target);
+    cdp = session;
+    castPage = target;
+    session.on('Page.screencastFrame', (frame) => {
+      session.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
+      if (cdp !== session) {
+        return;
+      }
+      latest = {
+        data: frame.data,
+        width: Math.round(frame.metadata?.deviceWidth ?? viewport.width),
+        height: Math.round(frame.metadata?.deviceHeight ?? viewport.height),
+      };
+      for (const listener of listeners.keys()) {
+        listener(latest);
+      }
+    });
+    await session.send('Page.startScreencast', {
+      format: 'jpeg',
+      quality,
+      maxWidth: viewport.width,
+      maxHeight: viewport.height,
+    });
+  }
+
+  /* Starts and stops run one after another, so a tab switch during a start cannot leave two casts. */
+  const queue = (task) => {
+    switching = switching.then(task, task).catch(() => {});
+    return switching;
+  };
+
+  return {
+    /** Sends every frame to `listener`, the latest one first; returns the unsubscribe. */
+    subscribe(listener, { quality = 50 } = {}) {
+      listeners.set(listener, Math.min(Math.max(Math.round(quality), 20), 90));
+      if (latest) {
+        listener(latest);
+      }
+      void queue(startCast);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          void queue(stopCast);
+        }
+      };
+    },
+    /** Moves the cast to the active tab after one opened or closed. */
+    follow() {
+      if (listeners.size > 0) {
+        void queue(startCast);
+      }
+    },
+    stop: () => {
+      listeners.clear();
+      return queue(stopCast);
+    },
+  };
+}
+
 const listen = (server) =>
   new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -66,7 +154,7 @@ export function createBrowserLauncher({
         viewport,
       });
       const pages = [];
-      const watch = (page) => {
+      function watch(page) {
         pages.push(page);
         page.on('framenavigated', (frame) => {
           if (frame === page.mainFrame()) {
@@ -86,16 +174,24 @@ export function createBrowserLauncher({
             pages.splice(index, 1);
           }
         });
-      };
-      context.on('page', watch);
+      }
+      const screencast = createScreencast({ context, viewport, page: () => pages[pages.length - 1] });
+      context.on('page', (page) => {
+        watch(page);
+        /* A link that opens a tab moves the work there, so the live view follows. */
+        screencast.follow();
+        page.on('close', () => screencast.follow());
+      });
       await context.newPage();
       browser.on('disconnected', onClose);
       return {
         /** The newest open tab: a link that opens a new tab moves the work there. */
         page: () => pages[pages.length - 1],
         blocked: () => blocked.slice(),
+        frames: screencast.subscribe,
         async close() {
           browser.off('disconnected', onClose);
+          await screencast.stop();
           await browser.close().catch(() => {});
           proxy.close();
         },

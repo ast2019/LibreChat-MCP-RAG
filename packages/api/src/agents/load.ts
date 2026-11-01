@@ -30,6 +30,7 @@ import { mergeSynthesizedToolOptions } from '~/agents/selection';
 import { synthesizeIntentToolOptions } from '~/agents/intent';
 import { getCustomEndpointConfig } from '~/app/config';
 import { getChatPersianTools } from '~/persian/config';
+import { getChatBrowserTools } from '~/browser/config';
 import { getChatOfficeTools } from '~/office/config';
 import { getChatMediaTools } from '~/media/config';
 
@@ -84,6 +85,7 @@ function containEphemeralAgent(agent: TEphemeralAgent): TEphemeralAgent {
     web_search: false,
     file_search: false,
     execute_code: false,
+    browser: false,
   };
 }
 
@@ -163,6 +165,10 @@ export async function loadEphemeralAgent(
   tools.push(...getChatPersianTools(req.config, modelSpec));
   /** Word and PowerPoint files built from the conversation (the article and slide builders). */
   tools.push(...getChatOfficeTools(req.config, modelSpec));
+  /** The agent browser, when the user turned it on for this chat and may use it. */
+  if (ephemeralAgent?.browser === true) {
+    tools.push(...getChatBrowserTools(req.config, req.user, modelSpec));
+  }
 
   const addedServers = new Set<string>();
   if (mcpServers.size > 0) {

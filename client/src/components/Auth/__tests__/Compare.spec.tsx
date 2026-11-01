@@ -30,7 +30,7 @@ describe('CompareCard', () => {
 
   it('marks the article wizard and the slide builder experimental', () => {
     render(<CompareCard appTitle="HiveGPT" />);
-    for (const name of [/^Article wizard Experimental/, /^PowerPoint builder Experimental/]) {
+    for (const name of [/^Article wizard Experimental/, /^Slide builder Experimental/]) {
       const row = screen.getByRole('rowheader', { name }).closest('tr');
       expect(within(row as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Yes');
     }

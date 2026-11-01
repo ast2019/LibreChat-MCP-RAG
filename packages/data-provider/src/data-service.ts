@@ -240,6 +240,29 @@ export function updateAdminUserBrowserAccess({
   return request.patch(endpoints.adminUserBrowserAccess(userId), { browserAccess });
 }
 
+export function getBrowserSession(conversationId: string): Promise<b.TBrowserSessionResponse> {
+  return request.get(endpoints.browserSession(conversationId));
+}
+
+export function sendBrowserInput(
+  sessionId: string,
+  input: b.TBrowserInput,
+): Promise<b.TBrowserInputResult> {
+  return request.post(endpoints.browserInput(sessionId), input);
+}
+
+/** Takes the browser from the model (`user`) or gives it back (`model`). */
+export function setBrowserControl(
+  sessionId: string,
+  to: b.TBrowserControl,
+): Promise<b.TBrowserSessionResponse> {
+  return request.post(endpoints.browserControl(sessionId), { to });
+}
+
+export function closeBrowserSession(sessionId: string): Promise<{ closed: boolean }> {
+  return request.delete(endpoints.browserSessionById(sessionId));
+}
+
 export function getAdminServerStatus(): Promise<b.TAdminServerStatus> {
   return request.get(endpoints.adminServer());
 }

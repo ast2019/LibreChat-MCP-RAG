@@ -22,9 +22,14 @@ interface BadgeRowContextType {
   artifacts: ReturnType<typeof useToolToggle>;
   fileSearch: ReturnType<typeof useToolToggle>;
   codeInterpreter: ReturnType<typeof useToolToggle>;
+  /** The agent browser (experimental): on gives the model the browser tools for this chat */
+  browser: ReturnType<typeof useToolToggle>;
   searchApiKeyForm: ReturnType<typeof useSearchApiKeyForm>;
   mcpServerManager: ReturnType<typeof useMCPServerManager>;
 }
+
+/** The ephemeral agent field the browser toggle writes (`TEphemeralAgent.browser`). */
+const BROWSER_TOGGLE_KEY = 'browser';
 
 const BadgeRowContext = createContext<BadgeRowContextType | undefined>(undefined);
 
@@ -104,6 +109,7 @@ export default function BadgeRowProvider({
       const artifactsToggleKey = `${LocalStorageKeys.LAST_ARTIFACTS_TOGGLE_}${storageSuffix}`;
       const skillsToggleKey = `${LocalStorageKeys.LAST_SKILLS_TOGGLE_}${storageSuffix}`;
       const memoryToggleKey = `${LocalStorageKeys.LAST_MEMORY_TOGGLE_}${storageSuffix}`;
+      const browserToggleKey = `${LocalStorageKeys.LAST_BROWSER_TOGGLE_}${storageSuffix}`;
 
       const codeToggleValue = getTimestampedValue(codeToggleKey);
       const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
@@ -111,6 +117,7 @@ export default function BadgeRowProvider({
       const artifactsToggleValue = getTimestampedValue(artifactsToggleKey);
       const skillsToggleValue = getTimestampedValue(skillsToggleKey);
       const memoryToggleValue = getTimestampedValue(memoryToggleKey);
+      const browserToggleValue = getTimestampedValue(browserToggleKey);
 
       const initialValues: Record<string, boolean | string> = {};
 
@@ -159,6 +166,14 @@ export default function BadgeRowProvider({
           initialValues[Tools.memory] = JSON.parse(memoryToggleValue);
         } catch (e) {
           console.error('Failed to parse memory toggle value:', e);
+        }
+      }
+
+      if (browserToggleValue !== null) {
+        try {
+          initialValues[BROWSER_TOGGLE_KEY] = JSON.parse(browserToggleValue);
+        } catch (e) {
+          console.error('Failed to parse browser toggle value:', e);
         }
       }
 
@@ -272,6 +287,15 @@ export default function BadgeRowProvider({
     isAuthenticated: true,
   });
 
+  /** Agent browser hook - the server checks the user's access and the deployment's setup */
+  const browser = useToolToggle({
+    conversationId,
+    storageContextKey,
+    toolKey: BROWSER_TOGGLE_KEY,
+    localStorageKey: LocalStorageKeys.LAST_BROWSER_TOGGLE_,
+    isAuthenticated: true,
+  });
+
   const mcpServerManager = useMCPServerManager({
     conversationId,
     storageContextKey,
@@ -295,6 +319,7 @@ export default function BadgeRowProvider({
       conversationId,
       storageContextKey,
       codeInterpreter,
+      browser,
       searchApiKeyForm,
       mcpServerManager,
     }),
@@ -308,6 +333,7 @@ export default function BadgeRowProvider({
       conversationId,
       storageContextKey,
       codeInterpreter,
+      browser,
       searchApiKeyForm,
       mcpServerManager,
     ],

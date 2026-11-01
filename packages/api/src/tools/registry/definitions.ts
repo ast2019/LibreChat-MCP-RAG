@@ -6,6 +6,7 @@ import {
 import type { ExtendedJsonSchema } from './schema';
 import { AskUserQuestionToolDefinition } from '~/agents/hitl/askUserQuestionTool';
 import { persianToolDefinitions } from '~/persian/definitions';
+import { browserToolDefinitions } from '~/browser/definitions';
 import { officeToolDefinitions } from '~/office/definitions';
 import { mediaToolDefinitions } from '~/media/definitions';
 import { geminiToolkit } from '~/tools/toolkits/gemini';
@@ -394,6 +395,7 @@ export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
       ...Object.values(mediaToolDefinitions),
       ...Object.values(persianToolDefinitions),
       ...Object.values(officeToolDefinitions),
+      ...Object.values(browserToolDefinitions),
     ].map((definition) => [
       definition.name,
       {

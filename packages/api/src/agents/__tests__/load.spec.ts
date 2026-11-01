@@ -29,6 +29,16 @@ const deps: LoadAgentDeps = {
   getAccessibleMCPServers: mockGetAccessibleMCPServers,
 };
 
+/** Tools every ordinary chat gets (Persian calendar and spelling, Word and PowerPoint). */
+const CHAT_TOOLS = [
+  'persian_calendar',
+  'persian_normalize',
+  'create_word_document',
+  'create_presentation',
+];
+const withoutChatTools = (tools: unknown[] | undefined) =>
+  (tools ?? []).filter((tool) => !CHAT_TOOLS.includes(String(tool)));
+
 describe('loadAgent', () => {
   let mongoServer: MongoMemoryServer;
 
@@ -428,6 +438,48 @@ describe('loadAgent', () => {
     expect(result!.name).toBe('Test Agent');
   });
 
+  test('adds the browser tools only when the user turned the browser on and may use it', async () => {
+    const env = { ...process.env };
+    process.env.BROWSER_SERVICE_URL = 'http://browser:3100';
+    process.env.BROWSER_SERVICE_TOKEN = 't'.repeat(40);
+    const load = async (browser: boolean | undefined, role = 'ADMIN', spec?: string) => {
+      const mockReq = {
+        user: { id: 'user123', role },
+        body: { promptPrefix: 'x', ephemeralAgent: browser === undefined ? {} : { browser } },
+        config: {
+          modelSpecs: { list: [{ name: 'private-spec', privacy: 'private', preset: {} }] },
+        },
+      };
+      const result = await loadAgent(
+        {
+          req: mockReq as unknown as LoadAgentParams['req'],
+          spec,
+          agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+          endpoint: 'openai',
+          model_parameters: { model: 'gpt-4' } as unknown as AgentModelParameters,
+        },
+        deps,
+      );
+      return (result?.tools ?? []).filter((tool) => String(tool).startsWith('browser_'));
+    };
+    try {
+      expect(await load(true)).toEqual([
+        'browser_open',
+        'browser_read',
+        'browser_act',
+        'browser_handoff',
+        'browser_close',
+      ]);
+      expect(await load(false)).toEqual([]);
+      expect(await load(undefined)).toEqual([]);
+      /* No pack includes it for a plain user, and a confidential spec never reaches the web. */
+      expect(await load(true, 'USER')).toEqual([]);
+      expect(await load(true, 'ADMIN', 'private-spec')).toEqual([]);
+    } finally {
+      process.env = env;
+    }
+  });
+
   test('should handle ephemeral agent with no MCP servers', async () => {
     const { EPHEMERAL_AGENT_ID } = Constants;
 
@@ -454,7 +506,7 @@ describe('loadAgent', () => {
     );
 
     if (result) {
-      expect(result.tools).toEqual([]);
+      expect(withoutChatTools(result.tools)).toEqual([]);
       expect(result.instructions).toBe('Simple instructions');
     } else {
       expect(result).toBeFalsy();
@@ -1111,7 +1163,7 @@ describe('loadAgent', () => {
     );
 
     if (result) {
-      expect(result.tools).toEqual([]);
+      expect(withoutChatTools(result.tools)).toEqual([]);
     } else {
       expect(result).toBeFalsy();
     }
@@ -1244,7 +1296,7 @@ describe('loadAgent', () => {
       );
 
       if (result) {
-        expect(result.tools).toEqual(['tool_mcp_server1']);
+        expect(withoutChatTools(result.tools)).toEqual(['tool_mcp_server1']);
         expect(result.tools).not.toContain('malformed_tool_name');
         expect(result.tools).not.toContain('tool__server1');
         expect(result.tools).not.toContain('tool_mcp_server2');
