@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { Package, Plus, Trash2 } from 'lucide-react';
-import { ACCESS_CLASSES, CREDITS_PER_USD } from 'librechat-data-provider';
+import { ACCESS_CLASSES, CREDITS_PER_USD, MAX_BROWSER_SESSIONS } from 'librechat-data-provider';
 import {
   Input,
   Label,
@@ -14,8 +14,8 @@ import type { TAccessClass, TAdminBillingPack, TPackGrants } from 'librechat-dat
 import type { TranslationKeys } from '~/hooks';
 import { useAdminBillingPacksQuery, useAdminBillingPacksMutation } from '~/data-provider';
 import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
-import { ACCESS_LABELS } from './accessLabels';
 import { formatList, formatLocal } from './format';
+import { ACCESS_LABELS } from './accessLabels';
 import { useLocalize } from '~/hooks';
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
@@ -32,11 +32,25 @@ type Row = {
   usd: string;
   description: string;
   grants: TPackGrants;
+  /** Browsers one user of the pack may have open at once, as typed; empty means 1 */
+  browserSessions: string;
   /** Not saved yet, so its id may still change */
   isNew: boolean;
 };
 
-type RowErrors = Partial<Record<'id' | 'label' | 'usd' | 'description', TranslationKeys>>;
+type RowErrors = Partial<
+  Record<'id' | 'label' | 'usd' | 'description' | 'browserSessions', TranslationKeys>
+>;
+
+/** The browser count typed by the admin; null when empty, NaN when invalid. */
+function toBrowserSessions(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  const count = Number(trimmed);
+  return Number.isInteger(count) && count >= 1 && count <= MAX_BROWSER_SESSIONS ? count : NaN;
+}
 
 const toUsd = (credits: number) => String(Math.round((credits / CREDITS_PER_USD) * 100) / 100);
 
@@ -48,6 +62,7 @@ function toRow(pack: TAdminBillingPack): Row {
     usd: toUsd(pack.credits),
     description: pack.description ?? '',
     grants: { ...pack.grants },
+    browserSessions: pack.browserSessions != null ? String(pack.browserSessions) : '',
     isNew: false,
   };
 }
@@ -80,6 +95,9 @@ function validate(rows: Row[]): RowErrors[] {
     if (row.description.trim().length > 200) {
       errors.description = 'com_admin_packs_error_description';
     }
+    if (Number.isNaN(toBrowserSessions(row.browserSessions))) {
+      errors.browserSessions = 'com_admin_packs_error_browser_sessions';
+    }
     return errors;
   });
 }
@@ -89,12 +107,14 @@ function toPack(row: Row): TAdminBillingPack {
   const grants = Object.fromEntries(
     Object.entries(row.grants).filter(([, value]) => typeof value === 'boolean'),
   ) as TPackGrants;
+  const browserSessions = toBrowserSessions(row.browserSessions);
   return {
     id: row.id.trim(),
     label: row.label.trim(),
     credits: toCredits(row.usd) as number,
     ...(description !== '' && { description }),
     ...(Object.keys(grants).length > 0 && { grants }),
+    ...(browserSessions != null && { browserSessions }),
   };
 }
 
@@ -285,6 +305,28 @@ function PackCard({
             );
           })}
         </div>
+        {row.grants.browser === true && (
+          <Field
+            label={localize('com_admin_packs_browser_sessions')}
+            error={errors.browserSessions}
+            hint={localize('com_admin_packs_browser_sessions_hint')}
+          >
+            {({ id, describedBy, invalid }) => (
+              <Input
+                id={id}
+                dir="ltr"
+                inputMode="numeric"
+                placeholder="1"
+                value={row.browserSessions}
+                onChange={(event) => onChange({ ...row, browserSessions: event.target.value })}
+                aria-invalid={invalid}
+                aria-describedby={describedBy}
+                className="max-w-20"
+                data-testid={`pack-browser-sessions-${row.key}`}
+              />
+            )}
+          </Field>
+        )}
       </fieldset>
     </li>
   );
@@ -360,6 +402,7 @@ export default function Packs() {
         usd: '',
         description: '',
         grants: {},
+        browserSessions: '',
         isNew: true,
       },
     ]);

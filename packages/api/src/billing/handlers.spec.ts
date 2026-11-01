@@ -291,6 +291,8 @@ describe('createAdminBalanceHandlers effective access and bulk grants', () => {
       private: { allowed: true, source: 'role' },
       api: { allowed: true, source: 'pack' },
       media: { allowed: false, source: 'user' },
+      /** No pack includes the browser, so it stays off */
+      browser: { allowed: false, source: 'rule' },
     });
     expect(second.effective).toMatchObject({
       local: { allowed: false, source: 'role' },

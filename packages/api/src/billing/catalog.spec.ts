@@ -1,5 +1,5 @@
-import type { Response } from 'express';
 import type { AppConfig } from '@librechat/data-schemas';
+import type { Response } from 'express';
 import { createAdminPackHandlers, parsePackList } from './catalog';
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -47,6 +47,16 @@ describe('parsePackList', () => {
     [{ packs: [{ ...pro, grants: { video: true } }] }, 'invalid_grants'],
   ])('refuses %j with %s', (body, code) => {
     expect(parsePackList(body)).toEqual({ ok: false, code });
+  });
+
+  it('keeps the browser grant and the browsers a pack allows at once, from 1 to 10', () => {
+    const browser = { ...pro, grants: { browser: true }, browserSessions: 2 };
+    expect(parsePackList({ packs: [browser] })).toEqual({ ok: true, packs: [browser] });
+    for (const browserSessions of [0, 11, 1.5]) {
+      expect(parsePackList({ packs: [{ ...browser, browserSessions }] })).toMatchObject({
+        ok: false,
+      });
+    }
   });
 
   it('accepts an empty list, which removes every pack', () => {

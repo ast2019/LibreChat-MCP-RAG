@@ -7,6 +7,45 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-01
+
+### Added
+- **The agent browser service (experimental, phases B1 and B2).** A new `browser` service in
+  `docker-compose.yml` (`deploy/browser`, Playwright 1.62.1) runs one headless Chromium per
+  session with its own temporary profile, so closing a browser ends the process and removes
+  everything it held. Each Chromium reaches the internet only through its own proxy, which
+  resolves names itself and connects only to public addresses on ports 80 and 443: this server,
+  the other services, the cloud metadata address and every private range are refused, also when
+  a name has one private record. QUIC and WebRTC UDP are off, and only http and https addresses
+  open. Before each launch the service checks, in one step, the user's limit, the server-wide
+  limit (10) and the thresholds: RAM at 85% (host or browser container) or CPU at 90% over the
+  last minute. A browser closes after 3 idle minutes and after 20 minutes in any case. Coolify
+  generates the token (`SERVICE_HEX_64_BROWSER`); `BROWSER_MEMORY` (6g) and `BROWSER_CPUS` (4)
+  cap the container.
+- **Who may open a browser.** «مرورگر Agent» is a new access class on packs and users in the admin
+  panel, beside media and the API: «شامل», «بدون» or «پیش‌فرض» on each pack, on, off or default
+  for each user, and in bulk. Without a pack that includes it, it is off. Admins always have it,
+  and their sheet says so instead of offering a switch. A pack also sets how many browsers each
+  of its users may have open at once (`browserSessions`, 1 to 10, default 1).
+- **«وضعیت سرور» in the admin panel.** RAM and CPU now and over the last 24 hours, the browser
+  container's memory, the alert state («عادی», «هشدار» ten points before a threshold or at 8 of
+  10 browsers, «پر» at a threshold or the limit, naming which), and the open browsers with their
+  owner, last step and sites, each with a force-close. It refreshes every 10 seconds and says so
+  when the browser service does not answer.
+- **«لاگ مرورگر» in the admin panel.** Every browser that opened (start, duration, sites, and
+  why it ended: closed, idle, timeout, closed by an admin, crashed) and every request that was
+  refused, with the user who made it and the cause (server at capacity with RAM or CPU, every
+  place taken, the user's limit, no access, failed to open, service unavailable). Search by user
+  and filter by cause. Page content, passwords and form data are never stored, and entries leave
+  the log after 90 days. The log follows the service every 30 seconds, and a browser the service
+  no longer knows after a restart is marked «نامعلوم».
+- Settings live under `browser` in `librechat.yaml`: `enabled`, `maxSessions`, `idleMinutes`,
+  `maxMinutes`, `capacity.ram`, `capacity.cpu` and `logDays`.
+
+### Changed
+- Users cannot open a browser yet: the model tools and the live view come in B3. The sign-in
+  comparison keeps the browser under «به‌زودی».
+
 ## [0.30.0] - 2026-11-01
 
 ### Added

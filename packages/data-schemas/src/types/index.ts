@@ -14,6 +14,7 @@ export * from './chatProject';
 export * from './session';
 export * from './passkey';
 export * from './payment';
+export * from './browserSession';
 export * from './mediaJob';
 export * from './balance';
 export * from './banner';

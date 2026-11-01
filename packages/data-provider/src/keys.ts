@@ -38,6 +38,8 @@ export enum QueryKeys {
   mediaStatus = 'mediaStatus',
   mediaJob = 'mediaJob',
   adminServiceStatus = 'adminServiceStatus',
+  adminServerStatus = 'adminServerStatus',
+  adminBrowserLog = 'adminBrowserLog',
   paymentOptions = 'paymentOptions',
   referral = 'referral',
   paymentOrder = 'paymentOrder',

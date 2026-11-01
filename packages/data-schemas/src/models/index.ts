@@ -13,6 +13,7 @@ import { createSubagentContentModel } from './subagentContent';
 import { createSkillSyncStatusModel } from './skillSyncStatus';
 import { createConversationTagModel } from './conversationTag';
 import { createCodeEnvironmentModel } from './codeEnvironment';
+import { createBrowserSessionModel } from './browserSession';
 import { createSkillDeletionModel } from './skillDeletion';
 import { createAgentCategoryModel } from './agentCategory';
 import { createResourceLockModel } from './resourceLock';
@@ -26,11 +27,11 @@ import { createSharedLinkModel } from './sharedLink';
 import { createAccessRoleModel } from './accessRole';
 import { createToolFavoriteModel } from './favorite';
 import { createPaymentOrderModel } from './payment';
-import { createMediaJobModel } from './mediaJob';
 import { createMCPServerModel } from './mcpServer';
 import { createAssistantModel } from './assistant';
 import { createSkillFileModel } from './skillFile';
 import { createConversationModel } from './convo';
+import { createMediaJobModel } from './mediaJob';
 import { createToolCallModel } from './toolCall';
 import { createAclEntryModel } from './aclEntry';
 import { createAuditLogModel } from './auditLog';
@@ -64,6 +65,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   Session: ReturnType<typeof createSessionModel>;
   Passkey: ReturnType<typeof createPasskeyModel>;
   PaymentOrder: ReturnType<typeof createPaymentOrderModel>;
+  BrowserSession: ReturnType<typeof createBrowserSessionModel>;
   MediaJob: ReturnType<typeof createMediaJobModel>;
   Balance: ReturnType<typeof createBalanceModel>;
   Conversation: ReturnType<typeof createConversationModel>;
@@ -121,6 +123,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
     Session: createSessionModel(mongoose),
     Passkey: createPasskeyModel(mongoose),
     PaymentOrder: createPaymentOrderModel(mongoose),
+    BrowserSession: createBrowserSessionModel(mongoose),
     MediaJob: createMediaJobModel(mongoose),
     Balance: createBalanceModel(mongoose),
     Conversation: createConversationModel(mongoose),

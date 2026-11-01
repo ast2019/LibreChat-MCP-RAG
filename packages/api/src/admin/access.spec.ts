@@ -102,8 +102,23 @@ describe('createAdminBulkAccessHandler.updateBulkAccess', () => {
         id === userId ? { apiAccess: value ?? undefined } : null,
       ),
       saveMediaAccess: jest.fn(async () => ({})),
+      saveBrowserAccess: jest.fn(async (id: string, value: boolean | null) =>
+        id === userId ? { browserAccess: value ?? undefined } : null,
+      ),
     };
   }
+
+  it('routes the browser class to its own switch, not the model override', async () => {
+    const deps = bulkDeps();
+    const { json } = await bulk(deps, {
+      userIds: [userId, otherId],
+      field: 'browser',
+      value: false,
+    });
+    expect(json).toHaveBeenCalledWith({ updated: 1, notFound: [otherId] });
+    expect(deps.saveBrowserAccess).toHaveBeenCalledWith(userId, false);
+    expect(deps.saveUserModelAccess).not.toHaveBeenCalled();
+  });
 
   function bulk(deps: ReturnType<typeof bulkDeps>, body: unknown) {
     const req = { body } as unknown as ServerRequest;

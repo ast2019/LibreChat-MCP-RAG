@@ -1,4 +1,3 @@
-import type { TReferralInfo, TReferralClaimResponse } from './referral';
 import type { AxiosResponse } from 'axios';
 import type {
   TAdminBillingSummary,
@@ -21,11 +20,12 @@ import type {
   TAdminApiAccessRequest,
   TAdminApiAccessResponse,
   TAdminMediaAccessRequest,
+  TAdminBrowserAccessRequest,
+  TAdminBrowserAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
 } from './types/billing';
-import type { TMediaAvailability, TMediaJobView } from './media';
 import type {
   TPaymentOrder,
   TPaymentOptions,
@@ -48,9 +48,12 @@ import type { TInsightsAccessResponse, TInsightsParams, TInsightsResponse } from
 import type { ScheduleMCPConsentView, ConfirmScheduleMCPConsent } from './types/scheduleConsent';
 import type { TPhoneCodeRequest, TPhoneCodeRequestResponse, TPhoneCodeVerify } from './phone';
 import type { CodeSetupAttempt, CodeSetupApprovalRequest } from './codeSetup';
+import type { TReferralInfo, TReferralClaimResponse } from './referral';
+import type { TMediaAvailability, TMediaJobView } from './media';
 import type { TServiceStatusResponse } from './types/status';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
+import type * as b from './browser';
 import type * as t from './types';
 import { codeSetupAttemptSchema, codeSetupApprovalRequestSchema } from './codeSetup';
 import { TOOL_CALL_PREVIEWS_PARAM, TOOL_CALL_PREVIEWS_VERSION } from './previews';
@@ -228,6 +231,27 @@ export function updateAdminUserMediaAccess({
   mediaAccess,
 }: TAdminMediaAccessRequest): Promise<TAdminMediaAccessResponse> {
   return request.patch(endpoints.adminUserMediaAccess(userId), { mediaAccess });
+}
+
+export function updateAdminUserBrowserAccess({
+  userId,
+  browserAccess,
+}: TAdminBrowserAccessRequest): Promise<TAdminBrowserAccessResponse> {
+  return request.patch(endpoints.adminUserBrowserAccess(userId), { browserAccess });
+}
+
+export function getAdminServerStatus(): Promise<b.TAdminServerStatus> {
+  return request.get(endpoints.adminServer());
+}
+
+export function closeAdminBrowserSession(sessionId: string): Promise<{ closed: boolean }> {
+  return request.post(endpoints.adminServerSessionClose(sessionId));
+}
+
+export function getAdminBrowserLog(
+  params: b.TAdminBrowserLogParams = {},
+): Promise<b.TAdminBrowserLogResponse> {
+  return request.get(endpoints.adminBrowserLog(params));
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {

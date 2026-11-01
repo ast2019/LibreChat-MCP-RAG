@@ -5,10 +5,11 @@ import {
   PermissionTypes,
   resolveApiAccess,
   resolveMediaAccess,
+  resolveBrowserAccess,
   resolveModelClassAccess,
 } from 'librechat-data-provider';
-import type { RolePermissions } from '@librechat/data-schemas';
 import type { TPackGrants, TUserModelAccess, TEffectiveAccessMap } from 'librechat-data-provider';
+import type { RolePermissions } from '@librechat/data-schemas';
 
 /** What a role allows of each class when neither a user override nor a pack decides. */
 export interface RoleAccess {
@@ -46,6 +47,7 @@ export interface EffectiveAccessUser {
   modelAccess?: TUserModelAccess;
   apiAccess?: boolean;
   mediaAccess?: boolean;
+  browserAccess?: boolean;
   /** `user.packId`, which local, private and API enforcement read from the loaded user */
   packId?: string;
   /** The balance pack, which media enforcement reads */
@@ -54,7 +56,7 @@ export interface EffectiveAccessUser {
 
 /**
  * What each class resolves to for this user now, and who decided it — the same shared rules
- * (`resolveModelClassAccess`, `resolveApiAccess`, `resolveMediaAccess`) the request paths apply.
+ * (`resolveModelClassAccess`, `resolveApiAccess`, `resolveMediaAccess`, `resolveBrowserAccess`) the request paths apply.
  */
 export function computeEffectiveAccess(
   user: EffectiveAccessUser,
@@ -88,6 +90,11 @@ export function computeEffectiveAccess(
       paidOnly: rules.mediaPaidOnly,
       hasPack: Boolean(balancePackId),
       packGrant: findPackGrants(rules.packs, balancePackId)?.media,
+    }),
+    browser: resolveBrowserAccess({
+      isAdmin,
+      override: user.browserAccess,
+      packGrant: userGrants?.browser,
     }),
   };
 }

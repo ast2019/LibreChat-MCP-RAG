@@ -4,6 +4,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import { useAuthContext, useDocumentTitle, useLocalize } from '~/hooks';
 import { StatusAlert, StatusPanel } from '~/components/Admin/Status';
+import { BrowserLog, ServerPanel } from '~/components/Admin/Server';
 import AdminPayments from '~/components/Payments/AdminPayments';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import Overview from './Overview';
@@ -21,6 +22,8 @@ const TABS: { id: string; label: TranslationKeys }[] = [
   { id: 'payments', label: 'com_admin_payments_title' },
   { id: 'gifts', label: 'com_admin_tab_gifts' },
   { id: 'status', label: 'com_admin_tab_status' },
+  { id: 'server', label: 'com_admin_tab_server' },
+  { id: 'browser-log', label: 'com_admin_tab_browser_log' },
   { id: 'advanced', label: 'com_admin_tab_advanced' },
 ];
 
@@ -93,6 +96,12 @@ export default function AdminView() {
             </Tabs.Content>
             <Tabs.Content value="status" className="focus-visible:outline-none">
               <StatusPanel />
+            </Tabs.Content>
+            <Tabs.Content value="server" className="focus-visible:outline-none">
+              <ServerPanel />
+            </Tabs.Content>
+            <Tabs.Content value="browser-log" className="focus-visible:outline-none">
+              <BrowserLog />
             </Tabs.Content>
             <Tabs.Content value="advanced" className="focus-visible:outline-none">
               <Advanced />

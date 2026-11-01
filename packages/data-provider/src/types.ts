@@ -21,12 +21,12 @@ import type {
   CodeEnvironmentUserSettings,
   TAgentsEndpoint,
 } from './config';
+import type { TMinimalFeedback, TFeedbackMemoryOutcome } from './feedback';
 import type { BalanceRefillMode, RefillIntervalUnit } from './balance';
 import type { StatefulCodeEnvironment } from './stateful-code';
 import type { CodeApprovalMode } from './code/approval';
 import type { EToolResources } from './types/tools';
 import type { SettingDefinition } from './generate';
-import type { TMinimalFeedback, TFeedbackMemoryOutcome } from './feedback';
 import type { ContentTypes } from './types/runs';
 import type { ProviderId } from './providers';
 import type { Agent } from './types/agents';
@@ -335,6 +335,8 @@ export type TUser = {
   apiAccess?: boolean;
   /** Per-user media generation override; absent follows the deployment rule. */
   mediaAccess?: boolean;
+  /** Per-user agent browser override; absent follows the pack. */
+  browserAccess?: boolean;
   /** The current balance pack; its `grants` (in the startup config's packs) apply. */
   packId?: string;
   personalization?: {

@@ -303,6 +303,23 @@ officeTools:
   maxImages: 20
   embedFonts: true
 
+# Agent browser (experimental): the `browser` service in docker-compose.yml. Who may open one is
+# set per pack and per user in the admin panel (admins always may); these are the server limits.
+browser:
+  enabled: true
+  # Browsers open at once on the whole server
+  maxSessions: 10
+  # A browser closes after this many minutes without a step, and after maxMinutes in any case
+  idleMinutes: 3
+  maxMinutes: 20
+  # New browsers are refused at or above these: host and browser-container RAM, host CPU over
+  # the last minute. Users then see «ظرفیت فعلاً وجود ندارد، با پشتیبانی تماس بگیرید».
+  capacity:
+    ram: 85
+    cpu: 90
+  # Days the admin's browser log keeps an entry
+  logDays: 90
+
 webSearch:
   # Paid Google results first; when one provider's plan runs out (or it rejects its key) the
   # next answers, and the free self-hosted SearXNG is the last resort. Providers without a key

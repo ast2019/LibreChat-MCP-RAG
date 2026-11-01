@@ -39,7 +39,26 @@ describe('computeEffectiveAccess', () => {
       api: { allowed: false, source: 'role' },
       /** The balance pack (`starter`) says nothing, but any pack is paid */
       media: { allowed: true, source: 'pack' },
+      /** No pack includes the browser, so it stays off */
+      browser: { allowed: false, source: 'rule' },
     });
+  });
+
+  it('opens the browser from the user pack or the user override, the override first', () => {
+    const withBrowser = { ...rules, packs: [{ id: 'pro', grants: { browser: true } }] };
+    expect(
+      computeEffectiveAccess({ role: 'USER', packId: 'pro' }, withBrowser, role).browser,
+    ).toEqual({
+      allowed: true,
+      source: 'pack',
+    });
+    expect(
+      computeEffectiveAccess(
+        { role: 'USER', packId: 'pro', browserAccess: false },
+        withBrowser,
+        role,
+      ).browser,
+    ).toEqual({ allowed: false, source: 'user' });
   });
 
   it('gives admins the model classes and media whatever the pack says', () => {
@@ -48,6 +67,12 @@ describe('computeEffectiveAccess', () => {
     ).toMatchObject({
       private: { allowed: true, source: 'admin' },
       media: { allowed: true, source: 'admin' },
+      browser: { allowed: true, source: 'admin' },
     });
+    /** Even a stored denial does not switch an admin off */
+    expect(
+      computeEffectiveAccess({ role: 'ADMIN', browserAccess: false, balance: null }, rules, role)
+        .browser,
+    ).toEqual({ allowed: true, source: 'admin' });
   });
 });

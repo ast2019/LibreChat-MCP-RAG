@@ -42,13 +42,14 @@ import {
   scheduledMCPResourceBindingSchema,
   scheduledMCPReadOnlyPolicySchema,
 } from './types/scheduleConsent';
+import { MAX_BROWSER_SESSIONS, packGrantsSchema } from './access';
 import { paymentsConfigSchema } from './payments';
 import { referralConfigSchema } from './referral';
 import { phoneLoginConfigSchema } from './phone';
 import { mediaGenerationSchema } from './media';
+import { browserConfigSchema } from './browser';
 import { persianToolsSchema } from './persian';
 import { officeToolsSchema } from './office';
-import { packGrantsSchema } from './access';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -4062,10 +4063,12 @@ export const balancePackSchema = z.object({
   description: z.string().max(200).optional(),
   /**
    * Access the pack grants or withholds while it is the user's current pack (local and private
-   * model specs, media generation, the programming API). A user's own override still wins;
-   * an omitted class keeps the rule without packs.
+   * model specs, media generation, the programming API, the agent browser). A user's own
+   * override still wins; an omitted class keeps the rule without packs.
    */
   grants: packGrantsSchema.optional(),
+  /** Agent browsers one user of this pack may have open at once (default 1) */
+  browserSessions: z.number().int().min(1).max(MAX_BROWSER_SESSIONS).optional(),
 });
 
 export type TBalancePack = z.infer<typeof balancePackSchema>;
@@ -4774,6 +4777,8 @@ export const configSchema = z.object({
   persianTools: persianToolsSchema.optional(),
   /** The in-chat Word and PowerPoint builders (the article wizard and the slide builder). */
   officeTools: officeToolsSchema.optional(),
+  /** The agent browser's limits (experimental). */
+  browser: browserConfigSchema.optional(),
   transactions: transactionsSchema.optional(),
   speech: z
     .object({

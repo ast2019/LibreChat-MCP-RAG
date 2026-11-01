@@ -55,14 +55,18 @@ file, the repository or a chat.
   - Codex CLI is not supported (it needs custom tools on `/responses`).
   - The packaged host `createAgentChatCompletion` does not bind caller tools.
   - The local `gemma3:4b` model is not suited to agent mode.
-- **Agent browser:** decided, not built; see `docs/plans/agent-browser-fa.md`.
-  - The owner's decisions: pack access with a per-pack limit (1 for now), a RAM and CPU check
-    that refuses with «ظرفیت فعلاً وجود ندارد، با پشتیبانی تماس بگیرید», admin views of server
-    status and browser logs, a 3-minute idle close, and sign-in, CAPTCHA and payment by the user
-    in a live view. Nothing is kept after the browser closes, and there is no automated CAPTCHA
-    bypass.
-  - It is built in phases B1 to B4. Still open: the default thresholds, the server-wide browser
-    limit, and which packs get it.
+- **Agent browser (0.31.0: phases B1 and B2 built):** see `docs/plans/agent-browser-fa.md`.
+  - The owner's decisions: access per pack and per user in the admin panel like the other
+    classes (off without a pack that includes it; admins always), `browserSessions` per pack
+    (default 1), 10 browsers per server, refuse at RAM 85% or CPU 90% over the last minute with
+    «ظرفیت فعلاً وجود ندارد، با پشتیبانی تماس بگیرید», a 3-minute idle close, and sign-in,
+    CAPTCHA and payment by the user in a live view. Nothing is kept after a browser closes, and
+    there is no automated CAPTCHA bypass.
+  - The service is `deploy/browser` (plain Node ESM, tests with `node --test test/*.test.mjs`,
+    real Chromium when Playwright's headless shell is installed). Its egress proxy is the barrier:
+    Coolify puts every compose service on one network.
+  - Next: B3 (model tools on top of `openUserBrowser`/`closeUserBrowser` in
+    `packages/api/src/browser`, and the live view with hand-over) and B4.
   - The sign-in comparison lists it as «به‌زودی»; switch it to «آزمایشی» when it ships.
 - **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
   `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),

@@ -5,6 +5,7 @@ import type { TAccessClass, TAdminBillingPack, TAdminBillingUser } from 'librech
 import {
   useAdminUserApiAccessMutation,
   useAdminUserMediaAccessMutation,
+  useAdminUserBrowserAccessMutation,
   useAdminUserModelAccessMutation,
 } from '~/data-provider';
 import { ACCESS_LABELS, decidingPack, describeSource, overrideOf } from './accessLabels';
@@ -32,6 +33,7 @@ const TEST_IDS: Record<TAccessClass, (id: string) => string> = {
   private: (id) => `model-access-private-${id}`,
   api: (id) => `api-access-${id}`,
   media: (id) => `media-access-${id}`,
+  browser: (id) => `browser-access-${id}`,
 };
 
 /**
@@ -53,13 +55,15 @@ export default function AccessControl({
   const modelAccess = useAdminUserModelAccessMutation();
   const apiAccess = useAdminUserApiAccessMutation();
   const mediaAccess = useAdminUserMediaAccessMutation();
+  const browserAccess = useAdminUserBrowserAccessMutation();
   const [failed, setFailed] = useState(false);
   const label = localize(ACCESS_LABELS[field].full);
   const userName = user.name || user.username || user.email || user.phone || '';
   const effective = user.effective?.[field];
-  const isModelClass = field === 'local' || field === 'private';
+  /* Admins always have these; a switch would suggest it could be turned off. */
+  const alwaysForAdmin = field === 'local' || field === 'private' || field === 'browser';
 
-  if (isModelClass && user.role === SystemRoles.ADMIN) {
+  if (alwaysForAdmin && user.role === SystemRoles.ADMIN) {
     return (
       <div className="flex items-center justify-between gap-3 py-2">
         <span className="text-text-primary text-sm">{label}</span>
@@ -101,6 +105,8 @@ export default function AccessControl({
       apiAccess.mutate({ userId: user.id, apiAccess: value }, options);
     } else if (field === 'media') {
       mediaAccess.mutate({ userId: user.id, mediaAccess: value }, options);
+    } else if (field === 'browser') {
+      browserAccess.mutate({ userId: user.id, browserAccess: value }, options);
     } else {
       modelAccess.mutate({ userId: user.id, [field]: value }, options);
     }

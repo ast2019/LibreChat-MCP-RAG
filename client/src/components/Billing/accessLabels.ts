@@ -4,8 +4,8 @@ import type {
   TAdminBillingUser,
   TEffectiveAccess,
 } from 'librechat-data-provider';
-import type { TranslationKeys } from '~/hooks';
 import type useLocalize from '~/hooks/useLocalize';
+import type { TranslationKeys } from '~/hooks';
 
 /** The admin's name for each access class, full and short (for the table's summary chips). */
 export const ACCESS_LABELS: Record<
@@ -16,6 +16,7 @@ export const ACCESS_LABELS: Record<
   private: { full: 'com_admin_model_access_private', short: 'com_admin_access_short_private' },
   media: { full: 'com_admin_media_access', short: 'com_admin_access_short_media' },
   api: { full: 'com_admin_api_access', short: 'com_admin_access_short_api' },
+  browser: { full: 'com_admin_browser_access', short: 'com_admin_access_short_browser' },
 };
 
 /** The user's own override of a class: `true`, `false`, or `undefined` when the default applies. */
@@ -23,10 +24,16 @@ export function overrideOf(user: TAdminBillingUser, field: TAccessClass): boolea
   if (field === 'local' || field === 'private') {
     return user.modelAccess?.[field];
   }
-  return field === 'api' ? user.apiAccess : user.mediaAccess;
+  if (field === 'api') {
+    return user.apiAccess;
+  }
+  return field === 'browser' ? user.browserAccess : user.mediaAccess;
 }
 
-/** The pack that decides a class: `user.packId` for local, private and API, the balance's for media. */
+/**
+ * The pack that decides a class: `user.packId` for local, private, API and the browser, the
+ * balance's for media.
+ */
 export function decidingPack(
   user: TAdminBillingUser,
   field: TAccessClass,

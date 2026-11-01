@@ -93,6 +93,8 @@ export interface IUser extends Document {
   apiAccess?: boolean;
   /** Per-user media generation override; unset follows the deployment rule. */
   mediaAccess?: boolean;
+  /** Per-user agent browser override; unset follows the pack. */
+  browserAccess?: boolean;
   /** Per-user grant (`true`) or denial (`false`) of local/private model specs; unset follows the role. */
   modelAccess?: TUserModelAccess;
   /** The current balance pack, copied from the balance on each grant; its `grants` apply. */
