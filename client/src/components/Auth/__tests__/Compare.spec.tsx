@@ -40,6 +40,15 @@ describe('CompareCard', () => {
     }
   });
 
+  it('lists the question form among the differences', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    const ask = screen.getByRole('rowheader', { name: /^Question form/ }).closest('tr');
+    const cells = within(ask as HTMLElement).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Yes');
+    expect(cells[1]).toHaveTextContent('Some');
+    expect(ask?.closest('tbody')).toHaveTextContent('What sets us apart');
+  });
+
   it('lists the agent browser among the differences, not among what is missing', () => {
     render(<CompareCard appTitle="HiveGPT" />);
     const browser = screen.getByRole('rowheader', { name: /^Agent browser/ }).closest('tr');

@@ -495,6 +495,8 @@ endpoints:
       - tools
       - memory
       - skills
+      # The question form: the model asks its clarifying questions in a form in the chat.
+      - ask_user_question
   custom:
     # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
     - name: 'OpenRouter'

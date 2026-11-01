@@ -79,6 +79,11 @@ file, the repository or a chat.
   points call `debugTrace(name, data)` from `~/debug/recorder` (a no-op unless a trace is
   recording); never pass message text or secrets.
   - The sign-in comparison lists it under «فرق ما» with «آزمایشی» (0.32.1).
+- **Question form (0.34.0):** `ask_user_question` is on for every ordinary chat (capability in
+  `config/librechat.saas.yaml`, equipped in `packages/api/src/agents/load.ts`; private and local
+  specs only with their own flag). Questions may carry `recommended`; the form marks it
+  «پیشنهادی» and «پیشنهادها خوب است» accepts them. Four questions per form at most (SDK limit).
+  Browser steps are not repeated on resume (`createBrowserStepMemo` in `browser/tools.ts`).
 - **Content tools (0.30.0, experimental):** the article wizard (`skill/article-writer`,
   `create_word_document`) and the slide builder (`skill/slide-builder`, `create_presentation`),
   in `packages/api/src/office`.

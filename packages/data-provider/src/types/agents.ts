@@ -540,6 +540,9 @@ export namespace Agents {
     /** When true the user may pick several options; the answer is their
      *  selected option values joined with ", ". */
     multiSelect?: boolean;
+    /** The option value the model suggests as the default. The form marks it and can
+     *  accept every suggestion at once; a value that is not an option is ignored. */
+    recommended?: string;
   }
 
   /** One independently answerable question in a batched clarification. */

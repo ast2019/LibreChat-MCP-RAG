@@ -3,10 +3,14 @@ import { atom, useAtom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
 import type { Agents } from 'librechat-data-provider';
 import {
+  ASK_USER_ANSWER_IN_CHAT,
+  ASK_USER_DECLINED_ANSWER,
+  getRecommendedValue,
+} from '~/utils/approval';
+import {
   useAskSubmitStatus,
   useResumeSubmit,
 } from '~/components/Chat/Messages/Content/ApprovalContext';
-import { ASK_USER_DECLINED_ANSWER } from '~/utils/approval';
 
 interface AskQuestionsFormState {
   /** Index of the question currently on screen. Lives beside the answers so the
@@ -131,6 +135,37 @@ export default function useAskQuestionsForm(
     return true;
   }, [actionId, answers, canSubmit, resetState, submitAskAnswer]);
 
+  /** The user's own answers, and the model's suggestion for every question still open. */
+  const withRecommended = useMemo(() => {
+    const resolved = Object.create(null) as Record<string, string>;
+    let suggested = 0;
+    for (const question of questions) {
+      const own = ownValue(answers, question.id);
+      if (own != null && own.length > 0) {
+        resolved[question.id] = own;
+        continue;
+      }
+      const recommended = getRecommendedValue(question);
+      if (recommended == null) {
+        return null;
+      }
+      resolved[question.id] = recommended;
+      suggested++;
+    }
+    return suggested > 0 ? resolved : null;
+  }, [answers, questions]);
+
+  /** Offered while every open question has a suggestion: one click sends them all. */
+  const canAcceptRecommended = !locked && withRecommended != null;
+
+  const acceptRecommended = useCallback(() => {
+    if (locked || withRecommended == null) {
+      return false;
+    }
+    submitAskAnswer(actionId, withRecommended, { onSuccess: resetState });
+    return true;
+  }, [actionId, locked, resetState, submitAskAnswer, withRecommended]);
+
   const skip = useCallback(() => {
     if (locked) {
       return false;
@@ -139,6 +174,19 @@ export default function useAskQuestionsForm(
       questions.map((question) => [question.id, ASK_USER_DECLINED_ANSWER]),
     );
     submitAskAnswer(actionId, declined, { onSuccess: resetState });
+    return true;
+  }, [actionId, locked, questions, resetState, submitAskAnswer]);
+
+  /** The user would rather write their answer as a chat message: the run resumes only to
+   *  wait for it. */
+  const answerInChat = useCallback(() => {
+    if (locked) {
+      return false;
+    }
+    const inChat = Object.fromEntries(
+      questions.map((question) => [question.id, ASK_USER_ANSWER_IN_CHAT]),
+    );
+    submitAskAnswer(actionId, inChat, { onSuccess: resetState });
     return true;
   }, [actionId, locked, questions, resetState, submitAskAnswer]);
 
@@ -154,6 +202,9 @@ export default function useAskQuestionsForm(
     goToStep,
     submit,
     skip,
+    canAcceptRecommended,
+    acceptRecommended,
+    answerInChat,
     arrivalFocused: state.arrivalFocused,
     markArrivalFocused,
   };
