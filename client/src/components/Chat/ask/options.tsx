@@ -24,6 +24,8 @@ export default function AskOptions({
   checked,
   selected,
   selectedIsAnswer = false,
+  recommended = null,
+  recommendedLabel,
   locked,
   onActivate,
   optionRefs,
@@ -37,6 +39,9 @@ export default function AskOptions({
   /** `selected` is the recorded answer rather than a keyboard highlight, so a
    *  single-select row announces it as pressed. */
   selectedIsAnswer?: boolean;
+  /** The row the model suggested as the default, marked with `recommendedLabel`. */
+  recommended?: number | null;
+  recommendedLabel?: string;
   locked: boolean;
   onActivate: (index: number) => void;
   optionRefs?: React.MutableRefObject<(HTMLButtonElement | null)[]>;
@@ -78,6 +83,11 @@ export default function AskOptions({
               {isChecked ? <Check className="size-3.5" aria-hidden="true" /> : index + 1}
             </span>
             <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{option.label}</span>
+            {recommended === index && recommendedLabel != null && (
+              <span className="bg-surface-tertiary text-text-secondary text-2xs shrink-0 rounded-md px-1.5 py-0.5 font-medium">
+                {recommendedLabel}
+              </span>
+            )}
           </Button>
         );
       })}

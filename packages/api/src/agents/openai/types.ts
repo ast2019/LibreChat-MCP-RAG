@@ -6,7 +6,23 @@
  * In the future, this will be extended to support the Responses API.
  */
 
-import type { ChatFunctionTool, ChatToolChoice } from './clientTools';
+/** A function tool as Chat Completions declares it. */
+export interface ChatFunctionTool {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string | null;
+    parameters?: Record<string, unknown> | null;
+    strict?: boolean | null;
+  };
+}
+
+/** `tool_choice` as Chat Completions sends it. */
+export type ChatToolChoice =
+  | 'none'
+  | 'auto'
+  | 'required'
+  | { type: 'function'; function: { name: string } };
 
 /**
  * Content part types for OpenAI format

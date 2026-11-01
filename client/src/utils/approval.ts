@@ -28,6 +28,12 @@ export type { AskUserQuestionPart } from '@librechat/chat';
  * and the model needs to know the user declined rather than answered.
  */
 export const ASK_USER_DECLINED_ANSWER = 'The user chose not to answer this question.';
+/**
+ * Answer sent when the user would rather reply in their own message than in the form: the
+ * run resumes, and the model stops to wait for that message instead of going on with defaults.
+ */
+export const ASK_USER_ANSWER_IN_CHAT =
+  'The user will answer in their next chat message instead of this form. Do not go on, and do not ask anything else now: end your turn with one short line that invites their reply, and wait for it.';
 const ASK_USER_QUESTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const MAX_ASK_USER_QUESTIONS = 4;
 const MAX_ASK_USER_QUESTION_HEADER_LENGTH = 80;
@@ -64,6 +70,7 @@ export function parseAskUserQuestionArgs(
     description?: unknown;
     options?: unknown;
     multiSelect?: unknown;
+    recommended?: unknown;
   };
   /** Model/persisted args are untrusted — normalize instead of crashing the
    *  message render on shapes like `options: {}` or non-string entries. */
@@ -75,12 +82,33 @@ export function parseAskUserQuestionArgs(
           typeof (option as { value?: unknown }).value === 'string',
       )
     : undefined;
+  const recommended =
+    typeof request.recommended === 'string' &&
+    options?.some((option) => option.value === request.recommended) === true
+      ? request.recommended
+      : undefined;
   return {
     question: request.question,
     description: typeof request.description === 'string' ? request.description : undefined,
     options: options && options.length > 0 ? options : undefined,
     multiSelect: request.multiSelect === true ? true : undefined,
+    ...(recommended != null && { recommended }),
   };
+}
+
+/**
+ * The option value the model suggested for a question, when it is one of the real choices
+ * (not a catch-all "Other" row): the value the form marks and accepts in one click.
+ */
+export function getRecommendedValue(
+  question: Pick<Agents.AskUserQuestionRequest, 'options' | 'recommended'>,
+): string | undefined {
+  const { recommended } = question;
+  if (typeof recommended !== 'string' || recommended.length === 0) {
+    return undefined;
+  }
+  const { choices } = splitOtherOption(question.options);
+  return choices.some((option) => option.value === recommended) ? recommended : undefined;
 }
 
 /** Parse and validate the batched form of an ask-user tool call. */

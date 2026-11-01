@@ -2,8 +2,8 @@ import React from 'react';
 import { RecoilRoot } from 'recoil';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { Agents } from 'librechat-data-provider';
+import { ASK_USER_ANSWER_IN_CHAT, ASK_USER_DECLINED_ANSWER } from '~/utils/approval';
 import { ChatSurfaceProvider } from '~/components/Chat/Subagents/surface';
-import { ASK_USER_DECLINED_ANSWER } from '~/utils/approval';
 import AskUserQuestions from '../AskUserQuestions';
 
 const mockSubmitAskAnswer = jest.fn();
@@ -30,6 +30,9 @@ jest.mock('~/hooks', () => ({
       com_ui_skip: 'Skip',
       com_ui_submit: 'Submit',
       com_ui_submitting: 'Submitting',
+      com_ui_ask_recommended: 'Suggested',
+      com_ui_ask_accept_recommended: 'Use the suggestions',
+      com_ui_ask_answer_in_chat: "I'd rather answer in the chat",
     };
     return labels[key] ?? key;
   },
@@ -204,6 +207,76 @@ describe('AskUserQuestions', () => {
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
+  });
+
+  test('marks the suggested option and sends the suggestions with the user’s own answers', () => {
+    const suggested: Agents.AskUserQuestionBatchItem[] = [
+      {
+        id: 'tone',
+        question: 'Which tone?',
+        options: [
+          { label: 'Formal', value: 'formal' },
+          { label: 'Semi-formal', value: 'semi' },
+        ],
+        recommended: 'semi',
+      },
+      {
+        id: 'length',
+        question: 'How long?',
+        options: [
+          { label: 'Short', value: 'short' },
+          { label: 'Long', value: 'long' },
+        ],
+        recommended: 'long',
+      },
+    ];
+    renderBatch('ask-suggested', suggested);
+
+    expect(screen.getByRole('button', { name: /Semi-formal Suggested/ })).toBeInTheDocument();
+    /** The user picks their own tone; the length keeps its suggestion. */
+    fireEvent.click(screen.getByRole('button', { name: /Formal/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use the suggestions' }));
+
+    expect(mockSubmitAskAnswer).toHaveBeenCalledWith(
+      'ask-suggested',
+      { tone: 'formal', length: 'long' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test('lets the user answer in the chat instead, which resumes the run to wait for them', () => {
+    renderBatch('ask-in-chat');
+    fireEvent.click(screen.getByRole('button', { name: "I'd rather answer in the chat" }));
+    expect(mockSubmitAskAnswer).toHaveBeenCalledWith(
+      'ask-in-chat',
+      { environment: ASK_USER_ANSWER_IN_CHAT, window: ASK_USER_ANSWER_IN_CHAT },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test('offers the suggestions only when every open question has a valid one', () => {
+    const { unmount } = renderBatch('ask-no-suggestion', [
+      {
+        id: 'tone',
+        question: 'Which tone?',
+        options: [{ label: 'Formal', value: 'formal' }],
+        recommended: 'formal',
+      },
+      { id: 'topic', question: 'Which topic?' },
+    ]);
+    expect(screen.queryByRole('button', { name: 'Use the suggestions' })).not.toBeInTheDocument();
+    unmount();
+
+    renderBatch('ask-bad-suggestion', [
+      {
+        id: 'tone',
+        question: 'Which voice?',
+        options: [{ label: 'Formal', value: 'formal' }],
+        recommended: 'not-an-option',
+      },
+    ]);
+    expect(screen.queryByText('Suggested')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use the suggestions' })).not.toBeInTheDocument();
   });
 
   test('keeps Submit gated on the last step until every question is answered', () => {

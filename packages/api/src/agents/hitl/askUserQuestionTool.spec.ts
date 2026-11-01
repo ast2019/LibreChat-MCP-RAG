@@ -26,6 +26,7 @@ describe('ask_user_question tool contract', () => {
               { label: 'Staging', value: 'staging' },
               { label: 'Production', value: 'production' },
             ],
+            recommended: 'staging',
           },
           { ...question('window'), question: 'Which time window?', multiSelect: true },
         ],
@@ -111,6 +112,7 @@ describe('ask_user_question tool contract', () => {
       expect(questions.items.required).toEqual(['id', 'question']);
       expect(questions.items.properties.options.items.required).toEqual(['label', 'value']);
       expect(questions.items.properties.options.items.properties.label.maxLength).toBe(280);
+      expect(questions.items.properties.recommended.type).toBe('string');
     });
 
     test('describes one batched interaction and forbids sibling calls', () => {
@@ -119,6 +121,7 @@ describe('ask_user_question tool contract', () => {
       expect(instance.description).toContain('one to four related');
       expect(instance.description).toContain('ONE tool call');
       expect(instance.description).toContain('NEVER call this tool in parallel');
+      expect(instance.description).toContain('never in the same turn as browser_handoff');
     });
   });
 });

@@ -5,8 +5,8 @@ import type { ServerRequest } from '~/types';
 import { TEST_USER_ID, fakeClient, fakeLog, fakeSession } from './testing';
 import { getBrowserStartupConfig, getChatBrowserTools } from './config';
 import { buildBrowserToolContext, BROWSER_RULES } from './definitions';
+import { createBrowserStepMemo, createBrowserTools } from './tools';
 import { BrowserServiceError } from './client';
-import { createBrowserTools } from './tools';
 
 const ENV = { BROWSER_SERVICE_URL: 'http://browser:3100', BROWSER_SERVICE_TOKEN: 't'.repeat(40) };
 const packs = [{ id: 'pro', label: 'Pro', credits: 10, grants: { browser: true } }];
@@ -21,20 +21,29 @@ function setup(
 ) {
   const log = fakeLog();
   const req = { user, config: config() } as unknown as ServerRequest;
-  const tools = createBrowserTools(
-    { req, toolNames: BROWSER_TOOL_NAMES },
-    { getClient: () => client, log, now: () => now },
-  );
+  const steps = createBrowserStepMemo(() => now);
+  const build = () =>
+    createBrowserTools(
+      { req, toolNames: BROWSER_TOOL_NAMES },
+      { getClient: () => client, log, now: () => now, steps },
+    );
+  const tools = build();
   const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+  let calls = 0;
   /** Runs a tool the way the agent does and returns the text the model reads. */
-  const run = async (name: BrowserTools, input: Record<string, unknown> = {}) => {
-    const message = (await byName[name].invoke(
-      { id: 'call-1', name, args: input, type: 'tool_call' },
+  const run = async (
+    name: BrowserTools,
+    input: Record<string, unknown> = {},
+    id = `call-${++calls}`,
+    using = byName,
+  ) => {
+    const message = (await using[name].invoke(
+      { id, name, args: input, type: 'tool_call' },
       RUN,
     )) as { content: Array<{ text: string }> };
     return message.content[0].text;
   };
-  return { client, log, run, tools };
+  return { client, log, run, tools, build };
 }
 
 describe('getChatBrowserTools', () => {
@@ -58,6 +67,27 @@ describe('getChatBrowserTools', () => {
 });
 
 describe('createBrowserTools', () => {
+  it('does not repeat a step when a resumed run replays the same tool call', async () => {
+    const client = fakeClient({
+      listSessions: jest.fn(async () => [fakeSession({ context: 'convo-1' })]),
+      act: jest.fn(async () => ({ url: 'https://example.com/', title: 'Example' })),
+    });
+    const { run, build } = setup(client);
+    const first = await run(BrowserTools.act, { action: 'click', ref: 'e3' }, 'call-click');
+    /** The resumed run builds its tools again and runs the turn's calls once more. */
+    const rebuilt = Object.fromEntries(build().map((tool) => [tool.name, tool]));
+    const replay = await run(
+      BrowserTools.act,
+      { action: 'click', ref: 'e3' },
+      'call-click',
+      rebuilt,
+    );
+    expect(replay).toBe(first);
+    expect(client.act).toHaveBeenCalledTimes(1);
+    await run(BrowserTools.act, { action: 'click', ref: 'e3' }, 'call-next');
+    expect(client.act).toHaveBeenCalledTimes(2);
+  });
+
   it('opens this chat’s browser on the first address and returns the page to act on', async () => {
     const client = fakeClient({
       open: jest.fn(async () => ({

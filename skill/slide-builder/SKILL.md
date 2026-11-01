@@ -13,8 +13,11 @@ license: MIT
 
 Go one step per message and wait where a step says so.
 
-1. **Brief (wait).** In one message, ask only what is still unknown, each with a default the user
-   can accept with «خوب است»:
+1. **Brief (wait).** Ask only what is still unknown. When `ask_user_question` is available, ask
+   with it, not in text: at most four questions in one call, in the order below, each with 2 to 5
+   short options in the user's language and `recommended` set to the default; whatever you did
+   not ask takes its default, named in one line when you go on. Without the tool, ask in one
+   message, each item with a default the user can accept with «خوب است»:
    - topic and audience, and what the audience should do or know afterwards
    - how long the talk is, or how many slides; about one slide per minute when only the length
      is known
@@ -27,7 +30,8 @@ Go one step per message and wait where a step says so.
    and ask only about length and style.
 2. **Outline (wait).** One line per slide: its number, layout and what it says. Start with
    `title`, end with `closing`, and put a `section` slide between parts of a long deck. Ask the
-   user to approve or change it.
+   user to approve or change it; when `ask_user_question` is available, one question with
+   «تأیید طرح اسلایدها» and «تغییر می‌خواهم» after the outline in the message.
 3. **Build.** Call `create_presentation` with every slide (see «Slides that work»), then tell
    the user in two or three lines what the deck has, and that it uses the free Vazirmatn font,
    which they install for PowerPoint to show it as designed; Google Slides has it built in.

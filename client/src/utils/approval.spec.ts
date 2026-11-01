@@ -15,6 +15,7 @@ import {
   collectLiveAskToolCallIds,
   isAnsweredAskUserQuestionPart,
   splitOtherOption,
+  getRecommendedValue,
 } from './approval';
 import { hasPendingApprovalInPart } from './groupToolCalls';
 
@@ -319,6 +320,31 @@ describe('parseAskUserQuestionArgs', () => {
       parseAskUserQuestionArgs({ question: 'Which?', multiSelect: 'yes' })?.multiSelect,
     ).toBeUndefined();
     expect(parseAskUserQuestionArgs({ question: 'Which?' })?.multiSelect).toBeUndefined();
+  });
+});
+
+describe('recommended answers', () => {
+  const options = [
+    { label: 'Formal', value: 'formal' },
+    { label: 'Other (type your own)', value: 'other' },
+  ];
+
+  it('keeps a suggestion only when it is one of the options', () => {
+    expect(
+      parseAskUserQuestionArgs({ question: 'Tone?', options, recommended: 'formal' })?.recommended,
+    ).toBe('formal');
+    expect(
+      parseAskUserQuestionArgs({ question: 'Tone?', options, recommended: 'casual' }),
+    ).not.toHaveProperty('recommended');
+    expect(
+      parseAskUserQuestionArgs({ question: 'Tone?', recommended: 'formal' }),
+    ).not.toHaveProperty('recommended');
+  });
+
+  it('never suggests the catch-all row the form replaces with its own field', () => {
+    expect(getRecommendedValue({ options, recommended: 'formal' })).toBe('formal');
+    expect(getRecommendedValue({ options, recommended: 'other' })).toBeUndefined();
+    expect(getRecommendedValue({ options })).toBeUndefined();
   });
 });
 

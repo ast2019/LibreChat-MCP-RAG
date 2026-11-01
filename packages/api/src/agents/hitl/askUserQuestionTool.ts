@@ -37,6 +37,9 @@ const OPTION_LABEL_MAX_ERROR =
   `Option labels must be ${OPTION_LABEL_MAX} characters or fewer. ` +
   'Shorten the label and retry.';
 
+const RECOMMENDED_DESCRIPTION =
+  'Optional value of the option you suggest as the default; it must equal one of the option values.';
+
 const ASK_USER_QUESTION_DESCRIPTION = [
   'Ask the user one to four related clarifying questions and pause the run until they answer;',
   "their answers are returned as this tool's result, keyed by each question id. Use it only",
@@ -50,7 +53,12 @@ const ASK_USER_QUESTION_DESCRIPTION = [
   'context in the question description. The user can always type a free-form answer instead — so',
   'do NOT include a',
   "catch-all option like 'Other' or 'Something else': the answer UI always offers free-form",
-  'input on its own.',
+  'input on its own. When you have a sensible default for a question, set recommended to that',
+  "option's value: the form marks it and offers one button that accepts every recommended",
+  'answer at once. If you truly need more than four answers, ask the four that change the result',
+  'most, then call this tool again after the answers arrive, and fall back to stated defaults for',
+  'the rest. Ask before you start long or stateful work (such as browsing), not in the middle of',
+  'it, and never in the same turn as browser_handoff.',
 ].join(' ');
 
 /**
@@ -68,6 +76,7 @@ const askUserQuestionItemSchema: z.ZodObject<
       z.ZodArray<z.ZodObject<{ label: z.ZodString; value: z.ZodString }, 'strip'>, 'many'>
     >;
     multiSelect: z.ZodOptional<z.ZodBoolean>;
+    recommended: z.ZodOptional<z.ZodString>;
   },
   'strip'
 > = z.object({
@@ -115,6 +124,7 @@ const askUserQuestionItemSchema: z.ZodObject<
     .boolean()
     .optional()
     .describe('Allow the user to pick several options; their values are returned joined by ", ".'),
+  recommended: z.string().min(1).max(OPTION_VALUE_MAX).optional().describe(RECOMMENDED_DESCRIPTION),
 });
 
 const askUserQuestionsArraySchema: z.ZodEffects<z.ZodArray<typeof askUserQuestionItemSchema>> = z
@@ -129,7 +139,11 @@ const askUserQuestionsArraySchema: z.ZodEffects<z.ZodArray<typeof askUserQuestio
   )
   .describe('One to four related questions presented to the user in one interaction.');
 
-const legacyAskUserQuestionToolSchema = askUserQuestionItemSchema.omit({ id: true, header: true });
+const legacyAskUserQuestionToolSchema = askUserQuestionItemSchema.omit({
+  id: true,
+  header: true,
+  recommended: true,
+});
 
 export const askUserQuestionToolSchema: z.ZodObject<
   { questions: typeof askUserQuestionsArraySchema },
@@ -188,6 +202,12 @@ export interface AskUserQuestionToolDefinitionShape {
               };
             };
             multiSelect: { type: 'boolean'; description: string };
+            recommended: {
+              type: 'string';
+              minLength: number;
+              maxLength: number;
+              description: string;
+            };
           };
           required: string[];
         };
@@ -264,6 +284,12 @@ export const AskUserQuestionToolDefinition: AskUserQuestionToolDefinitionShape =
             multiSelect: {
               type: 'boolean',
               description: 'Allow several option values for this question.',
+            },
+            recommended: {
+              type: 'string',
+              minLength: 1,
+              maxLength: OPTION_VALUE_MAX,
+              description: RECOMMENDED_DESCRIPTION,
             },
           },
           required: ['id', 'question'],

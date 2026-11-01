@@ -20,13 +20,62 @@ const reply = (text: string): ToolResult => [[{ type: 'text', text }], undefined
 
 interface RunnableConfig {
   configurable?: { thread_id?: string };
+  toolCall?: { id?: string };
 }
+
+/** How long a finished browser step is remembered, and how many are kept. */
+const STEP_MEMO_TTL_MS = 6 * 60 * 60_000;
+const STEP_MEMO_MAX = 2_000;
+
+/**
+ * The browser steps already run, by tool call. When a run pauses for the question form
+ * (`ask_user_question`) and resumes, LangGraph runs every tool call of that turn again; a
+ * click, a typed text or a submitted form must not happen twice, so a repeated call gets the
+ * first call's answer instead.
+ */
+export interface BrowserStepMemo {
+  get: (key: string) => string | undefined;
+  set: (key: string, text: string) => void;
+}
+
+export function createBrowserStepMemo(now: () => number = Date.now): BrowserStepMemo {
+  const steps = new Map<string, { at: number; text: string }>();
+  return {
+    get(key) {
+      const step = steps.get(key);
+      if (step == null) {
+        return undefined;
+      }
+      if (now() - step.at > STEP_MEMO_TTL_MS) {
+        steps.delete(key);
+        return undefined;
+      }
+      return step.text;
+    },
+    set(key, text) {
+      steps.delete(key);
+      steps.set(key, { at: now(), text });
+      while (steps.size > STEP_MEMO_MAX) {
+        const oldest = steps.keys().next().value;
+        if (oldest === undefined) {
+          break;
+        }
+        steps.delete(oldest);
+      }
+    },
+  };
+}
+
+/** One memo for the server process: a resumed run builds its tools again. */
+const sharedStepMemo = createBrowserStepMemo();
 
 export interface BrowserToolDeps {
   /** The browser service client, or null when it is not set up */
   getClient: () => BrowserServiceClient | null;
   log: BrowserLogStore;
   now?: () => number;
+  /** The steps already run; the server-wide memo when not given */
+  steps?: BrowserStepMemo;
 }
 
 const REFUSALS: Record<TBrowserRefusal, string> = {
@@ -99,6 +148,7 @@ export function createBrowserTools(
   deps: BrowserToolDeps,
 ): StructuredToolInterface[] {
   const now = deps.now ?? Date.now;
+  const steps = deps.steps ?? sharedStepMemo;
   const userId = req.user?.id ? String(req.user.id) : '';
 
   async function findSession(
@@ -166,14 +216,27 @@ export function createBrowserTools(
       if (!resolveUserBrowserAccess(req.user, req.config).allowed) {
         return reply(REFUSALS.not_allowed);
       }
-      const conversationId = (runnable as RunnableConfig | undefined)?.configurable?.thread_id;
+      const config = runnable as RunnableConfig | undefined;
+      const conversationId = config?.configurable?.thread_id;
       if (!conversationId) {
         return reply('The browser works inside a conversation, and this request has none.');
+      }
+      const toolCallId = config?.toolCall?.id;
+      const stepKey = toolCallId
+        ? [userId, conversationId, name, toolCallId].join('\u0000')
+        : undefined;
+      const done = stepKey != null ? steps.get(stepKey) : undefined;
+      if (done !== undefined) {
+        return reply(done);
       }
       const args =
         input != null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
       try {
-        return reply(await body(client, args, conversationId));
+        const text = await body(client, args, conversationId);
+        if (stepKey != null) {
+          steps.set(stepKey, text);
+        }
+        return reply(text);
       } catch (error) {
         if (error instanceof BrowserServiceError) {
           return reply(stepFailure(error));

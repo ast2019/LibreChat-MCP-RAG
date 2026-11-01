@@ -14,8 +14,8 @@ license: MIT
 Go one step per message and wait where a step says so. Keep your own messages short; the article
 is the long part.
 
-1. **Brief (wait).** In one message, ask only what is still unknown and would change the
-   article, each with a default the user can accept with «خوب است»:
+1. **Brief (wait).** Ask only what is still unknown and would change the article. The list, in
+   order of importance:
    - type: وبلاگ و سئو، علمی و دانشجویی، خبری و گزارش، آموزشی، معرفی محصول
    - audience and goal
    - tone: رسمی، نیمه‌رسمی (default)، صمیمی
@@ -24,6 +24,14 @@ is the long part.
    - sources: always for academic and news; ask for the others
    - images: none by default; a generated picture only when the user wants one, or their own
      picture attached to a message
+   When `ask_user_question` is available, ask with it, not in text: at most four questions in
+   one call, the four that change the article most, each with 2 to 5 short options in the
+   user's language and `recommended` set to the default. Ask nothing else in that message.
+   Whatever you did not ask takes its default; name those defaults in one line when you go on,
+   so the user can change them. Call it a second time only when an answer opens a question
+   that really matters (the keyword after the user picks «وبلاگ و سئو»).
+   Without the tool, ask in one message, each item with a default the user can accept with
+   «خوب است».
    If the user already said these, go straight to step 2.
 2. **Research.** When web search is on, search before writing: 3 to 8 reliable, recent sources,
    official and primary ones first, each with its date. When it is off, say so in one line and
@@ -31,7 +39,10 @@ is the long part.
    citations.
 3. **Outline (wait).** Three title options, then the outline: each `##` and `###` heading with one
    line on what it covers, about how many words it gets, the source behind it, and where an
-   image or a chart goes. Ask the user to approve or change it.
+   image or a chart goes. Ask the user to approve or change it: show the outline in the message,
+   then, when `ask_user_question` is available, one question with the three titles as options
+   (`recommended` on the one you prefer) and one with «تأیید سرفصل‌ها» and «تغییر می‌خواهم»;
+   the user types the changes in the form's own answer field.
 4. **Write.** The whole article in the chat, in Markdown, following the approved outline.
 5. **Word file.** Call `create_word_document` with that text (see «Building the file»), then tell
    the user in two or three lines what the file has.

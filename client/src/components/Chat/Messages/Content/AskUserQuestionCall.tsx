@@ -3,6 +3,8 @@ import { EmptyText } from '@librechat/chat/components';
 import { MessageCircleQuestion, TriangleAlert } from 'lucide-react';
 import type { Agents, PartMetadata } from 'librechat-data-provider';
 import {
+  ASK_USER_ANSWER_IN_CHAT,
+  ASK_USER_DECLINED_ANSWER,
   getSubmittedAskAnswer,
   parseAskUserQuestionArgs,
   parseAskUserQuestionsArgs,
@@ -234,6 +236,17 @@ function QuestionBody({
   failed: boolean;
 }) {
   const localize = useLocalize();
+  /** The form's own skip and answer-in-chat replies are sentences for the model; the user
+   *  reads what they chose. */
+  const answerText = (value: string): string => {
+    if (value === ASK_USER_DECLINED_ANSWER) {
+      return localize('com_ui_ask_declined');
+    }
+    if (value === ASK_USER_ANSWER_IN_CHAT) {
+      return localize('com_ui_ask_answered_in_chat');
+    }
+    return formatAnswerLabel({ question, options, multiSelect }, value);
+  };
   return (
     <div className="min-w-0">
       {question.length > 0 && (
@@ -252,7 +265,7 @@ function QuestionBody({
             {localize('com_ui_you_answered')}
           </p>
           <p className="text-text-primary mt-0.5 text-sm leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap">
-            {formatAnswerLabel({ question, options, multiSelect }, answer)}
+            {answerText(answer)}
           </p>
         </div>
       )}

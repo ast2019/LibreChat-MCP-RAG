@@ -7,6 +7,45 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-01
+
+### Added
+- **The question form in every chat.** The `ask_user_question` tool (from upstream LibreChat)
+  is on: `ask_user_question` joins the agents capabilities in `config/librechat.saas.yaml`, and
+  every ordinary chat gets the tool. When the model needs answers before it starts (the
+  article wizard's brief, the slide builder's brief, an outline to approve), it opens a form in
+  the chat: one question at a time, with options, a free answer field, Back and Next, and Skip.
+  Private and local specs, whose models may
+  not call tools, get it only with their own `askUserQuestion` flag; the OpenAI-compatible API
+  never gets it.
+- **Suggested answers.** The model can mark one option of a question as `recommended`. The form
+  marks it «پیشنهادی», and «پیشنهادها خوب است» sends the user's own answers with the suggestions
+  for every question still open. The button shows only when every open question has a valid
+  suggestion.
+- **«ترجیح می‌دهم در چت بنویسم».** A link under the form answers it with a note that
+  the user will write their answer as a message: the run resumes, the model ends its turn with
+  one line, and the user types freely. The saved Q&A shows «پاسخ در چت», and a skipped form now
+  shows «رد شد» instead of the English sentence sent to the model.
+- **More than four questions.** A form holds four questions at most (the SDK's limit). The tool
+  description and the two skills tell the model to ask the four that matter most, name the
+  defaults it used for the rest, and open a second form only when an answer raises a question
+  that matters.
+- **The sign-in comparison** lists «فرم سؤال» under «فرق ما», with «بعضی» for similar services.
+
+### Changed
+- **The article wizard and the slide builder** ask their brief and their outline approval with
+  the form when the tool is there, and in text as before when it is not (a saved agent without
+  the tool).
+
+### Fixed
+- **The agent browser does not repeat a step after a form.** When a run resumes from a form,
+  LangGraph runs every tool call of that turn again. A browser step with the same tool call id
+  now returns its first answer instead of clicking or typing twice (kept in the server's memory
+  for six hours). The browser rules also tell the model to ask before it opens the browser (an
+  idle browser closes after three minutes while the user answers), never to ask in the same
+  turn as a browser tool, and to use `browser_handoff`, never the form, for signing in, a
+  CAPTCHA, a payment or a final confirmation.
+
 ## [0.32.1] - 2026-11-01
 
 ### Changed

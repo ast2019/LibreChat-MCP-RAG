@@ -4,10 +4,10 @@ import { Input, Button } from '@librechat/client';
 import type { Agents } from 'librechat-data-provider';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useOptionalChatSurface } from '~/components/Chat/Subagents/surface';
+import { getRecommendedValue, splitOtherOption } from '~/utils/approval';
 import { isCancelKey, isReboundSubmitChord } from '~/utils/shortcuts';
 import useAskQuestionsForm from '~/hooks/Input/useAskQuestionsForm';
 import AskOptions from '~/components/Chat/ask/options';
-import { splitOtherOption } from '~/utils/approval';
 import { AutoHeight } from '~/components/ui';
 import { mainTextareaId } from '~/common';
 import { useLocalize } from '~/hooks';
@@ -17,7 +17,9 @@ import { cn } from '~/utils';
  * One bounded batch of `ask_user_question` items, presented a single question at
  * a time. The batch arrives as one interrupt and submits as one answer map — the
  * stepper is purely presentational, so Submit still waits until every question
- * has an answer and Skip still declines the whole batch from any step.
+ * has an answer and Skip still declines the whole batch from any step. When the
+ * model suggested a default for every open question, one button sends the user's
+ * own answers with those suggestions for the rest.
  */
 export default function AskUserQuestions({
   actionId,
@@ -174,6 +176,11 @@ export default function AskUserQuestions({
     selected.includes(option.value) ? [optionIndex] : [],
   );
   const text = Object.hasOwn(form.state.text, question.id) ? form.state.text[question.id] : '';
+  const recommendedValue = getRecommendedValue(question);
+  const recommendedIndex =
+    recommendedValue != null
+      ? choices.findIndex((option) => option.value === recommendedValue)
+      : -1;
 
   /** Confirm the current answer: the next step, or the batch on the last one. */
   const confirmStep = () => {
@@ -317,6 +324,8 @@ export default function AskUserQuestions({
                 checked={selectedIndices}
                 selected={question.multiSelect === true ? null : (selectedIndices[0] ?? null)}
                 selectedIsAnswer
+                recommended={recommendedIndex >= 0 ? recommendedIndex : null}
+                recommendedLabel={localize('com_ui_ask_recommended')}
                 locked={form.locked || text.trim().length > 0}
                 onActivate={(optionIndex) =>
                   handleSelectOption(question, choices[optionIndex].value)
@@ -387,24 +396,46 @@ export default function AskUserQuestions({
               )}
             </button>
           )}
+          {!form.locked && (
+            <button
+              type="button"
+              className="text-text-secondary hover:text-text-primary block pt-2 text-start text-xs select-none hover:underline"
+              onClick={form.answerInChat}
+            >
+              {localize('com_ui_ask_answer_in_chat')}
+            </button>
+          )}
         </div>
       </AutoHeight>
       <div
         className={cn(
-          'flex shrink-0 items-center gap-2 p-3',
-          stepped ? 'justify-between' : 'justify-end',
+          'flex shrink-0 flex-wrap items-center gap-2 p-3',
+          stepped || form.canAcceptRecommended ? 'justify-between' : 'justify-end',
         )}
       >
-        <Button
-          type="button"
-          className="select-none"
-          size="sm"
-          variant="outline"
-          disabled={form.locked}
-          onClick={form.skip}
-        >
-          {localize('com_ui_skip')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            className="select-none"
+            size="sm"
+            variant="outline"
+            disabled={form.locked}
+            onClick={form.skip}
+          >
+            {localize('com_ui_skip')}
+          </Button>
+          {form.canAcceptRecommended && (
+            <Button
+              type="button"
+              className="select-none"
+              size="sm"
+              variant="outline"
+              onClick={form.acceptRecommended}
+            >
+              {localize('com_ui_ask_accept_recommended')}
+            </Button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {stepped && (
             <Button

@@ -152,10 +152,19 @@ export async function loadEphemeralAgent(
   if (ephemeralAgent?.memory === true || modelSpec?.memory === true) {
     tools.push(Tools.memory);
   }
-  /** Same downstream gating as persisted agents applies: `createRun` only
-   *  equips the tool when the request is HITL-capable, the agent is not a
-   *  subagent, and the admin hasn't excluded it (filteredTools/includedTools). */
-  if (ephemeralAgent?.ask_user_question === true || modelSpec?.askUserQuestion === true) {
+  /** The question form, in every chat: the model asks its clarifying questions in a form
+   *  instead of a list of text. The agents capability `ask_user_question` turns it off for
+   *  the whole server, and `createRun` still equips it only when the request is
+   *  HITL-capable, the agent is not a subagent, and the admin hasn't excluded it
+   *  (filteredTools/includedTools); the OpenAI-compatible API never gets it. Private and
+   *  local specs get no chat tools, like the Persian and Office tools: their models may not
+   *  call tools at all. A spec's or the composer's own flag still equips it there. */
+  const privateSpec = modelSpec?.privacy === 'private' || modelSpec?.privacy === 'local';
+  if (
+    !privateSpec ||
+    ephemeralAgent?.ask_user_question === true ||
+    modelSpec?.askUserQuestion === true
+  ) {
     tools.push(ASK_USER_QUESTION_TOOL_NAME);
   }
   /** Image, video and speech generation the model can call in any chat; whether the user may

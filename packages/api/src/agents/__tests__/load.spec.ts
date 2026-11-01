@@ -29,8 +29,10 @@ const deps: LoadAgentDeps = {
   getAccessibleMCPServers: mockGetAccessibleMCPServers,
 };
 
-/** Tools every ordinary chat gets (Persian calendar and spelling, Word and PowerPoint). */
+/** Tools every ordinary chat gets (the question form, Persian calendar and spelling, Word and
+ *  PowerPoint). */
 const CHAT_TOOLS = [
+  'ask_user_question',
   'persian_calendar',
   'persian_normalize',
   'create_word_document',
@@ -593,6 +595,8 @@ describe('loadAgent', () => {
 
     expect(result?.tools).toContain('ask_user_question');
 
+    /** Every ordinary chat has the question form; a local spec, whose model may not call
+     *  tools, gets it only with its own flag. */
     const withoutFlag = await loadAgent(
       {
         req: {
@@ -608,6 +612,7 @@ describe('loadAgent', () => {
                   name: 'no-questions',
                   label: 'No Questions',
                   preset: { endpoint: 'openai', model: 'gpt-4' },
+                  privacy: 'local',
                 },
               ],
             },
@@ -622,6 +627,17 @@ describe('loadAgent', () => {
     );
 
     expect(withoutFlag?.tools).not.toContain('ask_user_question');
+
+    const ordinary = await loadAgent(
+      {
+        req: { user: { id: 'user123' }, body: {} },
+        agent_id: EPHEMERAL_AGENT_ID as string,
+        endpoint: 'openai',
+        model_parameters: { model: 'gpt-4' } as unknown as AgentModelParameters,
+      },
+      deps,
+    );
+    expect(ordinary?.tools).toContain('ask_user_question');
   });
 
   test('synthesizes background tool_options for eligible MCP tools from the ephemeralAgent flag', async () => {

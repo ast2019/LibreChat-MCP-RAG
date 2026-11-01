@@ -17,6 +17,7 @@ import {
   AppWindow,
   Presentation,
   Clapperboard,
+  MessageCircleQuestion,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TranslationKeys } from '~/hooks';
@@ -135,6 +136,13 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         icon: Plug,
         title: 'com_auth_feature_tools',
         detail: 'com_auth_feature_tools_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: MessageCircleQuestion,
+        title: 'com_auth_feature_ask',
+        detail: 'com_auth_feature_ask_body',
         ours: 'yes',
         others: 'some',
       },
