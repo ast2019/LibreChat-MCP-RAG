@@ -30,6 +30,8 @@ flowchart LR
     V[("pgvector<br/>بردار فایل‌ها")]
     S["SearXNG :8080"]
     O["Ollama :11434<br/>مدل لوکال"]
+    BR["browser :3100<br/>Agent browser"]
+    CI["codeapi :3112<br/>Code Interpreter"]
     VOL[["volumeها<br/>images، uploads، logs"]]
   end
 
@@ -45,7 +47,7 @@ flowchart LR
   B -->|HTTPS| T
   D -->|HTTPS + Bearer| T
   T --> API
-  API --> M & MS & RAG & S & O & VOL
+  API --> M & MS & RAG & S & O & BR & CI & VOL
   RAG --> V
   RAG -->|embeddings| OR
   API --> OR & WS & KV & PG & TG & HF
@@ -63,6 +65,9 @@ flowchart LR
 | `rag_api` | `librechat-rag-api-dev-lite:latest` | تکه‌کردن فایل، embedding و جستجوی برداری | vectordb | `rag-uploads` |
 | `searxng` | ساخته از `deploy/searxng` | آخرین حلقه زنجیره جستجوی وب | — | — |
 | `ollama` | `ollama/ollama:latest` | مدل لوکال (`hivegpt-local`) و مدل لوکال بی‌سانسور | — | `ollama-models` |
+| `browser` | ساخته از `deploy/browser` | مرورگر Agent (آزمایشی) | — | — |
+| `codeapi` + `code_*` | ایمیج‌های GHCRی `librechat-ai/code-interpreter-*` | اجرای ایزولهٔ کد (Run Code / `execute_code`)؛ نیاز به `/dev/kvm` | Redis/MinIO داخلی همان استک | `code-redis-data`، `code-minio-data` |
+| `codeapi_bridge` + `code_bridge_queue` | همان ایمیج API/worker با `remote-bridge` | کنترل‌پلن Attached VM (`@librechat/code`)؛ بدون KVM | همان Redis/file/tools | — |
 
 - فقط `api` دامنه عمومی دارد و بقیه در شبکه داخلی stack هستند.
 - Traefik در Coolify گواهی HTTPS را می‌گیرد. `TRUST_PROXY=1` است.

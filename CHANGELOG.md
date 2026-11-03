@@ -7,6 +7,28 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-03
+
+### Added
+- **Attached VM path (BYOM).** `codeapi_bridge` + `code_bridge_queue` run the Code API
+  remote-bridge profile so an Ubuntu VM with `@librechat/code` can pair outbound. Enables
+  `stateful_code_sessions` / `principalWorkers` in SaaS config (personal-workers environment
+  stays commented until `LIBRECHAT_CODE_BRIDGE_BASEURL` is an `https://` origin). Host install
+  script and runbook: `deploy/code-worker/`, `docs/saas/ATTACHED_VM.md`. This is not automatic
+  cloud VM provisioning from a Git URL; after pairing, agents can clone, install, test and edit
+  on that machine (Docker on the VM host is optional via `INSTALL_DOCKER=1`).
+
+## [0.35.0] - 2026-11-03
+
+### Added
+- **Code Interpreter in the Coolify stack.** The LibreChat Code API runs beside HiveGPT
+  (`deploy/code-interpreter/compose.yml`, included from `docker-compose.yml`): agents and the
+  Run Code button execute Python and other supported languages in a microVM sandbox. Model
+  specs (including auto-discovered ones) set `executeCode: true`; `interface.runCode` and the
+  `execute_code` agent capability are on. Requires `/dev/kvm` (nested virtualization). Do not
+  give `codeapi` or other `code_*` services a public domain — they use `LOCAL_MODE` on the
+  Docker network only. See `deploy/code-interpreter/README.md` and `docs/saas/DEPLOY_COOLIFY.md`.
+
 ## [0.34.1] - 2026-11-01
 
 ### Fixed

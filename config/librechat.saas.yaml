@@ -54,7 +54,7 @@ interface:
   webSearch: true
   fileSearch: true
   fileCitations: true
-  runCode: false
+  runCode: true
   # The composer ring shows how full the model's context window is, with the share in percent
   # beside it; the card adds the token breakdown and the share of the pack used. Per-chat cost
   # stays hidden (`contextCost: false`): it left out background work (memory, titles, OCR,
@@ -488,6 +488,7 @@ endpoints:
   agents:
     capabilities:
       - deferred_tools
+      - execute_code
       - file_search
       - web_search
       - artifacts
@@ -497,6 +498,40 @@ endpoints:
       - skills
       # The question form: the model asks its clarifying questions in a form in the chat.
       - ask_user_question
+      # Attached / personal VMs (@librechat/code). Experimental; see docs/saas/ATTACHED_VM.md.
+      - stateful_code_sessions
+    # Sharing scopes for stateful workspaces. Attached personal machines are opt-in: set
+    # LIBRECHAT_CODE_BRIDGE_BASEURL to the https:// origin of `codeapi_bridge`, then uncomment
+    # the `environments` block (pairing requires HTTPS outside loopback).
+    statefulCodeSessions:
+      allowedEnvironments:
+        - user
+        - agent-user
+        - conversation
+      allowEnvironmentSelection: true
+      principalWorkers:
+        enabled: true
+        maxPerUser: 2
+      # environments:
+      #   - id: personal-workers
+      #     name: ماشین شخصی (Attached VM)
+      #     type: attached
+      #     baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}'
+      #     owner: deployment
+      #     default: true
+      #     configSchema:
+      #       limits:
+      #         maxCommandTimeoutMs: 120000
+      #       permissions:
+      #         fileWrite:
+      #           allowed: [allow, ask, deny]
+      #           default: ask
+      #         commandExecution:
+      #           allowed: [ask, deny]
+      #           default: ask
+      #     pairing:
+      #       allowPrincipalWorkers: true
+      #       tokenEnv: CODE_BRIDGE_ADMIN_TOKEN
   custom:
     # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
     - name: 'OpenRouter'
@@ -692,6 +727,7 @@ modelSpecs:
       iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-sonnet-latest'
@@ -703,6 +739,7 @@ modelSpecs:
       iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-opus-latest'
@@ -714,6 +751,7 @@ modelSpecs:
       iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-fable-latest'
@@ -725,6 +763,7 @@ modelSpecs:
       iconURL: 'anthropic'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-haiku-latest'
@@ -738,6 +777,7 @@ modelSpecs:
       iconURL: 'openai'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~openai/gpt-sol-latest'
@@ -749,6 +789,7 @@ modelSpecs:
       iconURL: 'openai'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~openai/gpt-astra-latest'
@@ -760,6 +801,7 @@ modelSpecs:
       iconURL: 'openai'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~openai/gpt-luna-latest'
@@ -773,6 +815,7 @@ modelSpecs:
       iconURL: 'deepseek'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~deepseek/deepseek-pro-latest'
@@ -784,6 +827,7 @@ modelSpecs:
       iconURL: 'deepseek'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~deepseek/deepseek-flash-latest'
@@ -797,6 +841,7 @@ modelSpecs:
       iconURL: 'google'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~google/gemini-flash-latest'
@@ -808,6 +853,7 @@ modelSpecs:
       iconURL: 'google'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~google/gemini-pro-latest'
@@ -821,6 +867,7 @@ modelSpecs:
       iconURL: 'xai'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~x-ai/grok-latest'
@@ -834,6 +881,7 @@ modelSpecs:
       iconURL: 'zhipu'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~z-ai/glm-latest'
@@ -845,6 +893,7 @@ modelSpecs:
       iconURL: 'zhipu'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~z-ai/glm-flash-latest'
@@ -858,6 +907,7 @@ modelSpecs:
       iconURL: 'qwen'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: 'qwen/qwen3.6-plus'
@@ -869,6 +919,7 @@ modelSpecs:
       iconURL: 'qwen'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: 'qwen/qwen3-coder-next'
@@ -893,6 +944,7 @@ modelSpecs:
       iconURL: 'google'
       webSearch: true
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~google/gemini-flash-latest'
@@ -907,6 +959,7 @@ modelSpecs:
       group: 'ابزارها'
       iconURL: 'anthropic'
       fileSearch: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-sonnet-latest'
@@ -923,6 +976,7 @@ modelSpecs:
       groupIcon: '/assets/private.svg'
       iconURL: 'google'
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'google/gemini-3.8-flash'
@@ -934,6 +988,7 @@ modelSpecs:
       group: 'محرمانه'
       iconURL: 'anthropic'
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'anthropic/claude-sonnet-5.5'
@@ -945,6 +1000,7 @@ modelSpecs:
       group: 'محرمانه'
       iconURL: 'openai'
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'OpenRouterPrivate'
         model: 'openai/gpt-6.1-sol'
@@ -957,6 +1013,7 @@ modelSpecs:
       groupIcon: '/assets/logo.svg'
       iconURL: '/assets/logo.svg'
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'Local'
         model: 'hivegpt-local'
@@ -971,6 +1028,7 @@ modelSpecs:
       iconURL: 'qwen'
       adminOnly: true
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'LocalUncensored'
         model: 'hivegpt-uncensored'
@@ -983,6 +1041,7 @@ modelSpecs:
       iconURL: 'qwen'
       adminOnly: true
       hideBadgeRow: true
+      executeCode: true
       preset:
         endpoint: 'LocalUncensoredThink'
         model: 'hivegpt-uncensored'

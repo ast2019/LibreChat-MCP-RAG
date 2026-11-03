@@ -15,11 +15,12 @@ flowchart LR
   API --> R[rag_api :8000] --> V[(pgvector<br/>بردار فایل‌ها)]
   API --> S[SearXNG :8080<br/>جستجوی وب]
   API --> OL[Ollama :11434<br/>مدل لوکال]
+  API --> CI[codeapi :3112<br/>Code Interpreter]
   API -->|مدل‌ها + قیمت‌ها| OR[OpenRouter API]
   R -->|embeddings| OR
 ```
 
-همه سرویس‌ها در `docker-compose.yml` تعریف شده‌اند. فقط `api` دامنه عمومی دارد و بقیه داخل شبکه خصوصی stack هستند.
+همه سرویس‌ها در `docker-compose.yml` (و `include`ی `deploy/code-interpreter/compose.yml`) تعریف شده‌اند. فقط `api` دامنه عمومی دارد و بقیه داخل شبکه خصوصی stack هستند.
 
 ## پوشه‌ها
 
@@ -37,6 +38,10 @@ flowchart LR
 | `client/src/` | اپ React. `components/`، `hooks/`، `data-provider/` (react-query)، `locales/` (ترجمه‌ها) |
 | `config/` | اسکریپت‌های CLI ادمین (`create-user`، `add-balance`، **`grant-pack`**) و **`librechat.saas.yaml`** |
 | `deploy/searxng/` | تنظیمات SearXNG |
+| `deploy/browser/` | سرویس مرورگر Agent |
+| `deploy/code-interpreter/` | استک Code Interpreter (GHCR) که با `include` به compose اصلی می‌آید؛ شامل `codeapi_bridge` برای Attached VM |
+| `deploy/code-worker/` | نصب `@librechat/code` روی Ubuntu VM و اتصال به bridge |
+| `docs/saas/ATTACHED_VM.md` | راهنمای ماشین وصل‌شده (شبیه Cursor/Kiro Cloud، بدون provision خودکار) |
 | `helm/` | چارت Kubernetes (upstream؛ در این fork استفاده نمی‌شود) |
 | `e2e/` | تست‌های Playwright |
 | `docs/saas/` | مستندات همین fork |
