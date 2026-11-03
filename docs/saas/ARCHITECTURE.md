@@ -67,6 +67,7 @@ flowchart LR
 | `ollama` | `ollama/ollama:latest` | مدل لوکال (`hivegpt-local`) و مدل لوکال بی‌سانسور | — | `ollama-models` |
 | `browser` | ساخته از `deploy/browser` | مرورگر Agent (آزمایشی) | — | — |
 | `codeapi` + `code_*` | ایمیج‌های GHCRی `librechat-ai/code-interpreter-*` | اجرای ایزولهٔ کد (Run Code / `execute_code`)؛ نیاز به `/dev/kvm` | Redis/MinIO داخلی همان استک | `code-redis-data`، `code-minio-data` |
+| `codeapi_bridge` + `code_bridge_queue` | همان ایمیج API/worker با `remote-bridge` | کنترل‌پلن Attached VM (`@librechat/code`)؛ بدون KVM | همان Redis/file/tools | — |
 
 - فقط `api` دامنه عمومی دارد و بقیه در شبکه داخلی stack هستند.
 - Traefik در Coolify گواهی HTTPS را می‌گیرد. `TRUST_PROXY=1` است.
