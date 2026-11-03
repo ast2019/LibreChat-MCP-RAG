@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-03
+
+### Added
+- **Code Interpreter in the Coolify stack.** The LibreChat Code API runs beside HiveGPT
+  (`deploy/code-interpreter/compose.yml`, included from `docker-compose.yml`): agents and the
+  Run Code button execute Python and other supported languages in a microVM sandbox. Model
+  specs (including auto-discovered ones) set `executeCode: true`; `interface.runCode` and the
+  `execute_code` agent capability are on. Requires `/dev/kvm` (nested virtualization). Do not
+  give `codeapi` or other `code_*` services a public domain — they use `LOCAL_MODE` on the
+  Docker network only. See `deploy/code-interpreter/README.md` and `docs/saas/DEPLOY_COOLIFY.md`.
+
 ## [0.34.1] - 2026-11-01
 
 ### Fixed

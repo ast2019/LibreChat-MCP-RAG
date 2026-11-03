@@ -8,6 +8,12 @@
 #
 # The upstream development compose this replaces is still available upstream; local
 # development uses `npm run backend:dev` / `npm run frontend:dev` (see README).
+#
+# Code Interpreter (sandboxed Run Code) lives in deploy/code-interpreter/compose.yml and
+# needs /dev/kvm on the host. Leave every code_* / codeapi service without a public domain.
+
+include:
+  - path: deploy/code-interpreter/compose.yml
 
 services:
   api:
@@ -72,6 +78,10 @@ services:
       # Agent browser (experimental): the `browser` service below. Coolify generates the token.
       BROWSER_SERVICE_URL: http://browser:3100
       BROWSER_SERVICE_TOKEN: ${SERVICE_HEX_64_BROWSER}
+
+      # Code Interpreter (internal only). LOCAL_MODE on codeapi trusts this Docker network;
+      # do not publish codeapi. Override to point at a remote Code API if you run it elsewhere.
+      LIBRECHAT_CODE_BASEURL: ${LIBRECHAT_CODE_BASEURL:-http://codeapi:3112/v1}
 
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
