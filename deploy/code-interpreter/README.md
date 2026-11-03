@@ -44,10 +44,17 @@ In chat, pick a model with code enabled, ask it to run a short Python snippet, o
 **Run Code** on a Python block. A CSV upload plus “summarize this with code” is a good
 smoke test.
 
+## Attached VMs
+
+`codeapi_bridge` (port 3114 in-container) is the remote-bridge control plane. Keep it
+internal until you follow [docs/saas/ATTACHED_VM.md](../../docs/saas/ATTACHED_VM.md) and
+`deploy/code-worker/`. Do not confuse it with this microVM sandbox.
+
 ## Hardening later
 
 For a public multi-tenant threat model, move off `LOCAL_MODE` to LibreChat JWT auth
 (`CODEAPI_AUTH_PROVIDER=librechat-jwt` and matching keys on both sides — see
 [LibreChat Code Interpreter docs](https://www.librechat.ai/docs/configuration/tools/code_interpreter))
 and replace the sample execution-manifest keypair. Keep egress hardened and never expose
-the Code API on the internet.
+the microVM Code API (`codeapi`) on the internet. The bridge API may be HTTPS-public only
+with `CODEAPI_BRIDGE_LOCAL_MODE=false` and proper auth.

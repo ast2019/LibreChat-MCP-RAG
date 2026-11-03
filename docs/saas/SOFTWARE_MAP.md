@@ -39,7 +39,9 @@ flowchart LR
 | `config/` | اسکریپت‌های CLI ادمین (`create-user`، `add-balance`، **`grant-pack`**) و **`librechat.saas.yaml`** |
 | `deploy/searxng/` | تنظیمات SearXNG |
 | `deploy/browser/` | سرویس مرورگر Agent |
-| `deploy/code-interpreter/` | استک Code Interpreter (GHCR) که با `include` به compose اصلی می‌آید |
+| `deploy/code-interpreter/` | استک Code Interpreter (GHCR) که با `include` به compose اصلی می‌آید؛ شامل `codeapi_bridge` برای Attached VM |
+| `deploy/code-worker/` | نصب `@librechat/code` روی Ubuntu VM و اتصال به bridge |
+| `docs/saas/ATTACHED_VM.md` | راهنمای ماشین وصل‌شده (شبیه Cursor/Kiro Cloud، بدون provision خودکار) |
 | `helm/` | چارت Kubernetes (upstream؛ در این fork استفاده نمی‌شود) |
 | `e2e/` | تست‌های Playwright |
 | `docs/saas/` | مستندات همین fork |

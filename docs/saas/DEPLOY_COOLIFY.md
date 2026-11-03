@@ -142,9 +142,15 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 
 - استک از `deploy/code-interpreter/compose.yml` با `include` به `docker-compose.yml` اضافه می‌شود.
 - `api` به `LIBRECHAT_CODE_BASEURL` (پیش‌فرض `http://codeapi:3112/v1`) وصل است. `interface.runCode` و قابلیت `execute_code` در `config/librechat.saas.yaml` روشن‌اند و model specها `executeCode: true` دارند.
-- روی میزبان `/dev/kvm` لازم است. به هیچ‌کدام از سرویس‌های `codeapi` / `code_*` دامنه ندهید.
+- روی میزبان `/dev/kvm` لازم است. به `codeapi` / `code_sandbox` دامنه ندهید.
 - بررسی: `docker compose exec api wget -qO- http://codeapi:3112/v1/health` و یک بلاک Python با دکمهٔ Run Code.
 - جزئیات و سخت‌سازی بعدی (JWT به‌جای `LOCAL_MODE`): `deploy/code-interpreter/README.md`.
+
+## Attached VM (اختیاری)
+
+- سرویس‌های `codeapi_bridge` و `code_bridge_queue` برای وصل کردن Ubuntu VM با `@librechat/code` هستند.
+- فقط وقتی آمادهٔ ماشین شخصی شدید به `codeapi_bridge` دامنهٔ `https://` بدهید، `LIBRECHAT_CODE_BRIDGE_BASEURL` را بگذارید، `LOCAL_MODE` عمومی را خاموش کنید، و بلوک `personal-workers` را در `librechat.saas.yaml` از حالت توضیح خارج کنید.
+- نصب worker: `deploy/code-worker/`. راهنمای کامل: [ATTACHED_VM.md](./ATTACHED_VM.md).
 
 ## مرورگر Agent (آزمایشی)
 

@@ -3,8 +3,13 @@
 # Images: https://github.com/LibreChat-AI/code-interpreter (GHCR, tag CODEAPI_IMAGE_TAG).
 #
 # Isolation uses a libkrun microVM (needs /dev/kvm on the host). Nested virtualization
-# must be on. Never give these services a public Coolify domain — LOCAL_MODE trusts the
-# Docker network only.
+# must be on. Never give `codeapi` / `code_sandbox` a public Coolify domain — LOCAL_MODE
+# trusts the Docker network only.
+#
+# `codeapi_bridge` is the remote-bridge control plane for Attached VMs (@librechat/code).
+# When enabling personal workers, give THAT service an https:// domain and set
+# LIBRECHAT_CODE_BRIDGE_BASEURL (see docs/saas/ATTACHED_VM.md). Turn LOCAL_MODE off before
+# exposing it publicly.
 #
 # Pin a commit tag for production (CODEAPI_IMAGE_TAG=sha-<commit>); `main` tracks upstream.
 
@@ -69,6 +74,70 @@ services:
       code_redis:
         condition: service_started
       code_sandbox:
+        condition: service_healthy
+
+  # Remote-bridge control plane for Attached / personal VMs (outbound @librechat/code).
+  # Shares Redis and file/tool services with the microVM stack; does not need /dev/kvm.
+  codeapi_bridge:
+    image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
+    restart: unless-stopped
+    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
+    environment:
+      <<: *codeapi-common
+      LOCAL_MODE: ${CODEAPI_BRIDGE_LOCAL_MODE:-true}
+      SERVICE_PORT: 3114
+      CODEAPI_SANDBOX_BACKEND: remote-bridge
+      CODEAPI_EXECUTION_PROFILE: stateful
+      CODEAPI_RUNTIME_SESSION_MODE: affinity
+      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
+      CODEAPI_BRIDGE_AUTH_MODE: paired
+      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
+      CODEAPI_BRIDGE_LANE_GIT: ${CODEAPI_BRIDGE_LANE_GIT:-true}
+      FILE_SERVER_URL: http://code_file:3000
+      TOOL_CALL_SERVER_URL: http://code_tools:3033
+      EGRESS_GATEWAY_URL: http://code_egress:3190
+      CODEAPI_HTTP_JSON_LIMIT: 50mb
+    depends_on:
+      code_redis:
+        condition: service_started
+      code_tools:
+        condition: service_started
+      code_file:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO-
+        - http://127.0.0.1:3114/v1/health
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  code_bridge_queue:
+    image: ghcr.io/librechat-ai/code-interpreter-worker:${CODEAPI_IMAGE_TAG:-main}
+    restart: unless-stopped
+    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
+    environment:
+      <<: *codeapi-common
+      LOCAL_MODE: ${CODEAPI_BRIDGE_LOCAL_MODE:-true}
+      CODEAPI_SANDBOX_BACKEND: remote-bridge
+      CODEAPI_EXECUTION_PROFILE: stateful
+      CODEAPI_RUNTIME_SESSION_MODE: affinity
+      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
+      CODEAPI_BRIDGE_AUTH_MODE: paired
+      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
+      CODEAPI_BRIDGE_LANE_GIT: ${CODEAPI_BRIDGE_LANE_GIT:-true}
+      EGRESS_GATEWAY_URL: http://code_egress:3190
+      CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY: ${CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY:-MC4CAQAwBQYDK2VwBCIEIBoxzSJjQ5jTVyuohHtlD+uDGqv/tZ6hQS2CmxuOg2Wn}
+      PYTHON_CONCURRENCY: ${CODEAPI_PYTHON_CONCURRENCY:-1}
+      OTHER_CONCURRENCY: ${CODEAPI_OTHER_CONCURRENCY:-4}
+      WORKER_HEALTH_PORT: 3115
+    depends_on:
+      code_redis:
+        condition: service_started
+      codeapi_bridge:
         condition: service_healthy
 
   code_egress:

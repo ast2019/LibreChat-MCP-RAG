@@ -82,6 +82,10 @@ services:
       # Code Interpreter (internal only). LOCAL_MODE on codeapi trusts this Docker network;
       # do not publish codeapi. Override to point at a remote Code API if you run it elsewhere.
       LIBRECHAT_CODE_BASEURL: ${LIBRECHAT_CODE_BASEURL:-http://codeapi:3112/v1}
+      # Attached VMs: public https:// origin of `codeapi_bridge` (Coolify domain). Empty until
+      # you enable personal workers in librechat.saas.yaml — see docs/saas/ATTACHED_VM.md.
+      LIBRECHAT_CODE_BRIDGE_BASEURL: ${LIBRECHAT_CODE_BRIDGE_BASEURL:-}
+      CODE_BRIDGE_ADMIN_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
 
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
