@@ -2,10 +2,11 @@
 
 The microVM sandbox (`codeapi`, `code_worker`, `code_sandbox`) is **not** deployed on
 the Coolify host. It needs `/dev/kvm`, and that device is not granted on the server
-that holds the database. `interface.runCode` is off and `execute_code` is not in
-`config/librechat.saas.yaml`.
+that holds the database.
 
-Coding uses the Attached VM bridge in the root `docker-compose.yml`. See
+Coding uses the Attached VM bridge in the root `docker-compose.yml`: saas config
+keeps `interface.runCode` and the `execute_code` / `stateful_code_sessions`
+capabilities on so agents can reach a paired worker. See
 `docs/saas/ATTACHED_VM.md`.
 
 ## Coolify
