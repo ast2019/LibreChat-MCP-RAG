@@ -7,6 +7,20 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-11-04
+
+### Fixed
+- **User Settings no longer shows Attached-VM / librechat-code worker copy** when
+  self-service pairing is not enabled. Operator bridge docs stay out of the user
+  Settings surface.
+- **Agent API keys dialog overflow.** Guide and code samples stay within the
+  dialog under RTL (`min-w-0` / no double scroll).
+- **`/api/docs` title is HiveGPT Agents API** (was LibreChat).
+
+### Added
+- **API keys guide documents local / confidential models:** grouped lists, how to
+  pass their id as `model`, and a sample curl for a secure-local model.
+
 ## [0.38.1] - 2026-11-04
 
 ### Fixed
