@@ -35,17 +35,29 @@ INSTALL_DOCKER=1 bash install-host.sh
 
 Needs Node.js 22+, Git, bubblewrap, ripgrep, socat. Docker is optional for compose-based apps.
 
-The install script also clears Ubuntu 24.04+'s
-`kernel.apparmor_restrict_unprivileged_userns` restriction and probes `bwrap`.
-Without that, pairing works but every sandboxed command fails with
-`apply-seccomp: … setgroups … CAP_SYS_ADMIN`.
+Always start the Attached VM worker with `--command-policy-preset trusted-vm`
+(the Settings pairing command and systemd unit do). That preset sets
+`allowAllUnixSockets: true`, which drops Anthropic SRT's nested `apply-seccomp`
+helper — the usual reason every command fails with
+`apply-seccomp: … setgroups … CAP_SYS_ADMIN` on Ubuntu while pairing still works.
 
-Already paired and seeing that error? On the VM:
+The install script also clears Ubuntu 24.04+'s
+`kernel.apparmor_restrict_unprivileged_userns` restriction and probes `bwrap`,
+which matters for the default `restricted` policy and for bubblewrap itself.
+
+Already paired and seeing that error? Restart with `trusted-vm` first:
 
 ```bash
+LIBRECHAT_CODE_WORKER_ID='<worker-id>' librechat-code run \
+  --default-workspace \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
+# or: sudo systemctl restart librechat-code.service  # if the unit already has trusted-vm
+
+# optional host hardening for Ubuntu 24.04+:
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-librechat-code-userns.conf
-sudo systemctl restart librechat-code.service   # or restart your foreground worker
 ```
 
 ## 3. Pair

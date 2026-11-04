@@ -10,13 +10,14 @@ LibreChat versions are tracked separately in `package.json`.
 ## [0.38.12] - 2026-11-04
 
 ### Fixed
-- **Attached VM paired but every shell command failed.** On Ubuntu 24.04+, AppArmor's
-  `kernel.apparmor_restrict_unprivileged_userns=1` strips capabilities from nested user
-  namespaces, so Anthropic Sandbox Runtime's `apply-seccomp` aborts with
-  `setgroups … CAP_SYS_ADMIN` even for `echo` / `git --version`. Pairing and file tools
-  still answered; clone never ran. `install-host.sh` now clears that sysctl, persists it,
-  and probes `bwrap` before declaring the host ready. The Settings pairing command and docs
-  also pass `--command-policy-preset trusted-vm` like the systemd unit already did.
+- **Attached VM paired but every shell command failed.** On Ubuntu, Anthropic SRT's
+  nested `apply-seccomp` helper often cannot get `CAP_SYS_ADMIN` inside bubblewrap
+  (AppArmor / capability bounding set), so even `echo` / `git --version` abort with
+  `setgroups … CAP_SYS_ADMIN`. Pairing and file tools still answered; clone never ran.
+  The Settings pairing command now passes `--command-policy-preset trusted-vm` (like the
+  systemd unit already did), which sets `allowAllUnixSockets` and drops that helper.
+  `install-host.sh` also clears Ubuntu 24.04+'s `apparmor_restrict_unprivileged_userns`
+  sysctl, persists it, and probes `bwrap` before declaring the host ready.
 
 ## [0.38.10] - 2026-11-04
 

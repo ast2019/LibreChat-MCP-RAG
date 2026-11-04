@@ -73,20 +73,32 @@ Docker را **روی خود VM** نصب کنید (نه داخل کانتینر �
 apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted; caller must provide CAP_SYS_ADMIN): Permission denied
 ```
 
-علت معمولاً **Ubuntu 24.04+** است: `kernel.apparmor_restrict_unprivileged_userns=1` قابلیت‌های namespace کاربر را می‌گیرد و لایهٔ sandbox (`bubblewrap` + `apply-seccomp` داخل `@librechat/code`) نمی‌تواند بالا بیاید. اتصال VM و ابزارهای فایل ممکن است هنوز جواب بدهند؛ فقط اجرای دستور می‌شکند. پیام‌های `Workspace tool request invalid` بعد از شکست clone معمولاً ثانویه‌اند (مسیر/ریپو وجود ندارد).
+علت رایج‌تر این است که worker با policy پیش‌فرض `restricted` بالا آمده، نه `trusted-vm`. روی Ubuntu، helperِ `apply-seccomp` داخل bubblewrap معمولاً به `CAP_SYS_ADMIN` در nested userns نمی‌رسد (AppArmor / bounding set). presetِ `trusted-vm` همان کاری را می‌کند که Anthropic برای این حالت پیشنهاد می‌دهد: `allowAllUnixSockets: true` تا آن helper از زنجیره حذف شود، در حالی که قوانین فایل‌سیستم و masking اعتبارنامهٔ SRT می‌مانند. اتصال VM و ابزارهای فایل ممکن است هنوز جواب بدهند؛ فقط اجرای دستور می‌شکند. پیام‌های `Workspace tool request invalid` بعد از شکست clone معمولاً ثانویه‌اند (مسیر/ریپو وجود ندارد).
 
-روی همان VM:
+روی همان VM، worker را با preset درست دوباره اجرا کنید:
+
+```bash
+# اگر systemd دارید، واحد Settings از قبل trusted-vm دارد:
+sudo systemctl restart librechat-code.service
+
+# یا foreground (همان worker-id جفت‌شده):
+LIBRECHAT_CODE_WORKER_ID='<worker-id>' librechat-code run \
+  --default-workspace \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
+```
+
+در UI وضعیت محیط باید چیزی شبیه `anthropic-srt:trusted-vm` نشان بدهد، نه فقط `anthropic-srt` / `native-srt`.
+
+دفاع اضافی روی Ubuntu 24.04+ (و برای policyِ `restricted`):
 
 ```bash
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-librechat-code-userns.conf
-# سپس worker را restart کنید (systemd یا همان فرآیند librechat-code)
-sudo systemctl restart librechat-code.service   # اگر با systemd اجرا می‌کنید
 ```
 
-`deploy/code-worker/install-host.sh` همین تنظیم را اعمال می‌کند و قبل از اعلام آمادگی، `bwrap` را تست می‌کند. اگر میزبان کانتینر است نه VM واقعی، nested userns باید از سمت runtime بیرونی مجاز باشد.
-
-Worker را با `--command-policy-preset trusted-vm` (همراه `--allow-workspace-writes` و `--allow-workspace-commands`) اجرا کنید؛ راهنمای Settings همین را می‌نویسد.
+`deploy/code-worker/install-host.sh` همین sysctl را اعمال می‌کند و `bwrap` را تست می‌کند. اگر میزبان کانتینر است نه VM واقعی، nested userns باید از سمت runtime بیرونی مجاز باشد.
 
 ## محدودیت فعلی
 
