@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.14] - 2026-11-04
+
+### Fixed
+- **AI debug share always said the agent browser was off.** The snapshot read
+  `appConfig.browser`, but YAML `browser` lives under `appConfig.config` (top-level
+  is only an admin override). It now uses `getBrowserStartupConfig`, the same
+  helper `/api/config` uses, so a live share matches whether the composer can
+  offer the browser.
+
 ## [0.38.13] - 2026-11-04
 
 ### Fixed

@@ -1,4 +1,4 @@
-const { resolveAppReleaseInfo } = require('@librechat/api');
+const { resolveAppReleaseInfo, getBrowserStartupConfig } = require('@librechat/api');
 const { getAppConfig } = require('~/server/services/Config');
 
 /**
@@ -60,8 +60,10 @@ async function buildDebugShareSnapshot() {
         notes.push('Code bridge health probe failed from the api container.');
       }
     }
+    // AppConfig keeps librechat.yaml under `config`; top-level `browser` is only an
+    // admin override. getBrowserStartupConfig reads both and requires BROWSER_SERVICE_*.
     browser = {
-      enabled: config?.browser?.enabled === true,
+      ...getBrowserStartupConfig(config),
       openSessions: null,
     };
   } catch {
