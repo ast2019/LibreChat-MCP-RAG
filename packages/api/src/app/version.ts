@@ -22,9 +22,7 @@ export interface AppReleaseInfo extends AppVersionInfo {
 
 let cachedVersions: AppVersionInfo | null = null;
 let cachedChangelog: ChangelogEntry[] | null = null;
-
-/** Placeholder written to `/api/config` when `VERSION` cannot be read. */
-const MISSING_APP_VERSION = '0.0.0';
+let cachedRoot: string | null = null;
 
 /**
  * Ancestors to search above the running file. The compiled bundle sits three
@@ -43,16 +41,10 @@ function readTrimmedFile(filePath: string): string | null {
 }
 
 /**
- * Nearest ancestor of `startDir` that contains the fork `VERSION` file.
- *
- * tsdown bundles this module into `packages/api/dist/index.cjs`. In the image
- * that directory is `/app/packages/api/dist` (or the workspace link
- * `/app/node_modules/@librechat/api/dist`), while `VERSION` and `CHANGELOG.md`
- * are copied to `/app`. Jest loads the source from `packages/api/src/app`, one
- * directory deeper. A fixed `../../../..` from the bundle is the parent of
- * `/app`, the read fails, and the PWA banner announces version `0.0.0`.
+ * Nearest ancestor of `startDir` that contains a non-empty `VERSION` file.
+ * An empty file does not count, so the search keeps walking.
  */
-export function findReleaseRoot(startDir: string): string | null {
+function findReleaseRoot(startDir: string): string | null {
   let dir = path.resolve(startDir);
   for (let depth = 0; depth < MAX_RELEASE_ROOT_DEPTH; depth += 1) {
     if (readTrimmedFile(path.join(dir, 'VERSION'))) {
@@ -67,12 +59,56 @@ export function findReleaseRoot(startDir: string): string | null {
   return null;
 }
 
-function releaseRoot(startDir: string): string {
-  return findReleaseRoot(startDir) ?? path.resolve(startDir, '../../../..');
+/**
+ * Fixed layouts that are not always ancestors of each other: Jest's `src/app`,
+ * the tsdown bundle in `dist/`, and the API image `WORKDIR` (`/app/api` or `/app`).
+ */
+export function candidateRoots(fromDir: string, cwd: string = process.cwd()): string[] {
+  return [
+    path.resolve(fromDir, '../../../..'),
+    path.resolve(fromDir, '../../..'),
+    path.resolve(fromDir, '../..'),
+    path.resolve(cwd, '..'),
+    cwd,
+  ];
+}
+
+/**
+ * Directory that holds `VERSION` and `CHANGELOG.md`.
+ *
+ * Prefer the nearest ancestor of the running file. `__dirname` in the image is
+ * `/app/packages/api/dist` (symlinks are resolved), and four levels up is `/`.
+ * A stray `VERSION` there must not beat `/app/VERSION`. The working directory
+ * is the next place to look: the server runs with `WORKDIR /app/api`.
+ */
+export function findRepoRoot(fromDir: string, cwd: string = process.cwd()): string {
+  const nearest = findReleaseRoot(fromDir) ?? findReleaseRoot(cwd);
+  if (nearest) {
+    return nearest;
+  }
+  for (const root of candidateRoots(fromDir, cwd)) {
+    if (readTrimmedFile(path.join(root, 'VERSION'))) {
+      return root;
+    }
+  }
+  return path.resolve(fromDir, '../../../..');
 }
 
 function repoRoot(): string {
-  return releaseRoot(__dirname);
+  if (cachedRoot) {
+    return cachedRoot;
+  }
+  const fromDir = typeof __dirname === 'string' ? __dirname : process.cwd();
+  cachedRoot = findRepoRoot(fromDir, process.cwd());
+  return cachedRoot;
+}
+
+function bakedAppVersion(): string | null {
+  const baked = String(Constants.APP_VERSION ?? '').trim();
+  if (!baked || baked === '0.0.0' || baked.includes('__HIVEGPT_VERSION__')) {
+    return null;
+  }
+  return baked;
 }
 
 function readAppVersions(root: string): AppVersionInfo {
@@ -90,7 +126,7 @@ function readAppVersions(root: string): AppVersionInfo {
   }
 
   return {
-    appVersion: fromFile ?? MISSING_APP_VERSION,
+    appVersion: fromFile ?? bakedAppVersion() ?? '0.0.0',
     librechatVersion: fromPackage ?? String(Constants.VERSION),
   };
 }
@@ -110,7 +146,7 @@ export function resolveAppVersions(): AppVersionInfo {
 
 /** Same resolution as {@link resolveAppVersions}, starting from `startDir` instead of this file. */
 export function resolveAppVersionsFrom(startDir: string): AppVersionInfo {
-  return readAppVersions(releaseRoot(startDir));
+  return readAppVersions(findRepoRoot(startDir, startDir));
 }
 
 const HEADING_RE = /^## \[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
@@ -167,7 +203,7 @@ export function resolveChangelog(limit = 12): ChangelogEntry[] {
 
 /** Same resolution as {@link resolveChangelog}, starting from `startDir` instead of this file. */
 export function resolveChangelogFrom(startDir: string, limit = 12): ChangelogEntry[] {
-  return readChangelog(releaseRoot(startDir)).slice(0, limit);
+  return readChangelog(findRepoRoot(startDir, startDir)).slice(0, limit);
 }
 
 /** Fork version, upstream version, and recent changelog for startup config. */
@@ -182,4 +218,5 @@ export function resolveAppReleaseInfo(limit = 12): AppReleaseInfo {
 export function __resetAppVersionCacheForTests(): void {
   cachedVersions = null;
   cachedChangelog = null;
+  cachedRoot = null;
 }

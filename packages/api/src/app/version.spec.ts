@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  findRepoRoot,
   resolveAppVersions,
   resolveAppVersionsFrom,
   resolveChangelog,
@@ -17,6 +18,7 @@ describe('resolveAppVersions', () => {
   it('reads the fork VERSION file and package.json LibreChat version', () => {
     const info = resolveAppVersions();
     expect(info.appVersion).toMatch(/^\d+\.\d+\.\d+/);
+    expect(info.appVersion).not.toBe('0.0.0');
     expect(info.librechatVersion.length).toBeGreaterThan(0);
     expect(info.appVersion).not.toEqual(info.librechatVersion);
   });
@@ -25,6 +27,31 @@ describe('resolveAppVersions', () => {
     const first = resolveAppVersions();
     const second = resolveAppVersions();
     expect(second).toBe(first);
+  });
+});
+
+describe('findRepoRoot', () => {
+  it('finds VERSION from a dist-like layout (three levels up from dist/)', () => {
+    const realRoot = path.resolve(__dirname, '../../../..');
+    const expected = fs.readFileSync(path.join(realRoot, 'VERSION'), 'utf8').trim();
+    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'hivegpt-version-'));
+    const distDir = path.join(sandbox, 'packages', 'api', 'dist');
+    fs.mkdirSync(distDir, { recursive: true });
+    fs.writeFileSync(path.join(sandbox, 'VERSION'), `${expected}\n`);
+
+    try {
+      /** Four levels up from dist is outside the sandbox (no VERSION); three levels is. */
+      const found = findRepoRoot(distDir, path.join(sandbox, 'api'));
+      expect(found).toBe(sandbox);
+      expect(fs.readFileSync(path.join(found, 'VERSION'), 'utf8').trim()).toBe(expected);
+    } finally {
+      fs.rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('still finds VERSION from the source-layout path (src/app)', () => {
+    const found = findRepoRoot(__dirname);
+    expect(fs.existsSync(path.join(found, 'VERSION'))).toBe(true);
   });
 });
 
@@ -39,6 +66,7 @@ describe('resolveChangelog', () => {
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((entry) => entry.version.toLowerCase() !== 'unreleased')).toBe(true);
     expect(entries[0].version).toBe(version);
+    expect(entries[0].version).toMatch(/^\d+\.\d+\.\d+/);
     expect(entries[0].highlights.length).toBeGreaterThan(0);
   });
 
@@ -91,8 +119,8 @@ describe('resolveChangelog', () => {
   });
 
   it('resolves CHANGELOG.md relative to the repo root', () => {
-    const fs = jest.requireActual<typeof import('node:fs')>('node:fs');
+    const fsActual = jest.requireActual<typeof import('node:fs')>('node:fs');
     const changelogPath = path.resolve(__dirname, '../../../../CHANGELOG.md');
-    expect(() => fs.accessSync(changelogPath)).not.toThrow();
+    expect(() => fsActual.accessSync(changelogPath)).not.toThrow();
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@librechat/client';
 import { RefreshCw, X } from 'lucide-react';
+import { Constants } from 'librechat-data-provider';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
@@ -8,14 +9,13 @@ import { useLocalize } from '~/hooks';
 /** How often an open tab asks the server for a newer worker. */
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-/** `/api/config` uses this when the image's `VERSION` file could not be read. */
-const MISSING_APP_VERSION = '0.0.0';
-
-function announcedVersion(version: string | undefined): string | undefined {
-  if (!version || version === MISSING_APP_VERSION) {
+/** Placeholder / unset versions must not appear in the banner («نسخهٔ 0.0.0»). */
+function displayableVersion(value: string | undefined | null): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === '0.0.0' || trimmed.includes('__HIVEGPT_VERSION__')) {
     return undefined;
   }
-  return version;
+  return trimmed;
 }
 
 function watchForUpdates(registration: ServiceWorkerRegistration) {
@@ -125,10 +125,12 @@ export default function UpdatePrompt() {
     }
   }, [needRefresh, refetch]);
 
-  const version = announcedVersion(startupConfig?.appVersion);
+  const version = displayableVersion(startupConfig?.appVersion ?? Constants.APP_VERSION);
   const highlights = useMemo(() => {
-    const entry = startupConfig?.changelog?.find((item) => item.version === version);
-    return entry?.highlights ?? startupConfig?.changelog?.[0]?.highlights ?? [];
+    const changelog = startupConfig?.changelog ?? [];
+    const entry = version ? changelog.find((item) => item.version === version) : undefined;
+    const fallback = changelog.find((item) => displayableVersion(item.version));
+    return entry?.highlights ?? fallback?.highlights ?? [];
   }, [startupConfig?.changelog, version]);
 
   if (!needRefresh) {
