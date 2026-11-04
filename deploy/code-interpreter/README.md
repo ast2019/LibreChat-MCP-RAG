@@ -2,10 +2,9 @@
 
 Sandboxed code execution for LibreChat agents and the **Run Code** button, using the
 open-source [LibreChat-AI/code-interpreter](https://github.com/LibreChat-AI/code-interpreter)
-service. `codeapi`, `code_worker` and `code_sandbox` live in this directory and the
-root `docker-compose.yml` includes them. Coolify drops `include`, so those three
-do not start there. The Attached VM bridge is declared in the root file. See
-`docs/saas/ATTACHED_VM.md`.
+service. `codeapi`, `code_worker` and `code_sandbox` are services in the root
+`docker-compose.yml`, same as the Attached VM bridge. Coolify drops `include`,
+so this directory is only the notes. See `docs/saas/ATTACHED_VM.md`.
 
 ## What you get
 

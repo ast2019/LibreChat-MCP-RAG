@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.6] - 2026-11-04
+
+### Fixed
+- **Code Interpreter never started on Coolify.** `codeapi`, `code_worker` and `code_sandbox` were only in an included compose file, which Coolify drops, so Run Code had no backend. They are now services in `docker-compose.yml`. `code_sandbox` still needs `/dev/kvm`; a missing device fails container creation. Do not give `codeapi` or `code_sandbox` a public domain.
+
 ## [0.38.5] - 2026-11-04
 
 ### Fixed
