@@ -17,6 +17,7 @@ export const ACCESS_LABELS: Record<
   media: { full: 'com_admin_media_access', short: 'com_admin_access_short_media' },
   api: { full: 'com_admin_api_access', short: 'com_admin_access_short_api' },
   browser: { full: 'com_admin_browser_access', short: 'com_admin_access_short_browser' },
+  attachVm: { full: 'com_admin_attach_vm_access', short: 'com_admin_access_short_attach_vm' },
 };
 
 /** The user's own override of a class: `true`, `false`, or `undefined` when the default applies. */
@@ -27,7 +28,13 @@ export function overrideOf(user: TAdminBillingUser, field: TAccessClass): boolea
   if (field === 'api') {
     return user.apiAccess;
   }
-  return field === 'browser' ? user.browserAccess : user.mediaAccess;
+  if (field === 'browser') {
+    return user.browserAccess;
+  }
+  if (field === 'attachVm') {
+    return user.attachVmAccess;
+  }
+  return user.mediaAccess;
 }
 
 /**

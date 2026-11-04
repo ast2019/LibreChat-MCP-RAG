@@ -5,6 +5,7 @@ set -euo pipefail
 
 WORKSPACES="${CODE_WORKSPACES_ROOT:-/srv/code-workspaces}"
 ENV_DIR="${CODE_ENVIRONMENTS_DIR:-/etc/librechat-code/environments}"
+CODE_SRC="${LIBRECHAT_CODE_SRC:-/opt/librechat-code/source}"
 
 if [[ "$(id -u)" -eq 0 ]]; then
   APT=(apt-get)
@@ -58,13 +59,27 @@ EOF
 fi
 
 echo "==> @librechat/code CLI"
-npm install -g @librechat/code
+if npm install -g @librechat/code; then
+  echo "Installed @librechat/code from npm."
+else
+  echo "npm package missing; building from LibreChat-AI/code-interpreter…"
+  sudo mkdir -p "$(dirname "${CODE_SRC}")"
+  sudo chown "${INSTALL_USER}:${INSTALL_USER}" "$(dirname "${CODE_SRC}")" || true
+  if [[ ! -d "${CODE_SRC}/.git" ]]; then
+    git clone --depth 1 https://github.com/LibreChat-AI/code-interpreter.git "${CODE_SRC}"
+  else
+    git -C "${CODE_SRC}" fetch --depth 1 origin main
+    git -C "${CODE_SRC}" reset --hard origin/main
+  fi
+  npm ci --prefix "${CODE_SRC}/packages/code"
+  npm run build --prefix "${CODE_SRC}/packages/code"
+  sudo npm install -g "${CODE_SRC}/packages/code"
+fi
 
 echo
 echo "Host ready for user ${INSTALL_USER}."
 echo "Next:"
 echo "  1. In HiveGPT: Settings → Data & Privacy → Code execution → Code environments → Connect VM"
-echo "  2. Pair with the one-time code (replace URL/code):"
-echo "       librechat-code pair \"\$LIBRECHAT_CODE_BRIDGE_BASEURL\" '<one-time-code>'"
-echo "  3. Start the worker (see deploy/code-worker/README.md)."
+echo "  2. Pair with the one-time code shown there (librechat-code pair …)"
+echo "  3. Start the worker (librechat-code run …) or enable the systemd unit from Settings."
 echo "  4. Clone a repo under ${WORKSPACES}/my-app and ask the agent to install & test."

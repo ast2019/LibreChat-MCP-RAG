@@ -41,7 +41,18 @@ describe('computeEffectiveAccess', () => {
       media: { allowed: true, source: 'pack' },
       /** No pack includes the browser, so it stays off */
       browser: { allowed: false, source: 'rule' },
+      /** Attached VM is admin-granted only; default deny */
+      attachVm: { allowed: false, source: 'rule' },
     });
+  });
+
+  it('opens Attached VM only from an explicit user grant (or admin)', () => {
+    expect(
+      computeEffectiveAccess({ role: 'USER', attachVmAccess: true }, rules, role).attachVm,
+    ).toEqual({ allowed: true, source: 'user' });
+    expect(
+      computeEffectiveAccess({ role: 'ADMIN', attachVmAccess: false }, rules, role).attachVm,
+    ).toEqual({ allowed: true, source: 'admin' });
   });
 
   it('opens the browser from the user pack or the user override, the override first', () => {

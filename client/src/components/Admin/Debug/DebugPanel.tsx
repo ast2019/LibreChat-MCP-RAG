@@ -15,6 +15,7 @@ import {
   useAdminDebugModeMutation,
   useAdminDebugSystemLogQuery,
   useAdminClearDebugTracesMutation,
+  useAdminDebugShareMutation,
 } from '~/data-provider';
 import { formatDateTime, formatNumber } from '~/components/Admin/Status/format';
 import { useLocalize } from '~/hooks';
@@ -272,6 +273,83 @@ function DebugSwitch({ locale }: { locale: string }) {
   );
 }
 
+function DebugShareCode() {
+  const localize = useLocalize();
+  const { showToast } = useToastContext();
+  const mint = useAdminDebugShareMutation();
+  const [share, setShare] = useState<{ code: string; url: string; expiresAt: string } | null>(
+    null,
+  );
+
+  return (
+    <section
+      aria-labelledby="admin-debug-share"
+      className="border-border-light space-y-3 rounded-xl border p-4"
+      data-testid="admin-debug-share"
+    >
+      <div className="space-y-1">
+        <h3 id="admin-debug-share" className="text-text-primary text-sm font-medium">
+          {localize('com_admin_debug_share_title')}
+        </h3>
+        <p className="text-text-secondary text-xs">{localize('com_admin_debug_share_desc')}</p>
+      </div>
+      <Button
+        size="compact"
+        disabled={mint.isLoading}
+        onClick={() =>
+          mint.mutate(
+            {},
+            {
+              onSuccess: (data) => {
+                setShare(data);
+                showToast({
+                  status: 'success',
+                  message: localize('com_admin_debug_share_created'),
+                });
+              },
+              onError: () =>
+                showToast({ status: 'error', message: localize('com_admin_save_error') }),
+            },
+          )
+        }
+        data-testid="admin-debug-share-mint"
+      >
+        {localize('com_admin_debug_share_create')}
+      </Button>
+      {share != null && (
+        <div className="space-y-2">
+          <pre
+            className="bg-surface-secondary text-text-primary overflow-x-auto rounded-md p-3 text-xs break-all"
+            data-testid="admin-debug-share-code"
+          >
+            {share.code}
+          </pre>
+          <p className="text-text-secondary text-xs" dir="ltr">
+            {share.url}
+          </p>
+          <Button
+            size="compact"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(`${share.url}\n${share.code}`);
+                showToast({
+                  status: 'success',
+                  message: localize('com_ui_copied_to_clipboard'),
+                });
+              } catch {
+                showToast({ status: 'error', message: localize('com_ui_copy_failed') });
+              }
+            }}
+          >
+            {localize('com_ui_copy_to_clipboard')}
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SystemLog({ locale, live }: { locale: string; live: boolean }) {
   const localize = useLocalize();
   const [open, setOpen] = useState(false);
@@ -348,6 +426,8 @@ export default function DebugPanel() {
       </div>
 
       <DebugSwitch locale={locale} />
+
+      <DebugShareCode />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">

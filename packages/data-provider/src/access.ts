@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 /**
  * The per-user access classes an admin manages: local and private model specs, media generation
- * (image, video, speech, Higgsfield), the programming API and the agent browser.
+ * (image, video, speech, Higgsfield), the programming API, the agent browser, and Attached VM.
  */
-export type TAccessClass = 'local' | 'private' | 'media' | 'api' | 'browser';
+export type TAccessClass = 'local' | 'private' | 'media' | 'api' | 'browser' | 'attachVm';
 
 export const ACCESS_CLASSES: readonly TAccessClass[] = [
   'local',
@@ -12,6 +12,7 @@ export const ACCESS_CLASSES: readonly TAccessClass[] = [
   'media',
   'api',
   'browser',
+  'attachVm',
 ];
 
 /** Browsers one user may have open at once when the pack does not say. */
@@ -32,6 +33,8 @@ export const packGrantsSchema = z
     media: z.boolean().optional(),
     api: z.boolean().optional(),
     browser: z.boolean().optional(),
+    /** Not used by packs today; Attached VM is admin-granted only. */
+    attachVm: z.boolean().optional(),
   })
   .strict();
 
@@ -170,6 +173,26 @@ export function resolveBrowserAccess({
   }
   if (decided(packGrant)) {
     return { allowed: packGrant, source: 'pack' };
+  }
+  return { allowed: false, source: 'rule' };
+}
+
+/**
+ * Attached VM (personal librechat-code workers): admin always; otherwise only an explicit
+ * per-user grant. Packs do not grant this class.
+ */
+export function resolveAttachVmAccess({
+  isAdmin,
+  override,
+}: {
+  isAdmin: boolean;
+  override?: boolean | null;
+}): TEffectiveAccess {
+  if (isAdmin) {
+    return { allowed: true, source: 'admin' };
+  }
+  if (decided(override)) {
+    return { allowed: override, source: 'user' };
   }
   return { allowed: false, source: 'rule' };
 }

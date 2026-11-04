@@ -287,7 +287,7 @@ function PackCard({
           {localize('com_admin_packs_grants')}
         </legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {ACCESS_CLASSES.map((field) => {
+          {ACCESS_CLASSES.filter((field) => field !== 'attachVm').map((field) => {
             const label = localize(ACCESS_LABELS[field].full);
             return (
               <div key={field} className="flex items-center justify-between gap-3">

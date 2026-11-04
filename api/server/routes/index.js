@@ -15,6 +15,7 @@ const adminBalance = require('./admin/balance');
 const adminStatus = require('./admin/status');
 const adminServer = require('./admin/server');
 const adminDebug = require('./admin/debug');
+const debugShare = require('./debugShare').router;
 const browser = require('./browser');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
@@ -72,6 +73,7 @@ module.exports = {
   adminStatus,
   adminServer,
   adminDebug,
+  debugShare,
   browser,
   keys,
   apiKeys,

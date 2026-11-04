@@ -32,6 +32,7 @@ export const PUBLIC_USER_RESPONSE_FIELDS = [
   'apiAccess',
   'mediaAccess',
   'browserAccess',
+  'attachVmAccess',
   'packId',
 ] as const;
 

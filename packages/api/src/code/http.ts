@@ -1,6 +1,11 @@
 import { nanoid } from 'nanoid';
 import { logger, type AppConfig } from '@librechat/data-schemas';
-import { EModelEndpoint, isCodeWorkspaceCheckoutAvailable } from 'librechat-data-provider';
+import {
+  EModelEndpoint,
+  SystemRoles,
+  resolveAttachVmAccess,
+  isCodeWorkspaceCheckoutAvailable,
+} from 'librechat-data-provider';
 import type { CodeEnvironmentMode, CodeWorkspaceSelection } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type {
@@ -515,11 +520,20 @@ export function createCodeEnvironmentHttpHandlers(deps: CodeEnvironmentHttpDeps)
     });
   }
 
+  function userMayPairAttachedVm(req: ServerRequest): boolean {
+    const user = req.user as { role?: string; attachVmAccess?: boolean } | undefined;
+    return resolveAttachVmAccess({
+      isAdmin: user?.role === SystemRoles.ADMIN,
+      override: typeof user?.attachVmAccess === 'boolean' ? user.attachVmAccess : undefined,
+    }).allowed;
+  }
+
   async function list(req: ServerRequest, res: Response): Promise<Response> {
     const principal = actor(req);
     if (principal == null) {
       return res.status(401).json({ error: 'Authentication required' });
     }
+    const mayPair = userMayPairAttachedVm(req);
     let details: AccessibleCodeEnvironmentDetails;
     let appConfig: AppConfig;
     let deploymentConfig: AppConfig;
@@ -561,6 +575,7 @@ export function createCodeEnvironmentHttpHandlers(deps: CodeEnvironmentHttpDeps)
         };
       }),
       controlPlanes:
+        mayPair &&
         principalAuthEnabled() &&
         resolveCodeWorkerEnrollmentLimit(
           deploymentConfig.endpoints?.agents?.statefulCodeSessions?.principalWorkers,
@@ -569,6 +584,7 @@ export function createCodeEnvironmentHttpHandlers(deps: CodeEnvironmentHttpDeps)
         ) > 0
           ? principalControlPlanes(appConfig)
           : [],
+      attachVmAccess: mayPair,
     });
   }
 
@@ -676,6 +692,9 @@ export function createCodeEnvironmentHttpHandlers(deps: CodeEnvironmentHttpDeps)
     const principal = actor(req);
     if (principal == null) {
       return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!userMayPairAttachedVm(req)) {
+      return res.status(403).json({ error: 'Attached VM access is not granted for this account' });
     }
     if (!principalAuthEnabled()) {
       return res.status(409).json({

@@ -28,6 +28,7 @@ export interface BillingUserRow {
   mediaAccess?: boolean;
   /** The user's own agent browser override; absent follows the pack */
   browserAccess?: boolean;
+  attachVmAccess?: boolean;
   /** `user.packId`: the pack copied onto the user on its last grant, whose `grants` apply */
   packId?: string;
   balance: {
@@ -156,6 +157,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       { apiAccess: { $in: [true, false] } },
       { mediaAccess: { $in: [true, false] } },
       { browserAccess: { $in: [true, false] } },
+      { attachVmAccess: { $in: [true, false] } },
     ];
     if (access === 'custom') {
       filters.push({ $or: customAccess });
@@ -200,7 +202,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       users()
         .find(
           filter,
-          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess browserAccess packId',
+          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess browserAccess attachVmAccess packId',
         )
         .sort(sortBy)
         .skip(skip)
@@ -240,6 +242,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
           ...(typeof doc.apiAccess === 'boolean' && { apiAccess: doc.apiAccess }),
           ...(typeof doc.mediaAccess === 'boolean' && { mediaAccess: doc.mediaAccess }),
           ...(typeof doc.browserAccess === 'boolean' && { browserAccess: doc.browserAccess }),
+          ...(typeof doc.attachVmAccess === 'boolean' && { attachVmAccess: doc.attachVmAccess }),
           ...(typeof doc.packId === 'string' && doc.packId !== '' && { packId: doc.packId }),
           balance: balance
             ? {

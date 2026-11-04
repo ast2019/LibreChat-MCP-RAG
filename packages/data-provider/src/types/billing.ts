@@ -27,6 +27,8 @@ export type TAdminBillingUser = {
   mediaAccess?: boolean;
   /** Agent browser override; absent follows the pack. Older servers omit it. */
   browserAccess?: boolean;
+  /** Attached VM override; absent denies. Older servers omit it. */
+  attachVmAccess?: boolean;
   /** The pack copied onto the user on its last grant; its `grants` decide local, private and API */
   packId?: string;
   balance: TAdminBillingBalance | null;
@@ -197,6 +199,10 @@ export type TAdminMediaAccessResponse = { id: string; mediaAccess: boolean | nul
 export type TAdminBrowserAccessRequest = { userId: string; browserAccess: boolean | null };
 
 export type TAdminBrowserAccessResponse = { id: string; browserAccess: boolean | null };
+
+export type TAdminAttachVmAccessRequest = { userId: string; attachVmAccess: boolean | null };
+
+export type TAdminAttachVmAccessResponse = { id: string; attachVmAccess: boolean | null };
 
 /** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
 export interface TAdminBillingUserUsage {

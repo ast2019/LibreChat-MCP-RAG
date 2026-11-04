@@ -25,6 +25,16 @@ export interface TDebugModeState {
   level: TDebugLogLevel;
 }
 
+export interface TDebugShareCreateRequest {
+  ttlMs?: number;
+}
+
+export interface TDebugShareCreateResponse {
+  code: string;
+  expiresAt: string;
+  url: string;
+}
+
 export interface TDebugModeUpdate {
   enabled: boolean;
   minutes?: number;

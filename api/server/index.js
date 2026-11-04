@@ -463,6 +463,7 @@ const startServer = async () => {
   app.use('/api/admin/status', routes.adminStatus);
   app.use('/api/admin/server', routes.adminServer);
   app.use('/api/admin/debug', routes.adminDebug);
+  app.use('/api/debug/share', routes.debugShare);
   app.use('/api/browser', routes.browser);
   app.use('/api/actions', routes.actions);
   app.use('/api/keys', routes.keys);

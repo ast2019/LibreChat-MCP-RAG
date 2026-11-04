@@ -9,6 +9,7 @@ export {
   createAdminApiAccessHandlers,
   createAdminMediaAccessHandlers,
   createAdminBrowserAccessHandlers,
+  createAdminAttachVmAccessHandlers,
   createAdminBulkAccessHandler,
   readBulkUserIds,
   MAX_BULK_USERS,
@@ -40,6 +41,7 @@ export type {
   AdminApiAccessDeps,
   AdminMediaAccessDeps,
   AdminBrowserAccessDeps,
+  AdminAttachVmAccessDeps,
   AdminBulkAccessDeps,
 } from './access';
 export type { AccessRules, RoleAccess, EffectiveAccessUser } from './effectiveAccess';

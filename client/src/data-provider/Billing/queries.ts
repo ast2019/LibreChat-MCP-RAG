@@ -24,6 +24,8 @@ import type {
   TAdminMediaAccessRequest,
   TAdminBrowserAccessRequest,
   TAdminBrowserAccessResponse,
+  TAdminAttachVmAccessRequest,
+  TAdminAttachVmAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -239,7 +241,7 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
   );
 };
 
-type UserSwitchField = 'apiAccess' | 'mediaAccess' | 'browserAccess';
+type UserSwitchField = 'apiAccess' | 'mediaAccess' | 'browserAccess' | 'attachVmAccess';
 
 /** Sets or clears one per-user switch; the lists show it at once and roll back if refused. */
 function useAdminUserSwitchMutation<P extends { userId: string }, R>(
@@ -307,6 +309,14 @@ export const useAdminUserBrowserAccessMutation = (): UseMutationResult<
   TAdminBrowserAccessRequest,
   ModelAccessContext
 > => useAdminUserSwitchMutation('browserAccess', dataService.updateAdminUserBrowserAccess);
+
+/** One user's Attached VM override (`null` clears to default deny; admins always have it). */
+export const useAdminUserAttachVmAccessMutation = (): UseMutationResult<
+  TAdminAttachVmAccessResponse,
+  unknown,
+  TAdminAttachVmAccessRequest,
+  ModelAccessContext
+> => useAdminUserSwitchMutation('attachVmAccess', dataService.updateAdminUserAttachVmAccess);
 
 /** Where one user's credits went in the window, for the admin users table. */
 export const useAdminBillingUserUsageQuery = (

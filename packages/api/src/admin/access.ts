@@ -172,6 +172,27 @@ export function createAdminBrowserAccessHandlers(deps: AdminBrowserAccessDeps): 
   };
 }
 
+export interface AdminAttachVmAccessDeps {
+  /** Sets or clears Attached VM pairing override and evicts the cached auth document. */
+  saveUserAttachVmAccess: SaveUserSwitch<'attachVmAccess'>;
+}
+
+/**
+ * `PATCH /api/admin/users/:id/attach-vm-access`: grants (`true`), denies (`false`), or clears
+ * (`null` → default deny) self-service Attached VM pairing. Admins always may pair.
+ */
+export function createAdminAttachVmAccessHandlers(deps: AdminAttachVmAccessDeps): {
+  updateAttachVmAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  return {
+    updateAttachVmAccess: createUserSwitchHandler(
+      'attachVmAccess',
+      deps.saveUserAttachVmAccess,
+      'attach VM access',
+    ),
+  };
+}
+
 /** Most users one bulk request may change; the users list shows at most 100 per page. */
 export const MAX_BULK_USERS = 100;
 
@@ -179,6 +200,7 @@ export interface AdminBulkAccessDeps extends AdminModelAccessDeps {
   saveApiAccess: SaveUserSwitch<'apiAccess'>;
   saveMediaAccess: SaveUserSwitch<'mediaAccess'>;
   saveBrowserAccess: SaveUserSwitch<'browserAccess'>;
+  saveAttachVmAccess: SaveUserSwitch<'attachVmAccess'>;
 }
 
 /** The user ids of a bulk request: 1 to {@link MAX_BULK_USERS} valid ids, kept once each. */
@@ -194,7 +216,7 @@ export function readBulkUserIds(value: unknown): string[] | null {
 
 /**
  * `POST /api/admin/users/bulk-access`: sets one access class (`local`, `private`, `api`,
- * `media` or `browser`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
+ * `media`, `browser` or `attachVm`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
  * through the same saves as the per-user switches. Answers with how many changed and which ids
  * no longer exist.
  */
@@ -210,6 +232,9 @@ export function createAdminBulkAccessHandler(deps: AdminBulkAccessDeps): {
     }
     if (field === 'browser') {
       return deps.saveBrowserAccess(id, value);
+    }
+    if (field === 'attachVm') {
+      return deps.saveAttachVmAccess(id, value);
     }
     const user = await deps.findUserModelAccess(id);
     if (!user) {

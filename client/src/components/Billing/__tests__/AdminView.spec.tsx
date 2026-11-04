@@ -65,6 +65,7 @@ jest.mock('~/data-provider', () => ({
   useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
 
   useAdminUserBrowserAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
+  useAdminUserAttachVmAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
   useAdminGiftsQuery: () => ({
     data: {
       startBalance: 200_000,
@@ -326,6 +327,8 @@ describe('AdminView', () => {
               private: { allowed: true, source: 'role' },
               media: { allowed: false, source: 'user' },
               api: { allowed: false, source: 'role' },
+              browser: { allowed: false, source: 'rule' },
+              attachVm: { allowed: false, source: 'rule' },
             },
           },
         ],
