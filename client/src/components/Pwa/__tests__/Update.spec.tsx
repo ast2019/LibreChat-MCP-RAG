@@ -8,6 +8,11 @@ const mockRefetch = jest.fn(() => Promise.resolve({}));
 const mockRegister: { options?: RegisterSWOptions; needRefresh: boolean } = {
   needRefresh: true,
 };
+const mockStartup: { appVersion?: string; changelog: { version: string; highlights: string[] }[] } =
+  {
+    appVersion: '0.37.0',
+    changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
+  };
 
 jest.mock('virtual:pwa-register/react', () => {
   const { useState } = jest.requireActual<typeof import('react')>('react');
@@ -23,10 +28,7 @@ jest.mock('virtual:pwa-register/react', () => {
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({
-    data: {
-      appVersion: '0.37.0',
-      changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
-    },
+    data: mockStartup,
     refetch: mockRefetch,
   }),
 }));
@@ -40,6 +42,8 @@ describe('UpdatePrompt', () => {
   beforeEach(() => {
     mockRegister.needRefresh = true;
     mockRegister.options = undefined;
+    mockStartup.appVersion = '0.37.0';
+    mockStartup.changelog = [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }];
     mockUpdateServiceWorker.mockClear();
     mockRefetch.mockClear();
   });
@@ -62,6 +66,16 @@ describe('UpdatePrompt', () => {
 
     expect(mockUpdateServiceWorker).toHaveBeenCalledWith(true);
     expect(screen.getByTestId('pwa-update-action')).toBeDisabled();
+  });
+
+  it('does not announce the missing-file placeholder 0.0.0', () => {
+    mockStartup.appVersion = '0.0.0';
+    render(<UpdatePrompt />);
+
+    const banner = screen.getByTestId('pwa-update-banner');
+    expect(banner).toHaveTextContent('com_pwa_update_ready');
+    expect(banner).not.toHaveTextContent('0.0.0');
+    expect(banner).not.toHaveTextContent('com_pwa_update_ready_version');
   });
 
   it('can be closed without updating', async () => {

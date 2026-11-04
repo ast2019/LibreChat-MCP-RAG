@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@librechat/client';
 import { RefreshCw, X } from 'lucide-react';
-import { Constants } from 'librechat-data-provider';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useGetStartupConfig } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
 /** How often an open tab asks the server for a newer worker. */
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+/** `/api/config` uses this when the image's `VERSION` file could not be read. */
+const MISSING_APP_VERSION = '0.0.0';
+
+function announcedVersion(version: string | undefined): string | undefined {
+  if (!version || version === MISSING_APP_VERSION) {
+    return undefined;
+  }
+  return version;
+}
 
 function watchForUpdates(registration: ServiceWorkerRegistration) {
   const check = () => {
@@ -71,7 +80,10 @@ export function UpdateBanner({
           </Button>
         </div>
         {highlights.length > 0 && (
-          <div className="border-border-light border-t pt-2 pe-2 pb-1" data-testid="pwa-update-notes">
+          <div
+            className="border-border-light border-t pe-2 pt-2 pb-1"
+            data-testid="pwa-update-notes"
+          >
             <p className="text-text-secondary mb-1 text-xs font-medium">
               {localize('com_pwa_update_whats_new')}
             </p>
@@ -113,7 +125,7 @@ export default function UpdatePrompt() {
     }
   }, [needRefresh, refetch]);
 
-  const version = startupConfig?.appVersion ?? Constants.APP_VERSION;
+  const version = announcedVersion(startupConfig?.appVersion);
   const highlights = useMemo(() => {
     const entry = startupConfig?.changelog?.find((item) => item.version === version);
     return entry?.highlights ?? startupConfig?.changelog?.[0]?.highlights ?? [];

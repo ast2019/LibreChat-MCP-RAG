@@ -23,10 +23,15 @@ export interface AppReleaseInfo extends AppVersionInfo {
 let cachedVersions: AppVersionInfo | null = null;
 let cachedChangelog: ChangelogEntry[] | null = null;
 
-function repoRoot(): string {
-  /** `packages/api/src/app` → repo root (four levels up from this file's dir when compiled to dist). */
-  return path.resolve(__dirname, '../../../..');
-}
+/** Placeholder written to `/api/config` when `VERSION` cannot be read. */
+const MISSING_APP_VERSION = '0.0.0';
+
+/**
+ * Ancestors to search above the running file. The compiled bundle sits three
+ * levels under the image root; the source file sits four. Eight covers both,
+ * plus a `node_modules` workspace link.
+ */
+const MAX_RELEASE_ROOT_DEPTH = 8;
 
 function readTrimmedFile(filePath: string): string | null {
   try {
@@ -38,15 +43,39 @@ function readTrimmedFile(filePath: string): string | null {
 }
 
 /**
- * Resolves the fork version (`VERSION`) and the upstream LibreChat version
- * (`package.json`). Cached after the first read so `/api/config` stays cheap.
+ * Nearest ancestor of `startDir` that contains the fork `VERSION` file.
+ *
+ * tsdown bundles this module into `packages/api/dist/index.cjs`. In the image
+ * that directory is `/app/packages/api/dist` (or the workspace link
+ * `/app/node_modules/@librechat/api/dist`), while `VERSION` and `CHANGELOG.md`
+ * are copied to `/app`. Jest loads the source from `packages/api/src/app`, one
+ * directory deeper. A fixed `../../../..` from the bundle is the parent of
+ * `/app`, the read fails, and the PWA banner announces version `0.0.0`.
  */
-export function resolveAppVersions(): AppVersionInfo {
-  if (cachedVersions) {
-    return cachedVersions;
+export function findReleaseRoot(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let depth = 0; depth < MAX_RELEASE_ROOT_DEPTH; depth += 1) {
+    if (readTrimmedFile(path.join(dir, 'VERSION'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return null;
+    }
+    dir = parent;
   }
+  return null;
+}
 
-  const root = repoRoot();
+function releaseRoot(startDir: string): string {
+  return findReleaseRoot(startDir) ?? path.resolve(startDir, '../../../..');
+}
+
+function repoRoot(): string {
+  return releaseRoot(__dirname);
+}
+
+function readAppVersions(root: string): AppVersionInfo {
   const fromFile = readTrimmedFile(path.join(root, 'VERSION'));
   let fromPackage: string | null = null;
   try {
@@ -60,26 +89,35 @@ export function resolveAppVersions(): AppVersionInfo {
     fromPackage = null;
   }
 
-  cachedVersions = {
-    appVersion: fromFile ?? '0.0.0',
+  return {
+    appVersion: fromFile ?? MISSING_APP_VERSION,
     librechatVersion: fromPackage ?? String(Constants.VERSION),
   };
+}
+
+/**
+ * Resolves the fork version (`VERSION`) and the upstream LibreChat version
+ * (`package.json`). Cached after the first read so `/api/config` stays cheap.
+ */
+export function resolveAppVersions(): AppVersionInfo {
+  if (cachedVersions) {
+    return cachedVersions;
+  }
+
+  cachedVersions = readAppVersions(repoRoot());
   return cachedVersions;
+}
+
+/** Same resolution as {@link resolveAppVersions}, starting from `startDir` instead of this file. */
+export function resolveAppVersionsFrom(startDir: string): AppVersionInfo {
+  return readAppVersions(releaseRoot(startDir));
 }
 
 const HEADING_RE = /^## \[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
 const BULLET_RE = /^-\s+\*\*(.+?)\*\*/;
 
-/**
- * Parses Keep-a-Changelog headings from `CHANGELOG.md` into short release
- * notes for the update banner and About tab. Skips `[Unreleased]`.
- */
-export function resolveChangelog(limit = 12): ChangelogEntry[] {
-  if (cachedChangelog) {
-    return cachedChangelog.slice(0, limit);
-  }
-
-  const raw = readTrimmedFile(path.join(repoRoot(), 'CHANGELOG.md')) ?? '';
+function readChangelog(root: string): ChangelogEntry[] {
+  const raw = readTrimmedFile(path.join(root, 'CHANGELOG.md')) ?? '';
   const entries: ChangelogEntry[] = [];
   let current: ChangelogEntry | null = null;
 
@@ -111,8 +149,25 @@ export function resolveChangelog(limit = 12): ChangelogEntry[] {
     entries.push(current);
   }
 
-  cachedChangelog = entries;
+  return entries;
+}
+
+/**
+ * Parses Keep-a-Changelog headings from `CHANGELOG.md` into short release
+ * notes for the update banner and About tab. Skips `[Unreleased]`.
+ */
+export function resolveChangelog(limit = 12): ChangelogEntry[] {
+  if (cachedChangelog) {
+    return cachedChangelog.slice(0, limit);
+  }
+
+  cachedChangelog = readChangelog(repoRoot());
   return cachedChangelog.slice(0, limit);
+}
+
+/** Same resolution as {@link resolveChangelog}, starting from `startDir` instead of this file. */
+export function resolveChangelogFrom(startDir: string, limit = 12): ChangelogEntry[] {
+  return readChangelog(releaseRoot(startDir)).slice(0, limit);
 }
 
 /** Fork version, upstream version, and recent changelog for startup config. */

@@ -7,6 +7,12 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.4] - 2026-11-04
+
+### Fixed
+- **The update banner names the version that is ready.** It was showing 0.0.0
+  because the server looked for `VERSION` one directory above the image.
+
 ## [0.38.3] - 2026-11-04
 
 ### Added
