@@ -34,6 +34,8 @@ services:
         condition: service_started
       ollama:
         condition: service_started
+      code_jwt:
+        condition: service_completed_successfully
     environment:
       # Coolify's proxy routes a domain without a port to container port 80, so the app
       # listens there and the domain needs no `:port` (the image runs as root).
@@ -81,10 +83,19 @@ services:
       # Code Interpreter microVM is off on this host (no /dev/kvm). Leave this empty.
       # Agent coding goes through the Attached VM bridge below.
       LIBRECHAT_CODE_BASEURL: ${LIBRECHAT_CODE_BASEURL:-}
-      # Public https origin of codeapi_bridge, including the /v1 prefix. Coolify still
-      # needs the domain on that service (container port 3114). Arvan forwards to port 80.
+      # Public https origin of codeapi_bridge, including the /v1 prefix. In Coolify the
+      # domain on that service is http://code.aichat.hivelink.co:3114 (container port).
+      # Arvan terminates TLS and forwards to port 80 of this server.
       LIBRECHAT_CODE_BRIDGE_BASEURL: ${LIBRECHAT_CODE_BRIDGE_BASEURL:-https://code.aichat.hivelink.co/v1}
       CODE_BRIDGE_ADMIN_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
+      # Signs the per-user JWT the bridge verifies. The private key is generated into
+      # code-jwt-data by code_jwt and is not an environment variable.
+      CODEAPI_AUTH_PROVIDER: librechat-jwt
+      CODEAPI_JWT_ALGORITHM: EdDSA
+      CODEAPI_JWT_KID: lc-codeapi-2026-05
+      CODEAPI_JWT_ISSUER: librechat
+      CODEAPI_JWT_AUDIENCE: codeapi
+      CODEAPI_JWT_PRIVATE_KEY_FILE: /code-jwt/private.pem
 
       # Web search (SearXNG runs in this stack; Keenable reads pages without a key).
       SEARXNG_INSTANCE_URL: http://searxng:8080
@@ -162,6 +173,7 @@ services:
       - images:/app/client/public/images
       - logs:/app/api/logs
       - librechat-data:/app/data
+      - code-jwt-data:/code-jwt:ro
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', 'http://localhost:80/health']
       interval: 30s
@@ -328,12 +340,14 @@ services:
           memory: ${LOCAL_MODEL_MEMORY:-32g}
 
   # Attached VM control plane. Declared here, not via `include`, because Coolify
-  # never creates included services. Give ONLY codeapi_bridge a domain, and write
-  # the container port so the proxy does not assume port 80:
-  #   https://code.aichat.hivelink.co:3114
-  # Arvan (or any CDN) still forwards to port 80 of this server. Do not publish 3114.
-  # LOCAL_MODE defaults off: paired auth is the public gate. The microVM sandbox
-  # is not part of this stack.
+  # never creates included services. Give ONLY codeapi_bridge a domain. The scheme
+  # matches the api service (http://hivelink.co:80): Arvan terminates TLS, so type
+  #   http://code.aichat.hivelink.co:3114
+  # The :3114 suffix is the container port. It does not publish a host port.
+  # Arvan still forwards to port 80 of this server. Do not publish 3114.
+  # Leave code_jwt, code_minio, code_file, code_tools, code_egress and
+  # code_bridge_queue without a domain. LOCAL_MODE defaults off. The microVM
+  # sandbox is not part of this stack.
   code_redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -416,6 +430,20 @@ services:
       code_redis:
         condition: service_started
 
+  # One-shot. Generates the Ed25519 key the api signs with and the public key
+  # the bridge verifies. The private key stays on code-jwt-data. The public key
+  # is the only thing on code-jwt-public, which is the volume the bridge mounts.
+  # No domain.
+  code_jwt:
+    image: node:22-alpine
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - code-jwt-data:/keys
+      - code-jwt-public:/keys/public
+      - ./deploy/code-bridge/jwt-keys.js:/jwt-keys.js:ro
+    command: ['node', '/jwt-keys.js']
+
   codeapi_bridge:
     image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
     restart: unless-stopped
@@ -439,7 +467,15 @@ services:
       TOOL_CALL_SERVER_URL: http://code_tools:3033
       EGRESS_GATEWAY_URL: http://code_egress:3190
       CODEAPI_HTTP_JSON_LIMIT: 50mb
+      # Public key only. Kid is the filename without .pem (lc-codeapi-2026-05).
+      CODEAPI_JWT_PUBLIC_KEYS_DIR: /code-jwt
+      CODEAPI_JWT_ISSUER: librechat
+      CODEAPI_JWT_AUDIENCE: codeapi
+    volumes:
+      - code-jwt-public:/code-jwt:ro
     depends_on:
+      code_jwt:
+        condition: service_completed_successfully
       code_redis:
         condition: service_started
       code_tools:
@@ -448,12 +484,14 @@ services:
         condition: service_started
       code_egress:
         condition: service_started
+    # The API image is oven/bun and has no wget. A missing binary would mark the
+    # container unhealthy after start_period and stop the queue from starting.
     healthcheck:
       test:
         - CMD
-        - wget
-        - -qO-
-        - http://127.0.0.1:3114/v1/health
+        - bun
+        - -e
+        - "const r = await fetch('http://127.0.0.1:3114/v1/health'); if (!r.ok) process.exit(1)"
       interval: 15s
       timeout: 5s
       retries: 10
@@ -500,3 +538,5 @@ volumes:
   rag-uploads:
   code-redis-data:
   code-minio-data:
+  code-jwt-data:
+  code-jwt-public:
