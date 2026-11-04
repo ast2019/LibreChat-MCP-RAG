@@ -7,6 +7,20 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.13] - 2026-11-04
+
+### Fixed
+- **Coolify `api` crash-looped on config load.** `personal-workers.baseURL` was
+  `'${LIBRECHAT_CODE_BRIDGE_BASEURL}'`, which Zod's `.url()` rejects before any
+  runtime expansion, so the process exited with "Invalid custom config file" /
+  "Exiting due to invalid configuration". The schema now expands `${VAR}` the
+  same way MCP OAuth URLs do, and the saas yaml uses the public HTTPS bridge URL
+  literally so Coolify can omit that env from the api container.
+- **`code_file` could not resolve MinIO on Coolify.** Clients called `codeminio`
+  via a Compose network alias on service `code_minio`; Coolify often drops
+  aliases, so DNS failed with `getaddrinfo ENOTFOUND codeminio`. The storage
+  service is now named `codeminio` so service DNS and the Silo Host header match.
+
 ## [0.38.12] - 2026-11-04
 
 ### Fixed

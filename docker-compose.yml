@@ -345,7 +345,7 @@ services:
   #   http://code.aichat.hivelink.co:3114
   # The :3114 suffix is the container port. It does not publish a host port.
   # Arvan still forwards to port 80 of this server. Do not publish 3114.
-  # Leave code_jwt, code_minio, code_file, code_tools, code_egress and
+  # Leave code_jwt, codeminio, code_file, code_tools, code_egress and
   # code_bridge_queue without a domain. LOCAL_MODE defaults off. The microVM
   # sandbox is not part of this stack.
   code_redis:
@@ -355,12 +355,12 @@ services:
     volumes:
       - code-redis-data:/data
 
-  code_minio:
+  # Service DNS name must be `codeminio` (no underscore). Silo rejects Host
+  # headers that contain `_`, and Coolify often drops Compose network aliases,
+  # so an alias of codeminio on a service named code_minio is not enough there.
+  codeminio:
     # quay.io/minio/minio answers unauthorized for anonymous pulls. Silo is the
     # same server API and the same MINIO_* variables.
-    # Silo rejects a Host header that contains "_" (HTTP 400, and a HEAD has no
-    # body, so the file server logs an empty error and retries until it exits).
-    # The service name stays code_minio. Clients use the alias codeminio.
     image: docker.io/pgsty/silo:RELEASE.2026-10-26T00-00-00Z
     restart: unless-stopped
     command: server /data --console-address ':9001'
@@ -370,10 +370,6 @@ services:
       MINIO_SITE_REGION: us-east-1
     volumes:
       - code-minio-data:/data
-    networks:
-      default:
-        aliases:
-          - codeminio
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
@@ -387,7 +383,6 @@ services:
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
       MINIO_BUCKET: hivegpt-code
-      # codeminio, not code_minio: Silo rejects an underscore in the Host header.
       MINIO_ENDPOINT: codeminio
       MINIO_PORT: 9000
       MINIO_REGION: us-east-1
@@ -400,7 +395,7 @@ services:
       REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
       CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
     depends_on:
-      code_minio:
+      codeminio:
         condition: service_healthy
       code_redis:
         condition: service_started

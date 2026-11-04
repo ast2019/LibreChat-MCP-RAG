@@ -11,7 +11,7 @@
 
 1. **ساخت منبع:** در Coolify گزینه **New Resource → Public/Private Repository** را بزنید و این مخزن را انتخاب کنید. Branch را `main` بگذارید.
 2. **Build Pack:** گزینه **Docker Compose** را انتخاب کنید. مسیر فایل `/docker-compose.yml` است.
-3. **دامنه:** برای سرویس `api` دامنه را **بدون پورت** بگذارید: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد. تنها استثنا `codeapi_bridge` است و پسوندش پورت داخل کانتینر است، نه پورتی که روی میزبان باز می‌شود. اگر خود Coolify گواهی می‌گیرد: `https://code.aichat.hivelink.co:3114`. اگر ابر آروان TLS را تمام می‌کند و Coolify فقط HTTP روی پورت ۸۰ می‌گیرد (مثل `http://hivelink.co:80`): `http://code.aichat.hivelink.co:3114`. فیلد دامنهٔ بقیه (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `code_jwt`، `code_minio`، `code_file`، `code_tools`، `code_egress`، `code_bridge_queue`) را **خالی بگذارید**.
+3. **دامنه:** برای سرویس `api` دامنه را **بدون پورت** بگذارید: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد. تنها استثنا `codeapi_bridge` است و پسوندش پورت داخل کانتینر است، نه پورتی که روی میزبان باز می‌شود. اگر خود Coolify گواهی می‌گیرد: `https://code.aichat.hivelink.co:3114`. اگر ابر آروان TLS را تمام می‌کند و Coolify فقط HTTP روی پورت ۸۰ می‌گیرد (مثل `http://hivelink.co:80`): `http://code.aichat.hivelink.co:3114`. فیلد دامنهٔ بقیه (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `code_jwt`، `codeminio`، `code_file`، `code_tools`، `code_egress`، `code_bridge_queue`) را **خالی بگذارید**.
 4. **متغیرها:** در بخش **Environment Variables**:
    - `OPENROUTER_KEY` را وارد کنید. این تنها متغیر اجباری است و تا وارد نشود deploy انجام نمی‌شود.
    - همه `SERVICE_*`ها (رمزها، کلیدهای JWT، `CREDS_KEY`، رمز MongoDB و Meilisearch) را خود Coolify یک بار می‌سازد و نگه می‌دارد.
@@ -135,7 +135,7 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `ollama` | مدل داخلی `gemma3:4b` (به نام `hivegpt-local`) برای چت «داخلی (کاملاً محرمانه)». حدود ۴ تا ۵ گیگابایت RAM هنگام استفاده؛ بعد از ۳۰ دقیقه بی‌کاری از حافظه خارج می‌شود | `ollama-models` |
 | `browser` | مرورگر Agent (آزمایشی): برای هر جلسه یک Chromium جدا پشت پراکسی خودش، که صفحه فقط به نشانی‌های عمومی اینترنت روی پورت ۸۰ و ۴۴۳ برسد. حدود ۳۰۰ تا ۵۰۰ مگابایت RAM برای هر مرورگر باز | — |
 | `code_jwt` | یک‌بار کلید Ed25519 را می‌نویسد و تمام می‌شود. دامنه ندارد. برنامه داخل خود Compose است، چون Coolify فایل مخزن را روی میزبان Docker سوار نمی‌کند. کلید خصوصی در `code-jwt-data` می‌ماند و فقط api آن را می‌خواند | `code-jwt-data`، `code-jwt-public` |
-| `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید. روی این سرور، چون آروان TLS را تمام می‌کند: `http://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است و روی میزبان باز نمی‌شود). آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند. نشانی عمومی برای مرورگر و VM همان `https://code.aichat.hivelink.co/v1` می‌ماند. پل فقط volume کلید عمومی را می‌بیند. `code_minio`، `code_file`، `code_tools` و `code_egress` کمکِ داخلی همین پل‌اند و دامنه نمی‌گیرند. فایل‌سرور Silo را با نام `codeminio` صدا می‌زند، چون نام دارای `_` را با خطای ۴۰۰ رد می‌کند | `code-redis-data`، `code-minio-data`، `code-jwt-public` |
+| `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید. روی این سرور، چون آروان TLS را تمام می‌کند: `http://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است و روی میزبان باز نمی‌شود). آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند. نشانی عمومی برای مرورگر و VM همان `https://code.aichat.hivelink.co/v1` می‌ماند. پل فقط volume کلید عمومی را می‌بیند. `codeminio`، `code_file`، `code_tools` و `code_egress` کمکِ داخلی همین پل‌اند و دامنه نمی‌گیرند. نام سرویس ذخیره باید بدون `_` باشد (`codeminio`)، چون Silo Host دارای `_` را با خطای ۴۰۰ رد می‌کند و Coolify اغلب alias شبکه را حذف می‌کند | `code-redis-data`، `code-minio-data`، `code-jwt-public` |
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
 
@@ -147,7 +147,7 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 
 - سرویس‌های `codeapi_bridge` و `code_bridge_queue` برای وصل کردن Ubuntu VM با `@librechat/code` هستند و در compose اصلی تعریف شده‌اند تا Coolify فیلد دامنهٔ آن‌ها را نشان بدهد.
 - دامنه را فقط روی `codeapi_bridge` بگذارید: `http://code.aichat.hivelink.co:3114`. عدد ۳۱۱۴ را در ابر آروان و فایروال باز نکنید؛ آروان به پورت ۸۰ همان سرور Coolify فوروارد می‌کند. `code_jwt` دامنه ندارد.
-- `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است و بلوک `personal-workers` در `librechat.saas.yaml` روشن است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired).
+- `baseURL` بلوک `personal-workers` در `librechat.saas.yaml` همان `https://code.aichat.hivelink.co/v1` است (URL واقعی، نه `${…}`): Zod هنگام بارگذاری config به URL نیاز دارد و اگر Coolify متغیر را به کانتینر ندهد، `api` با Invalid url از کار می‌افتد. `LIBRECHAT_CODE_BRIDGE_BASEURL` هنوز برای دستور pair روی VM است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired).
 - نصب worker: `deploy/code-worker/`. راهنمای کامل: [ATTACHED_VM.md](./ATTACHED_VM.md).
 
 ## مرورگر Agent (آزمایشی)
