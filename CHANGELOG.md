@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.11] - 2026-11-04
+
+### Fixed
+- **Coolify image build stopped at `@librechat/api`.** The debug-share TTLs were
+  exported as untyped arithmetic (`60 * 60 * 1000`), which the declaration emit
+  rejects under isolated declarations, so `Dockerfile.multi` failed on `npm run build`
+  before the client image was built. The constants and `createDebugShareHandlers`
+  now have explicit types.
+
 ## [0.38.10] - 2026-11-04
 
 ### Added

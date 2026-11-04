@@ -2,8 +2,8 @@ import { logger } from '@librechat/data-schemas';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
 
-export const DEBUG_SHARE_DEFAULT_TTL_MS = 60 * 60 * 1000;
-export const DEBUG_SHARE_MAX_TTL_MS = 24 * 60 * 60 * 1000;
+export const DEBUG_SHARE_DEFAULT_TTL_MS: number = 60 * 60 * 1000;
+export const DEBUG_SHARE_MAX_TTL_MS: number = 24 * 60 * 60 * 1000;
 
 export type DebugShareSnapshot = {
   generatedAt: string;
@@ -70,14 +70,21 @@ function mintCode(): string {
   return randomBytes(24).toString('base64url');
 }
 
-export type BuildDebugShareSnapshot = () => Promise<Omit<DebugShareSnapshot, 'generatedAt' | 'expiresAt'>>;
+export type BuildDebugShareSnapshot = () => Promise<
+  Omit<DebugShareSnapshot, 'generatedAt' | 'expiresAt'>
+>;
+
+export interface DebugShareHandlers {
+  mintShare: (req: Request, res: Response) => Promise<Response>;
+  fetchShare: (req: Request, res: Response) => Promise<Response>;
+}
 
 export function createDebugShareHandlers(deps: {
   store?: DebugShareStore;
   buildSnapshot: BuildDebugShareSnapshot;
   publicBaseUrl?: () => string | undefined;
   defaultTtlMs?: number;
-}) {
+}): DebugShareHandlers {
   const store = deps.store ?? createMemoryDebugShareStore();
   const defaultTtlMs = deps.defaultTtlMs ?? DEBUG_SHARE_DEFAULT_TTL_MS;
 
