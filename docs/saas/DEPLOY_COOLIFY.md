@@ -141,7 +141,7 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 
 ## Code Interpreter
 
-قفس microVM روی این سرور خاموش است و `/dev/kvm` به هیچ کانتینری داده نمی‌شود. `interface.runCode` خاموش است و قابلیت `execute_code` در `config/librechat.saas.yaml` نیست. کار کد از راه Attached VM است.
+قفس microVM روی این سرور خاموش است و `/dev/kvm` به هیچ کانتینری داده نمی‌شود. کار کد از راه Attached VM است؛ برای همین `interface.runCode` و قابلیت `execute_code` روشن‌اند تا ایجنت بتواند ابزار کد را به worker جفت‌شده بفرستد.
 
 ## Attached VM (اختیاری)
 

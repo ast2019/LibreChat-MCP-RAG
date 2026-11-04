@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.10] - 2026-11-04
+
+### Fixed
+- **Attached VM could not be used from Agents.** Turning off the Coolify microVM also removed `execute_code` from agent capabilities and set `interface.runCode: false`. Agent Builder then hid «اجرای کد», and runtime refused code tools even after a VM was paired. Both are on again so agents can reach the Attached VM bridge; the microVM stack stays undeployed.
+
 ## [0.38.9] - 2026-11-04
 
 ### Fixed
