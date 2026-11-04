@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.8] - 2026-11-04
+
+### Fixed
+- **Attached VM bridge exited on startup.** `codeapi_bridge` runs with local mode off, so it requires a LibreChat JWT verification key and stopped within a second when none was set. `code_jwt` now writes an Ed25519 key into the `code-jwt-data` volume; the API signs with the private key and the bridge mounts only the public key. The bridge healthcheck uses `bun` because that image has no `wget`. In Coolify the bridge domain is `http://code.aichat.hivelink.co:3114` (the container port). Arvan terminates TLS and still forwards to port 80.
+
 ## [0.38.7] - 2026-11-04
 
 ### Changed

@@ -1,3 +1,6 @@
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { createHash, generateKeyPairSync, verify as cryptoVerify } from 'crypto';
 import type { KeyObject } from 'crypto';
 import type { ServerRequest } from '~/types';
@@ -24,6 +27,7 @@ const ENV_KEYS = [
   'CODEAPI_JWT_PRIVATE_KEY',
   'CODEAPI_JWT_PRIVATE_KEY_BASE64',
   'CODEAPI_JWT_PRIVATE_JWK_JSON',
+  'CODEAPI_JWT_PRIVATE_KEY_FILE',
   'CODEAPI_JWT_ALGORITHM',
   'CODEAPI_JWT_KID',
   'CODEAPI_JWT_KEY_ID',
@@ -116,6 +120,7 @@ describe('Code API JWT minting', () => {
     process.env.CODEAPI_JWT_MINT_CACHE_SECONDS = '30';
     delete process.env.CODEAPI_JWT_PRIVATE_KEY;
     delete process.env.CODEAPI_JWT_PRIVATE_KEY_BASE64;
+    delete process.env.CODEAPI_JWT_PRIVATE_KEY_FILE;
     delete process.env.CODEAPI_JWT_SINGLE_TENANT_ID;
     delete process.env.TENANT_ISOLATION_STRICT;
     delete process.env.OPENID_REUSE_TOKENS;
@@ -180,6 +185,38 @@ describe('Code API JWT minting', () => {
     process.env.CODEAPI_JWT_ALGORITHM = 'EdDSA';
 
     expect(() => assertCodeApiJwtSigningReady()).toThrow();
+  });
+
+  it('loads an Ed25519 signing key from CODEAPI_JWT_PRIVATE_KEY_FILE', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeapi-jwt-'));
+    const file = join(dir, 'private.pem');
+    try {
+      const keyPair = generateKeyPairSync('ed25519');
+      writeFileSync(file, keyPair.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+      delete process.env.CODEAPI_JWT_PRIVATE_JWK_JSON;
+      process.env.CODEAPI_JWT_PRIVATE_KEY_FILE = file;
+
+      expect(() => assertCodeApiJwtSigningReady()).not.toThrow();
+
+      process.env.CODEAPI_JWT_PRIVATE_KEY_FILE = join(dir, 'missing.pem');
+      expect(() => assertCodeApiJwtSigningReady()).toThrow(
+        'Code API JWT signing key file could not be read',
+      );
+
+      const marker = 'SUPER_SECRET_KEY_MATERIAL';
+      writeFileSync(file, marker);
+      process.env.CODEAPI_JWT_PRIVATE_KEY_FILE = file;
+      let message = '';
+      try {
+        assertCodeApiJwtSigningReady();
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toBe('Code API JWT signing key could not be loaded (PEM format)');
+      expect(message).not.toContain(marker);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('marks OpenID reuse callers without forwarding upstream credentials', async () => {

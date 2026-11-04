@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { SYSTEM_TENANT_ID, getTenantId } from '@librechat/data-schemas';
 import { createHash, createPrivateKey, randomUUID, sign as cryptoSign } from 'crypto';
 import type { KeyObject, JsonWebKey } from 'crypto';
@@ -82,6 +83,12 @@ function normalizePem(value: string): string {
   return value.replace(/\\n/g, '\n').trim();
 }
 
+/**
+ * Precedence: inline PEM, base64 PEM, private JWK JSON, then a PEM file.
+ * The file path is how the Coolify stack shares a generated key without putting
+ * it in the environment or the image. A read failure must not quote the file:
+ * Node's error text includes the path and can surface next to a logged stack.
+ */
 function getPrivateKeyRaw(): string {
   const inlineKey = process.env.CODEAPI_JWT_PRIVATE_KEY;
   if (inlineKey != null && inlineKey.trim() !== '') {
@@ -94,6 +101,19 @@ function getPrivateKeyRaw(): string {
   const jwkJson = process.env.CODEAPI_JWT_PRIVATE_JWK_JSON;
   if (jwkJson != null && jwkJson.trim() !== '') {
     return jwkJson.trim();
+  }
+  const keyFile = process.env.CODEAPI_JWT_PRIVATE_KEY_FILE;
+  if (keyFile != null && keyFile.trim() !== '') {
+    let raw: string;
+    try {
+      raw = readFileSync(keyFile, 'utf8');
+    } catch {
+      throw new Error('Code API JWT signing key file could not be read');
+    }
+    if (raw.trim() === '') {
+      throw new Error('Code API JWT signing key file is empty');
+    }
+    return normalizePem(raw);
   }
   throw new Error('Code API JWT signing key is not configured');
 }
