@@ -500,9 +500,9 @@ endpoints:
       - ask_user_question
       # Attached / personal VMs (@librechat/code). Experimental; see docs/saas/ATTACHED_VM.md.
       - stateful_code_sessions
-    # Sharing scopes for stateful workspaces. Attached personal machines are opt-in: set
-    # LIBRECHAT_CODE_BRIDGE_BASEURL to the https:// origin of `codeapi_bridge`, then uncomment
-    # the `environments` block (pairing requires HTTPS outside loopback).
+    # Sharing scopes for stateful workspaces. personal-workers is a pairing control
+    # plane, not an execution default: a pairing-only environment with default: true
+    # fails config validation and the api process will not start.
     statefulCodeSessions:
       allowedEnvironments:
         - user
@@ -512,26 +512,25 @@ endpoints:
       principalWorkers:
         enabled: true
         maxPerUser: 2
-      # environments:
-      #   - id: personal-workers
-      #     name: ماشین شخصی (Attached VM)
-      #     type: attached
-      #     baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}'
-      #     owner: deployment
-      #     default: true
-      #     configSchema:
-      #       limits:
-      #         maxCommandTimeoutMs: 120000
-      #       permissions:
-      #         fileWrite:
-      #           allowed: [allow, ask, deny]
-      #           default: ask
-      #         commandExecution:
-      #           allowed: [ask, deny]
-      #           default: ask
-      #     pairing:
-      #       allowPrincipalWorkers: true
-      #       tokenEnv: CODE_BRIDGE_ADMIN_TOKEN
+      environments:
+        - id: personal-workers
+          name: ماشین شخصی (Attached VM)
+          type: attached
+          baseURL: 'https://code.aichat.hivelink.co/v1'
+          owner: deployment
+          configSchema:
+            limits:
+              maxCommandTimeoutMs: 120000
+            permissions:
+              fileWrite:
+                allowed: [allow, ask, deny]
+                default: ask
+              commandExecution:
+                allowed: [ask, deny]
+                default: ask
+          pairing:
+            allowPrincipalWorkers: true
+            tokenEnv: CODE_BRIDGE_ADMIN_TOKEN
   custom:
     # The name must stay "OpenRouter": live per-model pricing is fetched only for that name.
     - name: 'OpenRouter'

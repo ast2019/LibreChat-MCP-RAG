@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.5] - 2026-11-04
+
+### Fixed
+- **Attached VM never appeared in Coolify.** Coolify rewrites `docker-compose.yml` and drops `include`, so `codeapi_bridge` was not a container and had no domain field. The bridge and its redis, file, tool and egress services are now in the root compose. The microVM sandbox stays in the included file so a missing `/dev/kvm` cannot fail the whole Coolify deploy. `personal-workers` is enabled for `https://code.aichat.hivelink.co/v1` and is not an execution default. Bridge `LOCAL_MODE` defaults to off.
+
 ## [0.38.4] - 2026-11-04
 
 ### Fixed

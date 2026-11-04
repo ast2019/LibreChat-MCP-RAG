@@ -13,15 +13,11 @@
 
 ## پیش‌نیاز
 
-1. استک Code Interpreter از قبل در compose باشد (`deploy/code-interpreter/`).
-2. سرویس **`codeapi_bridge`** سالم باشد.
-3. یک دامنهٔ **https://** فقط برای `codeapi_bridge` در Coolify (مثلاً `https://code.example.com`).
-4. متغیرها:
-   - `LIBRECHAT_CODE_BRIDGE_BASEURL=https://code.example.com/v1`
-   - `CODE_BRIDGE_ADMIN_TOKEN` از `SERVICE_HEX_64_CODEBRIDGE` (در compose به `api` داده می‌شود)
-5. قبل از عمومی کردن دامنه: `CODEAPI_BRIDGE_LOCAL_MODE=false` و احراز هویت JWT طبق
-   [مستندات Code Interpreter](https://www.librechat.ai/docs/configuration/tools/code_interpreter). با `LOCAL_MODE=true` روی اینترنت، هر کسی می‌تواند API را صدا بزند.
-6. در `config/librechat.saas.yaml` بلوک `environments` مربوط به `personal-workers` را از حالت توضیح خارج کنید و redeploy کنید.
+1. سرویس **`codeapi_bridge`** در `docker-compose.yml` باشد (Coolify فایل `include` را نمی‌بیند) و healthy شود.
+2. در Coolify فقط برای `codeapi_bridge` دامنه بگذارید: `https://code.aichat.hivelink.co:3114`. پورت ۳۱۱۴ داخل کانتینر است. ابر آروان به پورت ۸۰ آی‌پی سرور Coolify فوروارد می‌کند، نه به ۳۱۱۴ و نه به آی‌پی ماشین worker.
+3. `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است. `CODE_BRIDGE_ADMIN_TOKEN` از `SERVICE_HEX_64_CODEBRIDGE` می‌آید و Coolify آن را می‌سازد.
+4. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است و حالت احراز هویت `paired` است. آن را `true` نکنید وگرنه API روی اینترنت بدون احراز هویت می‌ماند.
+5. بلوک `personal-workers` در `config/librechat.saas.yaml` روشن است. `default: true` ندارد، چون صفحهٔ کنترل pairing نباید محیط پیش‌فرض اجرا باشد و با آن خط `api` بالا نمی‌آید.
 
 قابلیت `stateful_code_sessions` و سقف `principalWorkers` (پیش‌فرض ۲ ماشین به ازای هر کاربر) از قبل در yaml هست.
 

@@ -2,7 +2,10 @@
 
 Sandboxed code execution for LibreChat agents and the **Run Code** button, using the
 open-source [LibreChat-AI/code-interpreter](https://github.com/LibreChat-AI/code-interpreter)
-service. The stack is included from the root `docker-compose.yml`.
+service. `codeapi`, `code_worker` and `code_sandbox` live in this directory and the
+root `docker-compose.yml` includes them. Coolify drops `include`, so those three
+do not start there. The Attached VM bridge is declared in the root file. See
+`docs/saas/ATTACHED_VM.md`.
 
 ## What you get
 
@@ -30,7 +33,7 @@ deploy. Without `/dev/kvm`, `code_sandbox` will not start and Run Code fails.
 1. Redeploy after this change so Coolify creates the new `SERVICE_*` secrets
    (`SERVICE_HEX_64_CODEINTERNAL`, `SERVICE_HEX_64_CODEEGRESS`, `SERVICE_HEX_64_CODEBRIDGE`,
    `SERVICE_PASSWORD_CODEREDIS`, `SERVICE_USER_CODEMINIO`, `SERVICE_PASSWORD_CODEMINIO`).
-2. Leave every Code Interpreter service **without** a domain.
+2. Leave `codeapi` and `code_sandbox` **without** a domain. `codeapi_bridge` is the one exception: `https://code.aichat.hivelink.co:3114`.
 3. Confirm `api` has `LIBRECHAT_CODE_BASEURL=http://codeapi:3112/v1` (the compose default).
 4. Optional: pin images with `CODEAPI_IMAGE_TAG=sha-<commit>` instead of `main`.
 
@@ -46,9 +49,10 @@ smoke test.
 
 ## Attached VMs
 
-`codeapi_bridge` (port 3114 in-container) is the remote-bridge control plane. Keep it
-internal until you follow [docs/saas/ATTACHED_VM.md](../../docs/saas/ATTACHED_VM.md) and
-`deploy/code-worker/`. Do not confuse it with this microVM sandbox.
+`codeapi_bridge` (port 3114 in-container) is the remote-bridge control plane and is
+declared in the root compose so Coolify lists it. Follow
+[docs/saas/ATTACHED_VM.md](../../docs/saas/ATTACHED_VM.md). Do not confuse it with
+this microVM sandbox.
 
 ## Hardening later
 

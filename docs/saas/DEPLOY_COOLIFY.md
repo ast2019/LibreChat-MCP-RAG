@@ -11,7 +11,7 @@
 
 1. **ساخت منبع:** در Coolify گزینه **New Resource → Public/Private Repository** را بزنید و این مخزن را انتخاب کنید. Branch را `main` بگذارید.
 2. **Build Pack:** گزینه **Docker Compose** را انتخاب کنید. مسیر فایل `/docker-compose.yml` است.
-3. **دامنه:** فقط برای سرویس `api` دامنه بگذارید، **بدون پورت**: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد و proxy کولیفای به‌طور پیش‌فرض به همین پورت وصل می‌شود. فیلد دامنهٔ سرویس‌های دیگر (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `codeapi` و بقیهٔ `code_*`) را **خالی بگذارید**. کولیفای برای هر سرویس این فیلد را نشان می‌دهد، ولی این‌ها داخلی‌اند و نباید از اینترنت در دسترس باشند. به‌خصوص `codeapi` را عمومی نکنید (`LOCAL_MODE`).
+3. **دامنه:** برای سرویس `api` دامنه را **بدون پورت** بگذارید: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد. تنها استثنا `codeapi_bridge` است: `https://code.aichat.hivelink.co:3114` (پورت کانتینر). فیلد دامنهٔ بقیه (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `codeapi`، `code_sandbox`) را **خالی بگذارید**. به‌خصوص `codeapi` را عمومی نکنید (`LOCAL_MODE`).
 4. **متغیرها:** در بخش **Environment Variables**:
    - `OPENROUTER_KEY` را وارد کنید. این تنها متغیر اجباری است و تا وارد نشود deploy انجام نمی‌شود.
    - همه `SERVICE_*`ها (رمزها، کلیدهای JWT، `CREDS_KEY`، رمز MongoDB و Meilisearch) را خود Coolify یک بار می‌سازد و نگه می‌دارد.
@@ -121,7 +121,8 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `searxng` | جستجوی وب | جستجوی وب کار نمی‌کند |
 | `ollama` | مدل داخلی | گزینهٔ «داخلی» کار نمی‌کند |
 | `browser` | مرورگر Agent (آزمایشی) | مرورگر باز نمی‌شود و «وضعیت سرور» عددی نشان نمی‌دهد |
-| `codeapi` + `code_*` | Code Interpreter | دکمهٔ Run Code و ابزار اجرای کد Agent کار نمی‌کند |
+| `codeapi_bridge` + `code_bridge_queue` | Attached VM | اتصال ماشین شخصی کار نمی‌کند |
+| `codeapi` + `code_sandbox` | Code Interpreter (microVM، روی Coolify با `include` بالا نمی‌آید) | دکمهٔ Run Code کار نمی‌کند |
 
 ## سرویس‌ها
 
@@ -134,13 +135,15 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `searxng` | موتور جستجوی وب خصوصی، فقط داخلی | — |
 | `ollama` | مدل داخلی `gemma3:4b` (به نام `hivegpt-local`) برای چت «داخلی (کاملاً محرمانه)». حدود ۴ تا ۵ گیگابایت RAM هنگام استفاده؛ بعد از ۳۰ دقیقه بی‌کاری از حافظه خارج می‌شود | `ollama-models` |
 | `browser` | مرورگر Agent (آزمایشی): برای هر جلسه یک Chromium جدا پشت پراکسی خودش، که صفحه فقط به نشانی‌های عمومی اینترنت روی پورت ۸۰ و ۴۴۳ برسد. حدود ۳۰۰ تا ۵۰۰ مگابایت RAM برای هر مرورگر باز | — |
-| `codeapi` و `code_*` | Code Interpreter (از `deploy/code-interpreter/compose.yml`): اجرای ایزولهٔ کد در microVM. به `/dev/kvm` نیاز دارد؛ دامنه ندهید | `code-redis-data`، `code-minio-data` |
+| `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید: `https://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است). ابر آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند | `code-redis-data`، `code-minio-data` |
+| `codeapi` و `code_sandbox` | Code Interpreter (microVM). Coolify دستور `include` را نادیده می‌گیرد، پس این دو روی Coolify بالا نمی‌آیند و به `/dev/kvm` نیاز دارند. دامنه ندهید | — |
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
 
 ## Code Interpreter
 
-- استک از `deploy/code-interpreter/compose.yml` با `include` به `docker-compose.yml` اضافه می‌شود.
+- پل Attached VM (`codeapi_bridge`) داخل خود `docker-compose.yml` است، چون Coolify بخش `include` را موقع ساخت سرویس‌ها دور می‌ریزد و قبلاً برای همین در صفحهٔ Domains دیده نمی‌شد.
+- microVM (`codeapi`، `code_sandbox`) هنوز با `include` از `deploy/code-interpreter/compose.yml` می‌آید و فقط روی `docker compose` محلی بالا می‌آید.
 - `api` به `LIBRECHAT_CODE_BASEURL` (پیش‌فرض `http://codeapi:3112/v1`) وصل است. `interface.runCode` و قابلیت `execute_code` در `config/librechat.saas.yaml` روشن‌اند و model specها `executeCode: true` دارند.
 - روی میزبان `/dev/kvm` لازم است. به `codeapi` / `code_sandbox` دامنه ندهید.
 - بررسی: `docker compose exec api wget -qO- http://codeapi:3112/v1/health` و یک بلاک Python با دکمهٔ Run Code.
@@ -148,8 +151,9 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 
 ## Attached VM (اختیاری)
 
-- سرویس‌های `codeapi_bridge` و `code_bridge_queue` برای وصل کردن Ubuntu VM با `@librechat/code` هستند.
-- فقط وقتی آمادهٔ ماشین شخصی شدید به `codeapi_bridge` دامنهٔ `https://` بدهید، `LIBRECHAT_CODE_BRIDGE_BASEURL` را بگذارید، `LOCAL_MODE` عمومی را خاموش کنید، و بلوک `personal-workers` را در `librechat.saas.yaml` از حالت توضیح خارج کنید.
+- سرویس‌های `codeapi_bridge` و `code_bridge_queue` برای وصل کردن Ubuntu VM با `@librechat/code` هستند و در compose اصلی تعریف شده‌اند تا Coolify فیلد دامنهٔ آن‌ها را نشان بدهد.
+- دامنه را فقط روی `codeapi_bridge` بگذارید: `https://code.aichat.hivelink.co:3114`. عدد ۳۱۱۴ را در ابر آروان و فایروال باز نکنید؛ آروان به پورت ۸۰ همان سرور Coolify فوروارد می‌کند.
+- `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است و بلوک `personal-workers` در `librechat.saas.yaml` روشن است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired). به `codeapi` و `code_sandbox` دامنه ندهید.
 - نصب worker: `deploy/code-worker/`. راهنمای کامل: [ATTACHED_VM.md](./ATTACHED_VM.md).
 
 ## مرورگر Agent (آزمایشی)

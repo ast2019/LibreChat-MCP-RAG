@@ -20,7 +20,7 @@ flowchart LR
   R -->|embeddings| OR
 ```
 
-همه سرویس‌ها در `docker-compose.yml` (و `include`ی `deploy/code-interpreter/compose.yml`) تعریف شده‌اند. فقط `api` دامنه عمومی دارد و بقیه داخل شبکه خصوصی stack هستند.
+سرویس‌های اصلی و پل Attached VM (`codeapi_bridge`) در `docker-compose.yml` هستند. Coolify دستور `include` را نادیده می‌گیرد، برای همین microVM در `deploy/code-interpreter/compose.yml` فقط با `docker compose` محلی بالا می‌آید. دامنهٔ عمومی مال `api` است، به‌اضافهٔ `codeapi_bridge` وقتی ماشین شخصی وصل می‌شود. بقیه داخل شبکهٔ خصوصی stack هستند.
 
 ## پوشه‌ها
 
@@ -39,7 +39,7 @@ flowchart LR
 | `config/` | اسکریپت‌های CLI ادمین (`create-user`، `add-balance`، **`grant-pack`**) و **`librechat.saas.yaml`** |
 | `deploy/searxng/` | تنظیمات SearXNG |
 | `deploy/browser/` | سرویس مرورگر Agent |
-| `deploy/code-interpreter/` | استک Code Interpreter (GHCR) که با `include` به compose اصلی می‌آید؛ شامل `codeapi_bridge` برای Attached VM |
+| `deploy/code-interpreter/` | microVM اجرای کد (`codeapi`، `code_sandbox`). پل Attached VM در `docker-compose.yml` است چون Coolify فایل `include` را بالا نمی‌آورد |
 | `deploy/code-worker/` | نصب `@librechat/code` روی Ubuntu VM و اتصال به bridge |
 | `docs/saas/ATTACHED_VM.md` | راهنمای ماشین وصل‌شده (شبیه Cursor/Kiro Cloud، بدون provision خودکار) |
 | `helm/` | چارت Kubernetes (upstream؛ در این fork استفاده نمی‌شود) |

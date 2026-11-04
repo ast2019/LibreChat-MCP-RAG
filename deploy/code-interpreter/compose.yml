@@ -1,17 +1,15 @@
-# Code Interpreter stack for HiveGPT (LibreChat Code API).
-# Pulled into the root docker-compose.yml via `include`.
+# MicroVM Code Interpreter (Run Code). Included from the root docker-compose.yml.
 # Images: https://github.com/LibreChat-AI/code-interpreter (GHCR, tag CODEAPI_IMAGE_TAG).
 #
-# Isolation uses a libkrun microVM (needs /dev/kvm on the host). Nested virtualization
-# must be on. Never give `codeapi` / `code_sandbox` a public Coolify domain — LOCAL_MODE
-# trusts the Docker network only.
+# Coolify rewrites the root file and drops `include`, so these services do not
+# start on Coolify. That is deliberate: code_sandbox bind-mounts /dev/kvm, and a
+# missing device fails `docker compose up` for the whole project, including api.
+# Local `docker compose up` still starts them. The Attached VM bridge
+# (codeapi_bridge, code_bridge_queue, code_redis, code_minio, code_file,
+# code_tools, code_egress) lives in the root file so Coolify does create it.
 #
-# `codeapi_bridge` is the remote-bridge control plane for Attached VMs (@librechat/code).
-# When enabling personal workers, give THAT service an https:// domain and set
-# LIBRECHAT_CODE_BRIDGE_BASEURL (see docs/saas/ATTACHED_VM.md). Turn LOCAL_MODE off before
-# exposing it publicly.
-#
-# Pin a commit tag for production (CODEAPI_IMAGE_TAG=sha-<commit>); `main` tracks upstream.
+# Never give codeapi or code_sandbox a public Coolify domain. LOCAL_MODE trusts
+# the Docker network only.
 
 x-codeapi-common: &codeapi-common
   LOCAL_MODE: ${CODEAPI_LOCAL_MODE:-true}
@@ -76,111 +74,6 @@ services:
       code_sandbox:
         condition: service_healthy
 
-  # Remote-bridge control plane for Attached / personal VMs (outbound @librechat/code).
-  # Shares Redis and file/tool services with the microVM stack; does not need /dev/kvm.
-  codeapi_bridge:
-    image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      <<: *codeapi-common
-      LOCAL_MODE: ${CODEAPI_BRIDGE_LOCAL_MODE:-true}
-      SERVICE_PORT: 3114
-      CODEAPI_SANDBOX_BACKEND: remote-bridge
-      CODEAPI_EXECUTION_PROFILE: stateful
-      CODEAPI_RUNTIME_SESSION_MODE: affinity
-      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
-      CODEAPI_BRIDGE_AUTH_MODE: paired
-      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
-      CODEAPI_BRIDGE_LANE_GIT: ${CODEAPI_BRIDGE_LANE_GIT:-true}
-      FILE_SERVER_URL: http://code_file:3000
-      TOOL_CALL_SERVER_URL: http://code_tools:3033
-      EGRESS_GATEWAY_URL: http://code_egress:3190
-      CODEAPI_HTTP_JSON_LIMIT: 50mb
-    depends_on:
-      code_redis:
-        condition: service_started
-      code_tools:
-        condition: service_started
-      code_file:
-        condition: service_started
-    healthcheck:
-      test:
-        - CMD
-        - wget
-        - -qO-
-        - http://127.0.0.1:3114/v1/health
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
-
-  code_bridge_queue:
-    image: ghcr.io/librechat-ai/code-interpreter-worker:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      <<: *codeapi-common
-      LOCAL_MODE: ${CODEAPI_BRIDGE_LOCAL_MODE:-true}
-      CODEAPI_SANDBOX_BACKEND: remote-bridge
-      CODEAPI_EXECUTION_PROFILE: stateful
-      CODEAPI_RUNTIME_SESSION_MODE: affinity
-      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
-      CODEAPI_BRIDGE_AUTH_MODE: paired
-      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
-      CODEAPI_BRIDGE_LANE_GIT: ${CODEAPI_BRIDGE_LANE_GIT:-true}
-      EGRESS_GATEWAY_URL: http://code_egress:3190
-      CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY: ${CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY:-MC4CAQAwBQYDK2VwBCIEIBoxzSJjQ5jTVyuohHtlD+uDGqv/tZ6hQS2CmxuOg2Wn}
-      PYTHON_CONCURRENCY: ${CODEAPI_PYTHON_CONCURRENCY:-1}
-      OTHER_CONCURRENCY: ${CODEAPI_OTHER_CONCURRENCY:-4}
-      WORKER_HEALTH_PORT: 3115
-    depends_on:
-      code_redis:
-        condition: service_started
-      codeapi_bridge:
-        condition: service_healthy
-
-  code_egress:
-    image: ghcr.io/librechat-ai/code-interpreter-egress-gateway:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      SERVICE_NAME: egress-gateway
-      CODEAPI_HARDENED_SANDBOX_MODE: ${CODEAPI_HARDENED_SANDBOX_MODE:-true}
-      CODEAPI_EGRESS_LEDGER_REQUIRED: 'true'
-      EGRESS_GATEWAY_PORT: 3190
-      EGRESS_GATEWAY_FILE_SERVER_URL: http://code_file:3000
-      EGRESS_GATEWAY_TOOL_CALL_SERVER_URL: http://code_tools:3033
-      EGRESS_GATEWAY_MAX_TOOL_CALL_BYTES: 1048576
-      CODEAPI_EGRESS_GRANT_SECRET: ${SERVICE_HEX_64_CODEEGRESS}
-      CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
-      REDIS_HOST: code_redis
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
-    depends_on:
-      code_file:
-        condition: service_started
-      code_tools:
-        condition: service_started
-      code_redis:
-        condition: service_started
-
-  code_tools:
-    image: ghcr.io/librechat-ai/code-interpreter-tool-call-server:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      TOOL_CALL_SERVER_PORT: 3033
-      TOOL_CALL_REQUEST_TIMEOUT: 300000
-      TOOL_CALL_SESSION_EXPIRY: 600
-      REDIS_HOST: code_redis
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
-      CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
-    depends_on:
-      code_redis:
-        condition: service_started
-
   code_sandbox:
     image: ghcr.io/librechat-ai/code-interpreter-sandbox-runner:${CODEAPI_IMAGE_TAG:-main}
     restart: unless-stopped
@@ -221,46 +114,3 @@ services:
       timeout: 3s
       retries: 60
       start_period: 30s
-
-  code_file:
-    image: ghcr.io/librechat-ai/code-interpreter-file-server:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      MINIO_BUCKET: hivegpt-code
-      MINIO_ENDPOINT: code_minio
-      MINIO_PORT: 9000
-      MINIO_USE_SSL: 'false'
-      MINIO_ACCESS_KEY: ${SERVICE_USER_CODEMINIO}
-      MINIO_SECRET_KEY: ${SERVICE_PASSWORD_CODEMINIO}
-      FILE_SERVER_PORT: 3000
-      REDIS_HOST: code_redis
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
-      CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
-    depends_on:
-      code_minio:
-        condition: service_started
-      code_redis:
-        condition: service_started
-
-  code_redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: redis-server --requirepass ${SERVICE_PASSWORD_CODEREDIS} --appendonly yes
-    volumes:
-      - code-redis-data:/data
-
-  code_minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    restart: unless-stopped
-    command: server /data --console-address ':9001'
-    environment:
-      MINIO_ROOT_USER: ${SERVICE_USER_CODEMINIO}
-      MINIO_ROOT_PASSWORD: ${SERVICE_PASSWORD_CODEMINIO}
-    volumes:
-      - code-minio-data:/data
-
-volumes:
-  code-redis-data:
-  code-minio-data:
