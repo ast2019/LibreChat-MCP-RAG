@@ -220,4 +220,35 @@ describe('billing methods', () => {
     );
     await tx.deleteMany({ context: { $in: ['ocr', 'ocr_local'] } });
   });
+
+  it('counts local AI chat spend under message_local separately from provider cost', async () => {
+    const tx = mongoose.connection.collection('transactions');
+    const since = new Date('2026-10-20T00:00:00Z');
+    await tx.insertMany([
+      {
+        user: saraId,
+        tokenType: 'prompt',
+        context: 'message_local',
+        model: 'hivegpt-local',
+        endpoint: 'Local',
+        rawAmount: -1000,
+        tokenValue: -12_000,
+        createdAt: now,
+      },
+      {
+        user: saraId,
+        tokenType: 'completion',
+        context: 'message_local',
+        model: 'hivegpt-local',
+        endpoint: 'Local',
+        rawAmount: -200,
+        tokenValue: -8_000,
+        createdAt: now,
+      },
+    ]);
+    const summary = await billing.getBillingSummary({ since });
+    expect(summary.creditsSpentInWindow).toBe(500_000 + 20_000);
+    expect(summary.creditsSpentLocalInWindow).toBe(20_000);
+    await tx.deleteMany({ context: 'message_local' });
+  });
 });

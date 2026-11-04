@@ -46,7 +46,7 @@ export function useRoleSelector(permissionType: PermissionTypes) {
     const names = roleList?.roles?.map((r) => r.name);
     return names?.length
       ? names
-      : [SystemRoles.USER, SystemRoles.OPERATOR, SystemRoles.ADMIN];
+      : [SystemRoles.USER, SystemRoles.MANAGER, SystemRoles.ADMIN];
   }, [roleList]);
 
   const roleDropdownItems = useMemo(

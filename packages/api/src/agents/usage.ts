@@ -819,10 +819,15 @@ export function resolveAgentTokenConfig({
 /**
  * The `context` a run stamps on the usage transactions it records on exit. A stopped run
  * still owns what it consumed — the abort route only signals — so it records under
- * `'abort'` rather than skipping, and a completed run under `'message'`.
+ * `'abort'` rather than skipping, and a completed run under `'message'`. Local (on-server)
+ * runs use the `*_local` forms so admin Overview can split them from provider cost.
  */
-export function resolveRunUsageContext(aborted: boolean): 'abort' | 'message' {
-  return aborted ? 'abort' : 'message';
+export function resolveRunUsageContext(
+  aborted: boolean,
+  local = false,
+): 'abort' | 'message' | 'abort_local' | 'message_local' {
+  const base = aborted ? 'abort' : 'message';
+  return local ? `${base}_local` : base;
 }
 
 /**
@@ -954,6 +959,8 @@ export interface DetachedSubagentUsageRecorderParams {
   transactions?: Partial<TTransactionsConfig>;
   endpointTokenConfig?: EndpointTokenConfig;
   endpointTokenConfigByAgentId?: Map<string, EndpointTokenConfig | undefined>;
+  /** When true, bill under `subagent_local` (on-server chat; no provider cost). */
+  local?: boolean;
 }
 
 /**
@@ -1110,8 +1117,10 @@ export async function recordCollectedUsage(
   };
 
   const allDocs: PreparedEntry[] = [];
+  /** Nested calls on a local primary run stay local for admin spend split. */
+  const localSuffix = context.endsWith('_local') ? '_local' : '';
   processUsageGroup(messageUsages, context, allDocs);
-  processUsageGroup(summarizationUsages, 'summarization', allDocs);
+  processUsageGroup(summarizationUsages, `summarization${localSuffix}`, allDocs);
   /**
    * Subagent child-run usage is billed in full (transactions + balance) but
    * excluded from the reported output total: the result's `output_tokens`
@@ -1119,8 +1128,12 @@ export async function recordCollectedUsage(
    * `getStreamUsage` consumer), and child output the parent never saw would
    * distort next-turn context accounting by orders of magnitude.
    */
-  processUsageGroup(subagentUsages, 'subagent', allDocs, { excludeFromOutputTotal: true });
-  processUsageGroup(sequentialUsages, 'sequential', allDocs, { excludeFromOutputTotal: true });
+  processUsageGroup(subagentUsages, `subagent${localSuffix}`, allDocs, {
+    excludeFromOutputTotal: true,
+  });
+  processUsageGroup(sequentialUsages, `sequential${localSuffix}`, allDocs, {
+    excludeFromOutputTotal: true,
+  });
   if (useBulk && allDocs.length > 0) {
     try {
       await bulkWriteTransactions({ user, docs: allDocs }, bulkWriteOps);
@@ -1161,7 +1174,7 @@ export function createDetachedSubagentUsageRecorder(
         conversationId: billing.conversationId,
         collectedUsage: [usage],
         model: billing.model,
-        context: 'subagent',
+        context: billing.local === true ? 'subagent_local' : 'subagent',
         messageId: billing.messageId,
         balance: billing.balance,
         transactions: billing.transactions,

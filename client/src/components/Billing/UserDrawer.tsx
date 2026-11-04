@@ -47,8 +47,8 @@ export default function UserDrawer({
   const roleLabel =
     user?.role === SystemRoles.ADMIN
       ? 'com_admin_role_admin'
-      : user?.role === SystemRoles.OPERATOR
-        ? 'com_admin_role_operator'
+      : user?.role === SystemRoles.MANAGER
+        ? 'com_admin_role_manager'
         : 'com_admin_role_user';
 
   return (
@@ -141,7 +141,7 @@ export default function UserDrawer({
                   disabled={isSelf}
                   onClick={() => onAction('role', user)}
                 >
-                  {isAdmin || user.role === SystemRoles.OPERATOR ? (
+                  {isAdmin || user.role === SystemRoles.MANAGER ? (
                     <ShieldOff className="me-1.5 size-4" aria-hidden="true" />
                   ) : (
                     <ShieldCheck className="me-1.5 size-4" aria-hidden="true" />

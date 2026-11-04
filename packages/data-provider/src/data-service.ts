@@ -156,7 +156,7 @@ export function createAdminUser(
   return request.post(endpoints.adminBillingCreateUser(), payload);
 }
 
-/** Sets a user's system grade (USER, OPERATOR or ADMIN); the server keeps at least one admin. */
+/** Sets a user's system grade (USER, MANAGER or ADMIN); the server keeps at least one admin. */
 export function setAdminUserRole({
   userId,
   role,

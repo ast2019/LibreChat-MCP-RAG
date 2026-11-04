@@ -482,8 +482,8 @@ describe('AdminView', () => {
     );
   });
 
-  it('lets an operator open the admin panel', () => {
-    mockRole = 'OPERATOR';
+  it('lets a manager open the admin panel', () => {
+    mockRole = 'MANAGER';
     renderView();
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
   });

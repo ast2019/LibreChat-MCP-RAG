@@ -85,11 +85,24 @@ function getUserSort(sort: TAdminBillingUserSort): Record<string, 1 | -1> {
 /** Credits added to balances: packs, manual grants and invite rewards (both sides). */
 const GRANT_CONTEXTS = ['pack', 'admin', 'referral', 'referral_welcome'];
 const SPEND_TOKEN_TYPES = ['prompt', 'completion'];
-/** `credits` transactions that are usage with no provider cost: on-server OCR pages. */
-const LOCAL_SPEND_CONTEXTS = ['ocr_local'];
+/**
+ * Spend contexts with no external provider cost (on-server OCR and local AI chat).
+ * Chat uses `message_local` / `abort_local` / nested `*_local` forms; OCR uses `ocr_local`.
+ * Aggregation also treats any context ending in `_local` as local (see getBillingSummary).
+ */
+const LOCAL_SPEND_CONTEXTS = [
+  'ocr_local',
+  'message_local',
+  'abort_local',
+  'title_local',
+  'memory_local',
+  'summarization_local',
+  'subagent_local',
+  'sequential_local',
+];
 /** Every `credits` transaction that is usage, not a grant: on-server OCR pages and server
  *  speech (transcription and read-aloud are priced in credits from the provider's cost). */
-const CREDIT_SPEND_CONTEXTS = [...LOCAL_SPEND_CONTEXTS, 'stt', 'tts'];
+const CREDIT_SPEND_CONTEXTS = ['ocr_local', 'stt', 'tts'];
 /** Every spend transaction: token usage (chat, vision OCR) and credit-priced usage. */
 const SPEND_MATCH = {
   $or: [
@@ -112,6 +125,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
   async function listUsersWithBalances({
     search,
     role,
+    excludeRoles,
     pack,
     balance,
     access,
@@ -129,8 +143,11 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
     } else if (tokenFilter) {
       filters.push(tokenFilter);
     }
-    if (role === 'USER' || role === 'ADMIN') {
+    if (role === 'USER' || role === 'MANAGER' || role === 'ADMIN') {
       filters.push({ role });
+    }
+    if (Array.isArray(excludeRoles) && excludeRoles.length > 0) {
+      filters.push({ role: { $nin: excludeRoles } });
     }
 
     const customAccess = [
@@ -284,7 +301,21 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
             credits: { $sum: '$tokenValue' },
             local: {
               $sum: {
-                $cond: [{ $in: ['$context', LOCAL_SPEND_CONTEXTS] }, '$tokenValue', 0],
+                $cond: [
+                  {
+                    $or: [
+                      { $in: ['$context', LOCAL_SPEND_CONTEXTS] },
+                      {
+                        $regexMatch: {
+                          input: { $ifNull: ['$context', ''] },
+                          regex: /_local$/,
+                        },
+                      },
+                    ],
+                  },
+                  '$tokenValue',
+                  0,
+                ],
               },
             },
             users: { $addToSet: '$user' },

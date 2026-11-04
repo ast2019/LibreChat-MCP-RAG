@@ -47,7 +47,7 @@ const COL = {
   actions: 'md:w-10',
 };
 
-const ROLE_FILTERS: readonly string[] = ['USER', 'OPERATOR', 'ADMIN'];
+const ROLE_FILTERS: readonly string[] = ['USER', 'MANAGER', 'ADMIN'];
 const BALANCE_FILTERS: readonly string[] = ['positive', 'empty'];
 const ACCESS_FILTERS: readonly string[] = ['custom', 'default'];
 const SORTS: readonly string[] = ['newest', 'oldest', 'name'];
@@ -178,8 +178,8 @@ function UserCell({ row, onOpen }: { row: TAdminBillingUser; onOpen: () => void 
           <span className="text-text-secondary border-border-light shrink-0 rounded-md border px-1.5 py-0.5 text-xs">
             {row.role === SystemRoles.ADMIN
               ? localize('com_admin_role_admin')
-              : row.role === SystemRoles.OPERATOR
-                ? localize('com_admin_role_operator')
+              : row.role === SystemRoles.MANAGER
+                ? localize('com_admin_role_manager')
                 : localize('com_admin_role_user')}
           </span>
         </div>
@@ -369,8 +369,10 @@ export default function Users() {
                 options={[
                   { value: ALL, label: localize('com_admin_filter_all_roles') },
                   { value: 'USER', label: localize('com_admin_role_user') },
-                  { value: 'OPERATOR', label: localize('com_admin_role_operator') },
-                  { value: 'ADMIN', label: localize('com_admin_role_admin') },
+                  { value: 'MANAGER', label: localize('com_admin_role_manager') },
+                  ...(currentUser?.role === SystemRoles.ADMIN
+                    ? [{ value: 'ADMIN', label: localize('com_admin_role_admin') }]
+                    : []),
                 ]}
                 onChange={(value) => update({ role: value as RoleFilter })}
                 ariaLabel={localize('com_admin_filter_role')}

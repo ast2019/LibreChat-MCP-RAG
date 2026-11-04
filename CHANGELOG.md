@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-04
+
+### Changed
+- **Manager grade replaces Operator.** Admin grades are User, Manager (مدیر), and
+  Admin. Managers get nearly every admin capability except managing roles; they
+  cannot open لوکال امن خاص, cannot see Admin accounts in lists/search, and
+  cannot promote anyone to Admin. Existing Operator users migrate to Manager on
+  startup.
+- **Admin Overview splits local AI spend.** Chat on `privacy: local` or a local
+  endpoint records `message_local` (like `ocr_local`). Overview shows a KPI for
+  credits charged for on-server work so far; provider cost and margin exclude it.
+
 ## [0.37.0] - 2026-11-04
 
 ### Added
@@ -16,9 +28,8 @@ LibreChat versions are tracked separately in `package.json`.
   `VERSION` beside the LibreChat `package.json` version; the PWA update banner
   names the new HiveGPT version; recent `CHANGELOG.md` entries are exposed for
   the banner and About.
-- **Operator role.** Admin user grades are User, Operator, and Admin. Operators
-  can open the admin panel for users and usage; they cannot manage roles or
-  config the way a full admin can.
+- **Operator role (superseded in 0.38.0 by Manager).** Early User / Operator /
+  Admin grades; Operator became Manager.
 
 ## [0.36.0] - 2026-11-03
 

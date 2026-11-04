@@ -35,7 +35,7 @@ export default function UserActions({
   const [isOpen, setIsOpen] = useState(false);
   const who = user.name || user.username || user.email || user.phone || '';
   const elevated =
-    user.role === SystemRoles.ADMIN || user.role === SystemRoles.OPERATOR;
+    user.role === SystemRoles.ADMIN || user.role === SystemRoles.MANAGER;
 
   const items: t.MenuItemProps[] = [
     {

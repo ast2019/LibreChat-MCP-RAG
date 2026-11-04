@@ -524,21 +524,16 @@ export function createSystemGrantMethods(mongoose: typeof import('mongoose')): {
   }
 
   /**
-   * Support-ops grants for OPERATOR: enter the admin panel, manage users and
-   * read usage/insights/groups. No config, role, audit or agent management.
+   * Manager grants: nearly every system capability except promoting/managing roles.
+   * ADMIN-only model bypass (لوکال امن خاص) stays a role-string check, not a grant.
    */
-  const OPERATOR_CAPABILITIES: readonly SystemCapability[] = [
-    SystemCapabilities.ACCESS_ADMIN,
-    SystemCapabilities.READ_USERS,
-    SystemCapabilities.MANAGE_USERS,
-    SystemCapabilities.READ_GROUPS,
-    SystemCapabilities.READ_USAGE,
-    SystemCapabilities.READ_INSIGHTS,
-  ];
+  const MANAGER_CAPABILITIES: readonly SystemCapability[] = Object.values(
+    SystemCapabilities,
+  ).filter((capability) => capability !== SystemCapabilities.MANAGE_ROLES);
 
   /**
-   * Seed ADMIN with every system capability, and OPERATOR with the support-ops
-   * subset. Context-agnostic: caller provides tenant context (e.g., `runAsSystem()`
+   * Seed ADMIN with every system capability, and MANAGER with all but MANAGE_ROLES.
+   * Context-agnostic: caller provides tenant context (e.g., `runAsSystem()`
    * for startup, `tenantStorage.run()` for future per-tenant provisioning).
    * Idempotent and concurrency-safe: uses bulkWrite with ordered:false so parallel
    * server instances (K8s rolling deploy, PM2 cluster) do not race on E11000.
@@ -555,8 +550,8 @@ export function createSystemGrantMethods(mongoose: typeof import('mongoose')): {
             role: SystemRoles.ADMIN,
             capability,
           })),
-          ...OPERATOR_CAPABILITIES.map((capability) => ({
-            role: SystemRoles.OPERATOR,
+          ...MANAGER_CAPABILITIES.map((capability) => ({
+            role: SystemRoles.MANAGER,
             capability,
           })),
         ];

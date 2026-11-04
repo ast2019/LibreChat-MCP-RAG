@@ -27,6 +27,8 @@ const {
   isMemoryReadExcludedForEndpoint,
   recordCollectedUsage,
   resolveRunUsageContext,
+  isLocalChatSpend,
+  toLocalSpendContext,
   getScheduleMCPExecution,
   createScheduledMCPPolicyRecorder,
   recordFallbackTokenUsage,
@@ -3885,6 +3887,17 @@ class AgentClient extends BaseClient {
      *  `undefined` is its meaningful value. Reading that as "no override" is
      *  what silently restored the primary's custom rates. */
     const overrideTokenConfig = crossEndpoint === true;
+    const req = this.options.req;
+    const appConfig = req?.config;
+    const local = isLocalChatSpend({
+      endpoint: this.options.endpoint,
+      agentEndpoint: this.options.agent?.endpoint,
+      spec: this.options.spec ?? req?.body?.spec,
+      specs: appConfig?.modelSpecs?.list,
+      localEndpoints:
+        appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
+    });
+    const spendContext = toLocalSpendContext(context, local);
     const result = await recordCollectedUsage(
       {
         spendTokens: db.spendTokens,
@@ -3897,7 +3910,7 @@ class AgentClient extends BaseClient {
         conversationId: this.conversationId,
         collectedUsage,
         model: model ?? this.model ?? this.options.agent.model_parameters.model,
-        context,
+        context: spendContext,
         messageId: this.responseMessageId,
         balance,
         transactions,
@@ -4032,6 +4045,16 @@ class AgentClient extends BaseClient {
    */
   buildDetachedSubagentUsageRecorder(balance, transactions) {
     const options = this.options;
+    const req = options?.req;
+    const appConfig = req?.config;
+    const local = isLocalChatSpend({
+      endpoint: options?.endpoint,
+      agentEndpoint: options?.agent?.endpoint,
+      spec: options?.spec ?? req?.body?.spec,
+      specs: appConfig?.modelSpecs?.list,
+      localEndpoints:
+        appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
+    });
     const billing = {
       user: this.user ?? options?.req?.user?.id,
       conversationId: this.conversationId,
@@ -4039,6 +4062,7 @@ class AgentClient extends BaseClient {
       model: this.model ?? options?.agent?.model_parameters?.model,
       endpointTokenConfig: options?.endpointTokenConfig,
       endpointTokenConfigByAgentId: options?.endpointTokenConfigByAgentId,
+      local,
     };
     return createDetachedSubagentUsageRecorder(
       {
@@ -6394,13 +6418,28 @@ class AgentClient extends BaseClient {
     completionTokens,
     context,
   }) {
+    const req = this.options.req;
+    const appConfig = req?.config;
+    const local = isLocalChatSpend({
+      endpoint: this.options.endpoint,
+      agentEndpoint: this.options.agent?.endpoint,
+      spec: this.options.spec ?? req?.body?.spec,
+      specs: appConfig?.modelSpecs?.list,
+      localEndpoints:
+        appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
+    });
+    const aborted = this.abortController?.signal?.aborted === true;
+    const spendContext =
+      context != null
+        ? toLocalSpendContext(context, local)
+        : resolveRunUsageContext(aborted, local);
     await recordFallbackTokenUsage(
       { spendTokens: db.spendTokens },
       {
         usage,
-        context,
+        context: spendContext,
         collectedUsage: this.collectedUsage,
-        aborted: this.abortController?.signal?.aborted === true,
+        aborted,
         promptTokens,
         completionTokens,
         txMetadata: {

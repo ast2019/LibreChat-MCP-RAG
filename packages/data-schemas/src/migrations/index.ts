@@ -6,3 +6,5 @@ export { backfillSearchTokens, warnOnMissingSearchTokens } from './searchTokens'
 export type { SearchTokenBackfillResult } from './searchTokens';
 export { migrateUserIdentityIndexes } from './userIdentityIndexes';
 export type { UserIdentityIndexMigrationResult } from './userIdentityIndexes';
+export { migrateOperatorToManagerRole } from './operatorToManager';
+export type { OperatorToManagerMigrationResult } from './operatorToManager';

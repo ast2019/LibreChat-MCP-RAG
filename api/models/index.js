@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { createMethods } = require('@librechat/data-schemas');
+const { createMethods, migrateOperatorToManagerRole, logger } = require('@librechat/data-schemas');
 const {
   matchModelName,
   findMatchingPattern,
@@ -19,6 +19,11 @@ const methods = createMethods(mongoose, {
 });
 
 const seedDatabase = async () => {
+  try {
+    await migrateOperatorToManagerRole(mongoose.connection);
+  } catch (error) {
+    logger.error('Failed to migrate OPERATOR role to MANAGER:', error);
+  }
   await methods.initializeRoles();
   await methods.seedDefaultRoles();
   await methods.ensureDefaultCategories();

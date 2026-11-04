@@ -1,3 +1,4 @@
+import { SystemRoles } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
 import type {
   IUser,
@@ -271,7 +272,10 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
     try {
       const query = (req.query ?? {}) as Record<string, unknown>;
       const search = typeof query.search === 'string' ? query.search : undefined;
-      const role = query.role === 'USER' || query.role === 'ADMIN' ? query.role : undefined;
+      const role =
+        query.role === 'USER' || query.role === 'MANAGER' || query.role === 'ADMIN'
+          ? query.role
+          : undefined;
       const pack =
         typeof query.pack === 'string' && query.pack.trim() !== ''
           ? query.pack.trim().slice(0, 100)
@@ -286,11 +290,18 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
           : undefined;
       const limit = Math.min(Math.max(readInt(query.limit, 25), 1), 100);
       const offset = Math.max(readInt(query.offset, 0), 0);
+      /** Managers must not see ADMIN accounts — even when they filter by role ADMIN. */
+      if (req.user?.role === SystemRoles.MANAGER && role === SystemRoles.ADMIN) {
+        return res.status(200).json({ users: [], total: 0, limit, offset });
+      }
+      const excludeRoles =
+        req.user?.role === SystemRoles.MANAGER ? ([SystemRoles.ADMIN] as const) : undefined;
       const { users, total } = await deps.listUsersWithBalances({
         search,
         limit,
         offset,
         ...(role != null && { role }),
+        ...(excludeRoles != null && { excludeRoles: [...excludeRoles] }),
         ...(pack != null && { pack }),
         ...(balance != null && { balance }),
         ...(access != null && { access }),
@@ -343,7 +354,7 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         priceMultiplier: effective,
         ...result,
         /** What the window's spend cost at provider prices, before the markup. On-server OCR
-         *  pages have no provider bill, so they count entirely as margin. */
+         *  and local AI chat have no provider bill, so they count entirely as margin. */
         estimatedProviderCredits:
           Math.max(0, result.creditsSpentInWindow - (result.creditsSpentLocalInWindow ?? 0)) /
           effective,

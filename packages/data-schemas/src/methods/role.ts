@@ -79,7 +79,7 @@ export function createRoleMethods(
   async function initializeRoles(): Promise<void> {
     const Role = mongoose.models.Role;
 
-    for (const roleName of [SystemRoles.ADMIN, SystemRoles.OPERATOR, SystemRoles.USER]) {
+    for (const roleName of [SystemRoles.ADMIN, SystemRoles.MANAGER, SystemRoles.USER]) {
       // Strict mode hides off-schema SHARED_GLOBAL and won't $unset it on save; migrate it via the raw driver.
       // eslint-disable-next-line no-restricted-syntax -- Role is a global (non-tenant) collection; raw read is required to see the off-schema field.
       const legacyDoc = await Role.collection.findOne({ name: roleName });

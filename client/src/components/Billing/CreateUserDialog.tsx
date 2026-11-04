@@ -108,8 +108,8 @@ export default function CreateUserDialog({
           message: localize(
             role === SystemRoles.ADMIN
               ? 'com_admin_create_user_success_admin'
-              : role === SystemRoles.OPERATOR
-                ? 'com_admin_create_user_success_operator'
+              : role === SystemRoles.MANAGER
+                ? 'com_admin_create_user_success_manager'
                 : 'com_admin_create_user_success',
           ),
         });
@@ -138,9 +138,9 @@ export default function CreateUserDialog({
         hint: 'com_admin_role_user_hint',
       },
       {
-        value: SystemRoles.OPERATOR,
-        label: 'com_admin_role_operator',
-        hint: 'com_admin_role_operator_hint',
+        value: SystemRoles.MANAGER,
+        label: 'com_admin_role_manager',
+        hint: 'com_admin_role_manager_hint',
       },
     ];
     if (canCreateAdmin) {

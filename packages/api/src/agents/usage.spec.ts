@@ -2787,6 +2787,11 @@ describe('resolveRunUsageContext', () => {
     expect(resolveRunUsageContext(true)).toBe('abort');
     expect(resolveRunUsageContext(false)).toBe('message');
   });
+
+  it('labels local runs with the _local spend contexts', () => {
+    expect(resolveRunUsageContext(true, true)).toBe('abort_local');
+    expect(resolveRunUsageContext(false, true)).toBe('message_local');
+  });
 });
 
 describe('hasRecordedProviderUsage', () => {

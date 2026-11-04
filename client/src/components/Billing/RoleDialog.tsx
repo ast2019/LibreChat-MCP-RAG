@@ -23,9 +23,9 @@ const ROLE_OPTIONS: {
     hint: 'com_admin_role_user_hint',
   },
   {
-    value: SystemRoles.OPERATOR,
-    label: 'com_admin_role_operator',
-    hint: 'com_admin_role_operator_hint',
+    value: SystemRoles.MANAGER,
+    label: 'com_admin_role_manager',
+    hint: 'com_admin_role_manager_hint',
   },
   {
     value: SystemRoles.ADMIN,
@@ -34,7 +34,7 @@ const ROLE_OPTIONS: {
   },
 ];
 
-/** Sets a user's system grade: regular user, operator, or admin. */
+/** Sets a user's system grade: regular user, manager, or admin. */
 export default function RoleDialog({
   user,
   onClose,
@@ -46,7 +46,7 @@ export default function RoleDialog({
   const { showToast } = useToastContext();
   const setRole = useAdminSetUserRoleMutation();
   const current =
-    user.role === SystemRoles.ADMIN || user.role === SystemRoles.OPERATOR
+    user.role === SystemRoles.ADMIN || user.role === SystemRoles.MANAGER
       ? user.role
       : SystemRoles.USER;
   const [role, setRoleChoice] = useState<TAdminSetUserRoleRequest['role']>(current);
@@ -65,8 +65,8 @@ export default function RoleDialog({
           const roleLabel = localize(
             role === SystemRoles.ADMIN
               ? 'com_admin_role_admin'
-              : role === SystemRoles.OPERATOR
-                ? 'com_admin_role_operator'
+              : role === SystemRoles.MANAGER
+                ? 'com_admin_role_manager'
                 : 'com_admin_role_user',
           );
           showToast({

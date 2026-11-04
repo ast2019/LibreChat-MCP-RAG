@@ -33,7 +33,7 @@ describe('resolveChangelog', () => {
     const entries = resolveChangelog(3);
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((entry) => entry.version.toLowerCase() !== 'unreleased')).toBe(true);
-    expect(entries[0].version).toBe('0.37.0');
+    expect(entries[0].version).toBe('0.38.0');
     expect(entries[0].highlights.length).toBeGreaterThan(0);
   });
 

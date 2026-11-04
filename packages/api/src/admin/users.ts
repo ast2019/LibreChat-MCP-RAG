@@ -150,9 +150,12 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps): {
   async function listUsersHandler(req: ServerRequest, res: Response) {
     try {
       const { limit, offset } = parsePagination(req.query);
+      /** Managers must not see ADMIN accounts. */
+      const filter: FilterQuery<IUser> =
+        req.user?.role === SystemRoles.MANAGER ? { role: { $ne: SystemRoles.ADMIN } } : {};
       const [users, total] = await Promise.all([
-        findUsers({}, USER_LIST_FIELDS, { limit, offset, sort: { createdAt: -1 } }),
-        countUsers(),
+        findUsers(filter, USER_LIST_FIELDS, { limit, offset, sort: { createdAt: -1 } }),
+        countUsers(filter),
       ]);
 
       const mapped: AdminUserListItem[] = users.map((u) => ({
@@ -197,7 +200,15 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps): {
       }
 
       const searchLimit = Math.min(Math.max(1, parseInt(limitStr, 10) || 20), 50);
-      const filter = buildUserSearchFilter(trimmed, { legacyPrefix: true });
+      const searchFilter = buildUserSearchFilter(trimmed, { legacyPrefix: true });
+      const hideAdmins =
+        req.user?.role === SystemRoles.MANAGER ? { role: { $ne: SystemRoles.ADMIN } } : null;
+      const filter =
+        searchFilter && hideAdmins
+          ? { $and: [searchFilter, hideAdmins] }
+          : searchFilter
+            ? searchFilter
+            : hideAdmins;
       const users = filter
         ? await findUsers(filter, '_id name email username avatar', {
             limit: searchLimit,

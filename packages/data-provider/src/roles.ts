@@ -32,9 +32,9 @@ export enum SystemRoles {
    */
   ADMIN = 'ADMIN',
   /**
-   * Operator — support staff: users and usage in the admin panel, not config or roles.
+   * Manager — nearly full admin panel access; no لوکال امن خاص and cannot manage roles.
    */
-  OPERATOR = 'OPERATOR',
+  MANAGER = 'MANAGER',
   /**
    * The default user role
    */
@@ -43,7 +43,7 @@ export enum SystemRoles {
 
 /** Roles that may open the admin panel (capabilities still gate each tab). */
 export function isAdminPanelRole(role: string | undefined | null): boolean {
-  return role === SystemRoles.ADMIN || role === SystemRoles.OPERATOR;
+  return role === SystemRoles.ADMIN || role === SystemRoles.MANAGER;
 }
 
 export const roleSchema = z.object({
@@ -141,8 +141,8 @@ const defaultRolesSchema = z.object({
       }),
     }),
   }),
-  [SystemRoles.OPERATOR]: roleSchema.extend({
-    name: z.literal(SystemRoles.OPERATOR),
+  [SystemRoles.MANAGER]: roleSchema.extend({
+    name: z.literal(SystemRoles.MANAGER),
     permissions: permissionsSchema,
   }),
   [SystemRoles.USER]: roleSchema.extend({
@@ -249,8 +249,8 @@ export const roleDefaults = defaultRolesSchema.parse({
       },
     },
   },
-  [SystemRoles.OPERATOR]: {
-    name: SystemRoles.OPERATOR,
+  [SystemRoles.MANAGER]: {
+    name: SystemRoles.MANAGER,
     /** Same chat permissions as a regular user; admin tabs come from system grants. */
     permissions: {
       [PermissionTypes.PROMPTS]: {
