@@ -22,10 +22,44 @@ export interface AppReleaseInfo extends AppVersionInfo {
 
 let cachedVersions: AppVersionInfo | null = null;
 let cachedChangelog: ChangelogEntry[] | null = null;
+let cachedRoot: string | null = null;
+
+/**
+ * Candidate roots for `VERSION` / `CHANGELOG.md`.
+ *
+ * Jest runs the TypeScript source (`src/app` → four levels up). Production
+ * bundles this module into `packages/api/dist/index.cjs`, so `__dirname` is
+ * `dist/` and four levels up is `/` — which made Docker serve `appVersion:
+ * 0.0.0` and the PWA banner announce «نسخهٔ 0.0.0 آماده است». Prefer the first
+ * directory that actually contains `VERSION`.
+ */
+export function candidateRoots(fromDir: string, cwd: string = process.cwd()): string[] {
+  return [
+    path.resolve(fromDir, '../../../..'), // src/app (jest / unbundled)
+    path.resolve(fromDir, '../../..'), // dist/index.cjs → repo root
+    path.resolve(fromDir, '../..'),
+    path.resolve(cwd, '..'), // WORKDIR /app/api → /app
+    cwd, // WORKDIR /app
+  ];
+}
+
+/** First directory among candidates that contains `VERSION`, else the source-layout path. */
+export function findRepoRoot(fromDir: string, cwd: string = process.cwd()): string {
+  for (const root of candidateRoots(fromDir, cwd)) {
+    if (fs.existsSync(path.join(root, 'VERSION'))) {
+      return root;
+    }
+  }
+  return path.resolve(fromDir, '../../../..');
+}
 
 function repoRoot(): string {
-  /** `packages/api/src/app` → repo root (four levels up from this file's dir when compiled to dist). */
-  return path.resolve(__dirname, '../../../..');
+  if (cachedRoot) {
+    return cachedRoot;
+  }
+  const fromDir = typeof __dirname === 'string' ? __dirname : process.cwd();
+  cachedRoot = findRepoRoot(fromDir, process.cwd());
+  return cachedRoot;
 }
 
 function readTrimmedFile(filePath: string): string | null {
@@ -35,6 +69,14 @@ function readTrimmedFile(filePath: string): string | null {
   } catch {
     return null;
   }
+}
+
+function bakedAppVersion(): string | null {
+  const baked = String(Constants.APP_VERSION ?? '').trim();
+  if (!baked || baked === '0.0.0' || baked.includes('__HIVEGPT_VERSION__')) {
+    return null;
+  }
+  return baked;
 }
 
 /**
@@ -61,7 +103,7 @@ export function resolveAppVersions(): AppVersionInfo {
   }
 
   cachedVersions = {
-    appVersion: fromFile ?? '0.0.0',
+    appVersion: fromFile ?? bakedAppVersion() ?? '0.0.0',
     librechatVersion: fromPackage ?? String(Constants.VERSION),
   };
   return cachedVersions;
@@ -127,4 +169,5 @@ export function resolveAppReleaseInfo(limit = 12): AppReleaseInfo {
 export function __resetAppVersionCacheForTests(): void {
   cachedVersions = null;
   cachedChangelog = null;
+  cachedRoot = null;
 }

@@ -21,12 +21,17 @@ jest.mock('virtual:pwa-register/react', () => {
   };
 });
 
+let mockStartupConfig: {
+  appVersion?: string;
+  changelog?: { version: string; highlights: string[] }[];
+} = {
+  appVersion: '0.37.0',
+  changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
+};
+
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({
-    data: {
-      appVersion: '0.37.0',
-      changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
-    },
+    data: mockStartupConfig,
     refetch: mockRefetch,
   }),
 }));
@@ -42,6 +47,10 @@ describe('UpdatePrompt', () => {
     mockRegister.options = undefined;
     mockUpdateServiceWorker.mockClear();
     mockRefetch.mockClear();
+    mockStartupConfig = {
+      appVersion: '0.37.0',
+      changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
+    };
   });
 
   it('renders nothing while no new worker is waiting', () => {
@@ -71,6 +80,18 @@ describe('UpdatePrompt', () => {
 
     expect(screen.queryByTestId('pwa-update-banner')).not.toBeInTheDocument();
     expect(mockUpdateServiceWorker).not.toHaveBeenCalled();
+  });
+
+  it('omits a placeholder 0.0.0 version from the banner copy', () => {
+    mockStartupConfig = {
+      appVersion: '0.0.0',
+      changelog: [{ version: '0.0.0', highlights: ['should not show'] }],
+    };
+    render(<UpdatePrompt />);
+
+    const banner = screen.getByTestId('pwa-update-banner');
+    expect(banner).toHaveTextContent('com_pwa_update_ready');
+    expect(banner).not.toHaveTextContent('0.0.0');
   });
 
   it('checks for a newer worker when the app returns to the foreground', () => {

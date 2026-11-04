@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.4] - 2026-11-04
+
+### Fixed
+- **PWA update banner showed «نسخهٔ 0.0.0 آماده است».** `packages/api` bundles
+  into `dist/index.cjs`, so looking four directories up from `__dirname` missed
+  `/app/VERSION` in Docker and `/api/config` returned `appVersion: 0.0.0`. The
+  resolver now searches dist- and api-WORKDIR layouts, falls back to the baked
+  `Constants.APP_VERSION`, and the banner omits placeholder `0.0.0`.
+
 ## [0.38.3] - 2026-11-04
 
 ### Added
