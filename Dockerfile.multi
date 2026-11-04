@@ -168,6 +168,10 @@ ENV BUILD_COMMIT=${BUILD_COMMIT}
 ENV BUILD_BRANCH=${BUILD_BRANCH}
 ENV BUILD_DATE=${BUILD_DATE}
 WORKDIR /app/api
-EXPOSE 3080
+# Coolify Traefik uses the image EXPOSE (or compose `expose`) as the target port
+# when the service domain has no `:port` suffix. Compose sets PORT=80; leaving
+# EXPOSE 3080 made Coolify route to a closed port while Node listened on 80.
+EXPOSE 80
 ENV HOST=0.0.0.0
+ENV PORT=80
 CMD ["node", "server/index.js"]

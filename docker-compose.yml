@@ -37,8 +37,9 @@ services:
       code_jwt:
         condition: service_completed_successfully
     environment:
-      # Coolify's proxy routes a domain without a port to container port 80, so the app
-      # listens there and the domain needs no `:port` (the image runs as root).
+      # Coolify's proxy routes a domain without a port to the image/compose expose
+      # port. The app listens on 80 (runs as root); keep EXPOSE/expose in sync or
+      # Traefik targets a closed port while Node is healthy on 80.
       SERVICE_URL_API: /
       HOST: 0.0.0.0
       PORT: 80
@@ -174,6 +175,10 @@ services:
       - logs:/app/api/logs
       - librechat-data:/app/data
       - code-jwt-data:/code-jwt:ro
+    # Explicit for Coolify: domain without `:port` must target 80, not the
+    # historical image EXPOSE 3080. Publishing a host port is still not needed.
+    expose:
+      - '80'
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', 'http://localhost:80/health']
       interval: 30s
@@ -504,6 +509,10 @@ services:
       CODEAPI_JWT_AUDIENCE: codeapi
     volumes:
       - code-jwt-public:/code-jwt:ro
+    # Coolify domain must be `http://code…:3114` (container port). expose makes
+    # that port discoverable even when the upstream image EXPOSEs another port.
+    expose:
+      - '3114'
     depends_on:
       code_jwt:
         condition: service_completed_successfully

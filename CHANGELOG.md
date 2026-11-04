@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.14] - 2026-11-04
+
+### Fixed
+- **Coolify Traefik could target the wrong `api` port.** Compose and healthchecks
+  use port 80, but `Dockerfile.multi` still had `EXPOSE 3080`. Coolify picks the
+  image expose (or compose `expose`) when the service domain has no `:port`, so
+  traffic could miss Node listening on 80. The image now exposes and defaults to
+  80; compose also `expose`s 80 on `api` and 3114 on `codeapi_bridge`.
+
 ## [0.38.13] - 2026-11-04
 
 ### Fixed

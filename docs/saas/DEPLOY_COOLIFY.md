@@ -183,7 +183,8 @@ docker compose up -d --build
 | مشکل | علت محتمل |
 |---|---|
 | بیلد با `JavaScript heap out of memory` شکست می‌خورد | RAM کم است. `NODE_MAX_OLD_SPACE_SIZE` را کم کنید یا RAM اضافه کنید |
-| `No Available Server` | `api` هنوز healthy نشده (اولین بیلد طول می‌کشد)، یا دامنه روی سرویس اشتباهی گذاشته شده است |
+| `No Available Server` | `api` هنوز healthy نشده (اولین بیلد طول می‌کشد)، یا دامنه روی سرویس اشتباهی گذاشته شده است، یا Coolify به پورت اشتباه وصل است (باید ۸۰ باشد؛ اگر هنوز `:3080` یا `SERVICE_URL_API_3080` دارید دامنه را پاک کنید و دوباره بدون پورت بگذارید) |
+| `404 page not found` (متن ساده Traefik) | برای آن Host هیچ router زنده‌ای نیست: دامنه روی سرویس تنظیم نشده، کل اپ در Coolify متوقف/در حال redeploy است، یا `api` مدام از healthcheck رد می‌شود (قبلاً crash روی `librechat.saas.yaml`). بعد از بالا آمدن `api`، `GET /health` باید `OK` بدهد |
 | جستجوی وب نتیجه ندارد | لاگ `searxng` را ببینید. بعضی موتورها از IP دیتاسنتر CAPTCHA می‌گیرند؛ لیست موتورها در `deploy/searxng/settings.yml` و `webSearch.searxngSearchOptions.engines` است |
 | آپلود فایل برای پرسش کار نمی‌کند | لاگ `rag_api` را ببینید. اعتبار OpenRouter و مدل embedding را بررسی کنید |
 | با هر رفرش دوباره رمز می‌خواهد | دامنه را `https://` کنید. اگر `SESSION_COOKIE_SECURE=true` روی دامنهٔ http گذاشته‌اید، آن را خالی کنید |
