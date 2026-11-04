@@ -13,10 +13,11 @@ describe('createCodeWorkerSetupCommand', () => {
       createCodeWorkerSetupCommand(pairing, 'posix', {
         allowWorkspaceWrites: true,
         allowWorkspaceCommands: true,
+        commandPolicyPreset: 'trusted-vm',
       }),
     ).toBe(
       "librechat-code pair 'https://code.example.com/v1' 'one-time'\\''code' --worker-id 'worker'\\''one'\n" +
-        "LIBRECHAT_CODE_WORKER_ID='worker'\\''one' librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands",
+        "LIBRECHAT_CODE_WORKER_ID='worker'\\''one' librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands --command-policy-preset 'trusted-vm'",
     );
   });
 
@@ -25,11 +26,12 @@ describe('createCodeWorkerSetupCommand', () => {
       createCodeWorkerSetupCommand(pairing, 'powershell', {
         allowWorkspaceWrites: true,
         allowWorkspaceCommands: true,
+        commandPolicyPreset: 'trusted-vm',
       }),
     ).toBe(
       "librechat-code pair 'https://code.example.com/v1' 'one-time''code' --worker-id 'worker''one'\n" +
         "$env:LIBRECHAT_CODE_WORKER_ID = 'worker''one'\n" +
-        'librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands',
+        "librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands --command-policy-preset 'trusted-vm'",
     );
   });
 

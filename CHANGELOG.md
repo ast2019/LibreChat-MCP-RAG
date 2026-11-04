@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.12] - 2026-11-04
+
+### Fixed
+- **Attached VM paired but every shell command failed.** On Ubuntu, Anthropic SRT's
+  nested `apply-seccomp` helper often cannot get `CAP_SYS_ADMIN` inside bubblewrap
+  (AppArmor / capability bounding set), so even `echo` / `git --version` abort with
+  `setgroups … CAP_SYS_ADMIN`. Pairing and file tools still answered; clone never ran.
+  The Settings pairing command now passes `--command-policy-preset trusted-vm` (like the
+  systemd unit already did), which sets `allowAllUnixSockets` and drops that helper.
+  `install-host.sh` also clears Ubuntu 24.04+'s `apparmor_restrict_unprivileged_userns`
+  sysctl, persists it, and probes `bwrap` before declaring the host ready.
+
 ## [0.38.11] - 2026-11-04
 
 ### Fixed

@@ -28,9 +28,13 @@
 ```bash
 # روی Ubuntu VM
 INSTALL_DOCKER=1 bash deploy/code-worker/install-host.sh
-# سپس Connect VM در تنظیمات HiveGPT و:
-librechat-code pair "$LIBRECHAT_CODE_BRIDGE_BASEURL" '<one-time-code>'
-librechat-code start --environment /etc/librechat-code/environments/primary.yaml
+# سپس Connect VM در تنظیمات HiveGPT و دستور pair/run نشان‌داده‌شده را بزنید، یا:
+librechat-code pair "$LIBRECHAT_CODE_BRIDGE_BASEURL" '<one-time-code>' --worker-id '<worker-id>'
+LIBRECHAT_CODE_WORKER_ID='<worker-id>' librechat-code run \
+  --default-workspace \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
 ```
 
 Docker را **روی خود VM** نصب کنید (نه داخل کانتینر تو در تو). پروژه‌هایی که `docker compose` دارند روی همان host اجرا می‌شوند.
@@ -60,6 +64,41 @@ Docker را **روی خود VM** نصب کنید (نه داخل کانتینر �
 - VM را ایزوله بگیرید؛ secretهای تولید را روی آن نگذارید مگر لازم باشد.
 - اول حالت **Ask**؛ Full access فقط روی ماشین‌های مورد اعتماد.
 - `codeapi` (sandbox) را عمومی نکنید؛ فقط در صورت نیاز `codeapi_bridge` را با HTTPS و بدون LOCAL_MODE.
+
+## خطای رایج: `apply-seccomp` / `setgroups` / `CAP_SYS_ADMIN`
+
+اگر pairing موفق است ولی هر دستور شِل (حتی `echo` یا `git --version`) با این خطا تمام می‌شود:
+
+```text
+apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted; caller must provide CAP_SYS_ADMIN): Permission denied
+```
+
+علت رایج‌تر این است که worker با policy پیش‌فرض `restricted` بالا آمده، نه `trusted-vm`. روی Ubuntu، helperِ `apply-seccomp` داخل bubblewrap معمولاً به `CAP_SYS_ADMIN` در nested userns نمی‌رسد (AppArmor / bounding set). presetِ `trusted-vm` همان کاری را می‌کند که Anthropic برای این حالت پیشنهاد می‌دهد: `allowAllUnixSockets: true` تا آن helper از زنجیره حذف شود، در حالی که قوانین فایل‌سیستم و masking اعتبارنامهٔ SRT می‌مانند. اتصال VM و ابزارهای فایل ممکن است هنوز جواب بدهند؛ فقط اجرای دستور می‌شکند. پیام‌های `Workspace tool request invalid` بعد از شکست clone معمولاً ثانویه‌اند (مسیر/ریپو وجود ندارد).
+
+روی همان VM، worker را با preset درست دوباره اجرا کنید:
+
+```bash
+# اگر systemd دارید، واحد Settings از قبل trusted-vm دارد:
+sudo systemctl restart librechat-code.service
+
+# یا foreground (همان worker-id جفت‌شده):
+LIBRECHAT_CODE_WORKER_ID='<worker-id>' librechat-code run \
+  --default-workspace \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
+```
+
+در UI وضعیت محیط باید چیزی شبیه `anthropic-srt:trusted-vm` نشان بدهد، نه فقط `anthropic-srt` / `native-srt`.
+
+دفاع اضافی روی Ubuntu 24.04+ (و برای policyِ `restricted`):
+
+```bash
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-librechat-code-userns.conf
+```
+
+`deploy/code-worker/install-host.sh` همین sysctl را اعمال می‌کند و `bwrap` را تست می‌کند. اگر میزبان کانتینر است نه VM واقعی، nested userns باید از سمت runtime بیرونی مجاز باشد.
 
 ## محدودیت فعلی
 

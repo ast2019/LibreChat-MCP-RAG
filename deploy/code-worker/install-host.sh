@@ -6,12 +6,18 @@ set -euo pipefail
 WORKSPACES="${CODE_WORKSPACES_ROOT:-/srv/code-workspaces}"
 ENV_DIR="${CODE_ENVIRONMENTS_DIR:-/etc/librechat-code/environments}"
 CODE_SRC="${LIBRECHAT_CODE_SRC:-/opt/librechat-code/source}"
+USERNS_SYSCTL_KEY=kernel.apparmor_restrict_unprivileged_userns
+USERNS_SYSCTL_FILE=/etc/sysctl.d/99-librechat-code-userns.conf
 
 if [[ "$(id -u)" -eq 0 ]]; then
   APT=(apt-get)
+  SYSCTL=(sysctl)
+  TEE=(tee)
   INSTALL_USER="${SUDO_USER:-root}"
 else
   APT=(sudo apt-get)
+  SYSCTL=(sudo sysctl)
+  TEE=(sudo tee)
   INSTALL_USER="$(id -un)"
 fi
 
@@ -38,6 +44,48 @@ if [[ "${NODE_MAJOR}" -lt 22 ]]; then
   echo "Node.js 22+ is required (found $(node -v))" >&2
   exit 1
 fi
+
+#
+# Anthropic Sandbox Runtime (used by librechat-code for every shell command) runs
+# bubblewrap + apply-seccomp. apply-seccomp creates a nested user namespace and
+# writes /proc/self/setgroups. Ubuntu 24.04+ sets
+# kernel.apparmor_restrict_unprivileged_userns=1 by default, which strips
+# capabilities from that namespace, so every command fails with:
+#   apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted…)
+# Pairing still succeeds; only sandboxed execution breaks.
+#
+echo "==> User namespaces for bubblewrap / Sandbox Runtime"
+if [[ -r "/proc/sys/${USERNS_SYSCTL_KEY//./\/}" ]]; then
+  current="$(cat "/proc/sys/${USERNS_SYSCTL_KEY//./\/}")"
+  if [[ "${current}" != "0" ]]; then
+    echo "    ${USERNS_SYSCTL_KEY}=${current} → 0 (Ubuntu 24.04+ AppArmor default breaks SRT)"
+    "${SYSCTL[@]}" -w "${USERNS_SYSCTL_KEY}=0"
+    printf '%s=0\n' "${USERNS_SYSCTL_KEY}" | "${TEE[@]}" "${USERNS_SYSCTL_FILE}" >/dev/null
+  else
+    echo "    ${USERNS_SYSCTL_KEY} already 0"
+  fi
+else
+  echo "    ${USERNS_SYSCTL_KEY} not present on this kernel; skipping"
+fi
+
+echo "==> Probing bubblewrap user namespaces"
+if ! bwrap --unshare-user --uid "$(id -u)" --gid "$(id -g)" \
+  --ro-bind / / --proc /proc --dev /dev \
+  /bin/true; then
+  cat >&2 <<'EOF'
+bubblewrap could not create a capability-bearing user namespace.
+librechat-code will fail every shell command with apply-seccomp / setgroups errors.
+
+On Ubuntu 24.04+:
+  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+  echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-librechat-code-userns.conf
+
+If this host is a container (Docker/LXC) rather than a real VM, nested userns
+must be allowed by the outer runtime (CAP_SYS_ADMIN / user namespace nesting).
+EOF
+  exit 1
+fi
+echo "    bubblewrap userns probe ok"
 
 echo "==> Optional: Docker Engine on the VM host (for projects that use docker compose)"
 if [[ "${INSTALL_DOCKER:-0}" == "1" ]] && ! command -v docker >/dev/null 2>&1; then
@@ -81,5 +129,9 @@ echo "Host ready for user ${INSTALL_USER}."
 echo "Next:"
 echo "  1. In HiveGPT: Settings → Data & Privacy → Code execution → Code environments → Connect VM"
 echo "  2. Pair with the one-time code shown there (librechat-code pair …)"
-echo "  3. Start the worker (librechat-code run …) or enable the systemd unit from Settings."
-echo "  4. Clone a repo under ${WORKSPACES}/my-app and ask the agent to install & test."
+echo "  3. Start the worker WITH --command-policy-preset trusted-vm"
+echo "     (required on Ubuntu: skips apply-seccomp nested userns; Settings/systemd already include it)."
+echo "     Example:"
+echo "       LIBRECHAT_CODE_WORKER_ID='…' librechat-code run --default-workspace \\"
+echo "         --allow-workspace-writes --allow-workspace-commands --command-policy-preset trusted-vm"
+echo "  4. Confirm the environment status shows anthropic-srt:trusted-vm, then clone under ${WORKSPACES}/my-app."

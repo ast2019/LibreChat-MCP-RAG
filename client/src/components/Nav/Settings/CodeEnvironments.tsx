@@ -137,13 +137,17 @@ function InstallGuide() {
   const localize = useLocalize();
   return (
     <div className="flex flex-col gap-3" data-testid="code-environment-install-guide">
-      <p className="text-text-secondary text-xs">{localize('com_ui_code_environment_install_intro')}</p>
+      <p className="text-text-secondary text-xs">
+        {localize('com_ui_code_environment_install_intro')}
+      </p>
       <CopyBlock
         title={localize('com_ui_code_environment_install_step1_title')}
         description={localize('com_ui_code_environment_install_step1_body')}
         command={HOST_PREP_COMMAND}
       />
-      <p className="text-text-secondary text-xs">{localize('com_ui_code_environment_install_step2')}</p>
+      <p className="text-text-secondary text-xs">
+        {localize('com_ui_code_environment_install_step2')}
+      </p>
       <CopyBlock
         title={localize('com_ui_code_environment_install_step4_title')}
         description={localize('com_ui_code_environment_install_step4_body')}
@@ -160,6 +164,7 @@ function WorkerCommand({ pairing }: { pairing: CodeEnvironmentPairingResponse['p
   const command = createCodeWorkerSetupCommand(pairing, shell, {
     allowWorkspaceWrites: true,
     allowWorkspaceCommands: true,
+    commandPolicyPreset: 'trusted-vm',
   });
   return (
     <div className="border-border-medium bg-surface-secondary flex flex-col gap-2 rounded-lg border p-3">
@@ -348,7 +353,12 @@ export default function CodeEnvironments() {
   /** Pairing and VM-worker copy are for self-service attached machines. When the
    *  deployment has neither control planes nor any machine for this user, hide
    *  the whole row — operator/bridge docs do not belong in Settings. */
-  if (!query.isLoading && !query.isError && controlPlanes.length === 0 && environments.length === 0) {
+  if (
+    !query.isLoading &&
+    !query.isError &&
+    controlPlanes.length === 0 &&
+    environments.length === 0
+  ) {
     return null;
   }
 
