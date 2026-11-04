@@ -448,6 +448,8 @@
   "com_auth_feature_tools_body": "MCP tools, web search and answers from your files",
   "com_auth_feature_code": "Code Interpreter",
   "com_auth_feature_code_body": "Run Python and other languages in a sandboxed microVM",
+  "com_auth_feature_api": "API for apps and coding tools",
+  "com_auth_feature_api_body": "OpenAI-compatible keys: call models and agents from VS Code, scripts and your own apps",
   "com_auth_feature_voice": "Persian voice",
   "com_auth_feature_voice_body": "Speak instead of typing, and hear answers read aloud",
   "com_auth_compare_heading": "{{0}} next to similar services",

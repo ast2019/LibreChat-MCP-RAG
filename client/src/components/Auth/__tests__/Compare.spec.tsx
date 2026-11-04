@@ -58,6 +58,17 @@ describe('CompareCard', () => {
     expect(code?.closest('tbody')).toHaveTextContent('What sets us apart');
   });
 
+  it('lists the API for apps and coding tools among the differences', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    const api = screen
+      .getByRole('rowheader', { name: /^API for apps and coding tools/ })
+      .closest('tr');
+    const cells = within(api as HTMLElement).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Yes');
+    expect(cells[1]).toHaveTextContent('Some');
+    expect(api?.closest('tbody')).toHaveTextContent('What sets us apart');
+  });
+
   it('lists the agent browser among the differences, not among what is missing', () => {
     render(<CompareCard appTitle="HiveGPT" />);
     const browser = screen.getByRole('rowheader', { name: /^Agent browser/ }).closest('tr');

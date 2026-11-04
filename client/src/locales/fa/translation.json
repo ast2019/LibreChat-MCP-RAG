@@ -448,6 +448,8 @@
   "com_auth_feature_tools_body": "ابزارهای MCP، جست‌وجوی وب و پاسخ از فایل‌های شما",
   "com_auth_feature_code": "اجرای کد",
   "com_auth_feature_code_body": "اجرای پایتون و زبان‌های دیگر در microVM ایزوله",
+  "com_auth_feature_api": "API برای برنامه و ابزار کدنویسی",
+  "com_auth_feature_api_body": "کلید سازگار با OpenAI: مدل‌ها و ایجنت‌ها را از VS Code، اسکریپت و برنامهٔ خودتان صدا بزنید",
   "com_auth_feature_voice": "صدای فارسی",
   "com_auth_feature_voice_body": "به‌جای تایپ حرف بزنید و پاسخ را بشنوید",
   "com_auth_compare_heading": "{{0}} در کنار سرویس‌های مشابه",

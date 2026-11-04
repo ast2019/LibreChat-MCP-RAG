@@ -7,6 +7,12 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.3] - 2026-11-04
+
+### Added
+- **API on the sign-in comparison.** The login table lists OpenAI-compatible
+  Agent API keys under «فرق ما», next to Code Interpreter.
+
 ## [0.38.2] - 2026-11-04
 
 ### Fixed
