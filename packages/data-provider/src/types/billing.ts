@@ -36,7 +36,7 @@ export type TAdminBillingUser = {
   effective?: TEffectiveAccessMap;
 };
 
-export type TAdminBillingUserRoleFilter = 'USER' | 'ADMIN';
+export type TAdminBillingUserRoleFilter = 'USER' | 'MANAGER' | 'ADMIN';
 export type TAdminBillingBalanceFilter = 'positive' | 'empty';
 export type TAdminBillingAccessFilter = 'custom' | 'default';
 export type TAdminBillingUserSort = 'newest' | 'oldest' | 'name';
@@ -44,6 +44,11 @@ export type TAdminBillingUserSort = 'newest' | 'oldest' | 'name';
 export type TAdminBillingUsersParams = {
   search?: string;
   role?: TAdminBillingUserRoleFilter;
+  /**
+   * When the viewer is a MANAGER, pass `ADMIN` so admins never appear in the list
+   * (server-side; UI filters alone are not enough).
+   */
+  excludeRoles?: TAdminBillingUserRoleFilter[];
   /** `has`, `none`, or a configured pack ID. */
   pack?: string;
   balance?: TAdminBillingBalanceFilter;
@@ -70,7 +75,7 @@ export type TAdminBillingSummary = {
   creditsGrantedInWindow: number;
   packGrantsInWindow: number;
   creditsSpentInWindow: number;
-  /** Part of the spend with no provider cost (on-server OCR); excluded from the provider cost */
+  /** Part of the spend with no provider cost (on-server OCR / local AI); excluded from provider cost */
   creditsSpentLocalInWindow?: number;
   creditsOutstanding: number;
   estimatedProviderCredits: number;
@@ -155,15 +160,18 @@ export type TAdminCreateUserRequest = {
   email?: string;
   phone?: string;
   password?: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'MANAGER' | 'ADMIN';
 };
 
 export type TAdminCreateUserResponse = {
   user: { id: string; name: string; email: string; phone: string; role: string };
 };
 
-/** `POST|DELETE /api/admin/roles/ADMIN/members`: make a user an admin, or a regular user again. */
-export type TAdminSetUserRoleRequest = { userId: string; admin: boolean };
+/**
+ * `POST /api/admin/roles/:role/members`: set a user's system grade
+ * (USER, MANAGER or ADMIN). Replaces the previous binary admin flag.
+ */
+export type TAdminSetUserRoleRequest = { userId: string; role: 'USER' | 'MANAGER' | 'ADMIN' };
 
 /** `PATCH /api/admin/users/:id/model-access` */
 export type TAdminModelAccessRequest = {

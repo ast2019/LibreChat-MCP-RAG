@@ -156,14 +156,12 @@ export function createAdminUser(
   return request.post(endpoints.adminBillingCreateUser(), payload);
 }
 
-/** Makes a user an admin, or a regular user again; the server keeps at least one admin. */
+/** Sets a user's system grade (USER, MANAGER or ADMIN); the server keeps at least one admin. */
 export function setAdminUserRole({
   userId,
-  admin,
+  role,
 }: TAdminSetUserRoleRequest): Promise<{ success: boolean }> {
-  return admin
-    ? request.post(endpoints.adminRoleMembers('ADMIN'), { userId })
-    : request.delete(endpoints.adminRoleMembers('ADMIN', userId));
+  return request.post(endpoints.adminRoleMembers(role), { userId });
 }
 
 export function getReferral(): Promise<TReferralInfo> {

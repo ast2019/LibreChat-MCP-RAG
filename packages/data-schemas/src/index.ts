@@ -121,8 +121,13 @@ export {
   backfillSearchTokens,
   warnOnMissingSearchTokens,
   migrateUserIdentityIndexes,
+  migrateOperatorToManagerRole,
 } from './migrations';
-export type { SearchTokenBackfillResult, UserIdentityIndexMigrationResult } from './migrations';
+export type {
+  SearchTokenBackfillResult,
+  UserIdentityIndexMigrationResult,
+  OperatorToManagerMigrationResult,
+} from './migrations';
 
 export { createBrowserSetupStore, createBrowserSetupBackend } from './methods/browserSetup';
 export type * from './types/browserSetup';

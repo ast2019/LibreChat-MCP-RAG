@@ -20,18 +20,22 @@ export type UserAction = 'details' | 'usage' | 'grant' | 'role';
 export default function UserActions({
   user,
   isSelf,
+  canChangeRole = true,
   onAction,
 }: {
   user: TAdminBillingUser;
   /** The signed-in admin's own row: their role cannot be changed from here. */
   isSelf: boolean;
+  /** Only full admins may change system grades (needs manage:roles). */
+  canChangeRole?: boolean;
   onAction: (action: UserAction, user: TAdminBillingUser) => void;
 }) {
   const localize = useLocalize();
   const menuId = useId();
   const [isOpen, setIsOpen] = useState(false);
-  const isAdmin = user.role === SystemRoles.ADMIN;
   const who = user.name || user.username || user.email || user.phone || '';
+  const elevated =
+    user.role === SystemRoles.ADMIN || user.role === SystemRoles.MANAGER;
 
   const items: t.MenuItemProps[] = [
     {
@@ -52,21 +56,26 @@ export default function UserActions({
       icon: <WalletCards className="text-text-secondary size-4" aria-hidden="true" />,
       onClick: () => onAction('grant', user),
     },
-    { separate: true },
-    {
-      id: `role-${user.id}`,
-      label: isSelf
-        ? localize('com_admin_role_self')
-        : localize(isAdmin ? 'com_admin_role_demote' : 'com_admin_role_promote'),
-      disabled: isSelf,
-      icon: isAdmin ? (
-        <ShieldOff className="text-text-secondary size-4" aria-hidden="true" />
-      ) : (
-        <ShieldCheck className="text-text-secondary size-4" aria-hidden="true" />
-      ),
-      onClick: () => onAction('role', user),
-    },
   ];
+
+  if (canChangeRole) {
+    items.push(
+      { separate: true },
+      {
+        id: `role-${user.id}`,
+        label: isSelf
+          ? localize('com_admin_role_self')
+          : localize('com_admin_role_change'),
+        disabled: isSelf,
+        icon: elevated ? (
+          <ShieldOff className="text-text-secondary size-4" aria-hidden="true" />
+        ) : (
+          <ShieldCheck className="text-text-secondary size-4" aria-hidden="true" />
+        ),
+        onClick: () => onAction('role', user),
+      },
+    );
+  }
 
   const label = localize('com_admin_user_actions', { 0: who });
 

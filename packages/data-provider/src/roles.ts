@@ -28,13 +28,22 @@ import {
  */
 export enum SystemRoles {
   /**
-   * The Admin role
+   * The Admin role — full admin panel and every system capability.
    */
   ADMIN = 'ADMIN',
+  /**
+   * Manager — nearly full admin panel access; no لوکال امن خاص and cannot manage roles.
+   */
+  MANAGER = 'MANAGER',
   /**
    * The default user role
    */
   USER = 'USER',
+}
+
+/** Roles that may open the admin panel (capabilities still gate each tab). */
+export function isAdminPanelRole(role: string | undefined | null): boolean {
+  return role === SystemRoles.ADMIN || role === SystemRoles.MANAGER;
 }
 
 export const roleSchema = z.object({
@@ -132,6 +141,10 @@ const defaultRolesSchema = z.object({
       }),
     }),
   }),
+  [SystemRoles.MANAGER]: roleSchema.extend({
+    name: z.literal(SystemRoles.MANAGER),
+    permissions: permissionsSchema,
+  }),
   [SystemRoles.USER]: roleSchema.extend({
     name: z.literal(SystemRoles.USER),
     permissions: permissionsSchema,
@@ -218,6 +231,74 @@ export const roleDefaults = defaultRolesSchema.parse({
         [Permissions.CREATE]: true,
         [Permissions.SHARE]: true,
         [Permissions.SHARE_PUBLIC]: true,
+      },
+      [PermissionTypes.SHARED_LINKS]: {
+        [Permissions.CREATE]: true,
+        [Permissions.SHARE]: true,
+        [Permissions.SHARE_PUBLIC]: true,
+      },
+      [PermissionTypes.SCHEDULES]: {
+        [Permissions.USE]: true,
+        [Permissions.CREATE]: true,
+      },
+      [PermissionTypes.LOCAL_MODELS]: {
+        [Permissions.USE]: true,
+      },
+      [PermissionTypes.PRIVATE_MODELS]: {
+        [Permissions.USE]: true,
+      },
+    },
+  },
+  [SystemRoles.MANAGER]: {
+    name: SystemRoles.MANAGER,
+    /** Same chat permissions as a regular user; admin tabs come from system grants. */
+    permissions: {
+      [PermissionTypes.PROMPTS]: {
+        [Permissions.USE]: true,
+        [Permissions.CREATE]: true,
+        [Permissions.SHARE]: false,
+        [Permissions.SHARE_PUBLIC]: false,
+      },
+      [PermissionTypes.BOOKMARKS]: {},
+      [PermissionTypes.MEMORIES]: {},
+      [PermissionTypes.AGENTS]: {
+        [Permissions.USE]: true,
+        [Permissions.CREATE]: true,
+        [Permissions.SHARE]: false,
+        [Permissions.SHARE_PUBLIC]: false,
+      },
+      [PermissionTypes.MULTI_CONVO]: {},
+      [PermissionTypes.TEMPORARY_CHAT]: {},
+      [PermissionTypes.RUN_CODE]: {},
+      [PermissionTypes.WEB_SEARCH]: {},
+      [PermissionTypes.PEOPLE_PICKER]: {
+        [Permissions.VIEW_USERS]: true,
+        [Permissions.VIEW_GROUPS]: true,
+        [Permissions.VIEW_ROLES]: false,
+      },
+      [PermissionTypes.MARKETPLACE]: {
+        [Permissions.USE]: false,
+      },
+      [PermissionTypes.FILE_SEARCH]: {},
+      [PermissionTypes.FILE_CITATIONS]: {},
+      [PermissionTypes.MCP_SERVERS]: {
+        [Permissions.USE]: true,
+        [Permissions.CREATE]: false,
+        [Permissions.SHARE]: false,
+        [Permissions.SHARE_PUBLIC]: false,
+        [Permissions.CONFIGURE_OBO]: false,
+      },
+      [PermissionTypes.REMOTE_AGENTS]: {
+        [Permissions.USE]: false,
+        [Permissions.CREATE]: false,
+        [Permissions.SHARE]: false,
+        [Permissions.SHARE_PUBLIC]: false,
+      },
+      [PermissionTypes.SKILLS]: {
+        [Permissions.USE]: true,
+        [Permissions.CREATE]: true,
+        [Permissions.SHARE]: false,
+        [Permissions.SHARE_PUBLIC]: false,
       },
       [PermissionTypes.SHARED_LINKS]: {
         [Permissions.CREATE]: true,

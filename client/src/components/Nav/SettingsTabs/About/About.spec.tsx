@@ -36,9 +36,17 @@ beforeEach(() => {
 describe('About', () => {
   describe('rendering', () => {
     it('renders version, commit (short), branch, and build date when buildInfo is populated', () => {
+      mockUseGetStartupConfig.mockReturnValue({
+        data: {
+          appVersion: '0.37.0',
+          librechatVersion: 'v0.8.9-rc1',
+          buildInfo: populatedBuildInfo,
+        },
+      });
       render(<About />);
 
-      expect(screen.getByText(Constants.VERSION as string)).toBeInTheDocument();
+      expect(screen.getByText('0.37.0')).toBeInTheDocument();
+      expect(screen.getByText('v0.8.9-rc1')).toBeInTheDocument();
       expect(screen.getByText('abcdef1')).toBeInTheDocument();
       expect(screen.getByText('dev')).toBeInTheDocument();
       expect(screen.getByText('2026-04-20 12:00:00 UTC')).toBeInTheDocument();
@@ -80,7 +88,8 @@ describe('About', () => {
       expect(mockCopy).toHaveBeenCalledTimes(1);
       const [blob, options] = mockCopy.mock.calls[0] as [string, { format: string }];
       expect(options).toEqual({ format: 'text/plain' });
-      expect(blob).toContain(`LibreChat version: ${Constants.VERSION}`);
+      expect(blob).toContain(`HiveGPT version: ${Constants.APP_VERSION}`);
+      expect(blob).toContain(`LibreChat (upstream): ${Constants.VERSION}`);
       expect(blob).toContain(`Commit: ${populatedBuildInfo.commit}`);
       expect(blob).toContain(`Branch: ${populatedBuildInfo.branch}`);
       expect(blob).toContain('Build date: 2026-04-20 12:00:00 UTC');

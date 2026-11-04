@@ -18,7 +18,7 @@ type FooterProps = {
   configuredOnly?: boolean;
 };
 
-type FooterStartupConfig = Pick<Partial<TStartupConfig>, 'customFooter'> & {
+type FooterStartupConfig = Pick<Partial<TStartupConfig>, 'customFooter' | 'appVersion'> & {
   interface?: Pick<NonNullable<TStartupConfig['interface']>, 'privacyPolicy' | 'termsOfService'>;
 };
 
@@ -94,9 +94,9 @@ function Footer({ className, startupConfig, configuredOnly = false }: FooterProp
   /** The generic disclaimer is the part a conversation drops; the operator's own footer is not. */
   const genericFooter = configuredOnly
     ? ''
-    : '[LibreChat ' +
-      Constants.VERSION +
-      '](https://librechat.ai) - ' +
+    : '[HiveGPT ' +
+      (config?.appVersion ?? Constants.APP_VERSION) +
+      '] - ' +
       localize('com_ui_latest_footer');
   const mainContent = configuredFooter ?? genericFooter;
   const mainContentParts = mainContent === '' ? [] : mainContent.split('|');

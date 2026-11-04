@@ -113,8 +113,12 @@ export function parseAdminCreateUser(
   }
 
   const role = source.role ?? SystemRoles.USER;
-  if (role !== SystemRoles.USER && role !== SystemRoles.ADMIN) {
-    return { ok: false, ...invalid('invalid_role', 'Role must be USER or ADMIN') };
+  if (
+    role !== SystemRoles.USER &&
+    role !== SystemRoles.MANAGER &&
+    role !== SystemRoles.ADMIN
+  ) {
+    return { ok: false, ...invalid('invalid_role', 'Role must be USER, MANAGER or ADMIN') };
   }
 
   return {
@@ -143,7 +147,10 @@ export function createAdminCreateUserHandler(deps: AdminCreateUserDeps) {
       }
       const { name, email, phone, password, role } = parsed.value;
 
-      if (role === SystemRoles.ADMIN && !(await deps.canAssignAdmin(req))) {
+      if (
+        role === SystemRoles.ADMIN &&
+        (req.user?.role !== SystemRoles.ADMIN || !(await deps.canAssignAdmin(req)))
+      ) {
         return res.status(403).json({
           error: { code: 'admin_role_forbidden', message: 'You cannot create admins' },
         });

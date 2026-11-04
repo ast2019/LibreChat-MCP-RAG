@@ -49,6 +49,15 @@ describe('CompareCard', () => {
     expect(ask?.closest('tbody')).toHaveTextContent('What sets us apart');
   });
 
+  it('lists Code Interpreter among the differences', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    const code = screen.getByRole('rowheader', { name: /^Code Interpreter/ }).closest('tr');
+    const cells = within(code as HTMLElement).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Yes');
+    expect(cells[1]).toHaveTextContent('Some');
+    expect(code?.closest('tbody')).toHaveTextContent('What sets us apart');
+  });
+
   it('lists the agent browser among the differences, not among what is missing', () => {
     render(<CompareCard appTitle="HiveGPT" />);
     const browser = screen.getByRole('rowheader', { name: /^Agent browser/ }).closest('tr');

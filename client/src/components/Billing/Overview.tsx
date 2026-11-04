@@ -48,7 +48,7 @@ export default function Overview() {
       ) : (
         <section
           aria-label={localize('com_admin_summary')}
-          className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"
+          className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7"
         >
           <Kpi
             label={localize('com_admin_users')}
@@ -69,6 +69,18 @@ export default function Overview() {
             label={localize('com_admin_spent')}
             value={data ? formatUsd(data.creditsSpentInWindow) : undefined}
             local={data ? formatLocal(data.creditsSpentInWindow, currency) : undefined}
+          />
+          <Kpi
+            label={localize('com_admin_local_spend')}
+            value={
+              data ? formatUsd(data.creditsSpentLocalInWindow ?? 0) : undefined
+            }
+            local={
+              data
+                ? formatLocal(data.creditsSpentLocalInWindow ?? 0, currency)
+                : undefined
+            }
+            hint={localize('com_admin_local_spend_hint')}
           />
           <Kpi
             label={localize('com_admin_provider_cost')}

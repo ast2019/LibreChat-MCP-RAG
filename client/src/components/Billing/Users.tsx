@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { RotateCcw, ShieldCheck, UserPlus, Users as UsersIcon, WalletCards, X } from 'lucide-react';
 import { SystemRoles } from 'librechat-data-provider';
 import { Button, Checkbox, Dropdown, Input, Skeleton } from '@librechat/client';
+import { RotateCcw, ShieldCheck, UserPlus, Users as UsersIcon, WalletCards, X } from 'lucide-react';
 import type {
   TAdminBillingUser,
   TAdminBillingUserSort,
@@ -15,15 +15,15 @@ import { useAdminBillingUsersQuery, useAdminBillingPacksQuery } from '~/data-pro
 import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { useLocalize, useAuthContext } from '~/hooks';
 import CreateUserDialog from './CreateUserDialog';
-import { Money, UsageCell } from './parts';
-import UserActions from './UserActions';
 import BulkAccessDialog from './BulkAccessDialog';
 import AccessSummary from './AccessSummary';
-import UserDrawer from './UserDrawer';
-import GiftNote from './GiftNote';
+import { Money, UsageCell } from './parts';
+import UserActions from './UserActions';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
+import UserDrawer from './UserDrawer';
 import RoleDialog from './RoleDialog';
+import GiftNote from './GiftNote';
 import { cn } from '~/utils';
 
 const PAGE_SIZE = 25;
@@ -47,7 +47,7 @@ const COL = {
   actions: 'md:w-10',
 };
 
-const ROLE_FILTERS: readonly string[] = ['USER', 'ADMIN'];
+const ROLE_FILTERS: readonly string[] = ['USER', 'MANAGER', 'ADMIN'];
 const BALANCE_FILTERS: readonly string[] = ['positive', 'empty'];
 const ACCESS_FILTERS: readonly string[] = ['custom', 'default'];
 const SORTS: readonly string[] = ['newest', 'oldest', 'name'];
@@ -178,7 +178,9 @@ function UserCell({ row, onOpen }: { row: TAdminBillingUser; onOpen: () => void 
           <span className="text-text-secondary border-border-light shrink-0 rounded-md border px-1.5 py-0.5 text-xs">
             {row.role === SystemRoles.ADMIN
               ? localize('com_admin_role_admin')
-              : localize('com_admin_role_user')}
+              : row.role === SystemRoles.MANAGER
+                ? localize('com_admin_role_manager')
+                : localize('com_admin_role_user')}
           </span>
         </div>
         {row.email && (
@@ -367,7 +369,10 @@ export default function Users() {
                 options={[
                   { value: ALL, label: localize('com_admin_filter_all_roles') },
                   { value: 'USER', label: localize('com_admin_role_user') },
-                  { value: 'ADMIN', label: localize('com_admin_role_admin') },
+                  { value: 'MANAGER', label: localize('com_admin_role_manager') },
+                  ...(currentUser?.role === SystemRoles.ADMIN
+                    ? [{ value: 'ADMIN', label: localize('com_admin_role_admin') }]
+                    : []),
                 ]}
                 onChange={(value) => update({ role: value as RoleFilter })}
                 ariaLabel={localize('com_admin_filter_role')}
@@ -598,7 +603,12 @@ export default function Users() {
                   </div>
                 </div>
                 <div className={cn('absolute inset-e-3 top-4 md:static', COL.actions)}>
-                  <UserActions user={row} isSelf={row.id === currentUser?.id} onAction={onAction} />
+                  <UserActions
+                    user={row}
+                    isSelf={row.id === currentUser?.id}
+                    canChangeRole={currentUser?.role === SystemRoles.ADMIN}
+                    onAction={onAction}
+                  />
                 </div>
               </li>
             ))}
@@ -654,6 +664,7 @@ export default function Users() {
         packs={packList}
         currency={currency}
         isSelf={openUser?.id === currentUser?.id}
+        canChangeRole={currentUser?.role === SystemRoles.ADMIN}
         onAction={onAction}
         onClose={() => setOpenUserId(null)}
       />

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import replace from '@rollup/plugin-replace';
@@ -6,6 +7,9 @@ import { defineConfig } from 'tsdown';
 const require = createRequire(import.meta.url);
 const rootPkg = require('../../package.json');
 const pkg = require('./package.json');
+const hivegptVersion = fs
+  .readFileSync(path.resolve(import.meta.dirname, '../../VERSION'), 'utf8')
+  .trim();
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/react-query/index.ts'],
@@ -33,6 +37,7 @@ export default defineConfig({
       values: {
         __IS_DEV__: process.env.NODE_ENV === 'development',
         __LIBRECHAT_VERSION__: rootPkg.version,
+        __HIVEGPT_VERSION__: hivegptVersion,
         __DATA_PROVIDER_VERSION__: pkg.version,
       },
     }),

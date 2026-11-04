@@ -524,9 +524,17 @@ export function createSystemGrantMethods(mongoose: typeof import('mongoose')): {
   }
 
   /**
-   * Seed the ADMIN role with all system capabilities.
-   * Context-agnostic: caller provides tenant context (e.g., `runAsSystem()` for
-   * startup, `tenantStorage.run()` for future per-tenant provisioning).
+   * Manager grants: nearly every system capability except promoting/managing roles.
+   * ADMIN-only model bypass (لوکال امن خاص) stays a role-string check, not a grant.
+   */
+  const MANAGER_CAPABILITIES: readonly SystemCapability[] = Object.values(
+    SystemCapabilities,
+  ).filter((capability) => capability !== SystemCapabilities.MANAGE_ROLES);
+
+  /**
+   * Seed ADMIN with every system capability, and MANAGER with all but MANAGE_ROLES.
+   * Context-agnostic: caller provides tenant context (e.g., `runAsSystem()`
+   * for startup, `tenantStorage.run()` for future per-tenant provisioning).
    * Idempotent and concurrency-safe: uses bulkWrite with ordered:false so parallel
    * server instances (K8s rolling deploy, PM2 cluster) do not race on E11000.
    * Retries up to 3 times with exponential backoff on transient failures.
@@ -537,18 +545,28 @@ export function createSystemGrantMethods(mongoose: typeof import('mongoose')): {
       try {
         const SystemGrant = mongoose.models.SystemGrant as Model<ISystemGrant>;
         const now = new Date();
-        const ops = Object.values(SystemCapabilities).map((capability) => ({
+        const roleCaps: Array<{ role: string; capability: SystemCapability }> = [
+          ...Object.values(SystemCapabilities).map((capability) => ({
+            role: SystemRoles.ADMIN,
+            capability,
+          })),
+          ...MANAGER_CAPABILITIES.map((capability) => ({
+            role: SystemRoles.MANAGER,
+            capability,
+          })),
+        ];
+        const ops = roleCaps.map(({ role, capability }) => ({
           updateOne: {
             filter: {
               principalType: PrincipalType.ROLE,
-              principalId: SystemRoles.ADMIN,
+              principalId: role,
               capability,
               tenantId: { $exists: false },
             },
             update: {
               $setOnInsert: {
                 principalType: PrincipalType.ROLE,
-                principalId: SystemRoles.ADMIN,
+                principalId: role,
                 capability,
                 grantedAt: now,
               },

@@ -3597,8 +3597,24 @@ export type TCurrencyRateInfo = {
   updatedAt?: string;
 };
 
+/** One Keep-a-Changelog release, as `/api/config` exposes it for the update banner and About. */
+export type TChangelogEntry = {
+  version: string;
+  date?: string;
+  highlights: string[];
+};
+
 export type TStartupConfig = {
   conversationTitleOwnershipVersion?: typeof CONVERSATION_TITLE_OWNERSHIP_VERSION;
+  /**
+   * HiveGPT fork semver from the repo `VERSION` file. Distinct from
+   * {@link Constants.VERSION} / `librechatVersion`, which track upstream LibreChat.
+   */
+  appVersion?: string;
+  /** Upstream LibreChat version (`package.json`), when the server reports it. */
+  librechatVersion?: string;
+  /** Recent fork changelog entries (newest first), for the update banner and About. */
+  changelog?: TChangelogEntry[];
   appTitle: string;
   socialLogins?: string[];
   insightsEnabled?: boolean;
@@ -5701,15 +5717,22 @@ export enum TTSProviders {
 /** Enum for app-wide constants */
 export enum Constants {
   /**
-   * Key for the app's version. The placeholder `__LIBRECHAT_VERSION__` is
+   * Upstream LibreChat version. The placeholder `__LIBRECHAT_VERSION__` is
    * swapped in by `@rollup/plugin-replace` during `npm run build:data-provider`
    * using the value of the root `package.json`'s `version` field. Consumers
    * always import this via the built dist bundle (see `main` field in
    * `packages/data-provider/package.json`), so production and UI code get the
    * substituted value. Only tests that import the TypeScript source directly
-   * would observe the raw placeholder.
+   * would observe the raw placeholder. HiveGPT's own semver is
+   * {@link Constants.APP_VERSION} / the repo `VERSION` file.
    */
   VERSION = '__LIBRECHAT_VERSION__',
+  /**
+   * HiveGPT fork semver from the repo `VERSION` file (`__HIVEGPT_VERSION__` at
+   * build time). Use this when announcing product updates; keep
+   * {@link Constants.VERSION} for comparing against upstream LibreChat.
+   */
+  APP_VERSION = '__HIVEGPT_VERSION__',
   /** Key for the Custom Config's version (librechat.yaml). */
   CONFIG_VERSION = '1.3.18',
   /** Standard value for the first message's `parentMessageId` value, to indicate no parent exists. */
