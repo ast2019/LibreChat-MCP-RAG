@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-11-04
+
+### Fixed
+- **Coolify / Docker multi-stage build.** `packages/data-provider` tsdown reads the
+  repo `VERSION` file; the `data-provider-build` stage did not copy it, so
+  `npm run build` exited 1. `Dockerfile.multi` now copies `VERSION` and
+  `CHANGELOG.md` into the image, and tsdown falls back to `0.0.0` if the file is
+  still missing.
+
 ## [0.38.0] - 2026-11-04
 
 ### Changed

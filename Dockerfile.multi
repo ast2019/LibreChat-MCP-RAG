@@ -26,6 +26,9 @@ RUN npm config set fetch-retry-maxtimeout 600000 && \
     npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 15000
 COPY package*.json ./
+# HiveGPT semver + changelog: data-provider tsdown bakes VERSION into APP_VERSION;
+# the API also serves both at runtime for About / the PWA update banner.
+COPY VERSION CHANGELOG.md ./
 COPY packages/data-provider/package*.json ./packages/data-provider/
 COPY packages/api/package*.json ./packages/api/
 COPY vendor/code ./vendor/code
@@ -145,6 +148,8 @@ RUN attempt=1; \
 COPY api ./api
 COPY config ./config
 COPY skill ./skill
+# Present in base-min layers above only as package manifests; re-copy for runtime About/PWA.
+COPY VERSION CHANGELOG.md ./
 COPY --from=data-provider-build /app/packages/data-provider/dist ./packages/data-provider/dist
 COPY --from=data-schemas-build /app/packages/data-schemas/dist ./packages/data-schemas/dist
 COPY --from=api-package-build /app/packages/api/dist ./packages/api/dist
