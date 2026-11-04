@@ -4,6 +4,11 @@
  * the only file under /keys/public, which the bridge mounts alone.
  * Re-running keeps the existing private key and refreshes the public file.
  * Do not print either key.
+ *
+ * Coolify does not run this file. Compose executes inside a helper container,
+ * and a bind mount is resolved on the Docker host, so the container cannot see
+ * this path. docker-compose.yml inlines the same program on code_jwt. Keep the
+ * two copies the same.
  */
 const { createPrivateKey, createPublicKey, generateKeyPairSync } = require('crypto');
 const { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('fs');

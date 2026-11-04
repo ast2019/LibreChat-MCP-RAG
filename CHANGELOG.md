@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.9] - 2026-11-04
+
+### Fixed
+- **Attached VM still failed after the key volume landed.** `code_jwt` bind-mounted `jwt-keys.js` from the git checkout. Coolify runs Compose inside a helper container, so that path is not on the Docker host and Node exited with `Cannot find module '/jwt-keys.js'`. The generator now runs inline. `code_file` also never created `hivegpt-code`: Silo answers HTTP 400 for a Host header that contains `_`, and a HEAD has no body, so the file server logged an empty error and restarted for about eight minutes. It now calls the storage server as `codeminio`.
+
 ## [0.38.8] - 2026-11-04
 
 ### Fixed
