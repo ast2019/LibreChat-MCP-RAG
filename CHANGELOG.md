@@ -20,6 +20,9 @@ LibreChat versions are tracked separately in `package.json`.
 - **Attached VM command permissions** may include `allow` (alongside ask/deny).
 - **`install-host.sh`** falls back to building `@librechat/code` from GitHub when npm 404s.
 
+### Fixed
+- **Attached VM could not be used from Agents.** Turning off the Coolify microVM also removed `execute_code` from agent capabilities and set `interface.runCode: false`. Agent Builder then hid «اجرای کد», and runtime refused code tools even after a VM was paired. Both are on again so agents can reach the Attached VM bridge; the microVM stack stays undeployed.
+
 ## [0.38.9] - 2026-11-04
 
 ### Fixed

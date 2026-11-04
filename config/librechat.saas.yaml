@@ -54,8 +54,9 @@ interface:
   webSearch: true
   fileSearch: true
   fileCitations: true
-  # The microVM Code Interpreter is off. Coding runs on an Attached VM.
-  runCode: false
+  # Needed for Attached VM: agents call execute_code / bash on the paired worker.
+  # This is not the Coolify microVM interpreter (that stack stays off; no /dev/kvm).
+  runCode: true
   # The composer ring shows how full the model's context window is, with the share in percent
   # beside it; the card adds the token breakdown and the share of the pack used. Per-chat cost
   # stays hidden (`contextCost: false`): it left out background work (memory, titles, OCR,
@@ -498,6 +499,9 @@ endpoints:
       - skills
       # The question form: the model asks its clarifying questions in a form in the chat.
       - ask_user_question
+      # Required so Agent Builder shows «اجرای کد» and runtime can load code tools.
+      # MicroVM codeapi is still off; execution goes to the Attached VM bridge.
+      - execute_code
       # Attached / personal VMs (@librechat/code). Experimental; see docs/saas/ATTACHED_VM.md.
       - stateful_code_sessions
     # Sharing scopes for stateful workspaces. personal-workers is a pairing control
