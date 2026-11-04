@@ -17,6 +17,7 @@ import {
   AppWindow,
   Presentation,
   Clapperboard,
+  KeyRound,
   TerminalSquare,
   MessageCircleQuestion,
 } from 'lucide-react';
@@ -144,6 +145,13 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         icon: TerminalSquare,
         title: 'com_auth_feature_code',
         detail: 'com_auth_feature_code_body',
+        ours: 'yes',
+        others: 'some',
+      },
+      {
+        icon: KeyRound,
+        title: 'com_auth_feature_api',
+        detail: 'com_auth_feature_api_body',
         ours: 'yes',
         others: 'some',
       },
