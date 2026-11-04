@@ -80,7 +80,10 @@ export function UpdateBanner({
           </Button>
         </div>
         {highlights.length > 0 && (
-          <div className="border-border-light border-t pt-2 pe-2 pb-1" data-testid="pwa-update-notes">
+          <div
+            className="border-border-light border-t pe-2 pt-2 pb-1"
+            data-testid="pwa-update-notes"
+          >
             <p className="text-text-secondary mb-1 text-xs font-medium">
               {localize('com_pwa_update_whats_new')}
             </p>

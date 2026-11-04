@@ -8,7 +8,6 @@ const mockRefetch = jest.fn(() => Promise.resolve({}));
 const mockRegister: { options?: RegisterSWOptions; needRefresh: boolean } = {
   needRefresh: true,
 };
-
 jest.mock('virtual:pwa-register/react', () => {
   const { useState } = jest.requireActual<typeof import('react')>('react');
   return {
@@ -71,6 +70,19 @@ describe('UpdatePrompt', () => {
 
     expect(mockUpdateServiceWorker).toHaveBeenCalledWith(true);
     expect(screen.getByTestId('pwa-update-action')).toBeDisabled();
+  });
+
+  it('does not announce the missing-file placeholder 0.0.0', () => {
+    mockStartupConfig = {
+      ...mockStartupConfig,
+      appVersion: '0.0.0',
+    };
+    render(<UpdatePrompt />);
+
+    const banner = screen.getByTestId('pwa-update-banner');
+    expect(banner).toHaveTextContent('com_pwa_update_ready');
+    expect(banner).not.toHaveTextContent('0.0.0');
+    expect(banner).not.toHaveTextContent('com_pwa_update_ready_version');
   });
 
   it('can be closed without updating', async () => {

@@ -25,28 +25,69 @@ let cachedChangelog: ChangelogEntry[] | null = null;
 let cachedRoot: string | null = null;
 
 /**
- * Candidate roots for `VERSION` / `CHANGELOG.md`.
- *
- * Jest runs the TypeScript source (`src/app` → four levels up). Production
- * bundles this module into `packages/api/dist/index.cjs`, so `__dirname` is
- * `dist/` and four levels up is `/` — which made Docker serve `appVersion:
- * 0.0.0` and the PWA banner announce «نسخهٔ 0.0.0 آماده است». Prefer the first
- * directory that actually contains `VERSION`.
+ * Ancestors to search above the running file. The compiled bundle sits three
+ * levels under the image root; the source file sits four. Eight covers both,
+ * plus a `node_modules` workspace link.
+ */
+const MAX_RELEASE_ROOT_DEPTH = 8;
+
+function readTrimmedFile(filePath: string): string | null {
+  try {
+    const text = fs.readFileSync(filePath, 'utf8').trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Nearest ancestor of `startDir` that contains a non-empty `VERSION` file.
+ * An empty file does not count, so the search keeps walking.
+ */
+function findReleaseRoot(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let depth = 0; depth < MAX_RELEASE_ROOT_DEPTH; depth += 1) {
+    if (readTrimmedFile(path.join(dir, 'VERSION'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return null;
+    }
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Fixed layouts that are not always ancestors of each other: Jest's `src/app`,
+ * the tsdown bundle in `dist/`, and the API image `WORKDIR` (`/app/api` or `/app`).
  */
 export function candidateRoots(fromDir: string, cwd: string = process.cwd()): string[] {
   return [
-    path.resolve(fromDir, '../../../..'), // src/app (jest / unbundled)
-    path.resolve(fromDir, '../../..'), // dist/index.cjs → repo root
+    path.resolve(fromDir, '../../../..'),
+    path.resolve(fromDir, '../../..'),
     path.resolve(fromDir, '../..'),
-    path.resolve(cwd, '..'), // WORKDIR /app/api → /app
-    cwd, // WORKDIR /app
+    path.resolve(cwd, '..'),
+    cwd,
   ];
 }
 
-/** First directory among candidates that contains `VERSION`, else the source-layout path. */
+/**
+ * Directory that holds `VERSION` and `CHANGELOG.md`.
+ *
+ * Prefer the nearest ancestor of the running file. `__dirname` in the image is
+ * `/app/packages/api/dist` (symlinks are resolved), and four levels up is `/`.
+ * A stray `VERSION` there must not beat `/app/VERSION`. The working directory
+ * is the next place to look: the server runs with `WORKDIR /app/api`.
+ */
 export function findRepoRoot(fromDir: string, cwd: string = process.cwd()): string {
+  const nearest = findReleaseRoot(fromDir) ?? findReleaseRoot(cwd);
+  if (nearest) {
+    return nearest;
+  }
   for (const root of candidateRoots(fromDir, cwd)) {
-    if (fs.existsSync(path.join(root, 'VERSION'))) {
+    if (readTrimmedFile(path.join(root, 'VERSION'))) {
       return root;
     }
   }
@@ -62,15 +103,6 @@ function repoRoot(): string {
   return cachedRoot;
 }
 
-function readTrimmedFile(filePath: string): string | null {
-  try {
-    const text = fs.readFileSync(filePath, 'utf8').trim();
-    return text.length > 0 ? text : null;
-  } catch {
-    return null;
-  }
-}
-
 function bakedAppVersion(): string | null {
   const baked = String(Constants.APP_VERSION ?? '').trim();
   if (!baked || baked === '0.0.0' || baked.includes('__HIVEGPT_VERSION__')) {
@@ -79,16 +111,7 @@ function bakedAppVersion(): string | null {
   return baked;
 }
 
-/**
- * Resolves the fork version (`VERSION`) and the upstream LibreChat version
- * (`package.json`). Cached after the first read so `/api/config` stays cheap.
- */
-export function resolveAppVersions(): AppVersionInfo {
-  if (cachedVersions) {
-    return cachedVersions;
-  }
-
-  const root = repoRoot();
+function readAppVersions(root: string): AppVersionInfo {
   const fromFile = readTrimmedFile(path.join(root, 'VERSION'));
   let fromPackage: string | null = null;
   try {
@@ -102,26 +125,35 @@ export function resolveAppVersions(): AppVersionInfo {
     fromPackage = null;
   }
 
-  cachedVersions = {
+  return {
     appVersion: fromFile ?? bakedAppVersion() ?? '0.0.0',
     librechatVersion: fromPackage ?? String(Constants.VERSION),
   };
+}
+
+/**
+ * Resolves the fork version (`VERSION`) and the upstream LibreChat version
+ * (`package.json`). Cached after the first read so `/api/config` stays cheap.
+ */
+export function resolveAppVersions(): AppVersionInfo {
+  if (cachedVersions) {
+    return cachedVersions;
+  }
+
+  cachedVersions = readAppVersions(repoRoot());
   return cachedVersions;
+}
+
+/** Same resolution as {@link resolveAppVersions}, starting from `startDir` instead of this file. */
+export function resolveAppVersionsFrom(startDir: string): AppVersionInfo {
+  return readAppVersions(findRepoRoot(startDir, startDir));
 }
 
 const HEADING_RE = /^## \[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
 const BULLET_RE = /^-\s+\*\*(.+?)\*\*/;
 
-/**
- * Parses Keep-a-Changelog headings from `CHANGELOG.md` into short release
- * notes for the update banner and About tab. Skips `[Unreleased]`.
- */
-export function resolveChangelog(limit = 12): ChangelogEntry[] {
-  if (cachedChangelog) {
-    return cachedChangelog.slice(0, limit);
-  }
-
-  const raw = readTrimmedFile(path.join(repoRoot(), 'CHANGELOG.md')) ?? '';
+function readChangelog(root: string): ChangelogEntry[] {
+  const raw = readTrimmedFile(path.join(root, 'CHANGELOG.md')) ?? '';
   const entries: ChangelogEntry[] = [];
   let current: ChangelogEntry | null = null;
 
@@ -153,8 +185,25 @@ export function resolveChangelog(limit = 12): ChangelogEntry[] {
     entries.push(current);
   }
 
-  cachedChangelog = entries;
+  return entries;
+}
+
+/**
+ * Parses Keep-a-Changelog headings from `CHANGELOG.md` into short release
+ * notes for the update banner and About tab. Skips `[Unreleased]`.
+ */
+export function resolveChangelog(limit = 12): ChangelogEntry[] {
+  if (cachedChangelog) {
+    return cachedChangelog.slice(0, limit);
+  }
+
+  cachedChangelog = readChangelog(repoRoot());
   return cachedChangelog.slice(0, limit);
+}
+
+/** Same resolution as {@link resolveChangelog}, starting from `startDir` instead of this file. */
+export function resolveChangelogFrom(startDir: string, limit = 12): ChangelogEntry[] {
+  return readChangelog(findRepoRoot(startDir, startDir)).slice(0, limit);
 }
 
 /** Fork version, upstream version, and recent changelog for startup config. */
