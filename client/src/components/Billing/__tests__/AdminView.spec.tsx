@@ -474,7 +474,7 @@ describe('AdminView', () => {
     renderView('/admin?tab=users');
     await openRowAction('Change role');
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('radio', { name: /Admin/ }));
+    await userEvent.click(within(dialog).getByRole('radio', { name: /Principal admin/i }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save role' }));
     expect(mockSetRoleMutate).toHaveBeenCalledWith(
       { userId: 'u1', role: 'ADMIN' },

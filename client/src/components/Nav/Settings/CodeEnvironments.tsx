@@ -17,6 +17,7 @@ import type {
   TCodeEnvironmentSummary,
   CodeWorkerShell,
 } from 'librechat-data-provider';
+import type { ReactNode } from 'react';
 import type { CodeEnvironmentPairingResponse } from '~/data-provider/CodeEnvironments';
 import {
   useCodeEnvironmentsQuery,
@@ -246,9 +247,15 @@ export default function CodeEnvironments() {
     );
   };
 
-  let pairingControls = (
-    <p className="text-text-secondary text-sm">{localize('com_ui_code_environment_unavailable')}</p>
-  );
+  const environments = query.data?.environments ?? [];
+  /** Pairing and VM-worker copy are for self-service attached machines. When the
+   *  deployment has neither control planes nor any machine for this user, hide
+   *  the whole row — operator/bridge docs do not belong in Settings. */
+  if (!query.isLoading && !query.isError && controlPlanes.length === 0 && environments.length === 0) {
+    return null;
+  }
+
+  let pairingControls: ReactNode = null;
   if (query.isLoading) {
     pairingControls = (
       <div className="text-text-secondary flex items-center gap-2 text-sm">
@@ -311,9 +318,11 @@ export default function CodeEnvironments() {
         <h3 className="text-text-primary text-sm font-medium">
           {localize('com_ui_code_environments')}
         </h3>
-        <p className="text-text-secondary mt-1 text-xs">
-          {localize('com_ui_code_environments_description')}
-        </p>
+        {controlPlanes.length > 0 && (
+          <p className="text-text-secondary mt-1 text-xs">
+            {localize('com_ui_code_environments_description')}
+          </p>
+        )}
       </div>
 
       {pairingControls}
