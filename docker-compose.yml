@@ -358,14 +358,28 @@ services:
   code_minio:
     # quay.io/minio/minio answers unauthorized for anonymous pulls. Silo is the
     # same server API and the same MINIO_* variables.
+    # Silo rejects a Host header that contains "_" (HTTP 400, and a HEAD has no
+    # body, so the file server logs an empty error and retries until it exits).
+    # The service name stays code_minio. Clients use the alias codeminio.
     image: docker.io/pgsty/silo:RELEASE.2026-10-26T00-00-00Z
     restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
       MINIO_ROOT_USER: ${SERVICE_USER_CODEMINIO}
       MINIO_ROOT_PASSWORD: ${SERVICE_PASSWORD_CODEMINIO}
+      MINIO_SITE_REGION: us-east-1
     volumes:
       - code-minio-data:/data
+    networks:
+      default:
+        aliases:
+          - codeminio
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 10s
 
   code_file:
     image: ghcr.io/librechat-ai/code-interpreter-file-server:${CODEAPI_IMAGE_TAG:-main}
@@ -373,8 +387,10 @@ services:
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
       MINIO_BUCKET: hivegpt-code
-      MINIO_ENDPOINT: code_minio
+      # codeminio, not code_minio: Silo rejects an underscore in the Host header.
+      MINIO_ENDPOINT: codeminio
       MINIO_PORT: 9000
+      MINIO_REGION: us-east-1
       MINIO_USE_SSL: 'false'
       MINIO_ACCESS_KEY: ${SERVICE_USER_CODEMINIO}
       MINIO_SECRET_KEY: ${SERVICE_PASSWORD_CODEMINIO}
@@ -385,7 +401,7 @@ services:
       CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
     depends_on:
       code_minio:
-        condition: service_started
+        condition: service_healthy
       code_redis:
         condition: service_started
 
@@ -434,6 +450,10 @@ services:
   # the bridge verifies. The private key stays on code-jwt-data. The public key
   # is the only thing on code-jwt-public, which is the volume the bridge mounts.
   # No domain.
+  # Coolify runs compose inside a helper container. A bind mount of a repo file
+  # is resolved by the Docker host, where that path does not exist, so Node
+  # exits with MODULE_NOT_FOUND for /jwt-keys.js. The generator is inlined.
+  # deploy/code-bridge/jwt-keys.js is the same program, for reading.
   code_jwt:
     image: node:22-alpine
     restart: 'no'
@@ -441,8 +461,24 @@ services:
     volumes:
       - code-jwt-data:/keys
       - code-jwt-public:/keys/public
-      - ./deploy/code-bridge/jwt-keys.js:/jwt-keys.js:ro
-    command: ['node', '/jwt-keys.js']
+    entrypoint: ['node', '-e']
+    command:
+      - |
+        const { createPrivateKey, createPublicKey, generateKeyPairSync } = require('crypto');
+        const { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
+        const privatePath = '/keys/private.pem';
+        const publicDir = '/keys/public';
+        const publicPath = publicDir + '/lc-codeapi-2026-05.pem';
+        mkdirSync(publicDir, { recursive: true });
+        const existing = existsSync(privatePath) ? readFileSync(privatePath, 'utf8') : '';
+        if (existing.trim() === '') {
+          const { privateKey } = generateKeyPairSync('ed25519');
+          writeFileSync(privatePath, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+        }
+        chmodSync(privatePath, 0o600);
+        const publicKey = createPublicKey(createPrivateKey(readFileSync(privatePath)));
+        writeFileSync(publicPath, publicKey.export({ type: 'spki', format: 'pem' }), { mode: 0o644 });
+        chmodSync(publicPath, 0o644);
 
   codeapi_bridge:
     image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
