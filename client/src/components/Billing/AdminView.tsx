@@ -1,5 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { SystemRoles } from 'librechat-data-provider';
+import { isAdminPanelRole } from 'librechat-data-provider';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import { useAuthContext, useDocumentTitle, useLocalize } from '~/hooks';
@@ -37,13 +37,13 @@ export default function AdminView() {
   const localize = useLocalize();
   const { user } = useAuthContext();
   const [params, setParams] = useSearchParams();
-  const isAdmin = user?.role === SystemRoles.ADMIN;
+  const canOpenAdmin = isAdminPanelRole(user?.role);
   const requested = params.get('tab');
   const tab = TABS.some((item) => item.id === requested) ? (requested as string) : 'overview';
 
   useDocumentTitle(localize('com_admin_title'));
 
-  if (user != null && !isAdmin) {
+  if (user != null && !canOpenAdmin) {
     return <Navigate to="/c/new" replace={true} />;
   }
 
@@ -57,7 +57,7 @@ export default function AdminView() {
           </h1>
         </header>
 
-        {isAdmin && (
+        {canOpenAdmin && (
           <Tabs.Root
             value={tab}
             onValueChange={(value) => setParams({ tab: value }, { replace: true })}

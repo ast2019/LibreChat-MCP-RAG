@@ -7,6 +7,19 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-04
+
+### Added
+- **Code Interpreter on the sign-in comparison.** The login table lists sandboxed
+  Run Code under «فرق ما».
+- **Fork semver vs upstream LibreChat.** Startup config and About show HiveGPT
+  `VERSION` beside the LibreChat `package.json` version; the PWA update banner
+  names the new HiveGPT version; recent `CHANGELOG.md` entries are exposed for
+  the banner and About.
+- **Operator role.** Admin user grades are User, Operator, and Admin. Operators
+  can open the admin panel for users and usage; they cannot manage roles or
+  config the way a full admin can.
+
 ## [0.36.0] - 2026-11-03
 
 ### Added

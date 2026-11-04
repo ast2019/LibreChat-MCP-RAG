@@ -23,11 +23,13 @@ function formatBuildDate(raw: string | null | undefined): string {
 }
 
 function buildDiagnosticsBlob(
-  version: string,
+  appVersion: string,
+  librechatVersion: string,
   buildInfo: TStartupConfig['buildInfo'] | undefined,
 ): string {
   const lines: string[] = [
-    `LibreChat version: ${version}`,
+    `HiveGPT version: ${appVersion}`,
+    `LibreChat (upstream): ${librechatVersion}`,
     `Commit: ${buildInfo?.commit ?? UNKNOWN_PLACEHOLDER}`,
     `Branch: ${buildInfo?.branch ?? UNKNOWN_PLACEHOLDER}`,
     `Build date: ${formatBuildDate(buildInfo?.buildDate)}`,
@@ -52,11 +54,13 @@ function About() {
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildInfo = startupConfig?.buildInfo;
-  const version: string = Constants.VERSION;
+  const appVersion = startupConfig?.appVersion ?? Constants.APP_VERSION;
+  const librechatVersion = startupConfig?.librechatVersion ?? Constants.VERSION;
+  const changelog = startupConfig?.changelog ?? [];
 
   const diagnosticsBlob = useMemo(
-    () => buildDiagnosticsBlob(version, buildInfo),
-    [version, buildInfo],
+    () => buildDiagnosticsBlob(appVersion, librechatVersion, buildInfo),
+    [appVersion, librechatVersion, buildInfo],
   );
 
   useEffect(
@@ -83,7 +87,8 @@ function About() {
   return (
     <div className="text-text-primary flex flex-col text-sm">
       <dl className="divide-border-light flex flex-col divide-y">
-        <Row label={localize('com_nav_about_version')} value={version} />
+        <Row label={localize('com_nav_about_version')} value={appVersion} />
+        <Row label={localize('com_nav_about_librechat_version')} value={librechatVersion} />
         <Row
           label={localize('com_nav_about_commit')}
           value={buildInfo?.commitShort ?? UNKNOWN_PLACEHOLDER}
@@ -97,6 +102,36 @@ function About() {
           value={formatBuildDate(buildInfo?.buildDate)}
         />
       </dl>
+
+      <div className="border-border-light mt-4 border-t pt-4">
+        <h3 className="text-text-primary mb-2 text-sm font-medium">
+          {localize('com_nav_about_changelog')}
+        </h3>
+        {changelog.length === 0 ? (
+          <p className="text-text-secondary text-xs">{localize('com_nav_about_changelog_empty')}</p>
+        ) : (
+          <ul className="space-y-3">
+            {changelog.slice(0, 5).map((entry) => (
+              <li key={entry.version} className="text-xs">
+                <div className="text-text-primary font-medium">
+                  {entry.version}
+                  {entry.date ? (
+                    <span className="text-text-tertiary ms-2 font-normal">{entry.date}</span>
+                  ) : null}
+                </div>
+                {entry.highlights.length > 0 && (
+                  <ul className="text-text-secondary mt-1 list-disc space-y-0.5 ps-4">
+                    {entry.highlights.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-text-tertiary mt-2 text-xs">{localize('com_nav_about_changelog_more')}</p>
+      </div>
 
       <div className="border-border-light mt-4 flex flex-col items-start gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="text-text-secondary min-w-0 flex-1 text-xs">

@@ -17,4 +17,6 @@ export * from './origin';
 export * from './agents';
 export { resolveBuildInfo } from './build';
 export type { BuildInfo } from './build';
+export { resolveAppVersions, resolveChangelog, resolveAppReleaseInfo } from './version';
+export type { AppVersionInfo, ChangelogEntry, AppReleaseInfo } from './version';
 export { buildPreLoginInterface, withSafePolicyLinks } from './interface';

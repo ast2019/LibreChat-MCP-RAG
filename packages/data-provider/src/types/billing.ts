@@ -36,7 +36,7 @@ export type TAdminBillingUser = {
   effective?: TEffectiveAccessMap;
 };
 
-export type TAdminBillingUserRoleFilter = 'USER' | 'ADMIN';
+export type TAdminBillingUserRoleFilter = 'USER' | 'OPERATOR' | 'ADMIN';
 export type TAdminBillingBalanceFilter = 'positive' | 'empty';
 export type TAdminBillingAccessFilter = 'custom' | 'default';
 export type TAdminBillingUserSort = 'newest' | 'oldest' | 'name';
@@ -155,15 +155,18 @@ export type TAdminCreateUserRequest = {
   email?: string;
   phone?: string;
   password?: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'OPERATOR' | 'ADMIN';
 };
 
 export type TAdminCreateUserResponse = {
   user: { id: string; name: string; email: string; phone: string; role: string };
 };
 
-/** `POST|DELETE /api/admin/roles/ADMIN/members`: make a user an admin, or a regular user again. */
-export type TAdminSetUserRoleRequest = { userId: string; admin: boolean };
+/**
+ * `POST /api/admin/roles/:role/members`: set a user's system grade
+ * (USER, OPERATOR or ADMIN). Replaces the previous binary admin flag.
+ */
+export type TAdminSetUserRoleRequest = { userId: string; role: 'USER' | 'OPERATOR' | 'ADMIN' };
 
 /** `PATCH /api/admin/users/:id/model-access` */
 export type TAdminModelAccessRequest = {

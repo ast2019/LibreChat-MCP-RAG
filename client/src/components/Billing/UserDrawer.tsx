@@ -1,11 +1,11 @@
-import { ChartPie, ShieldCheck, ShieldOff, WalletCards } from 'lucide-react';
 import { ACCESS_CLASSES, SystemRoles } from 'librechat-data-provider';
+import { ChartPie, ShieldCheck, ShieldOff, WalletCards } from 'lucide-react';
 import { Button, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
 import type { TAdminBillingPack, TAdminBillingUser } from 'librechat-data-provider';
-import type { CurrencyConfig } from '~/utils';
 import type { UserAction } from './UserActions';
-import { Money, UsageCell } from './parts';
+import type { CurrencyConfig } from '~/utils';
 import AccessControl from './AccessControl';
+import { Money, UsageCell } from './parts';
 import { useLocalize } from '~/hooks';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -27,6 +27,7 @@ export default function UserDrawer({
   packs,
   currency,
   isSelf,
+  canChangeRole = true,
   onAction,
   onClose,
 }: {
@@ -35,12 +36,20 @@ export default function UserDrawer({
   currency?: CurrencyConfig;
   /** The signed-in admin's own row: their role cannot be changed from here. */
   isSelf: boolean;
+  /** Only full admins may change system grades. */
+  canChangeRole?: boolean;
   onAction: (action: UserAction, user: TAdminBillingUser) => void;
   onClose: () => void;
 }) {
   const localize = useLocalize();
   const name = user ? user.name || user.username || user.email || user.phone || '—' : '';
   const isAdmin = user?.role === SystemRoles.ADMIN;
+  const roleLabel =
+    user?.role === SystemRoles.ADMIN
+      ? 'com_admin_role_admin'
+      : user?.role === SystemRoles.OPERATOR
+        ? 'com_admin_role_operator'
+        : 'com_admin_role_user';
 
   return (
     <OGDialog open={user != null} onOpenChange={(open) => !open && onClose()}>
@@ -55,9 +64,7 @@ export default function UserDrawer({
               <OGDialogTitle className="text-lg font-semibold" dir="auto">
                 {name}
               </OGDialogTitle>
-              <p className="text-text-secondary mt-1 text-xs">
-                {isAdmin ? localize('com_admin_role_admin') : localize('com_admin_role_user')}
-              </p>
+              <p className="text-text-secondary mt-1 text-xs">{localize(roleLabel)}</p>
               {user.email && (
                 <p className="text-text-secondary truncate text-sm" dir="ltr">
                   <bdi>{user.email}</bdi>
@@ -126,23 +133,23 @@ export default function UserDrawer({
               </div>
             </Section>
 
-            <Section title={localize('com_admin_drawer_role')}>
-              <Button
-                size="compact"
-                variant="outline"
-                disabled={isSelf}
-                onClick={() => onAction('role', user)}
-              >
-                {isAdmin ? (
-                  <ShieldOff className="me-1.5 size-4" aria-hidden="true" />
-                ) : (
-                  <ShieldCheck className="me-1.5 size-4" aria-hidden="true" />
-                )}
-                {isSelf
-                  ? localize('com_admin_role_self')
-                  : localize(isAdmin ? 'com_admin_role_demote' : 'com_admin_role_promote')}
-              </Button>
-            </Section>
+            {canChangeRole && (
+              <Section title={localize('com_admin_drawer_role')}>
+                <Button
+                  size="compact"
+                  variant="outline"
+                  disabled={isSelf}
+                  onClick={() => onAction('role', user)}
+                >
+                  {isAdmin || user.role === SystemRoles.OPERATOR ? (
+                    <ShieldOff className="me-1.5 size-4" aria-hidden="true" />
+                  ) : (
+                    <ShieldCheck className="me-1.5 size-4" aria-hidden="true" />
+                  )}
+                  {isSelf ? localize('com_admin_role_self') : localize('com_admin_role_change')}
+                </Button>
+              </Section>
+            )}
           </div>
         )}
       </OGDialogContent>

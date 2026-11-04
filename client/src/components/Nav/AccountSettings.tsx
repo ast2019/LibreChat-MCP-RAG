@@ -3,7 +3,7 @@ import { useSetAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
 import { useNavigate } from 'react-router-dom';
-import { SystemRoles } from 'librechat-data-provider';
+import { isAdminPanelRole } from 'librechat-data-provider';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
@@ -211,7 +211,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <Files className="icon-md" aria-hidden="true" />
           {localize('com_nav_my_files')}
         </Menu.MenuItem>
-        {user?.role === SystemRoles.ADMIN && (
+        {isAdminPanelRole(user?.role) && (
           <Menu.MenuItem
             onClick={() => navigate('/admin')}
             className="select-item text-sm"

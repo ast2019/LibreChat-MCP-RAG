@@ -4,6 +4,7 @@ import type { RegisterSWOptions } from 'vite-plugin-pwa/types';
 import UpdatePrompt from '../Update';
 
 const mockUpdateServiceWorker = jest.fn((_reload?: boolean) => Promise.resolve());
+const mockRefetch = jest.fn(() => Promise.resolve({}));
 const mockRegister: { options?: RegisterSWOptions; needRefresh: boolean } = {
   needRefresh: true,
 };
@@ -20,11 +21,27 @@ jest.mock('virtual:pwa-register/react', () => {
   };
 });
 
+jest.mock('~/data-provider', () => ({
+  useGetStartupConfig: () => ({
+    data: {
+      appVersion: '0.37.0',
+      changelog: [{ version: '0.37.0', highlights: ['Code Interpreter on login'] }],
+    },
+    refetch: mockRefetch,
+  }),
+}));
+
+jest.mock('~/hooks', () => ({
+  useLocalize: () => (key: string, vars?: Record<string, string>) =>
+    vars?.[0] != null ? `${key}:${vars[0]}` : key,
+}));
+
 describe('UpdatePrompt', () => {
   beforeEach(() => {
     mockRegister.needRefresh = true;
     mockRegister.options = undefined;
     mockUpdateServiceWorker.mockClear();
+    mockRefetch.mockClear();
   });
 
   it('renders nothing while no new worker is waiting', () => {
@@ -33,11 +50,13 @@ describe('UpdatePrompt', () => {
     expect(screen.queryByTestId('pwa-update-banner')).not.toBeInTheDocument();
   });
 
-  it('announces a waiting worker and activates it on request', async () => {
+  it('announces a waiting worker with the version and activates it on request', async () => {
     render(<UpdatePrompt />);
 
     const banner = screen.getByTestId('pwa-update-banner');
     expect(banner).toHaveAttribute('role', 'status');
+    expect(banner).toHaveTextContent('com_pwa_update_ready_version:0.37.0');
+    expect(screen.getByTestId('pwa-update-notes')).toHaveTextContent('Code Interpreter on login');
 
     await userEvent.click(screen.getByTestId('pwa-update-action'));
 

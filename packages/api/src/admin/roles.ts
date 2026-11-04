@@ -1097,10 +1097,7 @@ export function createAdminRolesHandlers(deps: AdminRolesDeps): {
         return res.status(400).json({ error: 'Invalid user ID format' });
       }
 
-      if (isSystemRoleName(name) && name !== SystemRoles.ADMIN) {
-        return res.status(403).json({ error: 'Cannot directly assign members to a system role' });
-      }
-
+      /** System grades (USER, OPERATOR, ADMIN) and custom roles are assignable. */
       const existing = await getRoleByName(name);
       if (!existing) {
         return res.status(404).json({ error: 'Role not found' });
@@ -1184,8 +1181,9 @@ export function createAdminRolesHandlers(deps: AdminRolesDeps): {
         return res.status(400).json({ error: 'Invalid user ID format' });
       }
 
-      if (isSystemRoleName(name) && name !== SystemRoles.ADMIN) {
-        return res.status(403).json({ error: 'Cannot remove members from a system role' });
+      /** Removing from USER is meaningless; OPERATOR and ADMIN demote to USER. */
+      if (name === SystemRoles.USER) {
+        return res.status(400).json({ error: 'Cannot remove members from the default user role' });
       }
 
       const existing = await getRoleByName(name);

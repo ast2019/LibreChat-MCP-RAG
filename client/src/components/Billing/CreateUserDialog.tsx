@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { SystemRoles } from 'librechat-data-provider';
 import {
   Input,
@@ -12,9 +12,9 @@ import {
 import type { TAdminCreateUserRequest } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 import { useAdminCreateUserMutation } from '~/data-provider';
-import { useLocalize } from '~/hooks';
-import { cn } from '~/utils';
+import { useAuthContext, useLocalize } from '~/hooks';
 import GiftNote from './GiftNote';
+import { cn } from '~/utils';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -72,6 +72,7 @@ export default function CreateUserDialog({
   onClose: () => void;
 }) {
   const localize = useLocalize();
+  const { user: currentUser } = useAuthContext();
   const { showToast } = useToastContext();
   const create = useAdminCreateUserMutation();
   const [name, setName] = useState('');
@@ -80,6 +81,7 @@ export default function CreateUserDialog({
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<TAdminCreateUserRequest['role']>(SystemRoles.USER);
   const [error, setError] = useState<TranslationKeys | null>(null);
+  const canCreateAdmin = currentUser?.role === SystemRoles.ADMIN;
 
   const hasEmail = email.trim() !== '';
   const hasPhone = phone.trim() !== '';
@@ -106,7 +108,9 @@ export default function CreateUserDialog({
           message: localize(
             role === SystemRoles.ADMIN
               ? 'com_admin_create_user_success_admin'
-              : 'com_admin_create_user_success',
+              : role === SystemRoles.OPERATOR
+                ? 'com_admin_create_user_success_operator'
+                : 'com_admin_create_user_success',
           ),
         });
         onClose();
@@ -122,18 +126,32 @@ export default function CreateUserDialog({
     value: TAdminCreateUserRequest['role'];
     label: TranslationKeys;
     hint: TranslationKeys;
-  }[] = [
-    {
-      value: SystemRoles.USER,
-      label: 'com_admin_role_user',
-      hint: 'com_admin_role_user_hint',
-    },
-    {
-      value: SystemRoles.ADMIN,
-      label: 'com_admin_role_admin',
-      hint: 'com_admin_role_admin_hint',
-    },
-  ];
+  }[] = useMemo(() => {
+    const options: {
+      value: TAdminCreateUserRequest['role'];
+      label: TranslationKeys;
+      hint: TranslationKeys;
+    }[] = [
+      {
+        value: SystemRoles.USER,
+        label: 'com_admin_role_user',
+        hint: 'com_admin_role_user_hint',
+      },
+      {
+        value: SystemRoles.OPERATOR,
+        label: 'com_admin_role_operator',
+        hint: 'com_admin_role_operator_hint',
+      },
+    ];
+    if (canCreateAdmin) {
+      options.push({
+        value: SystemRoles.ADMIN,
+        label: 'com_admin_role_admin',
+        hint: 'com_admin_role_admin_hint',
+      });
+    }
+    return options;
+  }, [canCreateAdmin]);
 
   return (
     <OGDialog open={open} onOpenChange={(next) => !next && onClose()}>

@@ -273,7 +273,7 @@ describe('AdminView', () => {
     expect(within(row).queryByRole('button', { name: 'Add credit' })).not.toBeInTheDocument();
     await userEvent.click(within(row).getByRole('button', { name: 'Actions for Sara' }));
     expect(await screen.findByRole('menuitem', { name: 'Usage' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Make admin' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Change role' })).toBeInTheDocument();
   });
 
   it('tells admins about the welcome gift new accounts get', () => {
@@ -310,7 +310,7 @@ describe('AdminView', () => {
     expect(drawer).toHaveTextContent('Pack and credit');
     expect(drawer).toHaveTextContent('Starter');
     expect(within(drawer).getByTestId('model-access-local-u1')).toBeInTheDocument();
-    expect(within(drawer).getByRole('button', { name: 'Make admin' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
   });
 
   it('lists only the access a user has now, without a control in the row', () => {
@@ -470,15 +470,22 @@ describe('AdminView', () => {
     );
   });
 
-  it('makes a user an admin after confirming', async () => {
+  it('makes a user an admin after choosing the admin grade', async () => {
     renderView('/admin?tab=users');
-    await openRowAction('Make admin');
+    await openRowAction('Change role');
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Make admin' }));
+    await userEvent.click(within(dialog).getByRole('radio', { name: /Admin/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save role' }));
     expect(mockSetRoleMutate).toHaveBeenCalledWith(
-      { userId: 'u1', admin: true },
+      { userId: 'u1', role: 'ADMIN' },
       expect.any(Object),
     );
+  });
+
+  it('lets an operator open the admin panel', () => {
+    mockRole = 'OPERATOR';
+    renderView();
+    expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
   });
 
   it('grants a pack from the dialog', async () => {

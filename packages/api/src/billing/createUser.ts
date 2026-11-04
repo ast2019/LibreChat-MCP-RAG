@@ -113,8 +113,12 @@ export function parseAdminCreateUser(
   }
 
   const role = source.role ?? SystemRoles.USER;
-  if (role !== SystemRoles.USER && role !== SystemRoles.ADMIN) {
-    return { ok: false, ...invalid('invalid_role', 'Role must be USER or ADMIN') };
+  if (
+    role !== SystemRoles.USER &&
+    role !== SystemRoles.OPERATOR &&
+    role !== SystemRoles.ADMIN
+  ) {
+    return { ok: false, ...invalid('invalid_role', 'Role must be USER, OPERATOR or ADMIN') };
   }
 
   return {
