@@ -235,6 +235,12 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Boolean,
       default: undefined,
     },
+    /** Per-user grant (`true`) or denial (`false`) of Attached VM pairing; unset denies.
+     *  Admins always have it. Packs do not grant this. */
+    attachVmAccess: {
+      type: Boolean,
+      default: undefined,
+    },
     /** The current balance pack, copied from the balance on each grant, so the pack's `grants`
      *  travel on the loaded user. Unset for a user never granted a pack. */
     packId: {

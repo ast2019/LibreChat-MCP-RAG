@@ -56,6 +56,103 @@ function EnvironmentStatus({ environmentId }: { environmentId: string }) {
   );
 }
 
+const INSTALL_SCRIPT_URL =
+  'https://raw.githubusercontent.com/ast2019/LibreChat-MCP-RAG/main/deploy/code-worker/install-host.sh';
+
+const HOST_PREP_COMMAND = `export INSTALL_DOCKER=1
+curl -fsSL ${INSTALL_SCRIPT_URL} -o /tmp/install-host.sh
+chmod +x /tmp/install-host.sh
+bash /tmp/install-host.sh`;
+
+const SYSTEMD_UNIT = `[Unit]
+Description=HiveGPT attached code worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_LINUX_USER
+Group=YOUR_LINUX_USER
+WorkingDirectory=/srv/code-workspaces
+Environment=HOME=/home/YOUR_LINUX_USER
+Environment=NODE_ENV=production
+Environment=LIBRECHAT_CODE_WORKER_ID=YOUR_WORKER_ID
+ExecStart=/usr/bin/librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands --command-policy-preset trusted-vm
+Restart=always
+RestartSec=5s
+TimeoutStopSec=35s
+KillMode=control-group
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target`;
+
+const SYSTEMD_ENABLE = `sudo tee /etc/systemd/system/librechat-code.service >/dev/null <<'EOF'
+${SYSTEMD_UNIT}
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now librechat-code.service
+sudo systemctl status librechat-code.service --no-pager`;
+
+function CopyBlock({
+  title,
+  description,
+  command,
+}: {
+  title: string;
+  description: string;
+  command: string;
+}) {
+  const { showToast } = useToastContext();
+  const localize = useLocalize();
+  return (
+    <div className="border-border-medium bg-surface-secondary flex flex-col gap-2 rounded-lg border p-3">
+      <p className="text-text-primary text-sm font-medium">{title}</p>
+      <p className="text-text-secondary text-xs">{description}</p>
+      <pre className="bg-surface-tertiary text-text-primary overflow-x-auto rounded-md p-3 text-xs break-all whitespace-pre-wrap">
+        {command}
+      </pre>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(command);
+            showToast({ message: localize('com_ui_copied_to_clipboard'), status: 'success' });
+          } catch {
+            showToast({ message: localize('com_ui_copy_failed'), status: 'error' });
+          }
+        }}
+      >
+        {localize('com_ui_copy_to_clipboard')}
+      </Button>
+    </div>
+  );
+}
+
+function InstallGuide() {
+  const localize = useLocalize();
+  return (
+    <div className="flex flex-col gap-3" data-testid="code-environment-install-guide">
+      <p className="text-text-secondary text-xs">{localize('com_ui_code_environment_install_intro')}</p>
+      <CopyBlock
+        title={localize('com_ui_code_environment_install_step1_title')}
+        description={localize('com_ui_code_environment_install_step1_body')}
+        command={HOST_PREP_COMMAND}
+      />
+      <p className="text-text-secondary text-xs">{localize('com_ui_code_environment_install_step2')}</p>
+      <CopyBlock
+        title={localize('com_ui_code_environment_install_step4_title')}
+        description={localize('com_ui_code_environment_install_step4_body')}
+        command={SYSTEMD_ENABLE}
+      />
+    </div>
+  );
+}
+
 function WorkerCommand({ pairing }: { pairing: CodeEnvironmentPairingResponse['pairing'] }) {
   const { showToast } = useToastContext();
   const localize = useLocalize();
@@ -324,6 +421,8 @@ export default function CodeEnvironments() {
           </p>
         )}
       </div>
+
+      {controlPlanes.length > 0 && <InstallGuide />}
 
       {pairingControls}
 

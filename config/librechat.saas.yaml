@@ -516,7 +516,7 @@ endpoints:
         - id: personal-workers
           name: ماشین شخصی (Attached VM)
           type: attached
-          baseURL: 'https://code.aichat.hivelink.co/v1'
+          baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}'
           owner: deployment
           configSchema:
             limits:
@@ -526,7 +526,7 @@ endpoints:
                 allowed: [allow, ask, deny]
                 default: ask
               commandExecution:
-                allowed: [ask, deny]
+                allowed: [allow, ask, deny]
                 default: ask
           pairing:
             allowPrincipalWorkers: true

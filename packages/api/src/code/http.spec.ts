@@ -167,14 +167,14 @@ describe('code environment HTTP handlers', () => {
     await Promise.all([
       handlers.status(
         {
-          user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+          user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
           params: { environmentId: 'personal-vm' },
         } as never,
         res as never,
       ),
       handlers.status(
         {
-          user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+          user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
           params: { environmentId: 'personal-vm' },
         } as never,
         coalescedRes as never,
@@ -223,7 +223,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.status(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         params: { environmentId: 'another-users-vm' },
       } as never,
       res as never,
@@ -278,12 +278,12 @@ describe('code environment HTTP handlers', () => {
     const res = response();
 
     await handlers.list(
-      { user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' } } as never,
+      { user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true } } as never,
       res as never,
     );
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ environments: [], controlPlanes: [] });
+    expect(res.body).toEqual({ environments: [], controlPlanes: [], attachVmAccess: true });
     expect(listAccessibleDetails).toHaveBeenCalledTimes(1);
     expect(resolvePrincipals).toHaveBeenCalledTimes(1);
     expect(listAccessibleDetails).toHaveBeenCalledWith(
@@ -325,7 +325,7 @@ describe('code environment HTTP handlers', () => {
       res as never,
     );
 
-    expect(res.body).toEqual({ environments: [], controlPlanes: [] });
+    expect(res.body).toEqual({ environments: [], controlPlanes: [], attachVmAccess: false });
     expect(getAppConfig).toHaveBeenCalledWith({
       role: 'USER',
       userId: '68b2f0c498f24c1e78fa0001',
@@ -345,7 +345,7 @@ describe('code environment HTTP handlers', () => {
     const res = response();
 
     await handlers.register(
-      { user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' }, body: null } as never,
+      { user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true }, body: null } as never,
       res as never,
     );
 
@@ -414,7 +414,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.updateSettings(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         params: { environmentId: 'personal-vm' },
         body: { settings: { permissions: { fileWrite: 'allow' } } },
       } as never,
@@ -523,7 +523,7 @@ describe('code environment HTTP handlers', () => {
         fetchImpl,
       });
       const req = {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: {
           name: 'Personal VM',
           controlPlaneId: 'shared-code-api',
@@ -545,6 +545,7 @@ describe('code environment HTTP handlers', () => {
         expect(discovery.body).toEqual({
           environments: [{ id: 'existing-machine' }],
           controlPlanes: [],
+          attachVmAccess: true,
         });
         return;
       }
@@ -646,7 +647,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -694,7 +695,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -768,7 +769,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -847,7 +848,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -913,7 +914,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -939,7 +940,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -987,7 +988,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', tenantId: 'tenant-1' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', tenantId: 'tenant-1', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -1020,7 +1021,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -1099,7 +1100,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -1129,7 +1130,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -1171,7 +1172,7 @@ describe('code environment HTTP handlers', () => {
       createEnvironmentId: () => 'personal-vm',
     });
     const req = {
-      user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+      user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
       body: {
         name: 'Personal VM',
         controlPlaneId: 'shared-code-api',
@@ -1237,7 +1238,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.register(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -1282,7 +1283,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.register(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'Personal VM', controlPlaneId: 'shared-code-api' },
       } as never,
       res as never,
@@ -1368,7 +1369,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.pair(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         body: { name: 'x'.repeat(101), controlPlaneId: 'self-service' },
       } as never,
       res as never,
@@ -1434,7 +1435,7 @@ describe('code environment HTTP handlers', () => {
 
     await handlers.remove(
       {
-        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER' },
+        user: { id: '68b2f0c498f24c1e78fa0001', role: 'USER', attachVmAccess: true },
         params: { environmentId: 'code-generated' },
       } as never,
       res as never,

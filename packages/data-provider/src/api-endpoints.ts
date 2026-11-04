@@ -570,6 +570,9 @@ export const adminUserMediaAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/media-access`;
 export const adminUserBrowserAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/browser-access`;
+
+export const adminUserAttachVmAccess = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/attach-vm-access`;
 export const adminServer = () => `${BASE_URL}/api/admin/server`;
 /** The signed-in user's agent browser in one conversation */
 export const browserSession = (conversationId: string) =>
@@ -591,6 +594,7 @@ export const adminDebugTraces = (params: Record<string, unknown> = {}) =>
 export const adminDebugTrace = (traceId: string) =>
   `${adminDebug()}/traces/${encodeURIComponent(traceId)}`;
 export const adminDebugSystemLog = () => `${adminDebug()}/logs`;
+export const adminDebugShare = () => `${adminDebug()}/share`;
 export const adminUserApiAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/api-access`;
 export const adminUserModelAccess = (userId: string) =>

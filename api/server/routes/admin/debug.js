@@ -17,6 +17,7 @@ const requireReadConfigs = requireCapability(SystemCapabilities.READ_CONFIGS);
 const requireManageConfigs = requireCapability(SystemCapabilities.MANAGE_CONFIGS);
 
 const handlers = createDebugAdminHandlers({ debugMode, traces: debugTraces, getSystemLog });
+const { mintShare } = require('../debugShare');
 
 router.use(requireJwtAuth, requireAdminAccess);
 router.get('/', requireReadConfigs, handlers.getDebugMode);
@@ -25,5 +26,6 @@ router.get('/traces', requireReadConfigs, handlers.listTraces);
 router.delete('/traces', requireManageConfigs, handlers.clearTraces);
 router.get('/traces/:id', requireReadConfigs, handlers.getTrace);
 router.get('/logs', requireReadConfigs, handlers.getLogs);
+router.post('/share', requireManageConfigs, mintShare);
 
 module.exports = router;

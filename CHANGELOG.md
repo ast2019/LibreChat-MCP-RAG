@@ -7,6 +7,19 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.10] - 2026-11-04
+
+### Added
+- **Attached VM on the login compare table** (admin-granted Ubuntu machines for agents).
+- **Admin Attached VM access toggle** per user (default deny; ADMIN always allowed).
+- **In-Settings install guide** for Attached VM (host prep, Connect VM, systemd).
+- **AI debug share code** on the Admin Debug panel: short-lived sanitized snapshot URL
+  (`GET /api/debug/share/:code`). Browser log and existing debug mode/traces stay unchanged.
+
+### Changed
+- **Attached VM command permissions** may include `allow` (alongside ask/deny).
+- **`install-host.sh`** falls back to building `@librechat/code` from GitHub when npm 404s.
+
 ## [0.38.9] - 2026-11-04
 
 ### Fixed

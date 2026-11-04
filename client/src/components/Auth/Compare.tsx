@@ -18,6 +18,7 @@ import {
   Presentation,
   Clapperboard,
   KeyRound,
+  Monitor,
   MessageCircleQuestion,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -146,6 +147,14 @@ export const COMPARE_SECTIONS: CompareSection[] = [
         detail: 'com_auth_feature_api_body',
         ours: 'yes',
         others: 'some',
+      },
+      {
+        icon: Monitor,
+        title: 'com_auth_feature_attach_vm',
+        detail: 'com_auth_feature_attach_vm_body',
+        ours: 'yes',
+        others: 'no',
+        experimental: true,
       },
       {
         icon: MessageCircleQuestion,

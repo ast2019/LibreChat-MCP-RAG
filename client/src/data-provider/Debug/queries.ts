@@ -69,6 +69,13 @@ export const useAdminDebugSystemLogQuery = (
     { enabled, refetchInterval: live ? 5_000 : false, refetchOnWindowFocus: false, retry: false },
   );
 
+/** Mints a short-lived code an admin can paste to an AI for sanitized diagnostics. */
+export const useAdminDebugShareMutation = (): UseMutationResult<
+  import('librechat-data-provider').TDebugShareCreateResponse,
+  unknown,
+  import('librechat-data-provider').TDebugShareCreateRequest | void
+> => useMutation((body) => dataService.createAdminDebugShare(body ?? {}));
+
 export const useAdminClearDebugTracesMutation = (): UseMutationResult<
   { deleted: number },
   unknown,

@@ -95,6 +95,8 @@ export interface IUser extends Document {
   mediaAccess?: boolean;
   /** Per-user agent browser override; unset follows the pack. */
   browserAccess?: boolean;
+  /** Per-user Attached VM override; unset denies (admins always allowed). */
+  attachVmAccess?: boolean | null;
   /** Per-user grant (`true`) or denial (`false`) of local/private model specs; unset follows the role. */
   modelAccess?: TUserModelAccess;
   /** The current balance pack, copied from the balance on each grant; its `grants` apply. */

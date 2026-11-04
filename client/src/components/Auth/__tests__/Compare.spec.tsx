@@ -54,6 +54,15 @@ describe('CompareCard', () => {
     expect(screen.queryByRole('rowheader', { name: /^Code Interpreter/ })).toBeNull();
   });
 
+  it('lists Attached VM among the differences', () => {
+    render(<CompareCard appTitle="HiveGPT" />);
+    const row = screen.getByRole('rowheader', { name: /^Attached VM/ }).closest('tr');
+    const cells = within(row as HTMLElement).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent('Yes');
+    expect(cells[1]).toHaveTextContent('No');
+    expect(row?.closest('tbody')).toHaveTextContent('What sets us apart');
+  });
+
   it('lists the API for apps and coding tools among the differences', () => {
     render(<CompareCard appTitle="HiveGPT" />);
     const api = screen

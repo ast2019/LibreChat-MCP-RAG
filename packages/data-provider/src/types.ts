@@ -339,6 +339,7 @@ export type TUser = {
   mediaAccess?: boolean;
   /** Per-user agent browser override; absent follows the pack. */
   browserAccess?: boolean;
+  attachVmAccess?: boolean;
   /** The current balance pack; its `grants` (in the startup config's packs) apply. */
   packId?: string;
   personalization?: {
@@ -634,6 +635,8 @@ export type TCodeControlPlane = {
 export type TCodeEnvironmentsResponse = {
   environments: TCodeEnvironmentSummary[];
   controlPlanes: TCodeControlPlane[];
+  /** Whether this user may create self-service Attached VM pairings. */
+  attachVmAccess?: boolean;
 };
 
 export type TCodeEnvironmentPairingResponse = {

@@ -22,6 +22,8 @@ import type {
   TAdminMediaAccessRequest,
   TAdminBrowserAccessRequest,
   TAdminBrowserAccessResponse,
+  TAdminAttachVmAccessRequest,
+  TAdminAttachVmAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -239,6 +241,13 @@ export function updateAdminUserBrowserAccess({
   return request.patch(endpoints.adminUserBrowserAccess(userId), { browserAccess });
 }
 
+export function updateAdminUserAttachVmAccess({
+  userId,
+  attachVmAccess,
+}: TAdminAttachVmAccessRequest): Promise<TAdminAttachVmAccessResponse> {
+  return request.patch(endpoints.adminUserAttachVmAccess(userId), { attachVmAccess });
+}
+
 export function getBrowserSession(conversationId: string): Promise<b.TBrowserSessionResponse> {
   return request.get(endpoints.browserSession(conversationId));
 }
@@ -302,6 +311,12 @@ export function clearAdminDebugTraces(): Promise<{ deleted: number }> {
 
 export function getAdminDebugSystemLog(): Promise<dbg.TDebugSystemLogResponse> {
   return request.get(endpoints.adminDebugSystemLog());
+}
+
+export function createAdminDebugShare(
+  body: dbg.TDebugShareCreateRequest = {},
+): Promise<dbg.TDebugShareCreateResponse> {
+  return request.post(endpoints.adminDebugShare(), body);
 }
 
 export function getInsightsAccess(): Promise<TInsightsAccessResponse> {

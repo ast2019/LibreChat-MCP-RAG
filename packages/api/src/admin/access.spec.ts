@@ -105,6 +105,9 @@ describe('createAdminBulkAccessHandler.updateBulkAccess', () => {
       saveBrowserAccess: jest.fn(async (id: string, value: boolean | null) =>
         id === userId ? { browserAccess: value ?? undefined } : null,
       ),
+      saveAttachVmAccess: jest.fn(async (id: string, value: boolean | null) =>
+        id === userId ? { attachVmAccess: value ?? undefined } : null,
+      ),
     };
   }
 
