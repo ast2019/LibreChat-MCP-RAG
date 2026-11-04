@@ -7,9 +7,21 @@ import { defineConfig } from 'tsdown';
 const require = createRequire(import.meta.url);
 const rootPkg = require('../../package.json');
 const pkg = require('./package.json');
-const hivegptVersion = fs
-  .readFileSync(path.resolve(import.meta.dirname, '../../VERSION'), 'utf8')
-  .trim();
+/** Repo-root `VERSION`. Multi-stage Docker only copies this package unless the
+ *  Dockerfile also places `VERSION` at `/app/VERSION` — fall back so the build
+ *  still completes when the file is absent. */
+function readHivegptVersion() {
+  try {
+    const text = fs.readFileSync(path.resolve(import.meta.dirname, '../../VERSION'), 'utf8').trim();
+    if (text) {
+      return text;
+    }
+  } catch {
+    /* missing in some Docker stages */
+  }
+  return '0.0.0';
+}
+const hivegptVersion = readHivegptVersion();
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/react-query/index.ts'],
