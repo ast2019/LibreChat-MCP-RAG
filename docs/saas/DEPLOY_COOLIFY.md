@@ -122,7 +122,7 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `ollama` | مدل داخلی | گزینهٔ «داخلی» کار نمی‌کند |
 | `browser` | مرورگر Agent (آزمایشی) | مرورگر باز نمی‌شود و «وضعیت سرور» عددی نشان نمی‌دهد |
 | `codeapi_bridge` + `code_bridge_queue` | Attached VM | اتصال ماشین شخصی کار نمی‌کند |
-| `codeapi` + `code_sandbox` | Code Interpreter (microVM، روی Coolify با `include` بالا نمی‌آید) | دکمهٔ Run Code کار نمی‌کند |
+| `codeapi` + `code_sandbox` | Code Interpreter (microVM). روی میزبان `/dev/kvm` لازم است | دکمهٔ Run Code کار نمی‌کند |
 
 ## سرویس‌ها
 
@@ -136,14 +136,14 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `ollama` | مدل داخلی `gemma3:4b` (به نام `hivegpt-local`) برای چت «داخلی (کاملاً محرمانه)». حدود ۴ تا ۵ گیگابایت RAM هنگام استفاده؛ بعد از ۳۰ دقیقه بی‌کاری از حافظه خارج می‌شود | `ollama-models` |
 | `browser` | مرورگر Agent (آزمایشی): برای هر جلسه یک Chromium جدا پشت پراکسی خودش، که صفحه فقط به نشانی‌های عمومی اینترنت روی پورت ۸۰ و ۴۴۳ برسد. حدود ۳۰۰ تا ۵۰۰ مگابایت RAM برای هر مرورگر باز | — |
 | `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید: `https://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است). ابر آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند | `code-redis-data`، `code-minio-data` |
-| `codeapi` و `code_sandbox` | Code Interpreter (microVM). Coolify دستور `include` را نادیده می‌گیرد، پس این دو روی Coolify بالا نمی‌آیند و به `/dev/kvm` نیاز دارند. دامنه ندهید | — |
+| `codeapi` و `code_sandbox` | Code Interpreter (microVM) داخل `docker-compose.yml`. به `/dev/kvm` نیاز دارد. دامنه ندهید | — |
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
 
 ## Code Interpreter
 
-- پل Attached VM (`codeapi_bridge`) داخل خود `docker-compose.yml` است، چون Coolify بخش `include` را موقع ساخت سرویس‌ها دور می‌ریزد و قبلاً برای همین در صفحهٔ Domains دیده نمی‌شد.
-- microVM (`codeapi`، `code_sandbox`) هنوز با `include` از `deploy/code-interpreter/compose.yml` می‌آید و فقط روی `docker compose` محلی بالا می‌آید.
+- پل Attached VM و Code Interpreter هر دو داخل `docker-compose.yml` هستند. Coolify بخش `include` را دور می‌ریزد، برای همین قبلاً هیچ‌کدام در لیست سرویس‌ها نبودند.
+- `code_sandbox` دستگاه `/dev/kvm` را لازم دارد. قبل از Redeploy روی سرور Coolify `ls /dev/kvm` را بزنید. اگر این فایل نباشد، ساخت کانتینر شکست می‌خورد و Coolify کل دیپلوی را ناموفق نشان می‌دهد.
 - `api` به `LIBRECHAT_CODE_BASEURL` (پیش‌فرض `http://codeapi:3112/v1`) وصل است. `interface.runCode` و قابلیت `execute_code` در `config/librechat.saas.yaml` روشن‌اند و model specها `executeCode: true` دارند.
 - روی میزبان `/dev/kvm` لازم است. به `codeapi` / `code_sandbox` دامنه ندهید.
 - بررسی: `docker compose exec api wget -qO- http://codeapi:3112/v1/health` و یک بلاک Python با دکمهٔ Run Code.

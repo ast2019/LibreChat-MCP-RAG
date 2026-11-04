@@ -13,7 +13,7 @@
 
 ## پیش‌نیاز
 
-1. سرویس **`codeapi_bridge`** در `docker-compose.yml` باشد (Coolify فایل `include` را نمی‌بیند) و healthy شود.
+1. سرویس **`codeapi_bridge`** در `docker-compose.yml` باشد (Coolify فایل `include` را نمی‌بیند) و healthy شود. Code Interpreter (`codeapi`، `code_sandbox`) هم در همین فایل است و به `/dev/kvm` نیاز دارد.
 2. در Coolify فقط برای `codeapi_bridge` دامنه بگذارید: `https://code.aichat.hivelink.co:3114`. پورت ۳۱۱۴ داخل کانتینر است. ابر آروان به پورت ۸۰ آی‌پی سرور Coolify فوروارد می‌کند، نه به ۳۱۱۴ و نه به آی‌پی ماشین worker.
 3. `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است. `CODE_BRIDGE_ADMIN_TOKEN` از `SERVICE_HEX_64_CODEBRIDGE` می‌آید و Coolify آن را می‌سازد.
 4. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است و حالت احراز هویت `paired` است. آن را `true` نکنید وگرنه API روی اینترنت بدون احراز هویت می‌ماند.
