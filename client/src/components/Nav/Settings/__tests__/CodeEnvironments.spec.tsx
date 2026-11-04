@@ -12,6 +12,20 @@ let mockStatusQuery: {
     runtimes?: string[];
   };
 };
+let mockEnvironmentsData: {
+  isLoading: boolean;
+  isError: boolean;
+  data: {
+    controlPlanes: unknown[];
+    environments: Array<{
+      resourceId: string;
+      id: string;
+      name: string;
+      type: string;
+      canDelete: boolean;
+    }>;
+  };
+};
 
 jest.mock('@librechat/client', () => ({
   ...jest.requireActual('@librechat/client'),
@@ -23,31 +37,39 @@ jest.mock('~/hooks', () => ({
 }));
 
 jest.mock('~/data-provider', () => ({
-  useCodeEnvironmentsQuery: () => ({
-    isLoading: false,
-    isError: false,
-    data: {
-      controlPlanes: [],
-      environments: [
-        {
-          resourceId: 'resource-1',
-          id: 'personal-vm',
-          name: 'Personal VM',
-          type: 'attached',
-          canDelete: false,
-        },
-      ],
-    },
-  }),
+  useCodeEnvironmentsQuery: () => mockEnvironmentsData,
   useCodeEnvironmentStatusQuery: () => mockStatusQuery,
   usePairCodeEnvironmentMutation: () => ({ mutate: mockMutate, isLoading: false }),
   useDeleteCodeEnvironmentMutation: () => ({ mutate: mockMutate, isLoading: false }),
   useUpdateCodeEnvironmentSettingsMutation: () => ({ mutate: mockMutate, isLoading: false }),
 }));
 
+const personalVm = {
+  resourceId: 'resource-1',
+  id: 'personal-vm',
+  name: 'Personal VM',
+  type: 'attached',
+  canDelete: false,
+};
+
 describe('CodeEnvironments status', () => {
   beforeEach(() => {
     mockStatusQuery = { isLoading: true, isError: false };
+    mockEnvironmentsData = {
+      isLoading: false,
+      isError: false,
+      data: { controlPlanes: [], environments: [personalVm] },
+    };
+  });
+
+  test('hides the row when self-service pairing is off and the user has no machines', () => {
+    mockEnvironmentsData = {
+      isLoading: false,
+      isError: false,
+      data: { controlPlanes: [], environments: [] },
+    };
+    const { container } = render(<CodeEnvironments />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   test('shows status discovery while the worker is being checked', () => {

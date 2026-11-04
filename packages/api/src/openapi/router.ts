@@ -19,7 +19,7 @@ export interface OpenApiRouterDeps {
 const SPEC_PATH = path.join(__dirname, 'agents.openapi.json');
 
 /**
- * URLs are computed in the browser from the current path, so the docs work whether LibreChat
+ * URLs are computed in the browser from the current path, so the docs work whether HiveGPT
  * is served at the origin root or under a base path (e.g. `/chat`) that a proxy strips.
  */
 const DOCS_HTML = `<!DOCTYPE html>
@@ -27,7 +27,7 @@ const DOCS_HTML = `<!DOCTYPE html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LibreChat Agents API</title>
+    <title>HiveGPT Agents API</title>
     <script>
       window.addEventListener('DOMContentLoaded', function () {
         var apiBase = location.pathname.replace(/\\/+$/, '').replace(/\\/docs$/, '');
