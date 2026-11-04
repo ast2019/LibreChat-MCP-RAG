@@ -1,4 +1,4 @@
-# Code Interpreter services now live in the root docker-compose.yml
-# (codeapi, code_worker, code_sandbox, plus the Attached VM bridge).
-# Coolify drops Compose `include`, so a file in this directory never started.
-# Do not give codeapi or code_sandbox a public domain. code_sandbox needs /dev/kvm.
+# The microVM Code Interpreter is not deployed on the Coolify host.
+# codeapi, code_worker and code_sandbox need /dev/kvm, and that device is not
+# granted on the server that holds the database. Coding uses the Attached VM
+# bridge in the root docker-compose.yml (codeapi_bridge). See docs/saas/ATTACHED_VM.md.

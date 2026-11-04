@@ -49,13 +49,9 @@ describe('CompareCard', () => {
     expect(ask?.closest('tbody')).toHaveTextContent('What sets us apart');
   });
 
-  it('lists Code Interpreter among the differences', () => {
+  it('does not advertise the microVM Code Interpreter', () => {
     render(<CompareCard appTitle="HiveGPT" />);
-    const code = screen.getByRole('rowheader', { name: /^Code Interpreter/ }).closest('tr');
-    const cells = within(code as HTMLElement).getAllByRole('cell');
-    expect(cells[0]).toHaveTextContent('Yes');
-    expect(cells[1]).toHaveTextContent('Some');
-    expect(code?.closest('tbody')).toHaveTextContent('What sets us apart');
+    expect(screen.queryByRole('rowheader', { name: /^Code Interpreter/ })).toBeNull();
   });
 
   it('lists the API for apps and coding tools among the differences', () => {

@@ -3,7 +3,7 @@
 ## پیش‌نیاز
 
 - **سرور:** حداقل ۴ هسته و **۸ گیگابایت RAM** (با مدل داخلی، **۱۲ گیگابایت** پیشنهاد می‌شود؛ با Code Interpreter حدود **۲ تا ۴ گیگابایت** بیشتر کنار بگذارید). بیلد فرانت‌اند به حدود ۶ گیگابایت حافظه نیاز دارد. اگر RAM کمتری دارید، متغیر `NODE_MAX_OLD_SPACE_SIZE` را کم کنید، یا image را روی سرور دیگری بسازید و فقط اجرا را روی Coolify انجام دهید.
-- **Code Interpreter:** روی میزبان باید `/dev/kvm` باشد (nested virtualization روشن). بدون آن سرویس `code_sandbox` بالا نمی‌آید و دکمهٔ Run Code کار نمی‌کند. جزئیات در `deploy/code-interpreter/README.md`.
+- **Code Interpreter خاموش است.** قفس microVM و `/dev/kvm` روی این سرور استفاده نمی‌شود. کار کد با Attached VM انجام می‌شود.
 - **دامنه:** یک دامنه مثل `chat.example.com` که رکورد A آن به سرور Coolify اشاره کند.
 - **کلید OpenRouter:** از https://openrouter.ai/keys بسازید.
 
@@ -11,7 +11,7 @@
 
 1. **ساخت منبع:** در Coolify گزینه **New Resource → Public/Private Repository** را بزنید و این مخزن را انتخاب کنید. Branch را `main` بگذارید.
 2. **Build Pack:** گزینه **Docker Compose** را انتخاب کنید. مسیر فایل `/docker-compose.yml` است.
-3. **دامنه:** برای سرویس `api` دامنه را **بدون پورت** بگذارید: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد. تنها استثنا `codeapi_bridge` است: `https://code.aichat.hivelink.co:3114` (پورت کانتینر). فیلد دامنهٔ بقیه (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `codeapi`، `code_sandbox`) را **خالی بگذارید**. به‌خصوص `codeapi` را عمومی نکنید (`LOCAL_MODE`).
+3. **دامنه:** برای سرویس `api` دامنه را **بدون پورت** بگذارید: `https://chat.example.com`. اپ داخل کانتینر روی پورت ۸۰ گوش می‌دهد. تنها استثنا `codeapi_bridge` است: `https://code.aichat.hivelink.co:3114` (پورت کانتینر). فیلد دامنهٔ بقیه (`meilisearch`، `rag_api`، `searxng`، `ollama`، `browser`، `code_minio`، `code_file`، `code_tools`، `code_egress`، `code_bridge_queue`) را **خالی بگذارید**.
 4. **متغیرها:** در بخش **Environment Variables**:
    - `OPENROUTER_KEY` را وارد کنید. این تنها متغیر اجباری است و تا وارد نشود deploy انجام نمی‌شود.
    - همه `SERVICE_*`ها (رمزها، کلیدهای JWT، `CREDS_KEY`، رمز MongoDB و Meilisearch) را خود Coolify یک بار می‌سازد و نگه می‌دارد.
@@ -122,7 +122,6 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `ollama` | مدل داخلی | گزینهٔ «داخلی» کار نمی‌کند |
 | `browser` | مرورگر Agent (آزمایشی) | مرورگر باز نمی‌شود و «وضعیت سرور» عددی نشان نمی‌دهد |
 | `codeapi_bridge` + `code_bridge_queue` | Attached VM | اتصال ماشین شخصی کار نمی‌کند |
-| `codeapi` + `code_sandbox` | Code Interpreter (microVM). روی میزبان `/dev/kvm` لازم است | دکمهٔ Run Code کار نمی‌کند |
 
 ## سرویس‌ها
 
@@ -135,25 +134,19 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 | `searxng` | موتور جستجوی وب خصوصی، فقط داخلی | — |
 | `ollama` | مدل داخلی `gemma3:4b` (به نام `hivegpt-local`) برای چت «داخلی (کاملاً محرمانه)». حدود ۴ تا ۵ گیگابایت RAM هنگام استفاده؛ بعد از ۳۰ دقیقه بی‌کاری از حافظه خارج می‌شود | `ollama-models` |
 | `browser` | مرورگر Agent (آزمایشی): برای هر جلسه یک Chromium جدا پشت پراکسی خودش، که صفحه فقط به نشانی‌های عمومی اینترنت روی پورت ۸۰ و ۴۴۳ برسد. حدود ۳۰۰ تا ۵۰۰ مگابایت RAM برای هر مرورگر باز | — |
-| `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید: `https://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است). ابر آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند | `code-redis-data`، `code-minio-data` |
-| `codeapi` و `code_sandbox` | Code Interpreter (microVM) داخل `docker-compose.yml`. به `/dev/kvm` نیاز دارد. دامنه ندهید | — |
+| `codeapi_bridge` و `code_bridge_queue` | Attached VM. فقط به `codeapi_bridge` دامنه بدهید: `https://code.aichat.hivelink.co:3114` (پورت ۳۱۱۴ پورت داخل کانتینر است). ابر آروان همچنان به پورت ۸۰ سرور اصلی فوروارد می‌کند. `code_minio`، `code_file`، `code_tools` و `code_egress` کمکِ داخلی همین پل‌اند و دامنه نمی‌گیرند | `code-redis-data`، `code-minio-data` |
 
 **بکاپ:** در Coolify بخش **Persistent Storage** بکاپ volume `mongodb-data` را فعال کنید. موجودی و تراکنش‌های کاربران آنجاست.
 
 ## Code Interpreter
 
-- پل Attached VM و Code Interpreter هر دو داخل `docker-compose.yml` هستند. Coolify بخش `include` را دور می‌ریزد، برای همین قبلاً هیچ‌کدام در لیست سرویس‌ها نبودند.
-- `code_sandbox` دستگاه `/dev/kvm` را لازم دارد. قبل از Redeploy روی سرور Coolify `ls /dev/kvm` را بزنید. اگر این فایل نباشد، ساخت کانتینر شکست می‌خورد و Coolify کل دیپلوی را ناموفق نشان می‌دهد.
-- `api` به `LIBRECHAT_CODE_BASEURL` (پیش‌فرض `http://codeapi:3112/v1`) وصل است. `interface.runCode` و قابلیت `execute_code` در `config/librechat.saas.yaml` روشن‌اند و model specها `executeCode: true` دارند.
-- روی میزبان `/dev/kvm` لازم است. به `codeapi` / `code_sandbox` دامنه ندهید.
-- بررسی: `docker compose exec api wget -qO- http://codeapi:3112/v1/health` و یک بلاک Python با دکمهٔ Run Code.
-- جزئیات و سخت‌سازی بعدی (JWT به‌جای `LOCAL_MODE`): `deploy/code-interpreter/README.md`.
+قفس microVM روی این سرور خاموش است و `/dev/kvm` به هیچ کانتینری داده نمی‌شود. `interface.runCode` خاموش است و قابلیت `execute_code` در `config/librechat.saas.yaml` نیست. کار کد از راه Attached VM است.
 
 ## Attached VM (اختیاری)
 
 - سرویس‌های `codeapi_bridge` و `code_bridge_queue` برای وصل کردن Ubuntu VM با `@librechat/code` هستند و در compose اصلی تعریف شده‌اند تا Coolify فیلد دامنهٔ آن‌ها را نشان بدهد.
 - دامنه را فقط روی `codeapi_bridge` بگذارید: `https://code.aichat.hivelink.co:3114`. عدد ۳۱۱۴ را در ابر آروان و فایروال باز نکنید؛ آروان به پورت ۸۰ همان سرور Coolify فوروارد می‌کند.
-- `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است و بلوک `personal-workers` در `librechat.saas.yaml` روشن است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired). به `codeapi` و `code_sandbox` دامنه ندهید.
+- `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است و بلوک `personal-workers` در `librechat.saas.yaml` روشن است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired).
 - نصب worker: `deploy/code-worker/`. راهنمای کامل: [ATTACHED_VM.md](./ATTACHED_VM.md).
 
 ## مرورگر Agent (آزمایشی)
@@ -196,7 +189,7 @@ docker compose up -d --build
 | دکمهٔ passkey نیست | دامنه HTTPS نیست (`/api/config` مقدار `passkeyLoginEnabled: false` دارد)، `ALLOW_PASSKEY_LOGIN` خاموش است، یا مرورگر از کلید عبور پشتیبانی نمی‌کند |
 | مدل داخلی خیلی کند است | در لاگ `ollama` عدد `n_threads` را ببینید؛ باید برابر `LOCAL_MODEL_THREADS` باشد. بخش ESXi بالا را ببینید |
 | «داخلی» خطای model not found می‌دهد | دانلود و ساخت `hivegpt-local` هنوز تمام نشده؛ لاگ `ollama` را ببینید |
-| Run Code یا اجرای کد Agent کار نمی‌کند | `/dev/kvm` روی میزبان هست؟ لاگ `code_sandbox` و `codeapi` را ببینید. به آن‌ها دامنه نداده باشید. از داخل `api`: `wget -qO- http://codeapi:3112/v1/health` |
+| دکمهٔ Run Code نیست | عمدی است. قفس کد روی این سرور خاموش است. کار کد با Attached VM است |
 | قیمت‌ها با نرخ ثابت نشان داده می‌شوند | سرور به `call1.tgju.org` دسترسی ندارد؛ لاگ `api` را برای `[currency]` ببینید |
 
 ## صدا، ورود با موبایل، پرداخت و جستجو

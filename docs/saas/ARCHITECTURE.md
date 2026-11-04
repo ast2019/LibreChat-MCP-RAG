@@ -66,10 +66,9 @@ flowchart LR
 | `searxng` | ساخته از `deploy/searxng` | آخرین حلقه زنجیره جستجوی وب | — | — |
 | `ollama` | `ollama/ollama:latest` | مدل لوکال (`hivegpt-local`) و مدل لوکال بی‌سانسور | — | `ollama-models` |
 | `browser` | ساخته از `deploy/browser` | مرورگر Agent (آزمایشی) | — | — |
-| `codeapi` + `code_*` | ایمیج‌های GHCRی `librechat-ai/code-interpreter-*` | اجرای ایزولهٔ کد (Run Code / `execute_code`)؛ نیاز به `/dev/kvm` | Redis/MinIO داخلی همان استک | `code-redis-data`، `code-minio-data` |
-| `codeapi_bridge` + `code_bridge_queue` | همان ایمیج API/worker با `remote-bridge` | کنترل‌پلن Attached VM (`@librechat/code`)؛ بدون KVM | همان Redis/file/tools | — |
+| `codeapi_bridge` + `code_bridge_queue` | همان ایمیج API/worker با `remote-bridge` | کنترل‌پلن Attached VM. قفس microVM و `/dev/kvm` روی این سرور نیست | Redis/file/tools | `code-redis-data`، `code-minio-data` |
 
-- فقط `api` دامنه عمومی دارد و بقیه در شبکه داخلی stack هستند.
+- دامنهٔ عمومی مال `api` و، برای Attached VM، مال `codeapi_bridge` است. بقیه در شبکهٔ داخلی stack هستند.
 - Traefik در Coolify گواهی HTTPS را می‌گیرد. `TRUST_PROXY=1` است.
 - Redis در stack نیست. حالت فعلی برای **یک** نمونه `api` درست است (جزئیات در بخش ۴).
 
