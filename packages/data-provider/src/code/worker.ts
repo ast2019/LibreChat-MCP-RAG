@@ -7,6 +7,12 @@ export interface CodeWorkerRunOptions {
   defaultWorkspace?: boolean;
   allowWorkspaceWrites?: boolean;
   allowWorkspaceCommands?: boolean;
+  /**
+   * Attached VMs should pass `trusted-vm`: the VM boundary is the isolation, and
+   * the preset still keeps SRT's credential/socket protection. Omit for the
+   * default `restricted` personal-machine policy.
+   */
+  commandPolicyPreset?: string;
 }
 
 export function isCodeWorkerShell(value: string): value is CodeWorkerShell {
@@ -28,10 +34,15 @@ export function createCodeWorkerSetupCommand(
 ): string {
   const quote = shell === 'powershell' ? quotePowerShell : quotePosix;
   const pair = `librechat-code pair ${quote(pairing.endpoint)} ${quote(pairing.code)} --worker-id ${quote(pairing.workerId)}`;
+  const preset =
+    typeof options.commandPolicyPreset === 'string' && options.commandPolicyPreset.trim() !== ''
+      ? options.commandPolicyPreset.trim()
+      : null;
   const runArgs = [
     options.defaultWorkspace === false ? null : '--default-workspace',
     options.allowWorkspaceWrites === true ? '--allow-workspace-writes' : null,
     options.allowWorkspaceCommands === true ? '--allow-workspace-commands' : null,
+    preset == null ? null : `--command-policy-preset ${quote(preset)}`,
   ].filter((value): value is string => value != null);
   const run = ['librechat-code run', ...runArgs].join(' ');
 

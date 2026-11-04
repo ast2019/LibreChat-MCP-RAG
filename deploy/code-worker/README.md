@@ -35,6 +35,19 @@ INSTALL_DOCKER=1 bash install-host.sh
 
 Needs Node.js 22+, Git, bubblewrap, ripgrep, socat. Docker is optional for compose-based apps.
 
+The install script also clears Ubuntu 24.04+'s
+`kernel.apparmor_restrict_unprivileged_userns` restriction and probes `bwrap`.
+Without that, pairing works but every sandboxed command fails with
+`apply-seccomp: … setgroups … CAP_SYS_ADMIN`.
+
+Already paired and seeing that error? On the VM:
+
+```bash
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-librechat-code-userns.conf
+sudo systemctl restart librechat-code.service   # or restart your foreground worker
+```
+
 ## 3. Pair
 
 In HiveGPT (user with Run Code / code-environment access):
@@ -49,14 +62,29 @@ librechat-code pair "https://code.example.com/v1" '<one-time-code>'
 
 ## 4. Run the worker
 
-Foreground smoke test:
+Foreground smoke test (Attached VM policy):
 
 ```bash
-librechat-code start --environment /etc/librechat-code/environments/primary.yaml
+LIBRECHAT_CODE_WORKER_ID='<your-worker-id>' librechat-code run \
+  --default-workspace \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
 ```
 
-Production: run under systemd as the same OS user that paired (see upstream
-[worker runbook](https://github.com/LibreChat-AI/code-interpreter/blob/main/docs/remote-bridge/worker-runbook.md)).
+Or with an environment file:
+
+```bash
+librechat-code run \
+  --environment /etc/librechat-code/environments/primary.yaml \
+  --allow-workspace-writes \
+  --allow-workspace-commands \
+  --command-policy-preset trusted-vm
+```
+
+Production: run under systemd as the same OS user that paired. The Settings
+install guide already ships a unit with `trusted-vm`. See also upstream
+[worker runbook](https://github.com/LibreChat-AI/code-interpreter/blob/main/docs/remote-bridge/worker-runbook.md).
 
 ## 5. Use it like a cloud IDE agent
 
