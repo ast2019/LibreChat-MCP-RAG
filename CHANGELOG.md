@@ -7,6 +7,11 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.7] - 2026-11-04
+
+### Changed
+- **Code Interpreter microVM is off on the Coolify host.** `codeapi`, `code_worker` and `code_sandbox` are no longer deployed, so nothing mounts `/dev/kvm`. Run Code and the `execute_code` capability are off. Coding uses the Attached VM. The bridge file store no longer pulls `quay.io/minio/minio`, which rejects anonymous pulls; it uses `pgsty/silo` with the same MinIO API.
+
 ## [0.38.6] - 2026-11-04
 
 ### Fixed

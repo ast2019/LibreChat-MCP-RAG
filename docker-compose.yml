@@ -10,9 +10,9 @@
 # development uses `npm run backend:dev` / `npm run frontend:dev` (see README).
 #
 # Coolify rewrites this file and drops `include`, so every service it should run
-# is declared below. That includes the Attached VM bridge and the Code Interpreter
-# (codeapi, code_worker, code_sandbox). code_sandbox needs /dev/kvm on the host.
-# Do not give codeapi or code_sandbox a public domain. Only codeapi_bridge is public.
+# is declared below. The Attached VM bridge is here. The Code Interpreter microVM
+# (codeapi, code_worker, code_sandbox) is not: it needs /dev/kvm on this host, and
+# that device is not granted. Only codeapi_bridge gets a public domain.
 
 services:
   api:
@@ -78,9 +78,9 @@ services:
       BROWSER_SERVICE_URL: http://browser:3100
       BROWSER_SERVICE_TOKEN: ${SERVICE_HEX_64_BROWSER}
 
-      # Code Interpreter (internal only). LOCAL_MODE on codeapi trusts this Docker network;
-      # do not publish codeapi. Override to point at a remote Code API if you run it elsewhere.
-      LIBRECHAT_CODE_BASEURL: ${LIBRECHAT_CODE_BASEURL:-http://codeapi:3112/v1}
+      # Code Interpreter microVM is off on this host (no /dev/kvm). Leave this empty.
+      # Agent coding goes through the Attached VM bridge below.
+      LIBRECHAT_CODE_BASEURL: ${LIBRECHAT_CODE_BASEURL:-}
       # Public https origin of codeapi_bridge, including the /v1 prefix. Coolify still
       # needs the domain on that service (container port 3114). Arvan forwards to port 80.
       LIBRECHAT_CODE_BRIDGE_BASEURL: ${LIBRECHAT_CODE_BRIDGE_BASEURL:-https://code.aichat.hivelink.co/v1}
@@ -332,8 +332,8 @@ services:
   # the container port so the proxy does not assume port 80:
   #   https://code.aichat.hivelink.co:3114
   # Arvan (or any CDN) still forwards to port 80 of this server. Do not publish 3114.
-  # LOCAL_MODE defaults off: paired auth is the public gate. codeapi (microVM) is a
-  # different service and stays LOCAL_MODE on the Docker network only.
+  # LOCAL_MODE defaults off: paired auth is the public gate. The microVM sandbox
+  # is not part of this stack.
   code_redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -342,7 +342,9 @@ services:
       - code-redis-data:/data
 
   code_minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # quay.io/minio/minio answers unauthorized for anonymous pulls. Silo is the
+    # same server API and the same MINIO_* variables.
+    image: docker.io/pgsty/silo:RELEASE.2026-10-26T00-00-00Z
     restart: unless-stopped
     command: server /data --console-address ':9001'
     environment:
@@ -485,115 +487,6 @@ services:
         condition: service_started
       codeapi_bridge:
         condition: service_healthy
-
-  # Code Interpreter (Run Code). Same Coolify stack as the bridge: an included
-  # file never became a container. No public domain. code_sandbox needs /dev/kvm;
-  # without that device this container is not created and Coolify marks the
-  # deploy failed. Check `ls /dev/kvm` on the Coolify host before redeploying.
-  codeapi:
-    image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      LOCAL_MODE: ${CODEAPI_LOCAL_MODE:-true}
-      CODEAPI_HARDENED_SANDBOX_MODE: ${CODEAPI_HARDENED_SANDBOX_MODE:-true}
-      CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
-      REDIS_HOST: code_redis
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
-      SERVICE_PORT: 3112
-      SANDBOX_ENDPOINT: http://code_sandbox:2000/api/v2
-      EGRESS_GATEWAY_URL: http://code_egress:3190
-      FILE_SERVER_URL: http://code_file:3000
-      TOOL_CALL_SERVER_URL: http://code_tools:3033
-      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
-      CODEAPI_BRIDGE_AUTH_MODE: paired
-      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
-      CODEAPI_HTTP_JSON_LIMIT: 50mb
-    depends_on:
-      code_redis:
-        condition: service_started
-      code_tools:
-        condition: service_started
-    healthcheck:
-      test:
-        - CMD
-        - wget
-        - -qO-
-        - http://127.0.0.1:3112/v1/health
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
-
-  code_worker:
-    image: ghcr.io/librechat-ai/code-interpreter-worker:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    environment:
-      LOCAL_MODE: ${CODEAPI_LOCAL_MODE:-true}
-      CODEAPI_HARDENED_SANDBOX_MODE: ${CODEAPI_HARDENED_SANDBOX_MODE:-true}
-      CODEAPI_INTERNAL_SERVICE_TOKEN: ${SERVICE_HEX_64_CODEINTERNAL}
-      REDIS_HOST: code_redis
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ${SERVICE_PASSWORD_CODEREDIS}
-      SANDBOX_ENDPOINT: http://code_sandbox:2000/api/v2
-      EGRESS_GATEWAY_URL: http://code_egress:3190
-      CODEAPI_BRIDGE_TOKEN: ${SERVICE_HEX_64_CODEBRIDGE}
-      CODEAPI_BRIDGE_AUTH_MODE: paired
-      CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
-      # Dev-signed execution manifests shipped with the open-source compose; replace for a
-      # hardened multi-tenant deployment (see LibreChat-AI/code-interpreter README).
-      CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY: ${CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY:-MC4CAQAwBQYDK2VwBCIEIBoxzSJjQ5jTVyuohHtlD+uDGqv/tZ6hQS2CmxuOg2Wn}
-      PYTHON_CONCURRENCY: ${CODEAPI_PYTHON_CONCURRENCY:-1}
-      OTHER_CONCURRENCY: ${CODEAPI_OTHER_CONCURRENCY:-4}
-      WORKER_HEALTH_PORT: 3113
-    depends_on:
-      code_redis:
-        condition: service_started
-      code_sandbox:
-        condition: service_healthy
-
-  code_sandbox:
-    image: ghcr.io/librechat-ai/code-interpreter-sandbox-runner:${CODEAPI_IMAGE_TAG:-main}
-    restart: unless-stopped
-    pull_policy: ${CODEAPI_PULL_POLICY:-missing}
-    privileged: false
-    devices:
-      - ${CODEAPI_KVM_DEVICE:-/dev/kvm}:/dev/kvm
-    environment:
-      KVM_ENABLED: 'true'
-      LAUNCHER_PACKAGES_HOST: /disabled-host-packages
-      CODEAPI_HARDENED_SANDBOX_MODE: ${CODEAPI_HARDENED_SANDBOX_MODE:-true}
-      EGRESS_GATEWAY_URL: http://code_egress:3190
-      SANDBOX_EXECUTE_BODY_LIMIT: 50mb
-      SANDBOX_PACKAGES_DIRECTORY: /pkgs
-      SANDBOX_OUTPUT_MAX_SIZE: '65536'
-      SANDBOX_MAX_CONCURRENT_JOBS: ${CODEAPI_MAX_CONCURRENT_JOBS:-4}
-      SANDBOX_PER_JOB_UIDS: 'true'
-      SANDBOX_JOB_UID_BASE: '200000'
-      SANDBOX_JOB_GID_BASE: '200000'
-      SANDBOX_WORKSPACE_REAPER_MAX_AGE_SECONDS: '3600'
-      SANDBOX_RUN_TIMEOUT: '300000'
-      SANDBOX_RUN_CPU_TIME: '300000'
-      SANDBOX_COMPILE_TIMEOUT: '30000'
-      LAUNCHER_VCPUS: ${CODEAPI_SANDBOX_VCPUS:-2}
-      LAUNCHER_RAM_MIB: ${CODEAPI_SANDBOX_RAM_MIB:-2048}
-      SANDBOX_ALLOWED_LOCAL_NETWORK_PORT: '3190'
-      SANDBOX_FORWARD_TARGET: code_egress:3190
-      SANDBOX_REQUIRE_EGRESS_MANIFEST: 'true'
-      SANDBOX_EXECUTION_MANIFEST_PUBLIC_KEY: ${CODEAPI_EXECUTION_MANIFEST_PUBLIC_KEY:-MCowBQYDK2VwAyEAeY3PRoTS3adfU6E3gQUB5hSZdrdMSw6OrKkH4UhYh0U=}
-      SANDBOX_RUNNER_CLOCK_SKEW_LIVENESS_LIMIT_SECONDS: '10'
-      SANDBOX_RUNNER_HEALTHCHECK_TIMEOUT_SECONDS: '2'
-    depends_on:
-      code_egress:
-        condition: service_started
-    healthcheck:
-      test: ['CMD', '/usr/local/bin/sandbox-runner-healthcheck.sh']
-      interval: 5s
-      timeout: 3s
-      retries: 60
-      start_period: 30s
 
 volumes:
   ollama-models:

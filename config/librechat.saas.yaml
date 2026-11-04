@@ -54,7 +54,8 @@ interface:
   webSearch: true
   fileSearch: true
   fileCitations: true
-  runCode: true
+  # The microVM Code Interpreter is off. Coding runs on an Attached VM.
+  runCode: false
   # The composer ring shows how full the model's context window is, with the share in percent
   # beside it; the card adds the token breakdown and the share of the pack used. Per-chat cost
   # stays hidden (`contextCost: false`): it left out background work (memory, titles, OCR,
@@ -488,7 +489,6 @@ endpoints:
   agents:
     capabilities:
       - deferred_tools
-      - execute_code
       - file_search
       - web_search
       - artifacts

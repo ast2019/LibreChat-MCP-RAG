@@ -20,7 +20,7 @@ flowchart LR
   R -->|embeddings| OR
 ```
 
-سرویس‌های اصلی، پل Attached VM (`codeapi_bridge`) و Code Interpreter (`codeapi`، `code_sandbox`) در `docker-compose.yml` هستند. Coolify دستور `include` را نادیده می‌گیرد. دامنهٔ عمومی مال `api` است، به‌اضافهٔ `codeapi_bridge` وقتی ماشین شخصی وصل می‌شود. `codeapi` و `code_sandbox` دامنه ندارند.
+سرویس‌های اصلی و پل Attached VM (`codeapi_bridge`) در `docker-compose.yml` هستند. قفس Code Interpreter و `/dev/kvm` روی این سرور نیست. دامنهٔ عمومی مال `api` است، به‌اضافهٔ `codeapi_bridge`. بقیه داخل شبکهٔ خصوصی stack هستند.
 
 ## پوشه‌ها
 
@@ -39,7 +39,7 @@ flowchart LR
 | `config/` | اسکریپت‌های CLI ادمین (`create-user`، `add-balance`، **`grant-pack`**) و **`librechat.saas.yaml`** |
 | `deploy/searxng/` | تنظیمات SearXNG |
 | `deploy/browser/` | سرویس مرورگر Agent |
-| `deploy/code-interpreter/` | یادداشت Code Interpreter. خود سرویس‌ها در `docker-compose.yml` هستند چون Coolify فایل `include` را بالا نمی‌آورد |
+| `deploy/code-interpreter/` | یادداشت. قفس microVM روی Coolify بالا نمی‌آید؛ کار کد با Attached VM است |
 | `deploy/code-worker/` | نصب `@librechat/code` روی Ubuntu VM و اتصال به bridge |
 | `docs/saas/ATTACHED_VM.md` | راهنمای ماشین وصل‌شده (شبیه Cursor/Kiro Cloud، بدون provision خودکار) |
 | `helm/` | چارت Kubernetes (upstream؛ در این fork استفاده نمی‌شود) |
