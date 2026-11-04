@@ -19,12 +19,10 @@ This is **not** the microVM Code Interpreter (`codeapi`). Pairing uses `codeapi_
 
 ## 1. Prepare HiveGPT
 
-1. Redeploy so `codeapi_bridge` is running.
-2. In Coolify, give **`codeapi_bridge` only** an `https://` domain (e.g. `https://code.example.com`). Leave `codeapi` / `code_sandbox` without a public domain.
-3. Set `LIBRECHAT_CODE_BRIDGE_BASEURL=https://code.example.com/v1`.
-4. Before the domain is public, set `CODEAPI_BRIDGE_LOCAL_MODE=false` and configure JWT auth (see Attached VM doc). Never leave `LOCAL_MODE=true` on a public Code API.
-5. Uncomment the `environments:` → `personal-workers` block in `config/librechat.saas.yaml`.
-6. Redeploy `api` so it sees `CODE_BRIDGE_ADMIN_TOKEN` and the bridge URL.
+1. Redeploy so `codeapi_bridge` is running. It is a service in the root `docker-compose.yml` (Coolify does not start services that exist only under `include`).
+2. In Coolify, give **`codeapi_bridge` only** `https://code.aichat.hivelink.co:3114`. The `:3114` is the container port. The CDN forwards to port 80 of the Coolify server. Leave `codeapi` / `code_sandbox` without a public domain.
+3. `LIBRECHAT_CODE_BRIDGE_BASEURL` defaults to `https://code.aichat.hivelink.co/v1`. `CODEAPI_BRIDGE_LOCAL_MODE` defaults to `false` with paired auth. Do not turn local mode on for the public bridge.
+4. `personal-workers` in `config/librechat.saas.yaml` is already enabled. Do not mark that pairing control plane `default: true`.
 
 ## 2. Prepare the Ubuntu VM
 
