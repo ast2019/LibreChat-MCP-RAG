@@ -520,7 +520,11 @@ endpoints:
         - id: personal-workers
           name: ماشین شخصی (Attached VM)
           type: attached
-          baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}'
+          # Public HTTPS origin of codeapi_bridge (include /v1). Must be a real
+          # URL at config load: Zod validates before runtime, and Coolify may omit
+          # LIBRECHAT_CODE_BRIDGE_BASEURL from the api container even when compose
+          # declares a default. Pairing CLI / docs still read that env var.
+          baseURL: 'https://code.aichat.hivelink.co/v1'
           owner: deployment
           configSchema:
             limits:

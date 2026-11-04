@@ -15,7 +15,7 @@
 
 1. سرویس **`codeapi_bridge`** در `docker-compose.yml` باشد و healthy شود. قفس Code Interpreter روی این سرور نیست و `/dev/kvm` داده نمی‌شود.
 2. در Coolify فقط برای `codeapi_bridge` دامنه بگذارید: `http://code.aichat.hivelink.co:3114`. پورت ۳۱۱۴ داخل کانتینر است و روی میزبان منتشر نمی‌شود. ابر آروان TLS را تمام می‌کند و به پورت ۸۰ آی‌پی سرور Coolify فوروارد می‌کند، نه به ۳۱۱۴ و نه به آی‌پی ماشین worker. `code_jwt` و بقیهٔ سرویس‌های کد دامنه نمی‌گیرند.
-3. `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است. `CODE_BRIDGE_ADMIN_TOKEN` از `SERVICE_HEX_64_CODEBRIDGE` می‌آید و Coolify آن را می‌سازد.
+3. `LIBRECHAT_CODE_BRIDGE_BASEURL` پیش‌فرض `https://code.aichat.hivelink.co/v1` است (همین مقدار به‌صورت URL واقعی در `personal-workers.baseURL` فایل saas هم آمده). `CODE_BRIDGE_ADMIN_TOKEN` از `SERVICE_HEX_64_CODEBRIDGE` می‌آید و Coolify آن را می‌سازد.
 4. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است و حالت احراز هویت `paired` است. آن را `true` نکنید وگرنه API روی اینترنت بدون احراز هویت می‌ماند.
 5. بلوک `personal-workers` در `config/librechat.saas.yaml` روشن است. `default: true` ندارد، چون صفحهٔ کنترل pairing نباید محیط پیش‌فرض اجرا باشد و با آن خط `api` بالا نمی‌آید.
 

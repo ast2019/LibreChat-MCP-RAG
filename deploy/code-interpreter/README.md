@@ -14,13 +14,13 @@ Coding uses the Attached VM bridge in the root `docker-compose.yml`. See
 2. Give a domain only to `codeapi_bridge`. On this host Arvan terminates TLS, so the
    Coolify field is `http://code.aichat.hivelink.co:3114`. The public URL clients and
    the VM use stays `https://code.aichat.hivelink.co/v1`.
-3. Leave `code_jwt`, `code_minio`, `code_file`, `code_tools`, `code_egress` and
+3. Leave `code_jwt`, `codeminio`, `code_file`, `code_tools`, `code_egress` and
    `code_bridge_queue` without a domain. Do not publish port 3114.
 4. Optional: pin images with `CODEAPI_IMAGE_TAG=sha-<commit>` instead of `main`.
 
 `code_jwt` writes the Ed25519 key the API signs with. The program is inline in
 Compose: Coolify cannot bind-mount a file from the git checkout onto the Docker
-host. The bridge mounts only the public half. The file server reaches Silo as
-`codeminio`, because a hostname with `_` is rejected. Do not set
-`CODEAPI_BRIDGE_LOCAL_MODE=true` and do not set `CODEAPI_AUTH_PROVIDER=none` on
-the public bridge.
+host. The bridge mounts only the public half. The storage service is named
+`codeminio` (no underscore): Silo rejects a Host header with `_`, and Coolify
+often drops Compose network aliases. Do not set `CODEAPI_BRIDGE_LOCAL_MODE=true`
+and do not set `CODEAPI_AUTH_PROVIDER=none` on the public bridge.

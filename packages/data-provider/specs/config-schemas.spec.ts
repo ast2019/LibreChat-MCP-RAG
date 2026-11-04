@@ -726,6 +726,80 @@ describe('agentsEndpointSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('expands a ${VAR} code environment baseURL before URL and HTTPS checks', () => {
+    const previous = process.env.LIBRECHAT_CODE_BRIDGE_BASEURL;
+    process.env.LIBRECHAT_CODE_BRIDGE_BASEURL = 'https://code.bridge.test/v1';
+    try {
+      const result = agentsEndpointSchema.safeParse({
+        statefulCodeSessions: {
+          allowedEnvironments: ['user'],
+          environments: [
+            {
+              id: 'personal-workers',
+              name: 'Personal workers',
+              type: 'attached',
+              baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}',
+              owner: 'deployment',
+              pairing: {
+                allowPrincipalWorkers: true,
+                tokenEnv: 'CODE_BRIDGE_ADMIN_TOKEN',
+              },
+            },
+          ],
+        },
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.statefulCodeSessions?.environments?.[0]?.baseURL).toBe(
+          'https://code.bridge.test/v1',
+        );
+      }
+    } finally {
+      if (previous === undefined) {
+        delete process.env.LIBRECHAT_CODE_BRIDGE_BASEURL;
+      } else {
+        process.env.LIBRECHAT_CODE_BRIDGE_BASEURL = previous;
+      }
+    }
+  });
+
+  it('rejects an unresolved ${VAR} code environment baseURL (Coolify crash shape)', () => {
+    const previous = process.env.LIBRECHAT_CODE_BRIDGE_BASEURL;
+    delete process.env.LIBRECHAT_CODE_BRIDGE_BASEURL;
+    try {
+      const result = agentsEndpointSchema.safeParse({
+        statefulCodeSessions: {
+          allowedEnvironments: ['user'],
+          environments: [
+            {
+              id: 'personal-workers',
+              name: 'Personal workers',
+              type: 'attached',
+              baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}',
+              owner: 'deployment',
+              pairing: {
+                allowPrincipalWorkers: true,
+                tokenEnv: 'CODE_BRIDGE_ADMIN_TOKEN',
+              },
+            },
+          ],
+        },
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((issue) => issue.message === 'Invalid url')).toBe(true);
+      }
+    } finally {
+      if (previous === undefined) {
+        delete process.env.LIBRECHAT_CODE_BRIDGE_BASEURL;
+      } else {
+        process.env.LIBRECHAT_CODE_BRIDGE_BASEURL = previous;
+      }
+    }
+  });
+
   it('rejects a pairing-only control plane as the execution default', () => {
     const result = agentsEndpointSchema.safeParse({
       statefulCodeSessions: {

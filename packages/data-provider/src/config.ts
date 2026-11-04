@@ -85,6 +85,7 @@ import { isActionTool } from './types/tools';
 import { apiBaseUrl } from './api-endpoints';
 import { FileSources } from './types/files';
 import { MCPServersSchema } from './mcp';
+import { extractEnvVariable } from './utils';
 export {
   MAX_SUBAGENTS,
   MAX_SUBAGENTS_CEILING,
@@ -1284,26 +1285,39 @@ export const checkpointerSchema = z
 
 export type TCheckpointerConfig = z.infer<typeof checkpointerSchema>;
 
+/**
+ * Code control-plane baseURL. LibreChat does not expand `${VAR}` before Zod
+ * validation, so expand here (same pattern as MCP OAuth URL fields). Coolify
+ * deploys that keep `baseURL: '${LIBRECHAT_CODE_BRIDGE_BASEURL}'` otherwise
+ * exit with "Invalid url" before the api process can serve traffic.
+ */
 const codeEnvironmentBaseURLSchema = z
   .string()
   .trim()
-  .url()
-  .refine(
-    (value) => {
-      try {
-        const url = new URL(value);
-        return (
-          (url.protocol === 'http:' || url.protocol === 'https:') &&
-          !value.includes('?') &&
-          !value.includes('#') &&
-          url.search.length === 0 &&
-          url.hash.length === 0
-        );
-      } catch {
-        return false;
-      }
-    },
-    { message: 'Code environment baseURL must be an HTTP(S) base URL without query or fragment' },
+  .transform((value) => extractEnvVariable(value))
+  .pipe(
+    z
+      .string()
+      .url()
+      .refine(
+        (value) => {
+          try {
+            const url = new URL(value);
+            return (
+              (url.protocol === 'http:' || url.protocol === 'https:') &&
+              !value.includes('?') &&
+              !value.includes('#') &&
+              url.search.length === 0 &&
+              url.hash.length === 0
+            );
+          } catch {
+            return false;
+          }
+        },
+        {
+          message: 'Code environment baseURL must be an HTTP(S) base URL without query or fragment',
+        },
+      ),
   );
 
 export function isSecureCodeEnvironmentControlURL(baseURL: string): boolean {
