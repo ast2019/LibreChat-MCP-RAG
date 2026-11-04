@@ -59,6 +59,9 @@ RUN attempt=1; \
 FROM base AS data-provider-build
 WORKDIR /app/packages/data-provider
 COPY packages/data-provider ./
+# tsdown bakes ../../VERSION into Constants.APP_VERSION; re-assert the file so a
+# stale cache / partial stage cannot leave the placeholder 0.0.0 in the client.
+COPY VERSION CHANGELOG.md /app/
 RUN npm run build
 
 # Build `data-schemas` package

@@ -9,6 +9,15 @@ import { useLocalize } from '~/hooks';
 /** How often an open tab asks the server for a newer worker. */
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
+/** Placeholder / unset versions must not appear in the banner («نسخهٔ 0.0.0»). */
+function displayableVersion(value: string | undefined | null): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === '0.0.0' || trimmed.includes('__HIVEGPT_VERSION__')) {
+    return undefined;
+  }
+  return trimmed;
+}
+
 function watchForUpdates(registration: ServiceWorkerRegistration) {
   const check = () => {
     if (registration.installing || !navigator.onLine) {
@@ -113,10 +122,12 @@ export default function UpdatePrompt() {
     }
   }, [needRefresh, refetch]);
 
-  const version = startupConfig?.appVersion ?? Constants.APP_VERSION;
+  const version = displayableVersion(startupConfig?.appVersion ?? Constants.APP_VERSION);
   const highlights = useMemo(() => {
-    const entry = startupConfig?.changelog?.find((item) => item.version === version);
-    return entry?.highlights ?? startupConfig?.changelog?.[0]?.highlights ?? [];
+    const changelog = startupConfig?.changelog ?? [];
+    const entry = version ? changelog.find((item) => item.version === version) : undefined;
+    const fallback = changelog.find((item) => displayableVersion(item.version));
+    return entry?.highlights ?? fallback?.highlights ?? [];
   }, [startupConfig?.changelog, version]);
 
   if (!needRefresh) {
