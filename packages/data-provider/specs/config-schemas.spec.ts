@@ -1859,6 +1859,37 @@ describe('specsConfigSchema', () => {
     }
   });
 
+  it('accepts landing quickPicks that name list specs', () => {
+    const result = specsConfigSchema.safeParse({
+      list: [
+        {
+          name: 'claude-fable',
+          label: 'Claude Fable',
+          preset: { endpoint: 'OpenRouter', model: '~anthropic/claude-fable-latest' },
+        },
+      ],
+      quickPicks: [
+        { id: 'strongest', specs: ['claude-fable', 'gpt-astra'] },
+        { id: 'daily', specs: ['economy', 'fast'] },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.quickPicks).toEqual([
+        { id: 'strongest', specs: ['claude-fable', 'gpt-astra'] },
+        { id: 'daily', specs: ['economy', 'fast'] },
+      ]);
+    }
+  });
+
+  it('rejects a quickPick group with an empty specs list', () => {
+    const result = specsConfigSchema.safeParse({
+      list: [],
+      quickPicks: [{ id: 'daily', specs: [] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('defaults list to [] when omitted', () => {
     const result = specsConfigSchema.safeParse({});
     expect(result.success).toBe(true);

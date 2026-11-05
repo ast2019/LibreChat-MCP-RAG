@@ -287,12 +287,26 @@ export const autoDiscoverConfigSchema = z.object({
 
 export type TAutoDiscoverConfig = z.infer<typeof autoDiscoverConfigSchema>;
 
+/**
+ * One labelled row of one-click model buttons on the empty-chat landing.
+ * `id` keys the localized group title (`com_ui_model_quick_{id}`); `specs` are
+ * `list[].name` values in display order. Specs the user cannot see are skipped.
+ */
+export const modelQuickPickGroupSchema = z.object({
+  id: z.string().min(1),
+  specs: z.array(z.string().min(1)).min(1),
+});
+
+export type TModelQuickPickGroup = z.infer<typeof modelQuickPickGroupSchema>;
+
 export const specsConfigSchema = z.object({
   enforce: z.boolean().default(false),
   prioritize: z.boolean().default(true),
   list: z.array(tModelSpecSchema).default([]),
   addedEndpoints: z.array(z.union([z.string(), eModelEndpointSchema])).optional(),
   autoDiscover: autoDiscoverConfigSchema.optional(),
+  /** Landing-page shortcuts; omitted means no quick-pick row. */
+  quickPicks: z.array(modelQuickPickGroupSchema).optional(),
 });
 
 export type TSpecsConfig = z.infer<typeof specsConfigSchema>;
