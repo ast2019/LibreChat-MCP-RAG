@@ -160,6 +160,8 @@ describe('createServiceStatusService', () => {
       limit: 100,
       usedThisPeriod: 25.5,
       health: 'ok',
+      quotaSource: 'key',
+      plan: 'monthly',
     });
     expect(byId.searxng).toMatchObject({ reachable: true, health: 'ok', chainPosition: 4 });
     expect(byId.ollama).toMatchObject({ reachable: true, health: 'ok' });
@@ -171,6 +173,42 @@ describe('createServiceStatusService', () => {
     expect(status).toMatchObject({
       activeSearchProvider: 'serper',
       chain: ['serper', 'serpapi', 'tavily', 'searxng'],
+    });
+  });
+
+  it('reports the OpenRouter key cap even when the account wallet still has credit', async () => {
+    const { service } = setup(undefined, {
+      ...ACCOUNTS,
+      [OPENROUTER_CREDITS_URL]: {
+        status: 200,
+        data: { data: { total_credits: 50, total_usage: 5 } },
+      },
+      [OPENROUTER_KEY_URL]: {
+        status: 200,
+        data: {
+          data: {
+            limit: 10,
+            limit_remaining: 0,
+            usage: 10.04,
+            usage_monthly: 10.04,
+            limit_reset: null,
+          },
+        },
+      },
+    });
+    const { services } = await service.get();
+    const openrouter = services.find((row) => row.id === 'openrouter');
+
+    expect(openrouter).toMatchObject({
+      remaining: 0,
+      limit: 10,
+      remainingPercent: 0,
+      usedThisPeriod: 10.04,
+      health: 'exhausted',
+      quotaSource: 'key',
+      accountRemaining: 45,
+      accountLimit: 50,
+      plan: 'no_reset',
     });
   });
 

@@ -69,12 +69,17 @@ const response: TServiceStatusResponse = {
     {
       id: 'openrouter',
       configured: true,
-      health: 'ok',
+      health: 'exhausted',
       reachable: true,
       unit: 'usd',
-      remaining: 74.5,
-      limit: 100,
-      remainingPercent: 75,
+      remaining: 0,
+      limit: 10,
+      remainingPercent: 0,
+      usedThisPeriod: 10.04,
+      quotaSource: 'key',
+      accountRemaining: 45,
+      accountLimit: 50,
+      plan: 'no_reset',
       checkedAt: iso(-2 * 3600_000),
     },
     { id: 'sms', configured: false, health: 'unconfigured', reachable: null, checkedAt: null },
@@ -181,13 +186,23 @@ describe('StatusPanel', () => {
     );
   });
 
-  it('shows OpenRouter dollars in Toman as well when a display currency is set', () => {
+  it('shows the OpenRouter key cap first and the account wallet beside it', () => {
     mockCurrency = { code: 'IRT', rate: 100_000 };
     render(<StatusPanel />);
 
+    const card = screen.getByTestId('service-card-openrouter');
+    expect(within(card).getByTestId('health-exhausted')).toBeInTheDocument();
     expect(
-      within(screen.getByTestId('service-card-openrouter')).getByText(/۷٬۴۵۰٬۰۰۰ تومان/),
+      within(card).getByText(
+        'com_admin_status_openrouter_key(com_admin_status_remaining_of($0.00 · ۰ تومان|$10.00 · ۱٬۰۰۰٬۰۰۰ تومان))',
+      ),
     ).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        'com_admin_status_openrouter_account(com_admin_status_remaining_of($45.00 · ۴٬۵۰۰٬۰۰۰ تومان|$50.00 · ۵٬۰۰۰٬۰۰۰ تومان))',
+      ),
+    ).toBeInTheDocument();
+    expect(within(card).getByText('com_admin_status_openrouter_no_reset')).toBeInTheDocument();
   });
 
   it('lists the installed Ollama models and marks the active one', () => {

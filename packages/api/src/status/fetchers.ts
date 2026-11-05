@@ -16,6 +16,14 @@ export interface ServiceProbe {
   details?: TServiceStatus['details'];
   models?: TServiceStatus['models'];
   loadedKnown?: boolean;
+  /**
+   * OpenRouter: whether `remaining`/`limit` are the API key's spending cap or the
+   * account wallet. Absent for other services.
+   */
+  quotaSource?: 'key' | 'account';
+  /** OpenRouter account wallet when `remaining` is the key cap. */
+  accountRemaining?: number | null;
+  accountLimit?: number | null;
 }
 
 export interface ProbeContext {
@@ -135,8 +143,10 @@ export async function probeTavily(ctx: ProbeContext, apiKey?: string): Promise<S
 }
 
 /**
- * OpenRouter: `GET /credits` (account balance, management keys only) when it answers, else the
- * key's own spending limit from `GET /key`. Amounts are US dollars.
+ * OpenRouter amounts are US dollars. A provisioned key may carry its own spending
+ * cap (`GET /key`); that cap is what returns `403 Key limit exceeded`, so it is the
+ * primary remaining/limit whenever present. Account wallet (`GET /credits`, management
+ * keys only) is reported beside it when available, and alone when the key has no cap.
  */
 export async function probeOpenRouter(
   ctx: ProbeContext,
@@ -157,27 +167,58 @@ export async function probeOpenRouter(
     const reason = apiKey && key.status === 'rejected' ? key.reason : null;
     return failed(reason ?? (credits.status === 'rejected' ? credits.reason : null), 'usd');
   }
+
   const total = num(creditData?.total_credits);
   const totalUsed = num(creditData?.total_usage);
+  const accountRemaining =
+    total != null && totalUsed != null ? Math.max(0, total - totalUsed) : null;
+  const keyLimit = num(keyData?.limit);
+  const keyRemaining = num(keyData?.limit_remaining);
   const usedThisPeriod = num(keyData?.usage_monthly) ?? num(keyData?.usage) ?? totalUsed;
-  if (total != null && totalUsed != null) {
+  const keyPlan =
+    keyData?.is_free_tier === true
+      ? 'free'
+      : keyLimit != null && keyData?.limit_reset == null
+        ? 'no_reset'
+        : str(keyData?.limit_reset);
+
+  /** A finite key cap gates chat requests; prefer it over the account wallet. */
+  if (keyLimit != null) {
     return {
       configured: true,
       reachable: true,
       unit: 'usd',
-      remaining: Math.max(0, total - totalUsed),
-      limit: total,
+      remaining: keyRemaining != null ? Math.max(0, keyRemaining) : null,
+      limit: keyLimit,
       usedThisPeriod,
+      plan: keyPlan,
+      quotaSource: 'key',
+      accountRemaining,
+      accountLimit: total,
     };
   }
+
+  if (accountRemaining != null && total != null) {
+    return {
+      configured: true,
+      reachable: true,
+      unit: 'usd',
+      remaining: accountRemaining,
+      limit: total,
+      usedThisPeriod,
+      quotaSource: 'account',
+    };
+  }
+
   return {
     configured: true,
     reachable: true,
     unit: 'usd',
-    remaining: num(keyData?.limit_remaining),
-    limit: num(keyData?.limit),
+    remaining: null,
+    limit: null,
     usedThisPeriod,
-    plan: keyData?.is_free_tier === true ? 'free' : str(keyData?.limit_reset),
+    plan: keyPlan,
+    quotaSource: keyData ? 'key' : 'account',
   };
 }
 

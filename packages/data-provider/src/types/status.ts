@@ -61,6 +61,14 @@ export type TServiceStatus = {
   remainingPercent?: number | null;
   usedThisPeriod?: number | null;
   plan?: string | null;
+  /**
+   * OpenRouter: whether `remaining`/`limit` are the API key's spending cap (`key`) or the
+   * account wallet (`account`). Absent for other services.
+   */
+  quotaSource?: 'key' | 'account';
+  /** OpenRouter account wallet when `remaining` is the key cap. */
+  accountRemaining?: number | null;
+  accountLimit?: number | null;
   resetAt?: string | null;
   /** Estimated days until `remaining` reaches zero from recent daily usage; null when unknown. */
   daysUntilExhausted?: number | null;

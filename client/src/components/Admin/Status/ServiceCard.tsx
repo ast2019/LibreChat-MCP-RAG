@@ -94,16 +94,38 @@ export default function ServiceCard({
 
   let remainingLine: string | null = null;
   if (service.remaining != null) {
-    remainingLine =
+    const ofLimit =
       service.limit != null
         ? localize('com_admin_status_remaining_of', {
             0: amount(service.remaining),
             1: amount(service.limit),
           })
         : localize('com_admin_status_remaining', { 0: amount(service.remaining) });
+    if (service.id === 'openrouter' && service.quotaSource === 'key') {
+      remainingLine = localize('com_admin_status_openrouter_key', { 0: ofLimit });
+    } else if (service.id === 'openrouter' && service.quotaSource === 'account') {
+      remainingLine = localize('com_admin_status_openrouter_account', { 0: ofLimit });
+    } else {
+      remainingLine = ofLimit;
+    }
   } else if (service.configured && service.unit != null) {
     remainingLine = localize('com_admin_status_remaining_unknown');
   }
+
+  const accountLine =
+    service.id === 'openrouter' &&
+    service.quotaSource === 'key' &&
+    service.accountRemaining != null
+      ? localize('com_admin_status_openrouter_account', {
+          0:
+            service.accountLimit != null
+              ? localize('com_admin_status_remaining_of', {
+                  0: amount(service.accountRemaining),
+                  1: amount(service.accountLimit),
+                })
+              : localize('com_admin_status_remaining', { 0: amount(service.accountRemaining) }),
+        })
+      : null;
 
   return (
     <article
@@ -135,6 +157,7 @@ export default function ServiceCard({
       {remainingLine != null && (
         <div className="space-y-1.5">
           <p className="text-text-primary text-sm">{remainingLine}</p>
+          {accountLine != null && <p className="text-text-secondary text-xs">{accountLine}</p>}
           {service.remainingPercent != null && (
             <div className="flex items-center gap-2">
               <Progress
@@ -167,7 +190,12 @@ export default function ServiceCard({
         )}
         {service.plan != null && (
           <li>
-            {localize('com_admin_status_plan_label')} <bdi>{service.plan}</bdi>
+            {localize('com_admin_status_plan_label')}{' '}
+            <bdi>
+              {service.id === 'openrouter' && service.plan === 'no_reset'
+                ? localize('com_admin_status_openrouter_no_reset')
+                : service.plan}
+            </bdi>
           </li>
         )}
         {service.unit == null && service.reachable != null && (
