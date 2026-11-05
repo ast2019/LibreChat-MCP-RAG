@@ -8,18 +8,13 @@ import {
 } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { Endpoint, SelectedValues } from '~/common';
-import {
-  useAgentDefaultPermissionLevel,
-  useSelectorEffects,
-  useKeyDialog,
-  useEndpoints,
-  useLocalize,
-} from '~/hooks';
 import { useAgentsMapContext, useAssistantsMapContext, useLiveAnnouncer } from '~/Providers';
+import useSelectMention, { isConversationSpecLocked } from '~/hooks/Input/useSelectMention';
+import { useSelectorEffects, useKeyDialog, useEndpoints, useLocalize } from '~/hooks';
 import { useGetEndpointsQuery, useListAgentsQuery } from '~/data-provider';
 import { useModelSelectorChatContext } from './ModelSelectorChatContext';
-import useSelectMention, { isConversationSpecLocked } from '~/hooks/Input/useSelectMention';
 import { hasUsableModelSelection } from '~/utils/endpoints';
+import { agentsForChatUse } from './agentList';
 import { filterItems } from './utils';
 
 type ModelSelectorContextType = {
@@ -109,28 +104,16 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     [conversationId, spec, startupConfig],
   );
 
-  const permissionLevel = useAgentDefaultPermissionLevel();
   /**
-   * Always query the VIEW scope so this shares one cache entry (and one paginated walk)
-   * with `useAgentsMap` and `useMentions`. Asking for EDIT here spawned a second full
-   * fetch under its own key, holding a duplicate copy of the whole agent list. The
-   * marketplace's "my agents" framing is preserved by filtering on `isEditable`, which
-   * the list endpoint resolves from the same ACL read it already performs.
+   * Chat picks every agent the user may use (VIEW). Do not filter on `isEditable`:
+   * marketplace access used to hide Viewer-shared agents from this picker and force
+   * people to share as Editor just to make the agent discoverable. Builder-only
+   * EDIT listing stays in `AgentSelect`. Query VIEW so this shares one cache walk
+   * with `useAgentsMap` and `useMentions`.
    */
-  const wantsEditableOnly = permissionLevel === PermissionBits.EDIT;
-  const selectAgents = useCallback(
-    (data: t.AgentListResponse) => {
-      const list = data?.data;
-      if (!wantsEditableOnly) {
-        return list;
-      }
-      return list?.filter((agent) => agent.isEditable !== false);
-    },
-    [wantsEditableOnly],
-  );
   const { data: agents = null } = useListAgentsQuery(
     { requiredPermission: PermissionBits.VIEW },
-    { select: selectAgents },
+    { select: agentsForChatUse },
   );
 
   const { mappedEndpoints, endpointRequiresUserKey } = useEndpoints({
