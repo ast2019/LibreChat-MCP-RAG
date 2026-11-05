@@ -220,8 +220,8 @@ describe('useUpdateAgentMutation', () => {
 
 describe('useDuplicateAgentMutation', () => {
   it('marks the duplicated agent editable in the list cache', async () => {
-    /** Duplicating grants ownership, so the new row is editable. Without this the row
-     *  carries no `isEditable` and only survives the selector filter by failing open. */
+    /** Duplicating grants ownership, so the new row is editable. Builder lists and
+     *  edit affordances read `isEditable`; chat use lists keep Viewer rows too. */
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {

@@ -2,7 +2,11 @@ import { Permissions, PermissionBits, PermissionTypes } from 'librechat-data-pro
 import { useHasAccess } from '~/hooks/Roles';
 
 /**
- * Hook to determine the appropriate permission level for agent queries based on marketplace configuration
+ * Permission bit for **Agent Builder** list/select queries only.
+ *
+ * Marketplace access means the builder should show agents the user can edit.
+ * Chat / use surfaces must query `PermissionBits.VIEW` and must not reuse this
+ * hook to hide Viewer-shared agents from the model picker.
  */
 const useAgentDefaultPermissionLevel = () => {
   const hasMarketplaceAccess = useHasAccess({
@@ -10,8 +14,6 @@ const useAgentDefaultPermissionLevel = () => {
     permission: Permissions.USE,
   });
 
-  // When marketplace is active: EDIT permissions (builder mode)
-  // When marketplace is not active: VIEW permissions (browse mode)
   return hasMarketplaceAccess ? PermissionBits.EDIT : PermissionBits.VIEW;
 };
 
