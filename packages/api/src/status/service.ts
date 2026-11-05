@@ -254,6 +254,9 @@ export function createServiceStatusService(deps: ServiceStatusDeps): ServiceStat
             : null,
         usedThisPeriod: probe?.usedThisPeriod ?? null,
         plan: probe?.plan ?? null,
+        quotaSource: probe?.quotaSource,
+        accountRemaining: probe?.accountRemaining ?? null,
+        accountLimit: probe?.accountLimit ?? null,
         resetAt: probe?.resetAt ?? null,
         daysUntilExhausted,
         skip: skip
