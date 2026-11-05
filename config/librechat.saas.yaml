@@ -662,6 +662,14 @@ endpoints:
 modelSpecs:
   enforce: true
   prioritize: true
+  # One-click model buttons on the empty-chat landing (above the composer). Each `id` maps to
+  # `com_ui_model_quick_{id}` in the UI; `specs` are `list[].name` values in display order.
+  # Specs the user cannot access are skipped; an empty resolved row is omitted.
+  quickPicks:
+    - id: strongest
+      specs: [claude-fable, gpt-astra]
+    - id: daily
+      specs: [economy, fast]
   # New models appear on their own. The server reads OpenRouter's catalogue (/models) and its
   # Zero-Data-Retention list (/endpoints/zdr) at startup and every `refreshHours`, in the
   # background (requests never wait on it; a failed read keeps the last one), and adds:

@@ -74,6 +74,7 @@ jest.mock('../Input/ChatForm', () => ({
   },
 }));
 jest.mock('../Input/ConversationStarters', () => ({ __esModule: true, default: () => <div /> }));
+jest.mock('../Input/QuickPicks', () => ({ __esModule: true, default: () => <div /> }));
 
 describe('ChatView page heading', () => {
   beforeEach(() => {

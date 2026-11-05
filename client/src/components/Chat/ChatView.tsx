@@ -36,6 +36,7 @@ import { useGetMessagesByConvoId } from '~/data-provider';
 import BalanceNotice from '~/components/Balance/Notice';
 import { AskAnswerHostProvider } from './ask/state';
 import MessagesView from './Messages/MessagesView';
+import QuickPicks from './Input/QuickPicks';
 import Presentation from './Presentation';
 import ChatForm from './Input/ChatForm';
 import { TraceSurface } from './Trace';
@@ -262,6 +263,7 @@ function ChatView({
                               isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
                             )}
                           >
+                            {isLandingPage && <QuickPicks />}
                             {isLandingPage && <ConversationStarters />}
                             {isSubagentThreadReadOnly ? (
                               <div
