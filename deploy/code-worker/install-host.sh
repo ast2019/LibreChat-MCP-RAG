@@ -124,14 +124,54 @@ else
   sudo npm install -g "${CODE_SRC}/packages/code"
 fi
 
+UNIT_PATH=/etc/systemd/system/librechat-code.service
+if [[ "${INSTALL_SYSTEMD:-1}" != "0" ]] && command -v systemctl >/dev/null 2>&1; then
+  INSTALL_HOME="$(getent passwd "${INSTALL_USER}" | cut -d: -f6 || true)"
+  INSTALL_HOME="${INSTALL_HOME:-/home/${INSTALL_USER}}"
+  echo "==> systemd unit template (${UNIT_PATH})"
+  echo "    After pairing, replace YOUR_WORKER_ID, then daemon-reload + enable."
+  sudo tee "${UNIT_PATH}" >/dev/null <<EOF
+[Unit]
+Description=HiveGPT attached code worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${INSTALL_USER}
+Group=${INSTALL_USER}
+WorkingDirectory=${WORKSPACES}
+Environment=HOME=${INSTALL_HOME}
+Environment=NODE_ENV=production
+Environment=LIBRECHAT_CODE_WORKER_ID=YOUR_WORKER_ID
+ExecStart=/usr/bin/librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands --command-policy-preset trusted-vm
+Restart=always
+RestartSec=5s
+TimeoutStopSec=35s
+KillMode=control-group
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  sudo systemctl daemon-reload
+  echo "Wrote ${UNIT_PATH} and ran systemctl daemon-reload."
+  echo "After Connect VM, set LIBRECHAT_CODE_WORKER_ID in that unit, then:"
+  echo "  sudo systemctl daemon-reload"
+  echo "  sudo systemctl enable --now librechat-code.service"
+fi
+
 echo
 echo "Host ready for user ${INSTALL_USER}."
 echo "Next:"
 echo "  1. In HiveGPT: Settings → Data & Privacy → Code execution → Code environments → Connect VM"
 echo "  2. Pair with the one-time code shown there (librechat-code pair …)"
-echo "  3. Start the worker WITH --command-policy-preset trusted-vm"
-echo "     (required on Ubuntu: skips apply-seccomp nested userns; Settings/systemd already include it)."
-echo "     Example:"
+echo "  3. Put that worker id into ${UNIT_PATH} (replace YOUR_WORKER_ID), then:"
+echo "       sudo systemctl daemon-reload"
+echo "       sudo systemctl enable --now librechat-code.service"
+echo "     Or run foreground with --command-policy-preset trusted-vm:"
 echo "       LIBRECHAT_CODE_WORKER_ID='…' librechat-code run --default-workspace \\"
 echo "         --allow-workspace-writes --allow-workspace-commands --command-policy-preset trusted-vm"
-echo "  4. Confirm the environment status shows anthropic-srt:trusted-vm, then clone under ${WORKSPACES}/my-app."
+echo "  4. After any unit file edit always: sudo systemctl daemon-reload && sudo systemctl restart librechat-code"
+echo "  5. Confirm the environment status shows anthropic-srt:trusted-vm, then clone under ${WORKSPACES}/my-app."

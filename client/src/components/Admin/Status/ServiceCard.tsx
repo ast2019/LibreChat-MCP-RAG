@@ -229,12 +229,23 @@ export default function ServiceCard({
             </bdi>
           </li>
         )}
+        {service.id === 'openrouter' && service.createdAt != null && (
+          <li>
+            {localize('com_admin_status_openrouter_created', {
+              0: formatDate(service.createdAt, locale),
+            })}
+          </li>
+        )}
         {service.id === 'openrouter' && service.expiresAt !== undefined && (
           <li>
             {service.expiresAt == null
               ? localize('com_admin_status_openrouter_no_expiry')
               : localize('com_admin_status_openrouter_expires', {
-                  0: formatDate(service.expiresAt, locale),
+                  0: `${formatDate(service.expiresAt, locale)} (${formatRelative(
+                    service.expiresAt,
+                    Date.now(),
+                    locale,
+                  )})`,
                 })}
           </li>
         )}

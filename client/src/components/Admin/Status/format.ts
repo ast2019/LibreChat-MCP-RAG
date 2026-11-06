@@ -91,18 +91,33 @@ export function formatRelative(iso: string, now: number, locale: string): string
   return format.format(0, 'second');
 }
 
+/** Calendar dates for admin status: Asia/Tehran so fa-IR day boundaries match the operator. */
+function statusTimeZone(locale: string): string | undefined {
+  const language = locale.toLowerCase().split('-')[0];
+  return language === 'fa' ? 'Asia/Tehran' : undefined;
+}
+
 export function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  if (Number.isNaN(date.getTime())) return iso;
+  const timeZone = statusTimeZone(locale);
+  return date.toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
 export function formatDateTime(iso: string, locale: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+  if (Number.isNaN(date.getTime())) return iso;
+  const timeZone = statusTimeZone(locale);
+  return date.toLocaleString(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
 /** Services that need an admin's attention, worst first. */

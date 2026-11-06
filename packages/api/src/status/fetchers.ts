@@ -26,6 +26,8 @@ export interface ServiceProbe {
   accountLimit?: number | null;
   /** OpenRouter API key expiry (`expires_at`); null when the key does not expire. */
   expiresAt?: string | null;
+  /** OpenRouter API key creation (`created_at`); absent when unread. */
+  createdAt?: string | null;
 }
 
 export interface ProbeContext {
@@ -47,10 +49,22 @@ const str = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value : null;
 const obj = (value: unknown): Json =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : {};
-/** ISO timestamp string when parseable; null for empty/invalid; used for key expiry and resets. */
+/**
+ * ISO timestamp when parseable. Accepts ISO strings and unix seconds/ms so OpenRouter field
+ * shape drift does not drop expiry/creation to «unknown».
+ */
 const isoDate = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1_000_000_000_000 ? value * 1000 : value;
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
   const raw = str(value)?.trim();
-  return raw && !Number.isNaN(Date.parse(raw)) ? raw : null;
+  if (!raw) return null;
+  if (/^-?\d+(\.\d+)?$/.test(raw)) {
+    return isoDate(Number(raw));
+  }
+  return Number.isNaN(Date.parse(raw)) ? null : raw;
 };
 
 export const UNCONFIGURED: ServiceProbe = { configured: false, reachable: null };
@@ -193,8 +207,16 @@ export async function probeOpenRouter(
     keyData != null && Object.prototype.hasOwnProperty.call(keyData, 'expires_at')
       ? isoDate(keyData.expires_at)
       : undefined;
+  const createdAt =
+    keyData != null && Object.prototype.hasOwnProperty.call(keyData, 'created_at')
+      ? isoDate(keyData.created_at)
+      : undefined;
   const budget = obj(keyData?.effective_budget);
   const limitResetsAt = isoDate(budget.resets_at);
+  const openRouterDates = {
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(createdAt !== undefined ? { createdAt } : {}),
+  };
 
   /** A finite key cap gates chat requests; prefer it over the account wallet. */
   if (keyLimit != null) {
@@ -210,7 +232,7 @@ export async function probeOpenRouter(
       quotaSource: 'key',
       accountRemaining,
       accountLimit: total,
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      ...openRouterDates,
     };
   }
 
@@ -223,7 +245,7 @@ export async function probeOpenRouter(
       limit: total,
       usedThisPeriod,
       quotaSource: 'account',
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      ...openRouterDates,
     };
   }
 
@@ -236,7 +258,7 @@ export async function probeOpenRouter(
     usedThisPeriod,
     plan: keyPlan,
     quotaSource: keyData ? 'key' : 'account',
-    ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...openRouterDates,
   };
 }
 

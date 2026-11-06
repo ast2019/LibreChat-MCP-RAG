@@ -46,6 +46,7 @@ describe('probeOpenRouter', () => {
               usage: 10.04,
               usage_monthly: 10.04,
               limit_reset: null,
+              created_at: '2026-10-25T00:00:00Z',
               expires_at: '2027-12-31T23:59:59Z',
               effective_budget: {
                 resets_at: null,
@@ -70,8 +71,32 @@ describe('probeOpenRouter', () => {
       quotaSource: 'key',
       accountRemaining: 45,
       accountLimit: 50,
+      createdAt: '2026-10-25T00:00:00Z',
       expiresAt: '2027-12-31T23:59:59Z',
     });
+  });
+
+  it('accepts unix-second expires_at values from OpenRouter', async () => {
+    const probe = await probeOpenRouter(
+      ctx({
+        [OPENROUTER_CREDITS_URL]: { status: 403, data: {} },
+        [OPENROUTER_KEY_URL]: {
+          status: 200,
+          data: {
+            data: {
+              limit: 10,
+              limit_remaining: 4,
+              usage: 6,
+              usage_monthly: 6,
+              expires_at: 1_824_422_400, // 2027-10-25T00:00:00Z
+            },
+          },
+        },
+      }),
+      'sk-or-provision',
+    );
+
+    expect(probe.expiresAt).toBe('2027-10-25T00:00:00.000Z');
   });
 
   it('reports that a key has no expiry when expires_at is null', async () => {

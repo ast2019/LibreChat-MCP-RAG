@@ -95,6 +95,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now librechat-code.service
 sudo systemctl status librechat-code.service --no-pager`;
 
+/** After editing the unit (worker id / policy), reload before restart or systemd keeps the old file. */
+const SYSTEMD_RESTART = `sudo systemctl daemon-reload
+sudo systemctl restart librechat-code.service
+sudo systemctl status librechat-code.service --no-pager`;
+
 function CopyBlock({
   title,
   description,
@@ -152,6 +157,11 @@ function InstallGuide() {
         title={localize('com_ui_code_environment_install_step4_title')}
         description={localize('com_ui_code_environment_install_step4_body')}
         command={SYSTEMD_ENABLE}
+      />
+      <CopyBlock
+        title={localize('com_ui_code_environment_install_restart_title')}
+        description={localize('com_ui_code_environment_install_restart_body')}
+        command={SYSTEMD_RESTART}
       />
     </div>
   );

@@ -53,7 +53,8 @@ LIBRECHAT_CODE_WORKER_ID='<worker-id>' librechat-code run \
   --allow-workspace-writes \
   --allow-workspace-commands \
   --command-policy-preset trusted-vm
-# or: sudo systemctl restart librechat-code.service  # if the unit already has trusted-vm
+# or, if the unit already has trusted-vm — reload first whenever the unit file changed:
+# sudo systemctl daemon-reload && sudo systemctl restart librechat-code.service
 
 # optional host hardening for Ubuntu 24.04+:
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
