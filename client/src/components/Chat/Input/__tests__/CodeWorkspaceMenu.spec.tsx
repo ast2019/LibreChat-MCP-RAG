@@ -865,7 +865,8 @@ describe('CodeWorkspaceMenu', () => {
     renderMenu(<CodeWorkspaceMenu setConversation={jest.fn()} workspace={graph} disabled />);
     await userEvent.tab();
     const tooltip = await screen.findByRole('tooltip');
-    expect(tooltip).toHaveTextContent('com_ui_code_workspace_locked_recovery');
+    expect(tooltip).toHaveTextContent('com_ui_code_workspace_detach_prompt');
+    expect(tooltip).toHaveTextContent('com_ui_code_workspace_recheck_info');
     expect(tooltip).toHaveTextContent('Personal VM · Project A · com_ui_code_checkout_isolated');
   });
 
@@ -1232,7 +1233,7 @@ describe('CodeWorkspaceMenu', () => {
         disabled={false}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: /com_ui_retry/ }));
+    await userEvent.click(screen.getByRole('button', { name: /com_ui_code_workspace_recheck/ }));
     expect(invalidate).toHaveBeenCalled();
     expect(setConversation).not.toHaveBeenCalled();
   });
@@ -1397,8 +1398,12 @@ describe('CodeWorkspaceMenu', () => {
     );
 
     expect(screen.getByTestId('code-workspace-locked-status')).toHaveAccessibleName(
-      'com_ui_code_workspace_unavailable. com_ui_code_workspace_locked_recovery. com_ui_retry',
+      'com_ui_code_workspace_unavailable. com_ui_code_workspace_detach_prompt. com_ui_code_workspace_recheck',
     );
+    expect(screen.getByTestId('code-workspace-locked-hint')).toHaveTextContent(
+      'com_ui_code_workspace_detach_prompt',
+    );
+    expect(screen.queryByTestId('code-workspace-detach-inline')).not.toBeInTheDocument();
   });
 
   test('surfaces an inline continue-without-workspace action when the sealed machine is down', async () => {
@@ -1453,8 +1458,9 @@ describe('CodeWorkspaceMenu', () => {
     );
 
     expect(screen.getByTestId('code-workspace-locked-status')).toHaveAccessibleName(
-      'com_ui_code_workspace_without_attached. com_ui_code_workspace_without_attached_info. com_ui_retry',
+      'com_ui_code_workspace_without_attached. com_ui_code_workspace_without_attached_info. com_ui_code_workspace_recheck',
     );
+    expect(screen.queryByTestId('code-workspace-locked-hint')).not.toBeInTheDocument();
   });
 
   describe('a saved chat that has been running without a workspace', () => {

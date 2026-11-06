@@ -723,11 +723,20 @@ export default function CodeWorkspaceMenu({
   if (workspace.locked && transition == null) {
     /** A sealed decision with no transition on offer only reports where this chat runs: without a
      *  workspace by its own recorded choice, or on a machine that needs attention. Whether that is
-     *  worth showing at all is `visible`, above. */
+     *  worth showing at all is `visible`, above. The refresh control rechecks status only — it does
+     *  not start the worker. Leaving attached execution needs `conversationMoves.allowAttachDetach`. */
+    const machineDown =
+      workspace.mode !== 'without_attached' &&
+      (workspace.state === 'unavailable' ||
+        workspace.state === 'missing' ||
+        workspace.state === 'unsupported');
     const recovery =
       workspace.mode === 'without_attached'
         ? localize('com_ui_code_workspace_without_attached_info')
-        : localize('com_ui_code_workspace_locked_recovery');
+        : machineDown
+          ? localize('com_ui_code_workspace_detach_prompt')
+          : localize('com_ui_code_workspace_locked_recovery');
+    const recheckLabel = localize('com_ui_code_workspace_recheck');
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {onlyEnvironment != null && workspace.mode !== 'without_attached' && (
@@ -741,7 +750,11 @@ export default function CodeWorkspaceMenu({
         <div className="flex min-w-0 items-center">
           <TooltipAnchor
             description={
-              requirements.length > 0 ? description : [recovery, ...checkoutSummaries].join(' ')
+              requirements.length > 0
+                ? description
+                : [recovery, localize('com_ui_code_workspace_recheck_info'), ...checkoutSummaries]
+                    .filter(Boolean)
+                    .join(' ')
             }
             render={
               <Ariakit.Button
@@ -750,7 +763,7 @@ export default function CodeWorkspaceMenu({
                 disabled={disabled || isRefreshing}
                 accessibleWhenDisabled={true}
                 onClick={() => void refresh()}
-                aria-label={`${label}. ${recovery}. ${localize('com_ui_retry')}`}
+                aria-label={`${label}. ${recovery}. ${recheckLabel}`}
                 aria-describedby={requirements.length > 0 ? requirementsId : undefined}
                 aria-busy={isRefreshing}
                 className={cn(chipClasses, 'max-w-full min-w-0')}
@@ -765,6 +778,15 @@ export default function CodeWorkspaceMenu({
           </TooltipAnchor>
           <WorkspaceRequirements id={requirementsId} requirements={requirements} />
         </div>
+        {machineDown && (
+          <p
+            data-testid="code-workspace-locked-hint"
+            role="status"
+            className="text-text-secondary w-full text-xs"
+          >
+            {recovery}
+          </p>
+        )}
         {onlyEnvironment != null && workspace.mode !== 'without_attached' && (
           <GitContext target={onlyEnvironment} disabled={disabled} locked={true} />
         )}

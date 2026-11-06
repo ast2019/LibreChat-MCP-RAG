@@ -513,6 +513,12 @@ endpoints:
         - agent-user
         - conversation
       allowEnvironmentSelection: true
+      # Lets a sealed chat leave a dead Attached VM (Continue without workspace) and move
+      # onto another machine. Without this, the composer only shows «Workspace unavailable»
+      # + refresh and send stays blocked.
+      conversationMoves:
+        enabled: true
+        allowAttachDetach: true
       principalWorkers:
         enabled: true
         maxPerUser: 2
