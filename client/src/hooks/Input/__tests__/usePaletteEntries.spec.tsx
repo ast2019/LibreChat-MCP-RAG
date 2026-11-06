@@ -293,6 +293,20 @@ describe('usePaletteEntries', () => {
     expect(codeInterpreter.setIsPinned).toHaveBeenCalledWith(false);
   });
 
+  it('hides ephemeral execute_code when statefulCodeSessions (Attached VM) is configured', () => {
+    mockContext = {
+      ...fullContext(),
+      agentsConfig: {
+        capabilities: [],
+        statefulCodeSessions: {
+          environments: [{ id: 'personal-workers', type: 'attached' }],
+        },
+      },
+    };
+    expect(keysOf(entries().result)).not.toContain('builtin:execute_code');
+    expect(keysOf(entries().result)).toContain('builtin:web_search');
+  });
+
   it.each([false, true])(
     'withholds restored pinned search (active=%s) from both the palette and prompt bar when its capability is disabled',
     (active) => {

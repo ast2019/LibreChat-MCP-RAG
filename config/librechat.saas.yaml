@@ -55,7 +55,9 @@ interface:
   fileSearch: true
   fileCitations: true
   # Needed for Attached VM: agents call execute_code / bash on the paired worker.
-  # This is not the Coolify microVM interpreter (that stack stays off; no /dev/kvm).
+  # This is not the Coolify microVM interpreter (that stack stays off; no /dev/kvm),
+  # and it is not the ephemeral «اجرای کد» chip on ordinary OpenRouter chats — that
+  # chip is hidden when statefulCodeSessions is configured (see usePaletteEntries).
   runCode: true
   # The composer ring shows how full the model's context window is, with the share in percent
   # beside it; the card adds the token breakdown and the share of the pack used. Per-chat cost

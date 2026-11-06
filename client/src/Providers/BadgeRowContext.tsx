@@ -111,7 +111,16 @@ export default function BadgeRowProvider({
       const memoryToggleKey = `${LocalStorageKeys.LAST_MEMORY_TOGGLE_}${storageSuffix}`;
       const browserToggleKey = `${LocalStorageKeys.LAST_BROWSER_TOGGLE_}${storageSuffix}`;
 
-      const codeToggleValue = getTimestampedValue(codeToggleKey);
+      /**
+       * Ephemeral «Run Code» is the managed Code Interpreter path. When
+       * `statefulCodeSessions` is configured (Attached VM), ordinary chats do
+       * not use that chip — skip restoring a stale localStorage toggle so it
+       * cannot stay on after the UI hid the control.
+       */
+      const attachedVmConfigured = agentsConfig?.statefulCodeSessions != null;
+      const codeToggleValue = attachedVmConfigured
+        ? null
+        : getTimestampedValue(codeToggleKey);
       const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
       const fileSearchToggleValue = getTimestampedValue(fileSearchToggleKey);
       const artifactsToggleValue = getTimestampedValue(artifactsToggleKey);
@@ -223,7 +232,7 @@ export default function BadgeRowProvider({
         return changed ? result : prev;
       });
     }
-  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent]);
+  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent, agentsConfig?.statefulCodeSessions]);
 
   /** CodeInterpreter hook — sandbox auth is handled server-side by the
    *  agents library, so the toggle no longer has an auth dialog gate. */
@@ -234,6 +243,26 @@ export default function BadgeRowProvider({
     localStorageKey: LocalStorageKeys.LAST_CODE_TOGGLE_,
     isAuthenticated: true,
   });
+
+  /** Clear a leftover ephemeral execute_code toggle when Attached VM is the
+   *  code path — the palette no longer exposes the chip in that deploy. */
+  useEffect(() => {
+    if (agentsConfig?.statefulCodeSessions == null) {
+      return;
+    }
+    if (codeInterpreter.toggleState) {
+      codeInterpreter.debouncedChange({ value: false });
+    }
+    if (codeInterpreter.isPinned) {
+      codeInterpreter.setIsPinned(false);
+    }
+  }, [
+    agentsConfig?.statefulCodeSessions,
+    codeInterpreter.toggleState,
+    codeInterpreter.isPinned,
+    codeInterpreter.debouncedChange,
+    codeInterpreter.setIsPinned,
+  ]);
 
   /** WebSearch hooks */
   const searchApiKeyForm = useSearchApiKeyForm({});

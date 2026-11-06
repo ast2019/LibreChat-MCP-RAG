@@ -375,7 +375,15 @@ export default function usePaletteEntries({
       });
     }
 
-    if (toolsEnabled && canRunCode && codeEnabled) {
+    /**
+     * Ephemeral «Run Code» is the managed Code Interpreter sandbox for ordinary chats.
+     * Attached VM work uses agents + the workspace/machine controls, not this chip.
+     * When `statefulCodeSessions` is configured (HiveGPT), showing the chip on every
+     * OpenRouter chat is misleading: microVM interpreter is off and the toggle does
+     * not attach a personal worker.
+     */
+    const attachedVmConfigured = context.agentsConfig?.statefulCodeSessions != null;
+    if (toolsEnabled && canRunCode && codeEnabled && !attachedVmConfigured) {
       pushTool(
         'execute_code',
         localize('com_ui_run_code'),
