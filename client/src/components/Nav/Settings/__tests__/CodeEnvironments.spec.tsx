@@ -100,6 +100,7 @@ describe('CodeEnvironments status', () => {
     mockStatusQuery = { isLoading: false, isError: true };
     const { rerender } = render(<CodeEnvironments />);
     expect(screen.getByText('com_ui_code_environment_status_unavailable')).toBeInTheDocument();
+    expect(screen.getByTestId('code-environment-reconnect')).toBeInTheDocument();
 
     mockStatusQuery = {
       isLoading: false,
@@ -108,5 +109,7 @@ describe('CodeEnvironments status', () => {
     };
     rerender(<CodeEnvironments />);
     expect(screen.getByText('com_ui_code_environment_status_offline')).toBeInTheDocument();
+    expect(screen.getByTestId('code-environment-reconnect')).toBeInTheDocument();
+    expect(screen.getByText(/LIBRECHAT_CODE_WORKER_ID='personal-vm'/)).toBeInTheDocument();
   });
 });

@@ -102,6 +102,14 @@ echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/9
 
 `deploy/code-worker/install-host.sh` همین sysctl را اعمال می‌کند و `bwrap` را تست می‌کند. اگر میزبان کانتینر است نه VM واقعی، nested userns باید از سمت runtime بیرونی مجاز باشد.
 
+## آفلاین شدن و وصل مجدد
+
+ثبت ماشین در HiveGPT تا وقتی خودتان «حذف» را نزنید می‌ماند. فقط **کد pairing یک‌باره** کوتاه‌عمر است (دقایق). وضعیت «آفلاین» یعنی فرایند `librechat-code` روی VM heartbeat کوتاه (~تا ۶۰ ثانیه) را از دست داده — مثلاً سرویس خاموش شده یا شبکه قطع شده — نه اینکه ثبت منقضی شده باشد.
+
+وصل مجدد = همان `LIBRECHAT_CODE_WORKER_ID` را دوباره `run` کنید (یا `systemctl restart librechat-code`). دوباره pair نکنید مگر ورودی را از تنظیمات حذف کرده باشید؛ pair جدید یک `code-*` تازه می‌سازد و سقف `principalWorkers.maxPerUser` را پر می‌کند.
+
+حذف در تنظیمات حتی وقتی worker آفلاین است باید کارت را بردارد؛ اگر bridge در دسترس نباشد ثبت محلی همچنان بازنشسته می‌شود.
+
 ## محدودیت فعلی
 
 - Provision خودکار VM از روی URL گیت هنوز پیاده نشده است.

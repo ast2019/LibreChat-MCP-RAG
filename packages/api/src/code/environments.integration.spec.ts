@@ -393,6 +393,85 @@ describe('code environment registry', () => {
     ).resolves.toEqual([]);
   });
 
+  test('retires the local registration when bridge revoke fails for an offline worker', async () => {
+    const registry = createCodeEnvironmentRegistry(mongoose);
+    const ownerId = new Types.ObjectId();
+    const environment = await registry.register({
+      actor: { userId: ownerId, role: 'USER', idOnTheSource: null },
+      environment: {
+        id: 'offline-remove',
+        name: 'Offline remove',
+        type: 'attached',
+        baseURL: 'https://code.example.com/v1',
+        workerId: 'offline-remove',
+        controlPlaneId: 'self-service',
+        revocationTokenEnv: 'CODE_ADMIN_TOKEN',
+        workerPrincipal: { type: 'user', id: ownerId.toString() },
+      },
+    });
+    const beforeDelete = jest.fn().mockRejectedValue(new Error('bridge unreachable'));
+
+    await expect(
+      registry.remove({
+        actor: { userId: ownerId, role: 'USER', idOnTheSource: null },
+        environmentId: 'offline-remove',
+        beforeDelete,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: 'offline-remove', canDelete: true }));
+    expect(beforeDelete).toHaveBeenCalledTimes(1);
+    await expect(
+      mongoose.models.AclEntry.countDocuments({ resourceId: environment.resourceId }),
+    ).resolves.toBe(0);
+    await expect(
+      mongoose.models.CodeEnvironment.findOne({ environmentId: 'offline-remove' }),
+    ).resolves.toBeNull();
+    await expect(
+      registry.listAccessible({ userId: ownerId, role: 'USER', idOnTheSource: null }),
+    ).resolves.toEqual([]);
+  });
+
+  test('finishes a previously fenced remove when the owner retries Delete', async () => {
+    const registry = createCodeEnvironmentRegistry(mongoose);
+    const ownerId = new Types.ObjectId();
+    await registry.register({
+      actor: { userId: ownerId, role: 'USER', idOnTheSource: null },
+      environment: {
+        id: 'fenced-retry',
+        name: 'Fenced retry',
+        type: 'attached',
+        baseURL: 'https://code.example.com/v1',
+        workerId: 'fenced-retry',
+        controlPlaneId: 'self-service',
+        revocationTokenEnv: 'CODE_ADMIN_TOKEN',
+        workerPrincipal: { type: 'user', id: ownerId.toString() },
+      },
+    });
+    const leaseId = new Types.ObjectId().toHexString();
+    await mongoose.models.CodeEnvironment.updateOne(
+      { environmentId: 'fenced-retry' },
+      {
+        $set: {
+          deletionStartedAt: new Date(),
+          deletionLeaseId: leaseId,
+          deletionLeaseExpiresAt: new Date(Date.now() + 60_000),
+        },
+      },
+    );
+    const beforeDelete = jest.fn().mockRejectedValue(new Error('still offline'));
+
+    await expect(
+      registry.remove({
+        actor: { userId: ownerId, role: 'USER', idOnTheSource: null },
+        environmentId: 'fenced-retry',
+        beforeDelete,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: 'fenced-retry' }));
+    expect(beforeDelete).toHaveBeenCalledTimes(1);
+    await expect(
+      mongoose.models.CodeEnvironment.findOne({ environmentId: 'fenced-retry' }),
+    ).resolves.toBeNull();
+  });
+
   test('reconciles an interrupted removal after the remote lifecycle has started', async () => {
     const registry = createCodeEnvironmentRegistry(mongoose);
     const ownerId = new Types.ObjectId();

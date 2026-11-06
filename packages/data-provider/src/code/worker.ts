@@ -27,13 +27,12 @@ function quotePowerShell(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-export function createCodeWorkerSetupCommand(
-  pairing: CodeWorkerPairing,
+function buildCodeWorkerRunCommand(
+  workerId: string,
   shell: CodeWorkerShell,
   options: CodeWorkerRunOptions = {},
 ): string {
   const quote = shell === 'powershell' ? quotePowerShell : quotePosix;
-  const pair = `librechat-code pair ${quote(pairing.endpoint)} ${quote(pairing.code)} --worker-id ${quote(pairing.workerId)}`;
   const preset =
     typeof options.commandPolicyPreset === 'string' && options.commandPolicyPreset.trim() !== ''
       ? options.commandPolicyPreset.trim()
@@ -45,10 +44,28 @@ export function createCodeWorkerSetupCommand(
     preset == null ? null : `--command-policy-preset ${quote(preset)}`,
   ].filter((value): value is string => value != null);
   const run = ['librechat-code run', ...runArgs].join(' ');
-
   if (shell === 'powershell') {
-    return `${pair}\n$env:LIBRECHAT_CODE_WORKER_ID = ${quote(pairing.workerId)}\n${run}`;
+    return `$env:LIBRECHAT_CODE_WORKER_ID = ${quote(workerId)}\n${run}`;
   }
+  return `LIBRECHAT_CODE_WORKER_ID=${quote(workerId)} ${run}`;
+}
 
-  return `${pair}\nLIBRECHAT_CODE_WORKER_ID=${quote(pairing.workerId)} ${run}`;
+/** One-time pair + first run. Pairing codes expire; the registration itself does not. */
+export function createCodeWorkerSetupCommand(
+  pairing: CodeWorkerPairing,
+  shell: CodeWorkerShell,
+  options: CodeWorkerRunOptions = {},
+): string {
+  const quote = shell === 'powershell' ? quotePowerShell : quotePosix;
+  const pair = `librechat-code pair ${quote(pairing.endpoint)} ${quote(pairing.code)} --worker-id ${quote(pairing.workerId)}`;
+  return `${pair}\n${buildCodeWorkerRunCommand(pairing.workerId, shell, options)}`;
+}
+
+/** Restart an already-paired worker with the same id — no new pairing code. */
+export function createCodeWorkerRunCommand(
+  workerId: string,
+  shell: CodeWorkerShell,
+  options: CodeWorkerRunOptions = {},
+): string {
+  return buildCodeWorkerRunCommand(workerId, shell, options);
 }

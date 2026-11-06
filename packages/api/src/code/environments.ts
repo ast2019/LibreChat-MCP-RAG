@@ -643,49 +643,66 @@ export function createCodeEnvironmentRegistry(
     });
     if (!allowed) return null;
     const removal = await methods.beginCodeEnvironmentRemoval(environment._id);
-    if (removal == null) {
+    const target =
+      removal ??
+      (await methods.findCodeEnvironmentByEnvironmentId(environmentId).then((fenced) =>
+        fenced?.deletionStartedAt != null &&
+        fenced.deletionLeaseId != null &&
+        fenced.deletionCommittedAt == null
+          ? fenced
+          : null,
+      ));
+    if (target == null) {
       throw new CodeEnvironmentInUseError(environmentId);
     }
-    const removalLeaseId = removal.deletionLeaseId;
+    const removalLeaseId = target.deletionLeaseId;
     if (removalLeaseId == null) {
       throw new Error('Code environment removal lease is unavailable');
     }
     let deletionCommitted = false;
-    let externalLifecycleStarted = false;
+    let revokeAttempted = false;
     try {
       const Agent = mongoose.models.Agent;
       if (
         Agent != null &&
-        (await Agent.exists(agentReferenceFilter(environmentId, environment.tenantId))) != null
+        (await Agent.exists(agentReferenceFilter(environmentId, target.tenantId))) != null
       ) {
         throw new CodeEnvironmentInUseError(environmentId);
       }
       if (beforeDelete != null) {
-        // From this point onward the remote outcome may be committed even if the request fails.
-        // Keep the local fence for idempotent reconciliation instead of reopening a dead worker.
-        externalLifecycleStarted = true;
-        await beforeDelete({
-          ...toSummary(environment),
-          baseURL: environment.baseURL,
-          workerId: environment.workerId,
-          controlPlaneId: environment.controlPlaneId,
-          revocationTokenEnv: environment.revocationTokenEnv,
-          workerPrincipal: environment.workerPrincipal,
-        });
+        revokeAttempted = true;
+        try {
+          await beforeDelete({
+            ...toSummary(target),
+            baseURL: target.baseURL,
+            workerId: target.workerId,
+            controlPlaneId: target.controlPlaneId,
+            revocationTokenEnv: target.revocationTokenEnv,
+            workerPrincipal: target.workerPrincipal,
+          });
+        } catch (error) {
+          // Owner unregister must free the HiveGPT slot even when the bridge is down or the
+          // worker is already gone. Bridge 404/410 is success inside revoke; other failures
+          // still retire the local registration so Delete is not stuck behind an offline VM.
+          logger.error(
+            '[code-environments] worker revoke failed during owner remove; retiring locally:',
+            error,
+          );
+        }
       }
-      await methods.commitCodeEnvironmentRemoval(environment._id, removalLeaseId);
+      await methods.commitCodeEnvironmentRemoval(target._id, removalLeaseId);
       deletionCommitted = true;
       await access.removeAllPermissions({
         resourceType: ResourceType.CODE_ENVIRONMENT,
-        resourceId: environment._id,
+        resourceId: target._id,
       });
-      const deleted = await methods.deleteCodeEnvironmentById(environment._id);
+      const deleted = await methods.deleteCodeEnvironmentById(target._id);
       if (deleted == null) return null;
       await invalidateAccessibleConfigurations();
       return toSummary(deleted, true, true);
     } catch (error) {
-      if (!deletionCommitted && !externalLifecycleStarted) {
-        await methods.cancelCodeEnvironmentRemoval(environment._id, removalLeaseId);
+      if (!deletionCommitted && !revokeAttempted) {
+        await methods.cancelCodeEnvironmentRemoval(target._id, removalLeaseId);
       }
       throw error;
     }

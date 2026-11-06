@@ -1,5 +1,9 @@
 import { useEffect, useId, useState } from 'react';
-import { createCodeWorkerSetupCommand, isCodeWorkerShell } from 'librechat-data-provider';
+import {
+  createCodeWorkerRunCommand,
+  createCodeWorkerSetupCommand,
+  isCodeWorkerShell,
+} from 'librechat-data-provider';
 import {
   Button,
   Chip,
@@ -26,6 +30,7 @@ import {
   usePairCodeEnvironmentMutation,
   useUpdateCodeEnvironmentSettingsMutation,
 } from '~/data-provider';
+import { getResponseStatus } from '~/utils';
 import { useLocalize } from '~/hooks';
 
 const statusPresentation = {
@@ -34,24 +39,56 @@ const statusPresentation = {
   ready: { label: 'com_ui_code_environment_status_ready', tone: 'success' },
 } as const;
 
-function EnvironmentStatus({ environmentId }: { environmentId: string }) {
+function EnvironmentStatus({
+  environmentId,
+  onStatus,
+}: {
+  environmentId: string;
+  onStatus?: (status: 'offline' | 'starting' | 'ready' | 'unavailable' | 'checking') => void;
+}) {
   const localize = useLocalize();
   const query = useCodeEnvironmentStatusQuery(environmentId);
-  if (query.isLoading) {
+  const status = query.isLoading
+    ? 'checking'
+    : query.isError || query.data == null
+      ? 'unavailable'
+      : query.data.status;
+  useEffect(() => {
+    onStatus?.(status);
+  }, [onStatus, status]);
+  if (status === 'checking') {
     return <Chip tone="neutral">{localize('com_ui_code_environment_status_checking')}</Chip>;
   }
-  if (query.isError || query.data == null) {
+  if (status === 'unavailable') {
     return <Chip tone="warning">{localize('com_ui_code_environment_status_unavailable')}</Chip>;
   }
-  const presentation = statusPresentation[query.data.status];
+  const presentation = statusPresentation[status];
   return (
     <div className="flex min-w-0 flex-col items-end gap-1">
       <Chip tone={presentation.tone}>{localize(presentation.label)}</Chip>
-      {query.data.sandboxProfile != null && (
+      {query.data?.sandboxProfile != null && (
         <span className="text-text-tertiary max-w-48 truncate text-xs">
           {[query.data.sandboxProfile, ...(query.data.runtimes ?? [])].join(' · ')}
         </span>
       )}
+    </div>
+  );
+}
+
+function OfflineReconnect({ workerId }: { workerId: string }) {
+  const localize = useLocalize();
+  const command = createCodeWorkerRunCommand(workerId, 'posix', {
+    allowWorkspaceWrites: true,
+    allowWorkspaceCommands: true,
+    commandPolicyPreset: 'trusted-vm',
+  });
+  return (
+    <div className="mt-3" data-testid="code-environment-reconnect">
+      <CopyBlock
+        title={localize('com_ui_code_environment_reconnect_title')}
+        description={localize('com_ui_code_environment_reconnect_description')}
+        command={command}
+      />
     </div>
   );
 }
@@ -314,6 +351,80 @@ function EnvironmentPermissions({ environment }: { environment: TCodeEnvironment
   );
 }
 
+function EnvironmentCard({
+  environment,
+  deleting,
+  onDelete,
+}: {
+  environment: TCodeEnvironmentSummary;
+  deleting: boolean;
+  onDelete: () => Promise<boolean>;
+}) {
+  const localize = useLocalize();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<
+    'offline' | 'starting' | 'ready' | 'unavailable' | 'checking'
+  >('checking');
+  const showReconnect = status === 'offline' || status === 'unavailable';
+
+  return (
+    <div className="border-border-medium rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-text-primary truncate text-sm font-medium">{environment.name}</p>
+          <p className="text-text-secondary truncate text-xs">{environment.id}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <EnvironmentStatus environmentId={environment.id} onStatus={setStatus} />
+          {environment.canDelete && (
+            <OGDialog open={open} onOpenChange={setOpen}>
+              <OGDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={deleting}
+                  aria-label={localize('com_ui_delete_var', { 0: environment.name })}
+                >
+                  {localize('com_ui_delete')}
+                </Button>
+              </OGDialogTrigger>
+              <OGDialogTemplate
+                className="max-w-md"
+                showCloseButton={false}
+                title={localize('com_ui_code_environment_remove_title')}
+                main={
+                  <p className="text-text-secondary text-sm">
+                    {localize('com_ui_code_environment_remove_description')}
+                  </p>
+                }
+                cancelDisabled={deleting}
+                selection={
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deleting}
+                    aria-busy={deleting}
+                    onClick={async () => {
+                      if (await onDelete()) {
+                        setOpen(false);
+                      }
+                    }}
+                  >
+                    {deleting ? <Spinner /> : localize('com_ui_delete')}
+                  </Button>
+                }
+              />
+            </OGDialog>
+          )}
+        </div>
+      </div>
+      {showReconnect && <OfflineReconnect workerId={environment.id} />}
+      <EnvironmentPermissions environment={environment} />
+    </div>
+  );
+}
+
 export default function CodeEnvironments() {
   const localize = useLocalize();
   const nameId = useId();
@@ -450,60 +561,31 @@ export default function CodeEnvironments() {
 
       <div className="flex flex-col gap-2">
         {(query.data?.environments ?? []).map((environment) => (
-          <div key={environment.id} className="border-border-medium rounded-lg border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-text-primary truncate text-sm font-medium">{environment.name}</p>
-                <p className="text-text-secondary truncate text-xs">{environment.id}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <EnvironmentStatus environmentId={environment.id} />
-                {environment.canDelete && (
-                  <OGDialog>
-                    <OGDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={localize('com_ui_delete_var', { 0: environment.name })}
-                      >
-                        {localize('com_ui_delete')}
-                      </Button>
-                    </OGDialogTrigger>
-                    <OGDialogTemplate
-                      className="max-w-md"
-                      showCloseButton={false}
-                      title={localize('com_ui_code_environment_remove_title')}
-                      main={
-                        <p className="text-text-secondary text-sm">
-                          {localize('com_ui_code_environment_remove_description')}
-                        </p>
-                      }
-                      selection={{
-                        selectHandler: () =>
-                          deleteMutation.mutate(environment.id, {
-                            onSuccess: () =>
-                              showToast({
-                                message: localize('com_ui_code_environment_removed'),
-                                status: 'success',
-                              }),
-                            onError: () =>
-                              showToast({
-                                message: localize('com_ui_code_environment_remove_error'),
-                                status: 'error',
-                              }),
-                          }),
-                        selectClasses:
-                          'bg-surface-destructive text-text-on-status transition-all duration-200 hover:bg-surface-destructive-hover',
-                        selectText: localize('com_ui_delete'),
-                      }}
-                    />
-                  </OGDialog>
-                )}
-              </div>
-            </div>
-            <EnvironmentPermissions environment={environment} />
-          </div>
+          <EnvironmentCard
+            key={environment.id}
+            environment={environment}
+            deleting={deleteMutation.isLoading}
+            onDelete={async () => {
+              try {
+                await deleteMutation.mutateAsync(environment.id);
+                showToast({
+                  message: localize('com_ui_code_environment_removed'),
+                  status: 'success',
+                });
+                return true;
+              } catch (error) {
+                showToast({
+                  message: localize(
+                    getResponseStatus(error) === 409
+                      ? 'com_ui_code_environment_remove_in_use'
+                      : 'com_ui_code_environment_remove_error',
+                  ),
+                  status: 'error',
+                });
+                return false;
+              }
+            }}
+          />
         ))}
       </div>
     </div>
