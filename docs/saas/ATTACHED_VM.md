@@ -78,7 +78,9 @@ apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricte
 روی همان VM، worker را با preset درست دوباره اجرا کنید:
 
 ```bash
-# اگر systemd دارید، واحد Settings از قبل trusted-vm دارد:
+# اگر systemd دارید، واحد Settings از قبل trusted-vm دارد.
+# هر بار که فایل unit عوض شده اول daemon-reload، بعد restart:
+sudo systemctl daemon-reload
 sudo systemctl restart librechat-code.service
 
 # یا foreground (همان worker-id جفت‌شده):
