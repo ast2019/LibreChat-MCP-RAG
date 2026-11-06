@@ -70,6 +70,8 @@ export type TServiceStatus = {
   accountRemaining?: number | null;
   accountLimit?: number | null;
   resetAt?: string | null;
+  /** OpenRouter API key expiry; null when the key does not expire; absent when unknown. */
+  expiresAt?: string | null;
   /** Estimated days until `remaining` reaches zero from recent daily usage; null when unknown. */
   daysUntilExhausted?: number | null;
   /** Search failover state: skipped until `until`. */

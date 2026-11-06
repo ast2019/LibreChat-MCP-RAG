@@ -80,6 +80,7 @@ const response: TServiceStatusResponse = {
       accountRemaining: 45,
       accountLimit: 50,
       plan: 'no_reset',
+      expiresAt: '2027-12-31T23:59:59Z',
       checkedAt: iso(-2 * 3600_000),
     },
     { id: 'sms', configured: false, health: 'unconfigured', reachable: null, checkedAt: null },
@@ -202,7 +203,12 @@ describe('StatusPanel', () => {
         'com_admin_status_openrouter_account(com_admin_status_remaining_of($45.00 · ۴٬۵۰۰٬۰۰۰ تومان|$50.00 · ۵٬۰۰۰٬۰۰۰ تومان))',
       ),
     ).toBeInTheDocument();
+    expect(within(card).getByLabelText('com_admin_status_openrouter_key_progress')).toBeInTheDocument();
+    expect(
+      within(card).getByLabelText('com_admin_status_openrouter_account_progress'),
+    ).toBeInTheDocument();
     expect(within(card).getByText('com_admin_status_openrouter_no_reset')).toBeInTheDocument();
+    expect(within(card).getByText(/com_admin_status_openrouter_expires/)).toBeInTheDocument();
   });
 
   it('lists the installed Ollama models and marks the active one', () => {

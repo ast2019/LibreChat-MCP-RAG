@@ -112,20 +112,32 @@ export default function ServiceCard({
     remainingLine = localize('com_admin_status_remaining_unknown');
   }
 
-  const accountLine =
-    service.id === 'openrouter' &&
-    service.quotaSource === 'key' &&
+  const accountOfLimit =
     service.accountRemaining != null
-      ? localize('com_admin_status_openrouter_account', {
-          0:
-            service.accountLimit != null
-              ? localize('com_admin_status_remaining_of', {
-                  0: amount(service.accountRemaining),
-                  1: amount(service.accountLimit),
-                })
-              : localize('com_admin_status_remaining', { 0: amount(service.accountRemaining) }),
-        })
+      ? service.accountLimit != null
+        ? localize('com_admin_status_remaining_of', {
+            0: amount(service.accountRemaining),
+            1: amount(service.accountLimit),
+          })
+        : localize('com_admin_status_remaining', { 0: amount(service.accountRemaining) })
       : null;
+  const accountLine =
+    service.id === 'openrouter' && service.quotaSource === 'key' && accountOfLimit != null
+      ? localize('com_admin_status_openrouter_account', { 0: accountOfLimit })
+      : null;
+  const accountPercent =
+    service.accountRemaining != null &&
+    service.accountLimit != null &&
+    service.accountLimit > 0
+      ? Math.max(
+          0,
+          Math.min(100, Math.round((service.accountRemaining / service.accountLimit) * 100)),
+        )
+      : null;
+  const keyProgressLabel =
+    service.id === 'openrouter' && service.quotaSource === 'key'
+      ? localize('com_admin_status_openrouter_key_progress')
+      : localize('com_admin_status_progress_label', { 0: name });
 
   return (
     <article
@@ -155,20 +167,39 @@ export default function ServiceCard({
       </header>
 
       {remainingLine != null && (
-        <div className="space-y-1.5">
-          <p className="text-text-primary text-sm">{remainingLine}</p>
-          {accountLine != null && <p className="text-text-secondary text-xs">{accountLine}</p>}
-          {service.remainingPercent != null && (
-            <div className="flex items-center gap-2">
-              <Progress
-                value={service.remainingPercent}
-                aria-label={localize('com_admin_status_progress_label', { 0: name })}
-                variant={tone.bar}
-                className="flex-1"
-              />
-              <span className="text-text-secondary w-10 text-end text-xs">
-                {formatPercent(service.remainingPercent, locale)}
-              </span>
+        <div className="space-y-2">
+          <div className="space-y-1.5">
+            <p className="text-text-primary text-sm">{remainingLine}</p>
+            {service.remainingPercent != null && (
+              <div className="flex items-center gap-2">
+                <Progress
+                  value={service.remainingPercent}
+                  aria-label={keyProgressLabel}
+                  variant={tone.bar}
+                  className="flex-1"
+                />
+                <span className="text-text-secondary w-10 text-end text-xs">
+                  {formatPercent(service.remainingPercent, locale)}
+                </span>
+              </div>
+            )}
+          </div>
+          {accountLine != null && (
+            <div className="space-y-1.5">
+              <p className="text-text-secondary text-xs">{accountLine}</p>
+              {accountPercent != null && (
+                <div className="flex items-center gap-2">
+                  <Progress
+                    value={accountPercent}
+                    aria-label={localize('com_admin_status_openrouter_account_progress')}
+                    variant="default"
+                    className="flex-1"
+                  />
+                  <span className="text-text-secondary w-10 text-end text-xs">
+                    {formatPercent(accountPercent, locale)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -196,6 +227,15 @@ export default function ServiceCard({
                 ? localize('com_admin_status_openrouter_no_reset')
                 : service.plan}
             </bdi>
+          </li>
+        )}
+        {service.id === 'openrouter' && service.expiresAt !== undefined && (
+          <li>
+            {service.expiresAt == null
+              ? localize('com_admin_status_openrouter_no_expiry')
+              : localize('com_admin_status_openrouter_expires', {
+                  0: formatDate(service.expiresAt, locale),
+                })}
           </li>
         )}
         {service.unit == null && service.reachable != null && (

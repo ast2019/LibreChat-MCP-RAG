@@ -258,6 +258,7 @@ export function createServiceStatusService(deps: ServiceStatusDeps): ServiceStat
         accountRemaining: probe?.accountRemaining ?? null,
         accountLimit: probe?.accountLimit ?? null,
         resetAt: probe?.resetAt ?? null,
+        expiresAt: probe?.expiresAt,
         daysUntilExhausted,
         skip: skip
           ? { reason: skip.reason, until: new Date(skip.until).toISOString(), code: skip.code }
