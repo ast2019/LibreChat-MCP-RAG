@@ -1,4 +1,8 @@
-import { createCodeWorkerSetupCommand, isCodeWorkerShell } from './worker';
+import {
+  createCodeWorkerRunCommand,
+  createCodeWorkerSetupCommand,
+  isCodeWorkerShell,
+} from './worker';
 
 const pairing = {
   endpoint: 'https://code.example.com/v1',
@@ -51,5 +55,19 @@ describe('createCodeWorkerSetupCommand', () => {
     expect(isCodeWorkerShell('posix')).toBe(true);
     expect(isCodeWorkerShell('powershell')).toBe(true);
     expect(isCodeWorkerShell('cmd')).toBe(false);
+  });
+});
+
+describe('createCodeWorkerRunCommand', () => {
+  it('restarts an existing worker id without issuing a new pairing code', () => {
+    expect(
+      createCodeWorkerRunCommand("worker'one", 'posix', {
+        allowWorkspaceWrites: true,
+        allowWorkspaceCommands: true,
+        commandPolicyPreset: 'trusted-vm',
+      }),
+    ).toBe(
+      "LIBRECHAT_CODE_WORKER_ID='worker'\\''one' librechat-code run --default-workspace --allow-workspace-writes --allow-workspace-commands --command-policy-preset 'trusted-vm'",
+    );
   });
 });

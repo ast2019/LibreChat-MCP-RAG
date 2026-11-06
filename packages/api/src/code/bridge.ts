@@ -631,6 +631,11 @@ export async function revokeCodeBridgeWorker({
         signal: AbortSignal.timeout(CODE_BRIDGE_REQUEST_TIMEOUT_MS),
       },
     );
+    // An already-absent worker (expired credentials, prior revoke, never paired) must not
+    // block unregistering the HiveGPT registration — especially when the VM is offline.
+    if (response.status === 404 || response.status === 410) {
+      return;
+    }
     if (!response.ok) {
       throw new CodeBridgeLifecycleError('rejected', response.status);
     }

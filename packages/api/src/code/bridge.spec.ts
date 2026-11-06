@@ -1,7 +1,9 @@
 import {
+  CodeBridgeLifecycleError,
   CodeBridgeStatusError,
   createCodeBridgeStatusPoller,
   getCodeBridgeWorkerStatus,
+  revokeCodeBridgeWorker,
 } from './bridge';
 
 describe('getCodeBridgeWorkerStatus', () => {
@@ -851,6 +853,29 @@ describe('createCodeBridgeStatusPoller transient failures', () => {
     await poll(params);
     await expect(poll({ ...params, token: 'rotated-administrator-token' })).rejects.toEqual(
       expect.objectContaining<Partial<CodeBridgeStatusError>>({ reason: 'failed' }),
+    );
+  });
+});
+
+describe('revokeCodeBridgeWorker', () => {
+  const revokeParams = {
+    baseURL: 'https://code.example.com/v1',
+    token: 'administrator-token',
+    workerId: 'personal-vm',
+  };
+
+  test.each([404, 410])('treats an already-absent worker (%s) as revoked', async (status) => {
+    const fetchImpl = jest.fn().mockResolvedValue(new Response('gone', { status }));
+    await expect(revokeCodeBridgeWorker({ ...revokeParams, fetchImpl })).resolves.toBeUndefined();
+  });
+
+  test('still rejects other bridge failures', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(new Response('nope', { status: 503 }));
+    await expect(revokeCodeBridgeWorker({ ...revokeParams, fetchImpl })).rejects.toEqual(
+      expect.objectContaining<Partial<CodeBridgeLifecycleError>>({
+        reason: 'rejected',
+        upstreamStatus: 503,
+      }),
     );
   });
 });
