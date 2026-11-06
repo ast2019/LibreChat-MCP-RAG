@@ -1401,6 +1401,43 @@ describe('CodeWorkspaceMenu', () => {
     );
   });
 
+  test('surfaces an inline continue-without-workspace action when the sealed machine is down', async () => {
+    const user = userEvent.setup();
+    const setter = jest.fn();
+    const graph = workspace({ locked: true, state: 'unavailable', canSubmit: false });
+    graph.environments[0].state = 'unavailable';
+    graph.transition = {
+      kind: 'detach',
+      conversationId: 'chat-1',
+      from: graph.selections!,
+      previous: [],
+      retained: [],
+      targets: [],
+      detachable: true,
+    };
+    const moveSpy = jest.spyOn(dataService, 'moveConversationCodeEnvironment').mockResolvedValue({
+      conversationId: 'chat-1',
+      codeEnvironmentMode: 'without_attached',
+      codeWorkspaces: undefined,
+    } as TConversation);
+    renderMenu(<CodeWorkspaceMenu setConversation={setter} workspace={graph} disabled={false} />);
+
+    expect(screen.getByTestId('code-workspace-detach-inline')).toHaveTextContent(
+      'com_ui_code_workspace_detach',
+    );
+    expect(screen.getByTestId('code-workspace-detach-hint')).toHaveTextContent(
+      'com_ui_code_workspace_detach_prompt',
+    );
+    await user.click(screen.getByTestId('code-workspace-detach-inline'));
+    await waitFor(() =>
+      expect(moveSpy).toHaveBeenCalledWith({
+        conversationId: 'chat-1',
+        from: graph.selections,
+        to: [],
+      }),
+    );
+  });
+
   test('explains a chat that recorded running without a workspace and cannot attach one', () => {
     renderMenu(
       <CodeWorkspaceMenu

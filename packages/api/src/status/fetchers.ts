@@ -24,6 +24,8 @@ export interface ServiceProbe {
   /** OpenRouter account wallet when `remaining` is the key cap. */
   accountRemaining?: number | null;
   accountLimit?: number | null;
+  /** OpenRouter API key expiry (`expires_at`); null when the key does not expire. */
+  expiresAt?: string | null;
 }
 
 export interface ProbeContext {
@@ -45,6 +47,11 @@ const str = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value : null;
 const obj = (value: unknown): Json =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : {};
+/** ISO timestamp string when parseable; null for empty/invalid; used for key expiry and resets. */
+const isoDate = (value: unknown): string | null => {
+  const raw = str(value)?.trim();
+  return raw && !Number.isNaN(Date.parse(raw)) ? raw : null;
+};
 
 export const UNCONFIGURED: ServiceProbe = { configured: false, reachable: null };
 
@@ -181,6 +188,13 @@ export async function probeOpenRouter(
       : keyLimit != null && keyData?.limit_reset == null
         ? 'no_reset'
         : str(keyData?.limit_reset);
+  /** Present on `/key` when the key has an expiry; null means no expiry; omit when unread. */
+  const expiresAt =
+    keyData != null && Object.prototype.hasOwnProperty.call(keyData, 'expires_at')
+      ? isoDate(keyData.expires_at)
+      : undefined;
+  const budget = obj(keyData?.effective_budget);
+  const limitResetsAt = isoDate(budget.resets_at);
 
   /** A finite key cap gates chat requests; prefer it over the account wallet. */
   if (keyLimit != null) {
@@ -192,9 +206,11 @@ export async function probeOpenRouter(
       limit: keyLimit,
       usedThisPeriod,
       plan: keyPlan,
+      resetAt: limitResetsAt,
       quotaSource: 'key',
       accountRemaining,
       accountLimit: total,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
     };
   }
 
@@ -207,6 +223,7 @@ export async function probeOpenRouter(
       limit: total,
       usedThisPeriod,
       quotaSource: 'account',
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
     };
   }
 
@@ -219,6 +236,7 @@ export async function probeOpenRouter(
     usedThisPeriod,
     plan: keyPlan,
     quotaSource: keyData ? 'key' : 'account',
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
   };
 }
 

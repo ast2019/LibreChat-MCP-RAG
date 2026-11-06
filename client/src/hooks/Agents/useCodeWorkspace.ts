@@ -733,6 +733,21 @@ export default function useCodeWorkspace(
     ) {
       transition = { ...base, kind: 'detach', detachable: true };
     }
+    /**
+     * An unreachable attached machine must never leave the composer with only «retry»: the sealed
+     * decision blocks send, and an empty move target set used to drop the transition entirely when
+     * attach/detach was not advertised. Always keep an explicit leave-attached escape.
+     */
+    if (
+      transition == null &&
+      supportsEnvironmentTransitions &&
+      inferredMode === 'attached' &&
+      (storedSelections?.length ?? 0) > 0 &&
+      !canSubmit &&
+      (state === 'unavailable' || state === 'missing' || state === 'unsupported')
+    ) {
+      transition = { ...base, kind: 'detach', detachable: true };
+    }
   }
   /** Keep explicit transitions visible without offering mutable picks for a sealed decision. */
   const visible =

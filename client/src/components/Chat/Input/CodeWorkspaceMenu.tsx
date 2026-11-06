@@ -646,6 +646,15 @@ export default function CodeWorkspaceMenu({
   /** An empty target set is the detach: the chat keeps its history and continues without a
    *  workspace, instead of waiting on a machine it cannot reach. */
   const confirmDetach = () => applyTransition([]);
+  /** When the sealed machine is down, send stays blocked until the owner leaves attached mode —
+   *  surface that escape beside the chip, not only inside the menu. */
+  const showDetachEscape =
+    transition?.detachable === true &&
+    !workspace.canSubmit &&
+    (workspace.state === 'unavailable' ||
+      workspace.state === 'missing' ||
+      workspace.state === 'unsupported' ||
+      workspace.state === 'relocatable');
   const onlyEnvironment = workspace.environments.length === 1 ? workspace.environments[0] : null;
   const onlyDescriptor = onlyEnvironment?.workspaces.find(
     ({ id }) => id === onlyEnvironment.selected?.workspaceId,
@@ -797,6 +806,34 @@ export default function CodeWorkspaceMenu({
             {onlyEnvironment.environment.name ?? onlyEnvironment.environment.id}
           </span>
         </span>
+      )}
+      {showDetachEscape && (
+        <button
+          type="button"
+          data-testid="code-workspace-detach-inline"
+          disabled={buttonDisabled}
+          onClick={confirmDetach}
+          className={cn(
+            chipClasses,
+            'border-status-warning-border bg-status-warning-subtle text-text-primary max-w-full min-w-0',
+          )}
+          aria-label={localize('com_ui_code_workspace_detach')}
+          title={localize('com_ui_code_workspace_detach_info')}
+        >
+          <FolderX className="size-4 shrink-0" aria-hidden="true" />
+          <span className="max-w-[16rem] min-w-0 truncate">
+            {localize('com_ui_code_workspace_detach')}
+          </span>
+        </button>
+      )}
+      {showDetachEscape && workspace.state === 'unavailable' && (
+        <p
+          data-testid="code-workspace-detach-hint"
+          role="status"
+          className="text-text-secondary w-full text-xs"
+        >
+          {localize('com_ui_code_workspace_detach_prompt')}
+        </p>
       )}
       {showMachinePicker && (
         <Ariakit.MenuProvider store={machineMenuStore}>
