@@ -16,7 +16,6 @@ import {
   ErrorTypes,
   SystemRoles,
   setTokenHeader,
-  isSystemRoleName,
   buildLoginRedirectUrl,
   clearTwoFactorSetupToken,
   persistTwoFactorSetupToken,
@@ -102,7 +101,13 @@ const AuthContextProvider = ({
   const setQueriesEnabled = useSetRecoilState<boolean>(store.queriesEnabled);
 
   const userRoleName = user?.role ?? '';
-  const isCustomRole = isAuthenticated && !!user?.role && !isSystemRoleName(user.role);
+  /** Any role other than USER and ADMIN (MANAGER or a custom role) is loaded by its own name;
+   *  without it every permission check for that user would find no role and answer false. */
+  const isCustomRole =
+    isAuthenticated &&
+    !!user?.role &&
+    user.role !== SystemRoles.USER &&
+    user.role !== SystemRoles.ADMIN;
 
   const { data: userRole = null } = useGetRole(SystemRoles.USER, {
     enabled: !!(isAuthenticated && (user?.role ?? '')),

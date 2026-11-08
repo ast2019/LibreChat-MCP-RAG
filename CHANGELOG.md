@@ -7,6 +7,31 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.14] - 2026-11-08
+
+### Fixed
+- **Browser, media and API grants never reached the composer.** `GET /api/user` used its own
+  field allowlist without `browserAccess`, `mediaAccess`, `apiAccess`, `attachVmAccess` and
+  `packId`, so the client could not see a grant given on the admin page and hid the agent
+  browser and the API settings for everyone but admins. It now uses the shared
+  `sanitizeUserForResponse` from `@librechat/api`.
+- **A MANAGER saw no memories, skills or MCP settings.** The client loaded only the USER and
+  ADMIN roles and custom ones, so every permission check for MANAGER found no role and answered
+  false. Any role other than USER and ADMIN is now loaded by its own name.
+- **«اجرای کد» turned itself on in every chat, and broke the local Gemma model.** 24 model
+  specs still had `executeCode: true` after the Code Interpreter sandbox was removed (0.38.7),
+  so every chat sent the code tool to a service that no longer exists, even with the chip off,
+  and Ollama refused the local chat because Gemma 3 does not support tools. The flag is gone from
+  the specs; `runCode` and the `execute_code` capability stay for Attached VM agents.
+- **AI debug share reported the browser off.** It read `appConfig.browser`, but the yaml lives
+  under `appConfig.config`; it now uses `getBrowserStartupConfig`.
+
+### Changed
+- **The slide builder and the article wizard always run their steps.** The two tools tell the
+  model to load their skill first and ask the brief with the question form before building,
+  and both skills now always ask about pictures (none, generated, or the user's own) and say
+  so when picture generation is refused.
+
 ## [0.38.13] - 2026-11-04
 
 ### Fixed
