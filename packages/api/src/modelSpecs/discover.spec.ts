@@ -186,7 +186,6 @@ describe('applyAutoDiscoveredSpecs — public', () => {
       iconURL: 'openai',
       webSearch: true,
       fileSearch: true,
-      executeCode: true,
       discoveredAt: 25,
       preset: {
         endpoint: 'OpenRouter',

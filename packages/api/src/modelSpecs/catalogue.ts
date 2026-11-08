@@ -53,7 +53,8 @@ const zdrSchema = z.object({
   data: z.array(z.object({ model_id: z.string() }).passthrough()),
 });
 
-const defaultFetchJson: FetchCatalogueJson = async (url, options) => {
+/** GET with the deployment's proxy settings; the media image catalogue reads with it too. */
+export const defaultFetchJson: FetchCatalogueJson = async (url, options) => {
   const config: AxiosRequestConfig = { headers: options.headers, timeout: options.timeout };
   applyAxiosProxyConfig(config, url);
   const response = await axios.get(url, config);

@@ -25,7 +25,7 @@ async function request(
   let response: Response;
   try {
     response = await doFetch(url, { ...init, signal });
-  } catch (error) {
+  } catch {
     if (signal.aborted) {
       const reason = signal.reason as { name?: string } | undefined;
       throw reason?.name === 'TimeoutError'
@@ -89,6 +89,8 @@ export interface GeneratedImage {
   type: string;
   /** Provider cost in US dollars, when reported */
   costUsd?: number;
+  /** Output tokens, when reported; priced from the catalogue when the cost is missing */
+  outputTokens?: number;
 }
 
 /** `POST /images` on OpenRouter: one image, returned as bytes. */
@@ -128,16 +130,18 @@ export async function generateOpenRouterImage(
   );
   const payload = (await response.json()) as {
     data?: Array<{ b64_json?: string; media_type?: string }>;
-    usage?: { cost?: unknown };
+    usage?: { cost?: unknown; output_tokens?: unknown; completion_tokens?: unknown };
   };
   const image = payload.data?.find((item) => typeof item.b64_json === 'string' && item.b64_json);
   if (!image?.b64_json) {
     throw new MediaError('no_output', 'No image came back');
   }
+  const outputTokens = finiteCost(payload.usage?.output_tokens ?? payload.usage?.completion_tokens);
   return {
     buffer: Buffer.from(image.b64_json, 'base64'),
     type: image.media_type || 'image/png',
     costUsd: finiteCost(payload.usage?.cost),
+    ...(outputTokens != null && { outputTokens }),
   };
 }
 
