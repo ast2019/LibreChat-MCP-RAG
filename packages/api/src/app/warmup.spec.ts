@@ -94,3 +94,39 @@ describe('warmStartupCaches model catalogue', () => {
     expect(d.modelCatalogue.start).not.toHaveBeenCalled();
   });
 });
+
+describe('warmStartupCaches image model catalogue', () => {
+  const withMedia = (image: Record<string, unknown>) =>
+    ({
+      ...appConfig,
+      config: { mediaGeneration: { enabled: true, endpoint: 'OpenRouter', image } },
+    }) as unknown as AppConfig;
+  const deps = () => ({
+    fetchModels: jest.fn().mockResolvedValue([]),
+    currencyRates: { resolve: jest.fn().mockResolvedValue({}) } as unknown as CurrencyRates,
+    imageCatalogue: {
+      start: jest.fn().mockResolvedValue(undefined),
+      refresh: jest.fn(),
+      stop: jest.fn(),
+      getModels: jest.fn(),
+    },
+  });
+
+  it('reads the media endpoint’s image models every refreshHours', async () => {
+    const d = deps();
+    await warmStartupCaches(
+      { appConfig: withMedia({ model: 'openai/gpt-image-2', catalogue: true, refreshHours: 3 }) },
+      d,
+    );
+    expect(d.imageCatalogue.start).toHaveBeenCalledWith(
+      { baseURL: 'https://openrouter.test/api/v1', apiKey: 'sk-admin', timeoutMs: 15_000 },
+      3 * 3_600_000,
+    );
+  });
+
+  it('does not read it when the catalogue is off', async () => {
+    const d = deps();
+    await warmStartupCaches({ appConfig: withMedia({ model: 'openai/gpt-image-2' }) }, d);
+    expect(d.imageCatalogue.start).not.toHaveBeenCalled();
+  });
+});

@@ -7,17 +7,20 @@ import type { StructuredToolInterface } from '@librechat/agents/langchain/tools'
 import type { TMediaGenerationConfig } from 'librechat-data-provider';
 import type { MediaEndpoint, MediaFetch, MediaUser, SavedMedia } from './types';
 import type { MediaBilling, MediaCharge } from './billing';
+import type { ImageCatalogueModel } from './catalogue';
 import type { MediaAccessResult } from './config';
 import type { ServerRequest } from '~/types';
 import { generateHiggsfield, submitHiggsfield, submitOpenRouterVideo } from './providers';
 import { checkMediaAccess, getMediaConfig, resolveMediaEndpoint } from './config';
+import { listImageModels, resolveImageModel } from './models';
 import { createSpeechProviderClient } from '~/speech/client';
+import { getSharedImageModelCatalogue } from './catalogue';
 import { generateOpenRouterImage } from './providers';
 import { mediaToolDefinitions } from './definitions';
+import { getBalanceConfig } from '~/app/config';
 import { pcmToWav } from '~/speech/audio';
 import { mediaCredits } from './billing';
 import { mediaJobLink } from './jobs';
-import { getBalanceConfig } from '~/app/config';
 import { MediaError } from './types';
 
 type TextPart = { type: 'text'; text: string };
@@ -39,6 +42,8 @@ export interface MediaToolDeps {
   /** Records a long generation for the job worker, which saves and charges it when done. */
   createMediaJob: (data: MediaJobCreateData) => Promise<MediaJobRecord>;
   fetch?: MediaFetch;
+  /** The endpoint's image models; defaults to the process-wide catalogue */
+  imageCatalogue?: () => readonly ImageCatalogueModel[] | undefined;
 }
 
 interface RunnableConfig {
@@ -93,6 +98,8 @@ export function createMediaTools(
 ): StructuredToolInterface[] {
   const doFetch: MediaFetch = deps.fetch ?? ((url, init) => fetch(url, init));
   const speechClient = createSpeechProviderClient({ fetch: doFetch });
+  const readImageCatalogue =
+    deps.imageCatalogue ?? (() => getSharedImageModelCatalogue().getModels());
 
   async function guarded(
     pick: (config: TMediaGenerationConfig) => boolean,
@@ -128,6 +135,11 @@ export function createMediaTools(
       const { result, costUsd, deferred } = await work(config);
       /** A background job is charged by the worker when its file is delivered. */
       if (!deferred) {
+        if (costUsd == null) {
+          logger.warn(
+            `[media] ${charge.context} with ${charge.model} reported no cost; charging the estimate`,
+          );
+        }
         const credits = costUsd != null ? mediaCredits(costUsd, priceMultiplier) : estimate;
         await deps.billing.record(req, charge, credits);
       }
@@ -195,27 +207,40 @@ export function createMediaTools(
     [MediaTools.image]: () =>
       tool(
         async (
-          input: { prompt?: string; aspect_ratio?: string; image_ids?: string[] },
+          input: { prompt?: string; aspect_ratio?: string; image_ids?: string[]; model?: string },
           runnable,
         ) => {
           const run = runnable as RunnableConfig | undefined;
-          const model = getMediaConfig(req.config)?.image?.model ?? '';
-          const multiplier = multiplierOf();
+          const settings = getMediaConfig(req.config)?.image;
+          const catalogue = settings?.catalogue ? readImageCatalogue() : undefined;
+          const choice = settings
+            ? resolveImageModel(listImageModels(settings, catalogue), input.model)
+            : undefined;
+          if (choice && !choice.ok) {
+            const closest = choice.suggestions.length
+              ? ` The closest ones: ${choice.suggestions.join(', ')}.`
+              : '';
+            return text(
+              `No image model matches "${input.model}".${closest} Nothing was made or charged. Ask the user which model they mean, with these as options, or offer the default ${settings!.model}.`,
+            );
+          }
+          const chosen = choice?.ok ? choice.model : undefined;
+          const catalogueModel = catalogue?.find((model) => model.id === chosen?.id);
           return guarded(
             (config) => config.image != null,
             {
-              model,
+              model: chosen?.id ?? '',
               endpoint: getMediaConfig(req.config)?.endpoint ?? '',
               context: MEDIA_TRANSACTION_CONTEXTS.image,
               conversationId: run?.configurable?.thread_id,
             },
-            getMediaConfig(req.config)?.image?.estimateUsd ?? 0,
-            multiplier,
+            chosen?.estimateUsd ?? 0,
+            multiplierOf(),
             async (config) => {
               const image = config.image!;
               const references = await loadReferences(input.image_ids);
               const generated = await generateOpenRouterImage(doFetch, endpointOf(config), {
-                model: image.model,
+                model: chosen!.id,
                 prompt: String(input.prompt ?? ''),
                 aspectRatio: input.aspect_ratio,
                 resolution: image.resolution,
@@ -224,9 +249,14 @@ export function createMediaTools(
                 timeoutMs: image.timeoutMs,
                 signal: run?.signal,
               });
+              /** Without a reported cost, the reported tokens at the catalogue price */
+              const priced =
+                generated.outputTokens != null && catalogueModel?.imageOutputPrice != null
+                  ? generated.outputTokens * catalogueModel.imageOutputPrice
+                  : undefined;
               return {
-                result: imageResult(generated, 'The image was generated.'),
-                costUsd: generated.costUsd,
+                result: imageResult(generated, `The image was generated with ${chosen!.id}.`),
+                costUsd: generated.costUsd ?? priced,
               };
             },
           );

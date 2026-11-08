@@ -221,7 +221,22 @@ mediaGeneration:
   paidOnly: true
   endpoint: 'OpenRouter'
   image:
-    model: 'google/gemini-3.1-flash-image' # Nano Banana 2
+    # The model for a user who never picked one. Users pick any model from OpenRouter's image
+    # catalogue (`catalogue`, refreshed every `refreshHours`); the model never switches on its own.
+    model: 'openai/gpt-image-2'
+    catalogue: true
+    refreshHours: 6
+    # Offered first when the user wants Persian text in the picture.
+    persianText:
+      - 'openai/gpt-image-2*'
+      - 'google/gemini-*-image*'
+      - 'google/gemini-nano-banana-*'
+    exclude: []
+    # Held before a picture (the real cost is charged after). Models not listed here hold their
+    # per-token catalogue price x estimateTokens, else estimateUsd.
+    estimates:
+      'google/gemini-3.1-flash-image': 0.08 # Nano Banana 2
+    estimateTokens: 2000
     estimateUsd: 0.08
   video:
     model: 'google/veo-3.1-lite' # 4, 6 or 8 seconds, with audio

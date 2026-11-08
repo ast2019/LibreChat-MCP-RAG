@@ -6,3 +6,5 @@ export * from './definitions';
 export * from './tools';
 export * from './jobs';
 export * from './availability';
+export * from './catalogue';
+export * from './models';

@@ -7,6 +7,28 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.15] - 2026-11-08
+
+### Added
+- **Any OpenRouter image model, chosen by the user.** With `mediaGeneration.image.catalogue`,
+  the server reads the media endpoint's image models (`/models?output_modalities=image`, only
+  those served on `/images`, every `refreshHours`). `generate_image` takes a `model`: an exact
+  id, or a name the user typed; one that matches several returns the closest ids so the model
+  asks the user, and an unknown one makes and charges nothing. `persianText` marks the models
+  suggested for Persian text in the picture, `exclude` hides models, and `/api/media/status`
+  lists them as `imageModels`. The default is `image.model`; the model never switches on its own.
+- **Each model holds its own estimate.** `estimates` per model, else the catalogue's price per
+  output token x `estimateTokens`, else `estimateUsd`. The charge stays the reported cost; when
+  only tokens are reported they are priced from the catalogue, and the estimate is charged only
+  when neither is reported (logged as a warning).
+
+### Changed
+- HiveGPT's default image model is `openai/gpt-image-2`, with the catalogue on.
+
+### Fixed
+- Auto-discovered model specs no longer carry `executeCode: true`; 0.38.14 removed it from the
+  written specs only.
+
 ## [0.38.14] - 2026-11-08
 
 ### Fixed

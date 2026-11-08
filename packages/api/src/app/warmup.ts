@@ -1,11 +1,14 @@
 import { logger } from '@librechat/data-schemas';
 import type { AppConfig } from '@librechat/data-schemas';
 import type { CurrencyRates, InterfaceCurrency } from '~/billing/currency';
+import type { ImageModelCatalogue } from '~/media/catalogue';
 import type { ModelCatalogue } from '~/modelSpecs/catalogue';
 import type { FetchModelsParams } from '~/endpoints/models';
 import type { ServerRequest } from '~/types';
 import { getSharedModelCatalogue, resolveModelCatalogueSource } from '~/modelSpecs/catalogue';
+import { getMediaConfig, resolveMediaEndpoint } from '~/media/config';
 import { createLoadConfigModels } from '~/endpoints/config/models';
+import { getSharedImageModelCatalogue } from '~/media/catalogue';
 import { getSharedCurrencyRates } from '~/billing/currency';
 import { describePasskeyStatus } from '~/auth/passkey';
 
@@ -16,6 +19,8 @@ export interface WarmStartupCachesDeps {
   currencyRates?: CurrencyRates;
   /** Override for tests; defaults to the process-wide model catalogue */
   modelCatalogue?: ModelCatalogue;
+  /** Override for tests; defaults to the process-wide image model catalogue */
+  imageCatalogue?: ImageModelCatalogue;
 }
 
 const HOUR_MS = 3_600_000;
@@ -84,7 +89,41 @@ export function warmStartupCaches(
     await catalogue.start(source, intervalMs);
   };
 
-  return Promise.allSettled([warmModels(), warmCurrency(), warmCatalogue()]).then((results) => {
+  /** The image models a user may pick (`mediaGeneration.image.catalogue`), from the media
+   *  endpoint, refreshed every `refreshHours`. */
+  const warmImageCatalogue = async () => {
+    const media = getMediaConfig(appConfig);
+    if (!media?.image?.catalogue) {
+      return;
+    }
+    const endpoint = resolveMediaEndpoint(appConfig, media);
+    if (!endpoint?.baseURL) {
+      logger.warn(
+        `[warmStartupCaches] mediaGeneration.image.catalogue: endpoint "${media.endpoint}" has no usable base URL; only the default image model is offered`,
+      );
+      return;
+    }
+    const intervalMs = Math.min(
+      Math.max(media.image.refreshHours * HOUR_MS, 60_000),
+      MAX_INTERVAL_MS,
+    );
+    const catalogue = deps.imageCatalogue ?? getSharedImageModelCatalogue();
+    await catalogue.start(
+      {
+        baseURL: endpoint.baseURL.replace(/\/+$/, ''),
+        ...(endpoint.apiKey && { apiKey: endpoint.apiKey }),
+        timeoutMs: 15_000,
+      },
+      intervalMs,
+    );
+  };
+
+  return Promise.allSettled([
+    warmModels(),
+    warmCurrency(),
+    warmCatalogue(),
+    warmImageCatalogue(),
+  ]).then((results) => {
     for (const result of results) {
       if (result.status === 'rejected') {
         logger.warn(

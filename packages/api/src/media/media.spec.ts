@@ -213,6 +213,84 @@ describe('media tools', () => {
     expect(release).toHaveBeenCalled();
   });
 
+  describe('with the image catalogue', () => {
+    const catalogueReq = {
+      user: { id: 'u1' },
+      config: appConfig({
+        image: {
+          model: 'google/image',
+          estimateUsd: 0.1,
+          catalogue: true,
+          estimateTokens: 1000,
+          persianText: ['openai/gpt-image-2*'],
+        },
+      }),
+    } as unknown as ServerRequest;
+    const imageCatalogue = () => [
+      { id: 'google/image', acceptsImages: true },
+      {
+        id: 'openai/gpt-image-2',
+        name: 'GPT Image 2',
+        imageOutputPrice: 0.0001,
+        acceptsImages: true,
+      },
+    ];
+    const tool = (deps: MediaToolDeps) =>
+      createMediaTools({ req: catalogueReq, toolNames: [MediaTools.image] }, deps)[0];
+
+    it('generates with the model the user chose and holds that model’s estimate', async () => {
+      const { deps, billing } = makeDeps({ imageCatalogue });
+      await tool(deps).invoke({
+        id: 'm1',
+        name: MediaTools.image,
+        args: { prompt: 'poster', model: 'openai/gpt-image-2' },
+        type: 'tool_call',
+      });
+      const body = JSON.parse((deps.fetch as jest.Mock).mock.calls[0][1].body);
+      expect(body.model).toBe('openai/gpt-image-2');
+      /** $0.0001 x 1000 tokens = $0.10, x1.5 markup */
+      expect(billing.hold).toHaveBeenCalledWith(
+        catalogueReq,
+        expect.objectContaining({ model: 'openai/gpt-image-2' }),
+        150_000,
+      );
+      expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 60_000);
+    });
+
+    it('prices reported tokens when the provider reports no cost', async () => {
+      const { deps, billing } = makeDeps({
+        imageCatalogue,
+        fetch: jest.fn().mockResolvedValue(
+          json({
+            data: [{ b64_json: Buffer.from('png').toString('base64') }],
+            usage: { output_tokens: 400 },
+          }),
+        ),
+      });
+      await tool(deps).invoke({
+        id: 'm2',
+        name: MediaTools.image,
+        args: { prompt: 'poster', model: 'GPT Image 2' },
+        type: 'tool_call',
+      });
+      /** 400 x $0.0001 = $0.04, x1.5 markup */
+      expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 60_000);
+    });
+
+    it('makes and charges nothing for a model that is not offered', async () => {
+      const { deps, billing } = makeDeps({ imageCatalogue });
+      const message = await tool(deps).invoke({
+        id: 'm3',
+        name: MediaTools.image,
+        args: { prompt: 'poster', model: 'midjourney' },
+        type: 'tool_call',
+      });
+      expect(JSON.stringify(message.content)).toContain('No image model matches');
+      expect(deps.fetch).not.toHaveBeenCalled();
+      expect(billing.hold).not.toHaveBeenCalled();
+    });
+  });
+
   it('tells free-trial users how to unlock it without calling the provider', async () => {
     const { deps, billing } = makeDeps({
       findBalanceByUser: jest.fn().mockResolvedValue({ packId: undefined }),

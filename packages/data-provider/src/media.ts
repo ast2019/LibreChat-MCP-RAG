@@ -23,13 +23,30 @@ const durationMs = (fallback: number) =>
 
 /** Image generation through the OpenRouter Image API (`POST /images`). */
 export const mediaImageSchema = z.object({
+  /** The model used when the user has not picked one */
   model: z.string().min(1),
   /** `512`, `768`, `1K`, `1.5K`, `2K`, `4K`; the provider default when unset */
   resolution: z.string().optional(),
   /** Held before the call so a user cannot overspend; the real cost is charged after. */
   estimateUsd: z.number().min(0).max(100).default(0.1),
   timeoutMs: durationMs(180_000),
+  /** Reads the endpoint's image models (`/models?output_modalities=image`) so a user may pick
+   *  any of them; off keeps `model` the only one. */
+  catalogue: z.boolean().default(false),
+  /** Hours between catalogue refreshes */
+  refreshHours: z.number().min(1).max(168).default(6),
+  /** Models offered first when the user wants Persian text in the picture; `*` matches any run
+   *  of characters, e.g. `openai/gpt-image-2*` */
+  persianText: z.array(z.string().min(1)).max(50).default([]),
+  /** Models never offered, with the same `*` patterns */
+  exclude: z.array(z.string().min(1)).max(200).default([]),
+  /** Held per model in USD, for models whose catalogue price is per token */
+  estimates: z.record(z.string(), z.number().min(0).max(100)).default({}),
+  /** Output tokens one picture is assumed to use when only the per-token price is known */
+  estimateTokens: z.number().int().min(1).max(100_000).default(2_000),
 });
+
+export type TMediaImageConfig = z.infer<typeof mediaImageSchema>;
 
 /** Video generation through the OpenRouter Video API (`POST /videos`, then polling). */
 export const mediaVideoSchema = z.object({
@@ -114,12 +131,28 @@ export type TMediaWayId =
   | 'higgsfield_shared'
   | 'higgsfield_own';
 
+/** An image model the user may pick. */
+export interface TMediaImageModel {
+  id: string;
+  name?: string;
+  /** Offered first when the user wants Persian text in the picture */
+  persianText: boolean;
+  /** Held before a picture, in USD, before the markup; the real cost is charged after */
+  estimateUsd: number;
+  /** Takes earlier images as references (edits) */
+  editing?: boolean;
+  /** The deployment's default (`mediaGeneration.image.model`) */
+  default?: boolean;
+}
+
 export interface TMediaAvailability {
   paidOnly: boolean;
   hasPack: boolean;
   userSwitch: boolean | null;
   ways: Array<{ id: TMediaWayId; state: TMediaWayState; models?: string[] }>;
   higgsfieldServer?: string;
+  /** Every image model the user may pick, the default first */
+  imageModels?: TMediaImageModel[];
 }
 
 /** `GET /api/media/jobs/:id`: a background generation shown as a card in the chat. */

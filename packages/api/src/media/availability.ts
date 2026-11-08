@@ -1,8 +1,12 @@
 import { SystemRoles, findPackGrants } from 'librechat-data-provider';
+import type { TMediaImageModel } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
+import type { ImageCatalogueModel } from './catalogue';
 import type { MediaUser } from './types';
 import { getMediaConfig, resolveMediaEndpoint, resolveUserMediaAccess } from './config';
+import { getSharedImageModelCatalogue } from './catalogue';
 import { getBalanceConfig } from '~/app/config';
+import { listImageModels } from './models';
 
 /** Why a way to generate is or is not usable for this user right now. */
 export type MediaWayState =
@@ -29,6 +33,8 @@ export interface MediaAvailability {
   ways: MediaWay[];
   /** The MCP server name to pick in the composer for Higgsfield, when configured */
   higgsfieldServer?: string;
+  /** Every image model the user may pick, the default first */
+  imageModels?: TMediaImageModel[];
 }
 
 export interface MediaAvailabilityDeps {
@@ -36,7 +42,11 @@ export interface MediaAvailabilityDeps {
   /** Whether this user has stored OAuth tokens for the MCP server */
   hasMcpConnection: (userId: string, serverName: string) => Promise<boolean>;
   findUserIdByEmail: (email: string) => Promise<string | null>;
+  /** The endpoint's image models; defaults to the process-wide catalogue */
+  imageCatalogue?: () => readonly ImageCatalogueModel[] | undefined;
 }
+
+const readSharedCatalogue = () => getSharedImageModelCatalogue().getModels();
 
 type McpEntry = { url?: string; sharedOAuth?: { ownerEmail?: string; allow?: string } };
 
@@ -149,5 +159,13 @@ export async function getMediaAvailability(
     userSwitch,
     ways,
     ...(higgsfield ? { higgsfieldServer: higgsfield[0] } : {}),
+    ...(config?.image
+      ? {
+          imageModels: listImageModels(
+            config.image,
+            config.image.catalogue ? (deps.imageCatalogue ?? readSharedCatalogue)() : undefined,
+          ),
+        }
+      : {}),
   };
 }

@@ -234,7 +234,6 @@ function addPublicSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
       ...(provider.icon && { iconURL: provider.icon }),
       webSearch: true,
       fileSearch: true,
-      executeCode: true,
       ...(model.created != null && { discoveredAt: model.created }),
       preset: { endpoint, model: model.id, modelLabel: label } as Spec['preset'],
     };
@@ -398,8 +397,6 @@ function applyPrivateSpecs(list: Spec[], ctx: DiscoveryContext): boolean {
       group,
       ...(icon && { iconURL: icon }),
       hideBadgeRow: true,
-      // Local sandbox only — no web/file tools on private specs.
-      executeCode: true,
       preset: {
         endpoint: normalizeEndpointName(privateEndpoint),
         model: newest.model.id,

@@ -13,9 +13,12 @@ import type {
   TMediaGenerationConfig,
 } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
+import type { MediaEndpoint, MediaUser } from './types';
+import type { ImageCatalogueModel } from './catalogue';
+import { getSharedImageModelCatalogue } from './catalogue';
 import { resolveSpeechEndpoint } from '~/speech/config';
 import { readConfigSection } from '~/app/config';
-import type { MediaEndpoint, MediaUser } from './types';
+import { listImageModels } from './models';
 
 const envVarPattern = /^\$\{.+\}$/;
 
@@ -149,6 +152,9 @@ export async function checkMediaAccess(
 export function buildMediaToolContext(
   appConfig: AppConfig | null | undefined,
   toolNames: readonly string[],
+  imageCatalogue:
+    | readonly ImageCatalogueModel[]
+    | undefined = getSharedImageModelCatalogue().getModels(),
 ): Record<string, string> {
   const config = getMediaConfig(appConfig);
   const context: Record<string, string> = {};
@@ -164,6 +170,21 @@ export function buildMediaToolContext(
     );
     context[MediaTools.higgsfield] =
       `Higgsfield models you may pass as \`model\` to ${MediaTools.higgsfield}:\n${lines.join('\n')}`;
+  }
+  if (toolNames.includes(MediaTools.image) && config.image?.catalogue) {
+    const models = listImageModels(config.image, imageCatalogue);
+    if (models.length > 1) {
+      const persian = models.filter((model) => model.persianText).map((model) => model.id);
+      context[MediaTools.image] = [
+        `Image models for \`model\` in ${MediaTools.image} (default ${config.image.model}): ${models.map((model) => model.id).join(', ')}.`,
+        persian.length
+          ? `For Persian text in the picture, suggest: ${persian.join(', ')}.`
+          : undefined,
+        'The user may name a model loosely ("flux", "gpt image"); pass what they said and, when it matches several, ask them with the closest ids as options.',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
   }
   if (toolNames.includes(MediaTools.speech) && config.speech?.voices?.length) {
     context[MediaTools.speech] =

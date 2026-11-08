@@ -36,6 +36,11 @@ export const mediaToolDefinitions: Record<MediaTools, MediaToolDefinition> = {
           description:
             'Ids of earlier images to edit or use as reference (each generated image reports its generated_image_id).',
         },
+        model: {
+          type: 'string',
+          description:
+            'The image model id the user chose, from the list you were given. Leave it out to use the default. Never switch models on your own; when the user wants Persian text in the picture, suggest the models marked for it and let them choose.',
+        },
       },
       required: ['prompt'],
     },
