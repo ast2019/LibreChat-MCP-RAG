@@ -88,6 +88,8 @@ export interface IUser extends Document {
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
+    /** The image model the user last chose */
+    imageModel?: string;
   };
   /** Per-user programming API override; unset follows the role. */
   apiAccess?: boolean;

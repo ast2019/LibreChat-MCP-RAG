@@ -1624,7 +1624,15 @@ async function loadToolDefinitionsWrapper({
     }
   }
 
-  Object.assign(dynamicToolContextMap, buildMediaToolContext(req.config, filteredTools));
+  Object.assign(
+    dynamicToolContextMap,
+    buildMediaToolContext(
+      req.config,
+      filteredTools,
+      undefined,
+      req.body?.ephemeralAgent?.image_model || req.user?.personalization?.imageModel,
+    ),
+  );
 
   const imageFiles = tool_resources?.[EToolResources.image_edit]?.files ?? [];
   Object.assign(dynamicToolContextMap, buildOfficeToolContext(filteredTools, imageFiles));

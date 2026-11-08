@@ -7,6 +7,25 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.16] - 2026-11-08
+
+### Added
+- **«مدل عکس» in the composer's `+` menu.** It opens a picker with search by name, maker or
+  «فارسی». The models suggested for Persian text come first, and each shows what one picture
+  holds from the user's credit, markup included. The pick applies to this chat
+  (`ephemeralAgent.image_model`) and is saved on the account (`personalization.imageModel`,
+  `PATCH /api/user/preferences`), so it is the default on every device. Generating with a model
+  saves it too. A user with no saved model gets `mediaGeneration.image.model`.
+- **A Higgsfield switch in the `+` menu**, for each chat. On adds the Higgsfield MCP server and,
+  when its keys are set, the Higgsfield API tool. Off leaves both out. A user can still pick the
+  MCP server themselves. The row appears only when one of Higgsfield's ways is set up.
+
+### Changed
+- `generate_image` picks the model in this order: the one the user named in the chat, this
+  chat's pick, the saved choice, then the default. A pick or saved choice the deployment no
+  longer offers falls back to the default without an error. The chat model is told which model
+  is current.
+
 ## [0.38.15] - 2026-11-08
 
 ### Added

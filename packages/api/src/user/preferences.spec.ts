@@ -116,4 +116,64 @@ describe('createUserPreferencesHandler', () => {
 
     expect(response.statusCode).toBe(404);
   });
+
+  describe('imageModel', () => {
+    const imageConfig = {
+      config: {
+        mediaGeneration: {
+          enabled: true,
+          image: { model: 'openai/gpt-image-2', catalogue: true, exclude: ['recraft/*'] },
+        },
+      },
+    } as never;
+    const imageCatalogue = () => [
+      { id: 'openai/gpt-image-2', acceptsImages: true },
+      { id: 'black-forest-labs/flux.2-pro', acceptsImages: true },
+      { id: 'recraft/recraft-v4', acceptsImages: false },
+    ];
+    const handlerWith = (updateImageModel: jest.Mock) =>
+      createUserPreferencesHandler({
+        updateStatefulCodeEnvironment: jest.fn(),
+        updateImageModel,
+        imageCatalogue,
+      });
+    type HandlerRequest = Parameters<ReturnType<typeof handlerWith>>[0];
+    const request = (body: object): HandlerRequest => {
+      const req = createRequest(body) as HandlerRequest;
+      req.config = imageConfig;
+      return req;
+    };
+
+    it('saves a model the deployment offers, on its own', async () => {
+      const updateImageModel = jest.fn().mockResolvedValue({
+        personalization: { imageModel: 'black-forest-labs/flux.2-pro' },
+      });
+      const handler = handlerWith(updateImageModel);
+      const response = createResponse();
+
+      await handler(request({ imageModel: 'black-forest-labs/flux.2-pro' }), response as Response);
+
+      expect(updateImageModel).toHaveBeenCalledWith('user-1', 'black-forest-labs/flux.2-pro');
+      expect(response.body).toEqual({
+        updated: true,
+        preferences: { imageModel: 'black-forest-labs/flux.2-pro' },
+      });
+    });
+
+    it('refuses an excluded or unknown model and a value that is not an id', async () => {
+      const updateImageModel = jest.fn();
+      const handler = handlerWith(updateImageModel);
+      for (const [imageModel, status] of [
+        ['recraft/recraft-v4', 403],
+        ['someone/else', 403],
+        ['', 400],
+        [42, 400],
+      ] as const) {
+        const response = createResponse();
+        await handler(request({ imageModel }), response as Response);
+        expect(response.statusCode).toBe(status);
+      }
+      expect(updateImageModel).not.toHaveBeenCalled();
+    });
+  });
 });

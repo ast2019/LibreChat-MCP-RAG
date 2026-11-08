@@ -137,7 +137,8 @@ export interface TMediaImageModel {
   name?: string;
   /** Offered first when the user wants Persian text in the picture */
   persianText: boolean;
-  /** Held before a picture, in USD, before the markup; the real cost is charged after */
+  /** Held before a picture, in USD; `/api/media/status` includes the deployment's markup. The
+   *  real cost is charged after. */
   estimateUsd: number;
   /** Takes earlier images as references (edits) */
   editing?: boolean;

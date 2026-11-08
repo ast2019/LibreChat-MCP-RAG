@@ -482,6 +482,68 @@ describe('loadAgent', () => {
     }
   });
 
+  test('adds Higgsfield, its MCP server and its API tool, only while the switch is on', async () => {
+    const env = { ...process.env };
+    process.env.HF_ID = 'id';
+    process.env.HF_SECRET = 'secret';
+    mockGetAccessibleMCPServers.mockResolvedValue({ higgsfield: { chatMenu: true } });
+    mockGetMCPServerTools.mockResolvedValue({ generate_mcp_higgsfield: {} });
+    const load = async (ephemeralAgent: TEphemeralAgent, spec?: string) => {
+      const body = { promptPrefix: 'x', ephemeralAgent };
+      const mockReq = {
+        user: { id: 'user123', role: 'USER' },
+        body,
+        config: {
+          mcpConfig: {
+            higgsfield: { type: 'streamable-http', url: 'https://mcp.higgsfield.ai/mcp' },
+          },
+          config: {
+            mediaGeneration: {
+              enabled: true,
+              image: { model: 'openai/gpt-image-2' },
+              higgsfield: {
+                apiKeyId: '${HF_ID}',
+                apiKeySecret: '${HF_SECRET}',
+                models: [{ id: 'a/b', kind: 'image', label: 'SOUL', priceUsd: 0.1 }],
+              },
+            },
+          },
+          modelSpecs: { list: [{ name: 'private-spec', privacy: 'private', preset: {} }] },
+        },
+      };
+      const result = await loadAgent(
+        {
+          req: mockReq as unknown as LoadAgentParams['req'],
+          spec,
+          agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+          endpoint: 'openai',
+          model_parameters: { model: 'gpt-4' } as unknown as AgentModelParameters,
+        },
+        deps,
+      );
+      return { tools: result?.tools ?? [], mcp: body.ephemeralAgent.mcp };
+    };
+    try {
+      const on = await load({ higgsfield: true });
+      expect(on.tools).toEqual(
+        expect.arrayContaining(['higgsfield_generate', 'generate_mcp_higgsfield']),
+      );
+      expect(on.mcp).toEqual(['higgsfield']);
+
+      const off = await load({ higgsfield: false, mcp: [] });
+      expect(off.tools).toContain('generate_image');
+      expect(off.tools).not.toContain('higgsfield_generate');
+      expect(off.tools).not.toContain('generate_mcp_higgsfield');
+
+      /** A confidential spec reaches no third party, whatever the request asks for. */
+      const contained = await load({ higgsfield: true }, 'private-spec');
+      expect(contained.tools).not.toContain('higgsfield_generate');
+      expect(contained.tools).not.toContain('generate_mcp_higgsfield');
+    } finally {
+      process.env = env;
+    }
+  });
+
   test('should handle ephemeral agent with no MCP servers', async () => {
     const { EPHEMERAL_AGENT_ID } = Constants;
 

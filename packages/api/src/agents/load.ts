@@ -24,6 +24,7 @@ import {
   validateMCPServerConfig,
 } from '~/mcp/utils';
 import { ASK_USER_QUESTION_TOOL_NAME } from '~/agents/hitl/askUserQuestionTool';
+import { findHiggsfieldServer, getChatMediaTools } from '~/media/config';
 import { resolveMCPClientCapabilityProfile } from '~/mcp/capabilities';
 import { synthesizeBackgroundToolOptions } from '~/agents/background';
 import { mergeSynthesizedToolOptions } from '~/agents/selection';
@@ -32,7 +33,6 @@ import { getCustomEndpointConfig } from '~/app/config';
 import { getChatPersianTools } from '~/persian/config';
 import { getChatBrowserTools } from '~/browser/config';
 import { getChatOfficeTools } from '~/office/config';
-import { getChatMediaTools } from '~/media/config';
 import { debugTrace } from '~/debug/recorder';
 
 const { mcp_all, mcp_delimiter } = Constants;
@@ -87,7 +87,23 @@ function containEphemeralAgent(agent: TEphemeralAgent): TEphemeralAgent {
     file_search: false,
     execute_code: false,
     browser: false,
+    higgsfield: false,
   };
+}
+
+/** The picker's servers, plus the Higgsfield MCP server when the Higgsfield switch is on. */
+function requestedMCPServers(
+  appConfig: AppConfig | null | undefined,
+  agent: TEphemeralAgent | undefined,
+): string[] | undefined {
+  if (agent?.higgsfield !== true) {
+    return agent?.mcp;
+  }
+  const server = findHiggsfieldServer(appConfig)?.[0];
+  if (!server) {
+    return agent.mcp;
+  }
+  return [...new Set([...(agent.mcp ?? []), server])];
 }
 
 /**
@@ -122,7 +138,7 @@ export async function loadEphemeralAgent(
    *  spec's servers are the operator's choice and are added after, so pinning a
    *  chat-hidden server to a spec keeps working. */
   const mcpServers = new Set<string>(
-    await filterChatSelectableMCPServers(ephemeralAgent?.mcp, {
+    await filterChatSelectableMCPServers(requestedMCPServers(req.config, ephemeralAgent), {
       userId,
       role: req.user?.role,
       getAccessibleMCPServers: deps.getAccessibleMCPServers,
@@ -137,7 +153,10 @@ export async function loadEphemeralAgent(
    *  instruction path reads `req.body.ephemeralAgent.mcp` directly and prefers
    *  it over the agent's tools, so it would otherwise both inject a hidden
    *  server's `serverInstructions` and omit a spec-pinned server's. */
-  if (ephemeralAgent != null && Array.isArray(ephemeralAgent.mcp)) {
+  if (
+    ephemeralAgent != null &&
+    (Array.isArray(ephemeralAgent.mcp) || ephemeralAgent.higgsfield === true)
+  ) {
     ephemeralAgent.mcp = [...mcpServers];
   }
   const tools: string[] = [];
@@ -170,7 +189,9 @@ export async function loadEphemeralAgent(
   }
   /** Image, video and speech generation the model can call in any chat; whether the user may
    *  generate (a pack, or an admin's switch) is checked when a tool runs. */
-  tools.push(...getChatMediaTools(req.config, req.user, modelSpec));
+  tools.push(
+    ...getChatMediaTools(req.config, req.user, modelSpec, ephemeralAgent?.higgsfield === true),
+  );
   /** Exact dates and Persian spelling fixes, so the model never works them out itself. */
   tools.push(...getChatPersianTools(req.config, modelSpec));
   /** Word and PowerPoint files built from the conversation (the article and slide builders). */

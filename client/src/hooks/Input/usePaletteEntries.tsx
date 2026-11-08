@@ -7,6 +7,7 @@ import {
   Brain,
   Globe,
   Layers,
+  Wand2,
   AppWindow,
   Settings,
   X,
@@ -40,9 +41,9 @@ import {
   useAgentCapabilities,
   useSkillActiveState,
 } from '~/hooks';
+import { useMediaStatusQuery, useGetStartupConfig, useSkillsInfiniteQuery } from '~/data-provider';
 import { getStatusColor, getStatusTextKey } from '~/components/MCP/mcpServerUtils';
 import { filterSkillsForPopover } from '~/components/Chat/Input/SkillsCommand';
-import { useSkillsInfiniteQuery, useGetStartupConfig } from '~/data-provider';
 import { useAgentsMapContext, useBadgeRowContext } from '~/Providers';
 import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import { ephemeralAgentByConvoId } from '~/store';
@@ -234,6 +235,17 @@ export default function usePaletteEntries({
       override: user?.browserAccess,
       packGrant: findPackGrants(startupConfig.balance?.packs, user?.packId)?.browser,
     }).allowed;
+  /* Higgsfield: offered when one of its three ways is set up here. The media status is read
+     only once the palette opens or the switch is already on, so a composer that is merely
+     visited makes no extra request. */
+  const higgsfieldOn = context?.higgsfield?.toggleState === true;
+  const mediaStatus = useMediaStatusQuery(
+    enabled && toolsEnabled && (catalogEnabled || higgsfieldOn),
+  );
+  const canUseHiggsfield =
+    mediaStatus.data?.ways.some(
+      (way) => way.id.startsWith('higgsfield_') && way.state !== 'not_configured',
+    ) === true;
 
   /* Mirrors backend `resolveAgentScopedSkillIds`: ephemeral agents see the full
      catalog; persisted agents gate on `skills_enabled` and the resolved scope,
@@ -372,6 +384,24 @@ export default function usePaletteEntries({
         pinned: browser.isPinned === true,
         onSelect: () => browser.debouncedChange({ value: !browser.toggleState }),
         onUnpin: () => browser.setIsPinned(false),
+      });
+    }
+
+    const higgsfield = context.higgsfield;
+    /* Kept while on even before the status answers, so the chip does not blink on reload. */
+    if (toolsEnabled && higgsfield != null && (canUseHiggsfield || higgsfieldOn)) {
+      entries.push({
+        key: 'builtin:higgsfield',
+        itemType: 'builtin',
+        itemId: 'higgsfield',
+        label: localize('com_ui_higgsfield'),
+        description: localize('com_ui_higgsfield_hint'),
+        icon: <Wand2 className="icon-md" aria-hidden="true" />,
+        section: 'tool',
+        active: higgsfieldOn,
+        pinned: higgsfield.isPinned === true,
+        onSelect: () => higgsfield.debouncedChange({ value: !higgsfield.toggleState }),
+        onUnpin: () => higgsfield.setIsPinned(false),
       });
     }
 
@@ -663,6 +693,8 @@ export default function usePaletteEntries({
     skillsListable,
     canUseWebSearch,
     canUseBrowser,
+    canUseHiggsfield,
+    higgsfieldOn,
     webSearchEnabled,
     artifactsEnabled,
     canUseFileSearch,

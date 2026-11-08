@@ -3,7 +3,12 @@ import type { TMediaImageModel } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import type { ImageCatalogueModel } from './catalogue';
 import type { MediaUser } from './types';
-import { getMediaConfig, resolveMediaEndpoint, resolveUserMediaAccess } from './config';
+import {
+  getMediaConfig,
+  findHiggsfieldServer,
+  resolveMediaEndpoint,
+  resolveUserMediaAccess,
+} from './config';
 import { getSharedImageModelCatalogue } from './catalogue';
 import { getBalanceConfig } from '~/app/config';
 import { listImageModels } from './models';
@@ -47,22 +52,6 @@ export interface MediaAvailabilityDeps {
 }
 
 const readSharedCatalogue = () => getSharedImageModelCatalogue().getModels();
-
-type McpEntry = { url?: string; sharedOAuth?: { ownerEmail?: string; allow?: string } };
-
-function findHiggsfieldServer(appConfig: AppConfig | null | undefined): [string, McpEntry] | null {
-  const servers = (appConfig as { mcpConfig?: Record<string, McpEntry> } | undefined)?.mcpConfig;
-  for (const [name, entry] of Object.entries(servers ?? {})) {
-    try {
-      if (entry?.url && new URL(entry.url).hostname.endsWith('higgsfield.ai')) {
-        return [name, entry];
-      }
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
 
 function deniedState(userSwitch: boolean | null, allow: string): MediaWayState {
   if (userSwitch === false) {
@@ -161,10 +150,15 @@ export async function getMediaAvailability(
     ...(higgsfield ? { higgsfieldServer: higgsfield[0] } : {}),
     ...(config?.image
       ? {
+          /** Priced as the user pays: the hold estimate with the endpoint's markup */
           imageModels: listImageModels(
             config.image,
             config.image.catalogue ? (deps.imageCatalogue ?? readSharedCatalogue)() : undefined,
-          ),
+          ).map((model) => ({
+            ...model,
+            estimateUsd:
+              model.estimateUsd * (resolveMediaEndpoint(appConfig, config)?.priceMultiplier ?? 1),
+          })),
         }
       : {}),
   };

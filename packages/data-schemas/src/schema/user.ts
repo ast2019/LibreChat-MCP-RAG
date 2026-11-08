@@ -215,6 +215,11 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
           enum: STATEFUL_CODE_ENVIRONMENTS,
           default: 'user',
         },
+        /** The image model the user last chose; unset uses the deployment's default */
+        imageModel: {
+          type: String,
+          maxlength: 200,
+        },
       },
       default: {},
     },
