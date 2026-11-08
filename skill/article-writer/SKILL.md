@@ -22,10 +22,10 @@ is the long part.
    - length in words: blog 1200 to 1800, paper 2500 to 4000, news 600 to 900
    - the main keyword, for blog and SEO only
    - sources: always for academic and news; ask for the others
-   - images: none by default; a generated picture only when the user wants one, or their own
-     picture attached to a message
+   - images, always asked: «بدون عکس» (default)، «با عکس ساخته‌شده»، «با عکس‌های خودم» (the user
+     attaches them to a message)
    When `ask_user_question` is available, ask with it, not in text: at most four questions in
-   one call, the four that change the article most, each with 2 to 5 short options in the
+   one call, the images question and the three others that change the article most, each with 2 to 5 short options in the
    user's language and `recommended` set to the default. Ask nothing else in that message.
    Whatever you did not ask takes its default; name those defaults in one line when you go on,
    so the user can change them. Call it a second time only when an answer opens a question
@@ -75,7 +75,9 @@ is the long part.
 - `seo` for blog and SEO articles: a title of at most 60 characters, a description of 120 to 155
   characters, a Latin slug, 3 to 6 keywords.
 - Images: a generated picture as `![caption](image:<generated_image_id>)`; a picture the user
-  attached to this message by the id the tool lists. Never take images from the web.
+  attached to this message by the id the tool lists. Never take images from the web. When
+  `generate_image` refuses (no access, no credit), say so in one line with what it said, offer
+  «با عکس‌های خودم», and build the file without pictures if the user does not attach any.
 - Charts: when the article compares numbers, a ```chart block with them, so the user gets a
   chart they can edit in Word.
 - `style`: `academic` for papers, `modern` for blogs, `formal` for everything else.

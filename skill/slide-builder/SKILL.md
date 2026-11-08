@@ -24,10 +24,10 @@ Go one step per message and wait where a step says so.
    - style: ساده (`minimal`, default)، رسمی (`corporate`)، آموزشی (`education`)، تیره (`dark`)،
      رنگارنگ (`vibrant`)
    - a logo: the user attaches it to a message; the deck then takes its color
-   - pictures: none by default; generated pictures only when the user wants them, or their own
-     pictures attached to a message
+   - pictures, always asked: «بدون عکس» (default)، «با عکس ساخته‌شده»، «با عکس‌های خودم» (the
+     user attaches them to a message)
    When the user gives a text, an article from this chat or a document, take the topic from it
-   and ask only about length and style.
+   and ask only about length, style and pictures.
 2. **Outline (wait).** One line per slide: its number, layout and what it says. Start with
    `title`, end with `closing`, and put a `section` slide between parts of a long deck. Ask the
    user to approve or change it; when `ask_user_question` is available, one question with
@@ -59,7 +59,9 @@ Go one step per message and wait where a step says so.
 - Text from the user, an article or a document: keep the key points and every number on the
   slides, and the explanation in the notes.
 - Images: a generated picture by its `generated_image_id`; a picture or logo the user attached
-  to this message by the id the tool lists. Never take images from the web.
+  to this message by the id the tool lists. Never take images from the web. When
+  `generate_image` refuses (no access, no credit), say so in one line with what it said, offer
+  «با عکس‌های خودم», and build the deck without pictures if the user does not attach any.
 - `version`: 1 for the first deck, then one more for each new deck in this chat.
 
 ## Changes after delivery

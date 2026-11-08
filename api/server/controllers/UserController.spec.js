@@ -524,6 +524,31 @@ describe('getUserController', () => {
     expect(sentUser).not.toHaveProperty('tokenset');
     expect(sentUser).not.toHaveProperty('safeLookingRuntimeField');
   });
+
+  it('sends the per-user access switches and pack the composer gates on', async () => {
+    const req = {
+      config: {},
+      user: {
+        id: 'user-id',
+        role: 'USER',
+        apiAccess: false,
+        mediaAccess: true,
+        browserAccess: true,
+        attachVmAccess: false,
+        packId: 'standard',
+      },
+    };
+
+    await getUserController(req, mockRes);
+
+    expect(mockRes.send.mock.calls[0][0]).toMatchObject({
+      apiAccess: false,
+      mediaAccess: true,
+      browserAccess: true,
+      attachVmAccess: false,
+      packId: 'standard',
+    });
+  });
 });
 
 describe('acceptTermsController', () => {
