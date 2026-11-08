@@ -44,6 +44,8 @@ export interface MediaToolDeps {
   fetch?: MediaFetch;
   /** The endpoint's image models; defaults to the process-wide catalogue */
   imageCatalogue?: () => readonly ImageCatalogueModel[] | undefined;
+  /** Saves the image model the user last generated with, as their default on every device */
+  saveImageModel?: (userId: string, modelId: string) => Promise<unknown>;
 }
 
 interface RunnableConfig {
@@ -100,6 +102,27 @@ export function createMediaTools(
   const speechClient = createSpeechProviderClient({ fetch: doFetch });
   const readImageCatalogue =
     deps.imageCatalogue ?? (() => getSharedImageModelCatalogue().getModels());
+  /** A background job's request has no body, so these read nothing there. */
+  const composerImageModel = (): string | undefined => {
+    const value = (req.body as { ephemeralAgent?: { image_model?: unknown } } | undefined)
+      ?.ephemeralAgent?.image_model;
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+  };
+  const savedImageModel = (): string | undefined =>
+    (req.user as { personalization?: { imageModel?: string } } | undefined)?.personalization
+      ?.imageModel;
+  /** The model that just made a picture becomes the user's default; a failed write is logged. */
+  const rememberImageModel = async (modelId: string): Promise<void> => {
+    const userId = req.user?.id;
+    if (!deps.saveImageModel || !userId || savedImageModel() === modelId) {
+      return;
+    }
+    try {
+      await deps.saveImageModel(userId, modelId);
+    } catch (error) {
+      logger.warn('[media] Could not save the user’s image model', error);
+    }
+  };
 
   async function guarded(
     pick: (config: TMediaGenerationConfig) => boolean,
@@ -213,8 +236,16 @@ export function createMediaTools(
           const run = runnable as RunnableConfig | undefined;
           const settings = getMediaConfig(req.config)?.image;
           const catalogue = settings?.catalogue ? readImageCatalogue() : undefined;
+          const models = settings ? listImageModels(settings, catalogue) : [];
+          /** What the user said in the chat, then the composer's pick for this conversation; a
+           *  saved choice the deployment no longer offers falls back to the default quietly. */
+          const offered = (id: string | undefined) =>
+            id != null && models.some((model) => model.id === id) ? id : undefined;
           const choice = settings
-            ? resolveImageModel(listImageModels(settings, catalogue), input.model)
+            ? resolveImageModel(
+                models,
+                input.model?.trim() || offered(composerImageModel()) || offered(savedImageModel()),
+              )
             : undefined;
           if (choice && !choice.ok) {
             const closest = choice.suggestions.length
@@ -254,6 +285,7 @@ export function createMediaTools(
                 generated.outputTokens != null && catalogueModel?.imageOutputPrice != null
                   ? generated.outputTokens * catalogueModel.imageOutputPrice
                   : undefined;
+              await rememberImageModel(chosen!.id);
               return {
                 result: imageResult(generated, `The image was generated with ${chosen!.id}.`),
                 costUsd: generated.costUsd ?? priced,

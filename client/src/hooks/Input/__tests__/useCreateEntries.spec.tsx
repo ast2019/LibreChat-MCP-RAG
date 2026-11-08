@@ -140,3 +140,63 @@ describe('useCreateEntries', () => {
     expect(render().map((entry) => entry.key)).toEqual(['create:article', 'create:slides']);
   });
 });
+
+describe('useCreateEntries image model row', () => {
+  const onOpen = jest.fn();
+  const models = [
+    {
+      id: 'openai/gpt-image-2',
+      name: 'GPT Image 2',
+      persianText: true,
+      estimateUsd: 0.06,
+      default: true,
+    },
+    {
+      id: 'black-forest-labs/flux.2-pro',
+      name: 'FLUX.2 Pro',
+      persianText: false,
+      estimateUsd: 0.1,
+    },
+  ];
+  const statusWith = (state: string, imageModels = models) => ({
+    data: {
+      paidOnly: true,
+      hasPack: true,
+      userSwitch: null,
+      ways: [{ id: 'image', state }],
+      imageModels,
+    },
+  });
+  const render = (current?: string) =>
+    renderHook(() =>
+      useCreateEntries({
+        enabled: true,
+        onCompose: jest.fn(),
+        onShowAll: jest.fn(),
+        imageModel: { current, onOpen },
+      }),
+    ).result.current;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockStartupConfig.mockReturnValue(office());
+  });
+
+  it('names the model pictures use and opens the picker', () => {
+    mockStatus.mockReturnValue(statusWith('active'));
+    const row = render('black-forest-labs/flux.2-pro').find(
+      (entry) => entry.key === 'create:image_model',
+    )!;
+    expect(row).toMatchObject({ section: 'create', dismiss: true, favoritable: false });
+    expect(row.description).toBe('com_ui_create_image_model_hint');
+    row.onSelect();
+    expect(onOpen).toHaveBeenCalled();
+  });
+
+  it('is left out when images are off or there is only one model', () => {
+    mockStatus.mockReturnValue(statusWith('needs_pack'));
+    expect(render().some((entry) => entry.key === 'create:image_model')).toBe(false);
+    mockStatus.mockReturnValue(statusWith('active', models.slice(0, 1)));
+    expect(render().some((entry) => entry.key === 'create:image_model')).toBe(false);
+  });
+});

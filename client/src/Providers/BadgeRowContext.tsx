@@ -24,12 +24,20 @@ interface BadgeRowContextType {
   codeInterpreter: ReturnType<typeof useToolToggle>;
   /** The agent browser (experimental): on gives the model the browser tools for this chat */
   browser: ReturnType<typeof useToolToggle>;
+  /** Higgsfield: on gives the model the Higgsfield MCP server and API tool for this chat */
+  higgsfield: ReturnType<typeof useToolToggle>;
+  /** The image model picked for this chat (a model id); empty uses the user's saved choice */
+  imageModel: ReturnType<typeof useToolToggle>;
   searchApiKeyForm: ReturnType<typeof useSearchApiKeyForm>;
   mcpServerManager: ReturnType<typeof useMCPServerManager>;
 }
 
 /** The ephemeral agent field the browser toggle writes (`TEphemeralAgent.browser`). */
 const BROWSER_TOGGLE_KEY = 'browser';
+/** The ephemeral agent field the Higgsfield toggle writes (`TEphemeralAgent.higgsfield`). */
+const HIGGSFIELD_TOGGLE_KEY = 'higgsfield';
+/** The ephemeral agent field the image model picker writes (`TEphemeralAgent.image_model`). */
+const IMAGE_MODEL_KEY = 'image_model';
 
 const BadgeRowContext = createContext<BadgeRowContextType | undefined>(undefined);
 
@@ -110,6 +118,8 @@ export default function BadgeRowProvider({
       const skillsToggleKey = `${LocalStorageKeys.LAST_SKILLS_TOGGLE_}${storageSuffix}`;
       const memoryToggleKey = `${LocalStorageKeys.LAST_MEMORY_TOGGLE_}${storageSuffix}`;
       const browserToggleKey = `${LocalStorageKeys.LAST_BROWSER_TOGGLE_}${storageSuffix}`;
+      const higgsfieldToggleKey = `${LocalStorageKeys.LAST_HIGGSFIELD_TOGGLE_}${storageSuffix}`;
+      const imageModelKey = `${LocalStorageKeys.LAST_IMAGE_MODEL_}${storageSuffix}`;
 
       const codeToggleValue = getTimestampedValue(codeToggleKey);
       const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
@@ -118,6 +128,8 @@ export default function BadgeRowProvider({
       const skillsToggleValue = getTimestampedValue(skillsToggleKey);
       const memoryToggleValue = getTimestampedValue(memoryToggleKey);
       const browserToggleValue = getTimestampedValue(browserToggleKey);
+      const higgsfieldToggleValue = getTimestampedValue(higgsfieldToggleKey);
+      const imageModelValue = getTimestampedValue(imageModelKey);
 
       const initialValues: Record<string, boolean | string> = {};
 
@@ -174,6 +186,25 @@ export default function BadgeRowProvider({
           initialValues[BROWSER_TOGGLE_KEY] = JSON.parse(browserToggleValue);
         } catch (e) {
           console.error('Failed to parse browser toggle value:', e);
+        }
+      }
+
+      if (higgsfieldToggleValue !== null) {
+        try {
+          initialValues[HIGGSFIELD_TOGGLE_KEY] = JSON.parse(higgsfieldToggleValue);
+        } catch (e) {
+          console.error('Failed to parse Higgsfield toggle value:', e);
+        }
+      }
+
+      if (imageModelValue !== null) {
+        try {
+          const parsed: unknown = JSON.parse(imageModelValue);
+          if (typeof parsed === 'string') {
+            initialValues[IMAGE_MODEL_KEY] = parsed;
+          }
+        } catch (e) {
+          console.error('Failed to parse image model value:', e);
         }
       }
 
@@ -296,6 +327,24 @@ export default function BadgeRowProvider({
     isAuthenticated: true,
   });
 
+  /** Higgsfield hook - the server adds its MCP server and API tool only while this is on */
+  const higgsfield = useToolToggle({
+    conversationId,
+    storageContextKey,
+    toolKey: HIGGSFIELD_TOGGLE_KEY,
+    localStorageKey: LocalStorageKeys.LAST_HIGGSFIELD_TOGGLE_,
+    isAuthenticated: true,
+  });
+
+  /** Image model picker - a model id; the server checks it against the models it offers */
+  const imageModel = useToolToggle({
+    conversationId,
+    storageContextKey,
+    toolKey: IMAGE_MODEL_KEY,
+    localStorageKey: LocalStorageKeys.LAST_IMAGE_MODEL_,
+    isAuthenticated: true,
+  });
+
   const mcpServerManager = useMCPServerManager({
     conversationId,
     storageContextKey,
@@ -320,6 +369,8 @@ export default function BadgeRowProvider({
       storageContextKey,
       codeInterpreter,
       browser,
+      higgsfield,
+      imageModel,
       searchApiKeyForm,
       mcpServerManager,
     }),
@@ -334,6 +385,8 @@ export default function BadgeRowProvider({
       storageContextKey,
       codeInterpreter,
       browser,
+      higgsfield,
+      imageModel,
       searchApiKeyForm,
       mcpServerManager,
     ],

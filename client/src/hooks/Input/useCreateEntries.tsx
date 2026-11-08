@@ -6,6 +6,7 @@ import {
   NotebookPen,
   Clapperboard,
   Presentation,
+  SlidersHorizontal,
   Image as ImageIcon,
 } from 'lucide-react';
 import type {
@@ -104,6 +105,7 @@ export default function useCreateEntries({
   onCompose,
   onShowAll,
   skills,
+  imageModel,
 }: {
   enabled: boolean;
   /** Puts the starting words of a request into the composer and focuses it */
@@ -111,11 +113,14 @@ export default function useCreateEntries({
   onShowAll: () => void;
   /** The staged skills and turning one on or off; absent when the user cannot use skills */
   skills?: StagedSkills | null;
+  /** The image model the next picture uses, and opening the picker; absent hides the row */
+  imageModel?: { current?: string; onOpen: () => void } | null;
 }): PaletteEntry[] {
   const localize = useLocalize();
   const status = useMediaStatusQuery(enabled);
   const { data: startupConfig } = useGetStartupConfig();
   const ways = status.data?.ways;
+  const imageModels = status.data?.imageModels;
   const office = startupConfig?.officeTools;
 
   return useMemo(() => {
@@ -145,6 +150,28 @@ export default function useCreateEntries({
         dismiss: true,
         onSelect: active ? () => onCompose(localize(way.starter)) : onShowAll,
       });
+      /* The model the picture is made with, when the deployment offers more than one. */
+      if (way.id === 'image' && active && imageModel != null && (imageModels?.length ?? 0) > 1) {
+        const current =
+          imageModels?.find((model) => model.id === imageModel.current) ??
+          imageModels?.find((model) => model.default === true);
+        entries.push({
+          key: 'create:image_model',
+          itemType: 'builtin',
+          itemId: 'create_image_model',
+          label: localize('com_ui_create_image_model'),
+          description: current
+            ? localize('com_ui_create_image_model_hint', { 0: current.name ?? current.id })
+            : undefined,
+          icon: <SlidersHorizontal className="icon-md" aria-hidden="true" />,
+          section: 'create',
+          active: false,
+          pinned: false,
+          favoritable: false,
+          dismiss: true,
+          onSelect: imageModel.onOpen,
+        });
+      }
     }
     for (const way of OFFICE_WAYS) {
       if (office?.[way.tool] !== true) {
@@ -190,5 +217,5 @@ export default function useCreateEntries({
       });
     }
     return entries;
-  }, [enabled, ways, office, localize, onCompose, onShowAll, skills]);
+  }, [enabled, ways, imageModels, imageModel, office, localize, onCompose, onShowAll, skills]);
 }

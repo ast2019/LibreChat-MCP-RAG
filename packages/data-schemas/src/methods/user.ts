@@ -199,6 +199,8 @@ export function createUserMethods(
     action: 'install' | 'uninstall',
   ) => Promise<IUser | null>;
   toggleUserMemories: (userId: string, memoriesEnabled: boolean) => Promise<IUser | null>;
+  /** The image model the user last chose; the default for their next picture on any device. */
+  updateUserImageModel: (userId: string, imageModel: string) => Promise<IUser | null>;
   updateUserStatefulCodeEnvironment: (
     userId: string,
     environment: StatefulCodeEnvironment,
@@ -892,6 +894,19 @@ export function createUserMethods(
     return updated;
   }
 
+  async function updateUserImageModel(userId: string, imageModel: string): Promise<IUser | null> {
+    const User = mongoose.models.User;
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { $set: { 'personalization.imageModel': imageModel } },
+      { new: true, runValidators: true },
+    ).lean<IUser>();
+    if (updated) {
+      await invalidateAuthUserDocCache(userId);
+    }
+    return updated;
+  }
+
   async function updateUserStatefulCodeEnvironment(
     userId: string,
     environment: StatefulCodeEnvironment,
@@ -1079,6 +1094,7 @@ export function createUserMethods(
     deleteUserById,
     updateUserPlugins,
     toggleUserMemories,
+    updateUserImageModel,
     updateUserStatefulCodeEnvironment,
   };
 }

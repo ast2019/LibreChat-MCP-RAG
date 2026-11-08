@@ -50,6 +50,7 @@ const loadMediaTools = (req, toolNames) =>
       saveMedia: saveGeneratedMedia,
       loadImage,
       createMediaJob: db.createMediaJob,
+      saveImageModel: db.updateUserImageModel,
     },
   );
 

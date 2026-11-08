@@ -12,6 +12,8 @@ import usePaletteEntries from '../usePaletteEntries';
  * appears without both is a tool the user cannot actually use.
  */
 
+let mockMediaStatus: { ways: Array<{ id: string; state: string }> } | undefined;
+let mockMediaStatusEnabled: boolean | undefined;
 let mockPermissions: Record<string, boolean>;
 let mockMemoryAccess: boolean;
 let mockCapabilities: Record<string, boolean>;
@@ -58,6 +60,10 @@ jest.mock('~/data-provider', () => ({
     return mockSkillsQuery;
   },
   useGetStartupConfig: () => ({ data: mockStartupConfig }),
+  useMediaStatusQuery: (enabled: boolean) => {
+    mockMediaStatusEnabled = enabled;
+    return { data: mockMediaStatus };
+  },
 }));
 
 jest.mock('~/components/ui/ExperimentalBadge', () => ({
@@ -161,6 +167,8 @@ describe('usePaletteEntries', () => {
     mockMemoryAccess = true;
     mockUser = { personalization: { memories: true } };
     mockStartupConfig = undefined;
+    mockMediaStatus = undefined;
+    mockMediaStatusEnabled = undefined;
     mockCapabilities = { ...allCapabilities };
     mockContext = fullContext();
     mockSkills = [];
@@ -247,6 +255,59 @@ describe('usePaletteEntries', () => {
       mockUser = { role: 'ADMIN' };
       mockStartupConfig = browserConfig(false);
       expect(keysOf(entries().result)).not.toContain('builtin:browser');
+    });
+  });
+
+  describe('Higgsfield', () => {
+    const higgsfieldContext = (state = false) => ({
+      ...fullContext(),
+      higgsfield: toggle(state),
+    });
+    const withWays = (...states: Array<[string, string]>) => ({
+      ways: states.map(([id, state]) => ({ id, state })),
+    });
+    const catalogEntries = () =>
+      renderHook(() => usePaletteEntries({ conversationId: 'convo-1', catalogEnabled: true }), {
+        wrapper: stagedWrapper(),
+      });
+
+    it('is offered when one of its ways is set up, and turns on for this chat', () => {
+      mockContext = higgsfieldContext();
+      mockMediaStatus = withWays(
+        ['higgsfield_api', 'not_configured'],
+        ['higgsfield_own', 'needs_connection'],
+      );
+      const row = catalogEntries().result.current.find(
+        (item) => item.key === 'builtin:higgsfield',
+      )!;
+      expect(row).toMatchObject({ label: 'com_ui_higgsfield', section: 'tool', active: false });
+      act(() => row.onSelect());
+      expect(
+        (mockContext.higgsfield as ReturnType<typeof toggle>).debouncedChange,
+      ).toHaveBeenCalledWith({ value: true });
+    });
+
+    it('is not offered when no way is set up', () => {
+      mockContext = higgsfieldContext();
+      mockMediaStatus = withWays(['higgsfield_api', 'not_configured']);
+      expect(keysOf(catalogEntries().result)).not.toContain('builtin:higgsfield');
+    });
+
+    it('reads the media status only once the palette opens or the switch is already on', () => {
+      mockContext = higgsfieldContext();
+      mockMediaStatus = undefined;
+      renderHook(() => usePaletteEntries({ conversationId: 'convo-1', catalogEnabled: false }), {
+        wrapper: stagedWrapper(),
+      });
+      expect(mockMediaStatusEnabled).toBe(false);
+      mockContext = higgsfieldContext(true);
+      const { result } = renderHook(
+        () => usePaletteEntries({ conversationId: 'convo-1', catalogEnabled: false }),
+        { wrapper: stagedWrapper() },
+      );
+      expect(mockMediaStatusEnabled).toBe(true);
+      /* Kept while on, so the chip does not blink before the status answers. */
+      expect(keysOf(result)).toContain('builtin:higgsfield');
     });
   });
 

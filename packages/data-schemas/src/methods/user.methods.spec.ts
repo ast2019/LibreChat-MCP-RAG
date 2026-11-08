@@ -2069,6 +2069,47 @@ describe('User Methods - Database Tests', () => {
     });
   });
 
+  describe('updateUserImageModel', () => {
+    test('saves the image model and keeps the other preferences', async () => {
+      const user = await User.create({
+        email: 'image-model@example.com',
+        provider: 'local',
+        personalization: { memories: false, statefulCodeEnvironment: 'agent-user' },
+      });
+
+      const updated = await methods.updateUserImageModel(
+        user._id?.toString() ?? '',
+        'openai/gpt-image-2',
+      );
+
+      expect(updated?.personalization).toMatchObject({
+        memories: false,
+        statefulCodeEnvironment: 'agent-user',
+        imageModel: 'openai/gpt-image-2',
+      });
+    });
+
+    test('invalidates cached auth user documents', async () => {
+      enableAuthUserDocCache();
+      const user = await User.create({
+        email: 'cached-image-model@example.com',
+        provider: 'local',
+      });
+      const userId = user._id?.toString() ?? '';
+      const cache = {
+        get: jest.fn().mockResolvedValue(['auth-cache-key-b']),
+        delete: jest.fn().mockResolvedValue(true),
+      };
+      const methodsWithCache = createUserMethods(mongoose, {
+        getCache: jest.fn().mockReturnValue(cache),
+      });
+
+      await methodsWithCache.updateUserImageModel(userId, 'openai/gpt-image-2');
+
+      expect(cache.delete).toHaveBeenCalledWith('auth-cache-key-b');
+    });
+  });
+
   describe('Email Normalization Edge Cases', () => {
     test('should handle email with multiple spaces', async () => {
       await User.create({

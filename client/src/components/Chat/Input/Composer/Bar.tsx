@@ -7,6 +7,8 @@ import type { PaletteEntry, PaletteMode } from '~/hooks/Input/usePaletteEntries'
 import type { Dictation } from '~/hooks/Input/useDictation';
 import type { ExtendedFile, FileSetter } from '~/common';
 import { useBadgeRowContext, useOptionalChatFormContext } from '~/Providers';
+import { ImageModelDialog, MediaToolsDialog } from '~/components/Media';
+import { useUpdateUserPreferencesMutation } from '~/data-provider';
 import usePaletteEntries from '~/hooks/Input/usePaletteEntries';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import useCreateEntries from '~/hooks/Input/useCreateEntries';
@@ -14,9 +16,8 @@ import useToolFavorites from '~/hooks/Input/useToolFavorites';
 import useElementSize from '~/hooks/Generic/useElementSize';
 import useChipPacking from '~/hooks/Input/useChipPacking';
 import useStageSkill from '~/hooks/Input/useStageSkill';
-import { MediaToolsDialog } from '~/components/Media';
+import { useLocalize, useAuthContext } from '~/hooks';
 import TokenUsage from '../TokenUsage';
-import { useLocalize } from '~/hooks';
 import Thinking from './Thinking';
 import Palette from './Palette';
 import { cn } from '~/utils';
@@ -297,11 +298,38 @@ function Bar({
   );
   const showAllMedia = useCallback(() => setShowMediaTools(true), []);
   const stagedSkills = useStageSkill(conversationId);
+  /* The image model: this chat's pick, else the user's saved choice (the server falls back to
+     the deployment's default when neither is offered). Picking saves it on the account too, so
+     it is the default on every device. */
+  const { user } = useAuthContext();
+  const [showImageModels, setShowImageModels] = useState(false);
+  const imageModelToggle = context?.imageModel;
+  const pickedImageModel =
+    typeof imageModelToggle?.toggleState === 'string' && imageModelToggle.toggleState !== ''
+      ? imageModelToggle.toggleState
+      : undefined;
+  const currentImageModel = pickedImageModel ?? user?.personalization?.imageModel;
+  const savePreferences = useUpdateUserPreferencesMutation();
+  const pickImageModel = useCallback(
+    (modelId: string) => {
+      imageModelToggle?.setToggleState(modelId);
+      savePreferences.mutate({ imageModel: modelId });
+    },
+    [imageModelToggle, savePreferences],
+  );
+  const imageModel = useMemo(
+    () =>
+      imageModelToggle != null
+        ? { current: currentImageModel, onOpen: () => setShowImageModels(true) }
+        : null,
+    [imageModelToggle, currentImageModel],
+  );
   const createEntries = useCreateEntries({
     enabled: showTools && catalogWanted,
     onCompose: compose,
     onShowAll: showAllMedia,
     skills: stagedSkills,
+    imageModel,
   });
   /* `usePaletteEntries` already returns nothing once `enabled` is false, so the
      gate lives in one place rather than being re-applied to its result here. */
@@ -579,6 +607,15 @@ function Bar({
         <MediaToolsDialog
           open={showMediaTools}
           onOpenChange={setShowMediaTools}
+          triggerRef={anchorRef}
+        />
+      )}
+      {showImageModels && (
+        <ImageModelDialog
+          open={showImageModels}
+          onOpenChange={setShowImageModels}
+          current={currentImageModel}
+          onPick={pickImageModel}
           triggerRef={anchorRef}
         />
       )}

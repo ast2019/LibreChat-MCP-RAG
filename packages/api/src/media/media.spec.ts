@@ -277,6 +277,40 @@ describe('media tools', () => {
       expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 60_000);
     });
 
+    it('uses the composer pick, then the saved choice, and remembers the model used', async () => {
+      const saveImageModel = jest.fn().mockResolvedValue(null);
+      const run = async (body: unknown, personalization?: { imageModel?: string }) => {
+        const { deps } = makeDeps({ imageCatalogue, saveImageModel });
+        const request = {
+          ...catalogueReq,
+          body,
+          user: { id: 'u1', personalization },
+        } as unknown as ServerRequest;
+        await createMediaTools({ req: request, toolNames: [MediaTools.image] }, deps)[0].invoke({
+          id: 'p1',
+          name: MediaTools.image,
+          args: { prompt: 'poster' },
+          type: 'tool_call',
+        });
+        return JSON.parse((deps.fetch as jest.Mock).mock.calls[0][1].body).model;
+      };
+
+      expect(await run({ ephemeralAgent: { image_model: 'openai/gpt-image-2' } })).toBe(
+        'openai/gpt-image-2',
+      );
+      expect(saveImageModel).toHaveBeenLastCalledWith('u1', 'openai/gpt-image-2');
+
+      saveImageModel.mockClear();
+      expect(await run({}, { imageModel: 'openai/gpt-image-2' })).toBe('openai/gpt-image-2');
+      /** Already the saved choice: nothing to write */
+      expect(saveImageModel).not.toHaveBeenCalled();
+
+      /** A pick or a saved choice the deployment no longer offers falls back to the default */
+      expect(
+        await run({ ephemeralAgent: { image_model: 'gone/model' } }, { imageModel: 'gone/too' }),
+      ).toBe('google/image');
+    });
+
     it('makes and charges nothing for a model that is not offered', async () => {
       const { deps, billing } = makeDeps({ imageCatalogue });
       const message = await tool(deps).invoke({

@@ -129,6 +129,10 @@ export type TEphemeralAgent = {
   memory?: boolean;
   /** Give the model the agent browser's tools (experimental; needs the user's access) */
   browser?: boolean;
+  /** Let the model use Higgsfield: the Higgsfield MCP server and the Higgsfield API tool */
+  higgsfield?: boolean;
+  /** The image model the user picked in the composer for this conversation */
+  image_model?: string;
   /** Equip the ephemeral agent with the `ask_user_question` HITL tool. */
   ask_user_question?: boolean;
   /**
@@ -345,13 +349,17 @@ export type TUser = {
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
+    /** The image model the user last chose; the default for their next picture */
+    imageModel?: string;
   };
   createdAt: string;
   updatedAt: string;
 };
 
+/** One or both preferences; each is checked against what the deployment offers. */
 export type TUpdateUserPreferencesRequest = {
-  statefulCodeEnvironment: StatefulCodeEnvironment;
+  statefulCodeEnvironment?: StatefulCodeEnvironment;
+  imageModel?: string;
 };
 
 export type TUpdateUserPreferencesResponse = {

@@ -76,12 +76,36 @@ export function getChatMediaTools(
   appConfig: AppConfig | null | undefined,
   user: { mediaAccess?: boolean | null } | null | undefined,
   spec?: Pick<TModelSpec, 'privacy'> | null,
+  /** The composer's Higgsfield switch; off leaves the Higgsfield API tool out */
+  higgsfield = false,
 ): MediaTools[] {
   const contained = spec?.privacy === 'private' || spec?.privacy === 'local';
   if (user?.mediaAccess === false || contained) {
     return [];
   }
-  return getConfiguredMediaTools(getMediaConfig(appConfig));
+  return getConfiguredMediaTools(getMediaConfig(appConfig)).filter(
+    (tool) => higgsfield || tool !== MediaTools.higgsfield,
+  );
+}
+
+type HiggsfieldMcpEntry = { url?: string; sharedOAuth?: { ownerEmail?: string; allow?: string } };
+
+/** The deployment's Higgsfield MCP server (one whose URL is on higgsfield.ai), by name. */
+export function findHiggsfieldServer(
+  appConfig: AppConfig | null | undefined,
+): [string, HiggsfieldMcpEntry] | null {
+  const servers = (appConfig as { mcpConfig?: Record<string, HiggsfieldMcpEntry> } | undefined)
+    ?.mcpConfig;
+  for (const [name, entry] of Object.entries(servers ?? {})) {
+    try {
+      if (entry?.url && new URL(entry.url).hostname.endsWith('higgsfield.ai')) {
+        return [name, entry];
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 /** Server credentials for the OpenRouter calls; undefined when the endpoint is not usable. */
@@ -155,6 +179,8 @@ export function buildMediaToolContext(
   imageCatalogue:
     | readonly ImageCatalogueModel[]
     | undefined = getSharedImageModelCatalogue().getModels(),
+  /** The model this user's next picture uses: the composer's pick, else their saved choice */
+  currentImageModel?: string,
 ): Record<string, string> {
   const config = getMediaConfig(appConfig);
   const context: Record<string, string> = {};
@@ -175,8 +201,11 @@ export function buildMediaToolContext(
     const models = listImageModels(config.image, imageCatalogue);
     if (models.length > 1) {
       const persian = models.filter((model) => model.persianText).map((model) => model.id);
+      const current = models.some((model) => model.id === currentImageModel)
+        ? currentImageModel
+        : config.image.model;
       context[MediaTools.image] = [
-        `Image models for \`model\` in ${MediaTools.image} (default ${config.image.model}): ${models.map((model) => model.id).join(', ')}.`,
+        `Image models for \`model\` in ${MediaTools.image} (the user's current one: ${current}; leave \`model\` out to use it): ${models.map((model) => model.id).join(', ')}.`,
         persian.length
           ? `For Persian text in the picture, suggest: ${persian.join(', ')}.`
           : undefined,

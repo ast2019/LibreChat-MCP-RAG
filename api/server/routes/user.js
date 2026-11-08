@@ -32,12 +32,13 @@ const {
   phoneCodeRequestLimiter,
 } = require('~/server/controllers/auth/PhoneController');
 const settings = require('./settings');
-const { updateUserStatefulCodeEnvironment } = require('~/models');
+const { updateUserImageModel, updateUserStatefulCodeEnvironment } = require('~/models');
 
 const router = express.Router();
 
 const updateUserPreferences = createUserPreferencesHandler({
   updateStatefulCodeEnvironment: updateUserStatefulCodeEnvironment,
+  updateImageModel: updateUserImageModel,
 });
 
 router.use('/settings', settings);

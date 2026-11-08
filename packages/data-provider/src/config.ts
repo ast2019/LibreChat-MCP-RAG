@@ -6160,6 +6160,10 @@ export enum LocalStorageKeys {
   LAST_MEMORY_TOGGLE_ = 'LAST_MEMORY_TOGGLE_',
   /** Last agent browser toggle, per conversation */
   LAST_BROWSER_TOGGLE_ = 'LAST_BROWSER_TOGGLE_',
+  /** Last Higgsfield toggle state, per conversation */
+  LAST_HIGGSFIELD_TOGGLE_ = 'LAST_HIGGSFIELD_TOGGLE_',
+  /** Last image model picked in the composer, per conversation */
+  LAST_IMAGE_MODEL_ = 'LAST_IMAGE_MODEL_',
   /** Key for the last selected agent provider */
   LAST_AGENT_PROVIDER = 'lastAgentProvider',
   /** Key for the last selected agent model */
