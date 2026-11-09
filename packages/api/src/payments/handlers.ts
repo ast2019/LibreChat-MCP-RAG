@@ -21,6 +21,7 @@ import type { PaymentDriverRegistry } from './registry';
 import type { PaymentGatewayActivity } from './status';
 import type { GatewayHealth } from './health';
 import type { PaymentsEnv } from './config';
+import { jdnToDate, jdnToSolar, solarToJdn, todayJdn } from '~/persian/calendar';
 import { createPaymentService, getPaymentOptions } from './service';
 import { createPaymentDriverRegistry } from './registry';
 import { getPaymentGatewaysStatus } from './status';
@@ -61,19 +62,26 @@ export interface PaymentHandlerDeps {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Tehran has had no daylight saving since 2022 */
 const TEHRAN_OFFSET_MS = 3.5 * 60 * 60 * 1000;
-const persianDay = new Intl.DateTimeFormat('en-US-u-ca-persian', {
-  day: 'numeric',
-  timeZone: 'Asia/Tehran',
-});
 
-/** Midnight in Tehran today, and the first day of the current Persian (Jalali) month. */
+/**
+ * Midnight in Tehran today, and the first day of the current Persian (Jalali) month.
+ *
+ * The month boundary comes from the deterministic Solar Hijri conversion
+ * (`persian/calendar`), not from `Intl`: a formatted Persian day is a locale artifact, so a
+ * runtime that formats it with non-Latin digits would parse to `NaN` and silently report the
+ * month as starting today.
+ */
 export function getTehranWindows(now: Date): { todaySince: Date; monthSince: Date } {
   const todaySince = new Date(
     Math.floor((now.getTime() + TEHRAN_OFFSET_MS) / DAY_MS) * DAY_MS - TEHRAN_OFFSET_MS,
   );
-  const dayOfMonth = Number.parseInt(persianDay.format(now).replace(/\D/g, ''), 10);
-  const back = Number.isFinite(dayOfMonth) && dayOfMonth > 0 ? dayOfMonth - 1 : 0;
-  return { todaySince, monthSince: new Date(todaySince.getTime() - back * DAY_MS) };
+  const solar = jdnToSolar(todayJdn(now, 'Asia/Tehran'));
+  const monthSince = jdnToDate(solarToJdn({ ...solar, day: 1 }));
+  /** Tehran midnight, on the first day of the Persian month. */
+  const start = new Date(
+    Math.floor((monthSince.getTime() + TEHRAN_OFFSET_MS) / DAY_MS) * DAY_MS - TEHRAN_OFFSET_MS,
+  );
+  return { todaySince, monthSince: start };
 }
 
 function toUserOrder(order: PaymentOrderRecord): TPaymentOrder {

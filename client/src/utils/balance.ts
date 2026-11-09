@@ -20,6 +20,12 @@ export interface BalanceSummary {
   allotment: number | null;
   /** Display name of the last granted pack; null when none was granted or it has no name. */
   packLabel: string | null;
+  /** Id of the last granted pack; null when none was granted. Stable across renames, so it
+   *  identifies which pack a warning is measured against. */
+  packId: string | null;
+  /** When the last pack was granted, as an ISO string; null when none was granted. Together
+   *  with the pack id this names one grant, so a second grant of the same pack is a new one. */
+  packGrantedAt: string | null;
   /** Whole percent of the allotment spent, 0–100; 100 once credits run out, else null without
    *  an allotment to measure against. */
   usedPercent: number | null;
@@ -41,6 +47,15 @@ interface SummaryOptions {
 
 const positive = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+
+/** A timestamp the server sent, as an ISO string; null when absent or unparseable. */
+function normalizeTimestamp(value: Date | string | undefined): string | null {
+  if (value == null) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 function getNextRefill(balance: TBalanceResponse): Date | null {
   const { lastRefill, refillIntervalValue, refillIntervalUnit } = balance;
@@ -81,6 +96,11 @@ export function summarizeBalance(
     typeof balance.packLabel === 'string' && balance.packLabel.trim() !== ''
       ? balance.packLabel.trim()
       : null;
+  const packId =
+    typeof balance.packId === 'string' && balance.packId.trim() !== ''
+      ? balance.packId.trim()
+      : null;
+  const packGrantedAt = normalizeTimestamp(balance.packGrantedAt);
   const usedPercent = getUsedPercent(credits, allotment);
   /** `pack` reads as the share of the current allowance used — the free trial before a pack,
    *  the pack after — never as a money amount; money appears only as the packs' prices when
@@ -100,6 +120,8 @@ export function summarizeBalance(
     credits,
     allotment,
     packLabel,
+    packId,
+    packGrantedAt,
     usedPercent,
     tone,
     refillAmount,

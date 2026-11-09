@@ -562,6 +562,55 @@ describe('scheduled MCP preflight config', () => {
   });
 });
 
+describe('currency config', () => {
+  const withCurrency = (currency: unknown) => ({
+    version: '1.2.1',
+    interface: { currency },
+  });
+
+  it('accepts a ceiling on how old a live rate may be', () => {
+    expect(
+      configSchema.safeParse(
+        withCurrency({
+          code: 'IRT',
+          rate: 270000,
+          live: { source: 'tgju', refreshMinutes: 30, maxAgeMinutes: 2880 },
+        }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it('bounds the ceiling, and leaves it optional', () => {
+    expect(
+      configSchema.safeParse(
+        withCurrency({
+          code: 'IRT',
+          rate: 270000,
+          live: { source: 'tgju', maxAgeMinutes: 1 },
+        }),
+      ).success,
+    ).toBe(true);
+    expect(
+      configSchema.safeParse(
+        withCurrency({
+          code: 'IRT',
+          rate: 270000,
+          live: { source: 'tgju', maxAgeMinutes: 0 },
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      configSchema.safeParse(
+        withCurrency({
+          code: 'IRT',
+          rate: 270000,
+          live: { source: 'tgju', maxAgeMinutes: 10081 },
+        }),
+      ).success,
+    ).toBe(false);
+  });
+});
+
 describe('isTwoFactorPolicyProvider', () => {
   it.each(['local', 'ldap', null, undefined])('includes provider %s', (provider) => {
     expect(isTwoFactorPolicyProvider(provider)).toBe(true);

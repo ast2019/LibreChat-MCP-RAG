@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Fixed
+- **The credit warning comes back after a new pack is bought.** Dismissing the "you have used
+  90% of your credit" or "you are out of credit" notice hid it for good, because the dismissal
+  was remembered by its tone alone and every pack spends the same two tones: the user never saw
+  the warning again, in any later pack. The dismissal is now remembered per grant — the pack and
+  when it was granted — so a new pack warns again, while the same pack keeps its dismissal as
+  the share spent grows.
+
 ## [0.38.16] - 2026-11-08
 
 ### Added

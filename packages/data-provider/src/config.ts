@@ -3128,6 +3128,10 @@ export const interfaceSchema = z
           .object({
             source: z.enum(LIVE_CURRENCY_SOURCES),
             refreshMinutes: z.number().int().min(1).max(1440).optional(),
+            /** How old a live reading may be before the yaml `rate` takes over again. A reading
+             *  that could not be refreshed for this long is not a price any more. Minutes;
+             *  unset means the default. */
+            maxAgeMinutes: z.number().int().min(1).max(10080).optional(),
           })
           .optional(),
         /** Pack prices are rounded up to a multiple of this amount of `code`, e.g. 1000. */

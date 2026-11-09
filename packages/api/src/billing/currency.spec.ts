@@ -140,6 +140,81 @@ describe('createCurrencyRates', () => {
     expect(after.info?.source).toBe('tgju');
   });
 
+  it('stops answering with a reading that is older than its ceiling', async () => {
+    const fetcher = jest
+      .fn<Promise<MarketRate>, [AbortSignal]>()
+      .mockResolvedValueOnce(reading(2695000))
+      .mockRejectedValue(new Error('outage'));
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
+    await rates.resolve(toman);
+
+    /** Still inside the ceiling: the last good reading answers. */
+    clock += 31 * 60_000;
+    await rates.resolve(toman);
+    await new Promise((resolve) => setImmediate(resolve));
+    await expect(rates.resolve(toman)).resolves.toEqual(
+      expect.objectContaining({ currency: { code: 'IRT', rate: 269500, priceStep: 1000 } }),
+    );
+
+    /** Past the ceiling: the price is not a price any more, so the yaml rate takes over. */
+    clock += 2 * 24 * 60 * 60_000;
+    await expect(rates.resolve(toman)).resolves.toEqual({
+      currency: { code: 'IRT', rate: 270000, priceStep: 1000 },
+      info: { source: 'config' },
+    });
+  });
+
+  it('takes the ceiling from the config, so a deployment can set its own', async () => {
+    const fetcher = jest
+      .fn<Promise<MarketRate>, [AbortSignal]>()
+      .mockResolvedValueOnce(reading(2695000))
+      .mockRejectedValue(new Error('outage'));
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
+    await rates.resolve({
+      ...toman,
+      live: { source: 'tgju', refreshMinutes: 30, maxAgeMinutes: 60 },
+    });
+
+    clock += 61 * 60_000;
+    await rates.resolve({
+      ...toman,
+      live: { source: 'tgju', refreshMinutes: 30, maxAgeMinutes: 60 },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    await expect(
+      rates.resolve({ ...toman, live: { source: 'tgju', refreshMinutes: 30, maxAgeMinutes: 60 } }),
+    ).resolves.toEqual({
+      currency: { code: 'IRT', rate: 270000, priceStep: 1000 },
+      info: { source: 'config' },
+    });
+  });
+
+  it('keeps refreshing in the background while the reading is too old', async () => {
+    const fetcher = jest
+      .fn<Promise<MarketRate>, [AbortSignal]>()
+      .mockResolvedValueOnce(reading(2695000))
+      .mockRejectedValueOnce(new Error('outage'))
+      .mockResolvedValueOnce(reading(2800000));
+    const rates = createCurrencyRates({ fetchers: { tgju: fetcher }, now, firstReadWaitMs: 1500 });
+    await rates.resolve(toman);
+
+    /** Past the ceiling the answer falls back, but the source is still polled. */
+    clock += 3 * 24 * 60 * 60_000;
+    await expect(rates.resolve(toman)).resolves.toEqual(
+      expect.objectContaining({ info: { source: 'config' } }),
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    /** A reading that lands is trusted again. */
+    clock += 61_000;
+    await rates.resolve(toman);
+    await new Promise((resolve) => setImmediate(resolve));
+    await expect(rates.resolve(toman)).resolves.toEqual(
+      expect.objectContaining({ currency: { code: 'IRT', rate: 280000, priceStep: 1000 } }),
+    );
+  });
+
   it('never waits for the first reading by default, then serves it once it lands', async () => {
     let settle: (value: MarketRate) => void = () => undefined;
     const fetcher = jest.fn<Promise<MarketRate>, [AbortSignal]>(

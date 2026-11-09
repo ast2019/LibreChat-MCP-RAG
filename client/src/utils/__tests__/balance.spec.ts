@@ -57,6 +57,42 @@ describe('summarizeBalance', () => {
     expect(summary.packLabel).toBeNull();
   });
 
+  it('names the grant a warning is measured against', () => {
+    const summary = summarizeBalance(
+      {
+        tokenCredits: 100_000,
+        autoRefillEnabled: false,
+        packAllotment: 1_000_000,
+        packId: ' starter ',
+        packGrantedAt: '2026-11-01T10:00:00.000Z',
+      },
+      { display: 'percent' },
+    );
+    expect(summary.packId).toBe('starter');
+    expect(summary.packGrantedAt).toBe('2026-11-01T10:00:00.000Z');
+  });
+
+  it('has no grant to name without a pack or a readable grant date', () => {
+    const noPack = summarizeBalance(
+      { tokenCredits: 100_000, autoRefillEnabled: false, packAllotment: 1_000_000 },
+      { display: 'percent' },
+    );
+    expect(noPack.packId).toBeNull();
+    expect(noPack.packGrantedAt).toBeNull();
+
+    const unreadable = summarizeBalance(
+      {
+        tokenCredits: 100_000,
+        autoRefillEnabled: false,
+        packAllotment: 1_000_000,
+        packId: 'starter',
+        packGrantedAt: 'not a date',
+      },
+      { display: 'percent' },
+    );
+    expect(unreadable.packGrantedAt).toBeNull();
+  });
+
   it('has no percent without an allotment to measure against', () => {
     const summary = summarizeBalance({ tokenCredits: 5_000, autoRefillEnabled: false });
     expect(summary.display).toBe('credits');

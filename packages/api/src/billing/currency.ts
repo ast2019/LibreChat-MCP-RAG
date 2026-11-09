@@ -6,7 +6,7 @@ import type { LiveCurrencySource, TCurrencyRateInfo } from 'librechat-data-provi
 export interface InterfaceCurrency {
   code?: string;
   rate?: number;
-  live?: { source?: LiveCurrencySource; refreshMinutes?: number };
+  live?: { source?: LiveCurrencySource; refreshMinutes?: number; maxAgeMinutes?: number };
   priceStep?: number;
 }
 
@@ -33,6 +33,13 @@ export const TGJU_URLS = [
 ] as const;
 
 const DEFAULT_REFRESH_MINUTES = 30;
+/**
+ * How old a live reading may be before the yaml rate takes over again. A source that stops
+ * answering leaves its last reading in place forever, so without a ceiling a pack can be
+ * priced with a rate from months ago. Two days is long enough to ride out an outage and
+ * short enough that a stale price cannot last.
+ */
+const DEFAULT_MAX_AGE_MINUTES = 2 * 24 * 60;
 /**
  * How long a request waits for the very first reading before it uses the yaml rate. Zero: the
  * startup config must never wait on the market source — the first request (or the startup
@@ -114,7 +121,9 @@ export interface CurrencyRates {
    * The currency the client should format with and where its rate came from. A configured
    * live source answers from its last reading and refreshes in the background once that is
    * older than `refreshMinutes`; before the first reading, a request waits up to
-   * `firstReadWaitMs` (none by default) and then uses the yaml `rate`.
+   * `firstReadWaitMs` (none by default) and then uses the yaml `rate`. A reading that could
+   * not be refreshed for longer than `maxAgeMinutes` is not answered with either, so a
+   * source that stopped answering cannot price a pack with a rate from months ago.
    */
   resolve(
     currency: InterfaceCurrency | undefined,
@@ -135,6 +144,15 @@ export function createCurrencyRates({
   retryMs?: number;
 }): CurrencyRates {
   const states = new Map<LiveCurrencySource, SourceState>();
+
+  /**
+   * A reading is only usable while it is young enough to be a price. A source that stops
+   * answering leaves its last reading in place, so without this ceiling a pack can be priced
+   * with a rate from months ago. The reading is still refreshed in the background; it is only
+   * not trusted for the answer.
+   */
+  const isUsable = (state: SourceState, maxAgeMinutes: number, at: number): boolean =>
+    state.fetchedAt != null && at - state.fetchedAt < maxAgeMinutes * 60_000;
 
   const refresh = (source: LiveCurrencySource, state: SourceState) => {
     const fetcher = fetchers[source];
@@ -167,6 +185,7 @@ export function createCurrencyRates({
   const read = async (
     source: LiveCurrencySource,
     refreshMinutes: number,
+    maxAgeMinutes: number,
   ): Promise<MarketRate | undefined> => {
     let state = states.get(source);
     if (state == null) {
@@ -188,7 +207,8 @@ export function createCurrencyRates({
         return waited ?? state.value;
       }
     }
-    return state.value;
+    /** A reading older than its ceiling is not a price any more, so it is not answered with. */
+    return isUsable(state, maxAgeMinutes, at) ? state.value : undefined;
   };
 
   return {
@@ -209,9 +229,11 @@ export function createCurrencyRates({
         return fallback;
       }
       const minutes = currency?.live?.refreshMinutes;
+      const maxAge = currency?.live?.maxAgeMinutes;
       const reading = await read(
         source,
         typeof minutes === 'number' && minutes > 0 ? minutes : DEFAULT_REFRESH_MINUTES,
+        typeof maxAge === 'number' && maxAge > 0 ? maxAge : DEFAULT_MAX_AGE_MINUTES,
       );
       if (reading == null) {
         return fallback;

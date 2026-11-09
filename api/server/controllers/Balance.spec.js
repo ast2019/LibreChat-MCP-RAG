@@ -69,4 +69,34 @@ describe('balanceController', () => {
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ error: 'Balance not found' });
   });
+
+  it('sends the grant the client measures its warning against', async () => {
+    findBalanceByUser.mockResolvedValue({
+      _id: 'balance-1',
+      user: 'user-1',
+      tokenCredits: 100,
+      autoRefillEnabled: false,
+      packId: 'starter',
+      packLabel: 'Starter',
+      packAllotment: 1000,
+      packGrantedAt: new Date('2026-11-01T10:00:00.000Z'),
+    });
+    const req = {
+      user: { id: 'user-1' },
+    };
+    const res = createResponse();
+    res.locals.balanceConfigEnabled = true;
+
+    await balanceController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        packId: 'starter',
+        packLabel: 'Starter',
+        packAllotment: 1000,
+        packGrantedAt: new Date('2026-11-01T10:00:00.000Z'),
+      }),
+    );
+  });
 });

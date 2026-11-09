@@ -33,13 +33,16 @@ interface:
   permissionSync: 'seed'
   # Money is shown in Toman. `rate` (Toman per US dollar) is the fallback; the live rate is the
   # free-market dollar on tgju.org, read every 30 minutes, without any extra fee. Pack prices
-  # are rounded up to the next 1,000 Toman.
+  # are rounded up to the next 1,000 Toman. `maxAgeMinutes` is how old a live reading may be
+  # before the fallback rate takes over again: a source that stopped answering would otherwise
+  # price a pack with a rate from months ago.
   currency:
     code: 'IRT'
     rate: 270000
     live:
       source: 'tgju'
       refreshMinutes: 30
+      maxAgeMinutes: 2880
     priceStep: 1000
   # Users pick from the model specs below only (no raw endpoint/model lists).
   modelSelect: false

@@ -123,4 +123,41 @@ describe('getTehranWindows', () => {
     expect(todaySince.toISOString()).toBe('2025-03-24T20:30:00.000Z');
     expect(monthSince.toISOString()).toBe('2025-03-20T20:30:00.000Z');
   });
+
+  it('starts the month on the first of the Persian month, not the Gregorian one', () => {
+    /** 2026-11-09 is 18 Aban 1405; Aban started on 23 October 2026. */
+    const { monthSince } = getTehranWindows(new Date('2026-11-09T12:00:00Z'));
+    expect(monthSince.toISOString()).toBe('2026-10-22T20:30:00.000Z');
+  });
+
+  it('moves the month boundary with the Persian month, not the Gregorian one', () => {
+    /** The last day of Shahrivar 1405 (22 September) still counts as the same month. */
+    const before = getTehranWindows(new Date('2026-09-22T12:00:00Z'));
+    expect(before.monthSince.toISOString()).toBe('2026-08-22T20:30:00.000Z');
+    /** The first day of Mehr 1405 (23 September) starts a new month. */
+    const after = getTehranWindows(new Date('2026-09-23T12:00:00Z'));
+    expect(after.monthSince.toISOString()).toBe('2026-09-22T20:30:00.000Z');
+  });
+
+  it('agrees with the platform calendar on every day of a Persian month', () => {
+    /** The platform's own Persian calendar, read the way the old implementation read it. */
+    const persianDay = new Intl.DateTimeFormat('en-US-u-ca-persian', {
+      day: 'numeric',
+      timeZone: 'Asia/Tehran',
+    });
+    /** 23 September 2026 is 1 Mehr 1405; noon UTC keeps it the same Tehran day. */
+    const monthStart = Date.UTC(2026, 8, 23);
+    for (let day = 1; day <= 30; day += 1) {
+      const now = new Date(monthStart + (day - 1) * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000);
+      const { todaySince, monthSince } = getTehranWindows(now);
+      const expectedDay = Number.parseInt(persianDay.format(now).replace(/\D/g, ''), 10);
+      expect(expectedDay).toBe(day);
+      /** The month window never moves while the month does. */
+      expect(monthSince.toISOString()).toBe('2026-09-22T20:30:00.000Z');
+      /** Tehran midnight is 3.5 hours before UTC midnight. */
+      expect(todaySince.toISOString()).toBe(
+        new Date(monthStart + (day - 1) * 24 * 60 * 60 * 1000 - 3.5 * 60 * 60 * 1000).toISOString(),
+      );
+    }
+  });
 });
