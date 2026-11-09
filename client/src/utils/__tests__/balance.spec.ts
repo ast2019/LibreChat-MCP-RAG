@@ -220,6 +220,11 @@ describe('formatPackPrice', () => {
     expect(formatPackPrice(5_000_000, undefined)).toBeNull();
     expect(formatPackPrice(5_000_000, { code: 'IRT', rate: 0 })).toBeNull();
   });
+
+  it('matches the server rial charge for fractional Toman prices without a step', () => {
+    /** 1 USD × 100.05 toman → 1000.5 rial → rounded to 1010 rial → 101 toman shown */
+    expect(formatPackPrice(1_000_000, { code: 'IRT', rate: 100.05 })).toBe('۱۰۱ تومان');
+  });
 });
 
 describe('formatPackUsd', () => {

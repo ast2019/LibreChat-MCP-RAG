@@ -37,6 +37,7 @@ describe('normalizePersianText', () => {
   it('quotes Persian with guillemets and leaves English quotes', () => {
     expect(normalizePersianText('گفت "سلام" و رفت').text).toBe('گفت «سلام» و رفت');
     expect(normalizePersianText('He said "hi", ok?').text).toBe('He said "hi", ok?');
+    expect(normalizePersianText('گفت "سلام" و رفت').changes).toMatchObject({ quotes: 1 });
   });
 
   it('cleans stray and doubled half-spaces and collapses inner spaces', () => {

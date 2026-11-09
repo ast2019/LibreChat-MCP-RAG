@@ -277,15 +277,21 @@ export function runCalendar(
       return target;
     }
     const { year, month } = target.value;
-    const holidays = holidaysIn(year, month, listed).map((holiday) => {
-      const parsed = parseYMD(holiday.date) as YMD;
-      const view = describeDay(toJdn(parsed, 'solar_hijri') as number);
-      return {
-        ...holiday,
-        weekday: view.weekday,
-        gregorian: view.gregorian,
-        text: view.solar_hijri_text,
-      };
+    const holidays = holidaysIn(year, month, listed).flatMap((holiday) => {
+      const parsed = parseYMD(holiday.date);
+      const jdn = parsed != null ? toJdn(parsed, 'solar_hijri') : null;
+      if (jdn == null) {
+        return [];
+      }
+      const view = describeDay(jdn);
+      return [
+        {
+          ...holiday,
+          weekday: view.weekday,
+          gregorian: view.gregorian,
+          text: view.solar_hijri_text,
+        },
+      ];
     });
     return {
       ok: true,

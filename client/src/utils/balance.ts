@@ -1,4 +1,10 @@
-import { CREDITS_PER_USD, getRefillEligibilityDate } from 'librechat-data-provider';
+import {
+  CREDITS_PER_USD,
+  getRefillEligibilityDate,
+  packPriceRial,
+  packSaleAmount,
+  RIALS_PER_DISPLAY_UNIT,
+} from 'librechat-data-provider';
 import type { BalanceDisplay, BalanceRefillMode, TBalanceResponse } from 'librechat-data-provider';
 import type { CurrencyConfig } from './tokens';
 import { formatCost } from './tokens';
@@ -187,11 +193,19 @@ export function formatPackPrice(credits: number, currency?: CurrencyConfig): str
   if (currency == null || !Number.isFinite(currency.rate) || currency.rate <= 0) {
     return null;
   }
-  const amount = (credits / CREDITS_PER_USD) * currency.rate;
-  const step = currency.priceStep;
-  /** The epsilon keeps float noise (540000.0000001) from rounding an exact price up a step */
-  const price = step != null && step > 0 ? Math.ceil(amount / step - 1e-9) * step : amount;
-  return formatCost(price, { code: currency.code, rate: 1 });
+  const perUnit = RIALS_PER_DISPLAY_UNIT[currency.code];
+  if (perUnit != null) {
+    /** Same rial figure the server charges, shown back in the display unit (toman/rial). */
+    const rial = packPriceRial(credits, currency);
+    if (rial == null) {
+      return null;
+    }
+    return formatCost(rial / perUnit, { code: currency.code, rate: 1 });
+  }
+  return formatCost(packSaleAmount(credits, currency.rate, currency.priceStep), {
+    code: currency.code,
+    rate: 1,
+  });
 }
 
 const MINUTE_MS = 60_000;

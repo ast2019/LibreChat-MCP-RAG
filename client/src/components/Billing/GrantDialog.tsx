@@ -160,10 +160,25 @@ export default function GrantDialog({
                   </span>
                   {pack && (
                     <span className="text-text-secondary text-end text-xs">
-                      {formatUsd(pack.credits)}
-                      {currency != null && currency.code.toUpperCase() !== 'USD' && (
-                        <span className="block">{formatPackPrice(pack.credits, currency)}</span>
-                      )}
+                      {(() => {
+                        const sale = formatPackPrice(pack.credits, currency);
+                        const usd = formatUsd(pack.credits);
+                        /** Sale price first when the display currency can price the pack; USD
+                         *  stays as the second line so a USD-only config does not print twice. */
+                        if (
+                          sale != null &&
+                          currency != null &&
+                          currency.code.toUpperCase() !== 'USD'
+                        ) {
+                          return (
+                            <>
+                              <span className="block">{sale}</span>
+                              <span className="block">{usd}</span>
+                            </>
+                          );
+                        }
+                        return sale ?? usd;
+                      })()}
                     </span>
                   )}
                 </label>

@@ -1,5 +1,9 @@
 import type { EndpointTokenConfig } from '~/types';
-import { applyPriceMultiplier, isEffectivePriceMultiplier } from './markup';
+import {
+  applyPriceMultiplier,
+  getPrimaryPriceMultiplier,
+  isEffectivePriceMultiplier,
+} from './markup';
 
 const fetched = (): EndpointTokenConfig => ({
   'openai/gpt-4o-mini': { prompt: 0.15, completion: 0.6, context: 128000, read: 0.075 },
@@ -71,5 +75,40 @@ describe('isEffectivePriceMultiplier', () => {
     expect(isEffectivePriceMultiplier(0.5)).toBe(true);
     expect(isEffectivePriceMultiplier(1)).toBe(false);
     expect(isEffectivePriceMultiplier('1.3')).toBe(false);
+  });
+});
+
+describe('getPrimaryPriceMultiplier', () => {
+  it('prefers the OpenRouter endpoint over an earlier custom markup', () => {
+    expect(
+      getPrimaryPriceMultiplier({
+        endpoints: {
+          custom: [
+            { name: 'Other', priceMultiplier: 2 },
+            { name: 'OpenRouter', priceMultiplier: 1.3 },
+            { name: 'OpenRouterPrivate', priceMultiplier: 1.5 },
+          ],
+        },
+      }),
+    ).toBe(1.3);
+  });
+
+  it('falls back to the first effective markup when OpenRouter has none', () => {
+    expect(
+      getPrimaryPriceMultiplier({
+        endpoints: {
+          custom: [
+            { name: 'Other', priceMultiplier: 1 },
+            { name: 'OpenRouterPrivate', priceMultiplier: 1.5 },
+          ],
+        },
+      }),
+    ).toBe(1.5);
+  });
+
+  it('returns undefined when no custom endpoint sets a markup', () => {
+    expect(getPrimaryPriceMultiplier({ endpoints: { custom: [{ name: 'OpenRouter' }] } })).toBe(
+      undefined,
+    );
   });
 });

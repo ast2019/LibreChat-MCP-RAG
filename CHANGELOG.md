@@ -14,6 +14,23 @@ LibreChat versions are tracked separately in `package.json`.
   the warning again, in any later pack. The dismissal is now remembered per grant — the pack and
   when it was granted — so a new pack warns again, while the same pack keeps its dismissal as
   the share spent grows.
+- **A live FX rate that stops refreshing can no longer price packs forever.** Readings older
+  than `interface.currency.live.maxAgeMinutes` (default two days) are no longer used; the yaml
+  `rate` is the fallback until a fresh reading arrives.
+- **Payment "this month" follows the Jalali calendar in Tehran.** Spend windows used `Intl` day
+  digits, which break when the runtime formats Persian with non-Latin numerals; the bound now
+  comes from the Solar Hijri calendar so the month starts on the 1st in Tehran.
+- **Admin billing margin uses the OpenRouter markup.** Provider-cost estimates no longer take
+  the first custom endpoint that sets any `priceMultiplier`; they prefer the endpoint named
+  `OpenRouter`.
+- **Pack sale prices match what gateways charge.** Client labels and the server rial amount
+  share one formula, including the final round-up to a multiple of ten rials.
+- **Admin grant dialog shows the sale price in the display currency** when one is configured,
+  with USD as the second line (and a single USD line when the display currency is already USD).
+- **Persian holiday enrichment skips invalid dates** instead of casting a null Julian day to a
+  number and returning `NaN` weekday/gregorian fields.
+- **Persian text normalize no longer treats the whole input string as a regex capture group**
+  when counting replacements.
 
 ## [0.38.16] - 2026-11-08
 

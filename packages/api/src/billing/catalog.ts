@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { logger } from '@librechat/data-schemas';
-import { balancePackSchema } from 'librechat-data-provider';
+import { balancePackSchema, MAX_PACK_CREDITS } from 'librechat-data-provider';
 import type { AppConfig, IUser } from '@librechat/data-schemas';
 import type { TBalancePack } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
@@ -10,8 +10,8 @@ type PackRequest = Request & { user?: IUser & { id?: string } };
 
 /** Most packs the admin page may define. */
 export const MAX_PACKS = 20;
-/** Largest pack, in credits ($1,000 of usage). */
-export const MAX_PACK_CREDITS = 1_000_000_000;
+/** Largest pack, in credits ($1,000 of usage). Re-exported from data-provider. */
+export { MAX_PACK_CREDITS };
 
 const packListSchema = z
   .array(balancePackSchema.extend({ credits: z.number().int().positive().max(MAX_PACK_CREDITS) }))

@@ -64,9 +64,10 @@ describe('runCalendar', () => {
       timezone: 'Asia/Tehran',
       holidays: [{ date: '1405-01-10', title: 'عید فطر' }],
     };
-    const value = ok<{ holidays: Array<{ title: string }>; holidays_note?: string }>(
-      runCalendar({ operation: 'holidays', year: 1405, month: 1 }, { now, config: listed }),
-    );
+    const value = ok<{
+      holidays: Array<{ title: string; gregorian: string }>;
+      holidays_note?: string;
+    }>(runCalendar({ operation: 'holidays', year: 1405, month: 1 }, { now, config: listed }));
     expect(value.holidays.map((holiday) => holiday.title)).toEqual([
       'عید نوروز',
       'عید نوروز',
@@ -76,6 +77,7 @@ describe('runCalendar', () => {
       'روز جمهوری اسلامی',
       'روز طبیعت',
     ]);
+    expect(value.holidays.every((holiday) => !holiday.gregorian.includes('NaN'))).toBe(true);
     expect(value.holidays_note).toBeUndefined();
   });
 

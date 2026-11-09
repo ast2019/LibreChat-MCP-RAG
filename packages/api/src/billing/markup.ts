@@ -54,13 +54,24 @@ export function applyPriceMultiplier(
 }
 
 /**
- * The markup of the deployment's main OpenRouter endpoint (the first custom endpoint that sets
- * one), used to estimate provider cost from billed credits. Undefined means no markup.
+ * The markup of the deployment's main OpenRouter endpoint, used to estimate provider cost from
+ * billed credits. Prefers the custom endpoint named `OpenRouter` (live catalogue pricing is
+ * keyed to that name); otherwise the first custom endpoint that sets a markup. Undefined means
+ * no markup.
  */
 export function getPrimaryPriceMultiplier(appConfig?: {
-  endpoints?: { custom?: ReadonlyArray<{ priceMultiplier?: number } | undefined> };
+  endpoints?: {
+    custom?: ReadonlyArray<{ name?: string; priceMultiplier?: number } | undefined>;
+  };
 }): number | undefined {
   const custom = appConfig?.endpoints?.custom ?? [];
+  const openRouter = custom.find(
+    (endpoint) =>
+      endpoint?.name === 'OpenRouter' && isEffectivePriceMultiplier(endpoint.priceMultiplier),
+  );
+  if (openRouter != null) {
+    return openRouter.priceMultiplier;
+  }
   const found = custom.find((endpoint) => isEffectivePriceMultiplier(endpoint?.priceMultiplier));
   return found?.priceMultiplier;
 }

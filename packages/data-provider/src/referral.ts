@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_GIFT_CREDITS } from './balance';
 
 /**
  * Invite rewards. A user shares a link with their code (`/register?ref=CODE`); when someone
@@ -8,9 +9,9 @@ import { z } from 'zod';
 export const referralConfigSchema = z.object({
   enabled: z.boolean().default(false),
   /** Credits the inviter receives per rewarded invite (1,000,000 credits = $1 at list price). */
-  referrerCredits: z.number().int().min(0).max(100_000_000).default(500_000),
+  referrerCredits: z.number().int().min(0).max(MAX_GIFT_CREDITS).default(500_000),
   /** Extra credits the invited account receives on top of the start balance. */
-  inviteeCredits: z.number().int().min(0).max(100_000_000).default(200_000),
+  inviteeCredits: z.number().int().min(0).max(MAX_GIFT_CREDITS).default(200_000),
   /** Rewarded invites per inviter; later sign-ups still count but pay nothing. */
   maxRewardsPerReferrer: z.number().int().min(0).max(10_000).default(20),
   /** How long after signing up an account can still be linked to an invite code. */

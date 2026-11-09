@@ -135,13 +135,29 @@ function buildRules(digits: DigitStyle): Rule[] {
   ];
 }
 
+/**
+ * `String#replace` calls the replacer as `(match, ...captures, offset, input[, groups])`.
+ * Capture groups stop at the first non-string (the numeric offset); filtering only by
+ * `typeof === 'string'` would also keep `input` and feed it as a fake capture.
+ */
+function captureArgs(match: string, rest: unknown[]): string[] {
+  const captures: string[] = [];
+  for (const value of rest) {
+    if (typeof value !== 'string') {
+      break;
+    }
+    captures.push(value);
+  }
+  return [match, ...captures];
+}
+
 function applyRules(segment: string, rules: Rule[], changes: NormalizeResult['changes']): string {
   let text = segment;
   for (const rule of rules) {
-    text = text.replace(rule.pattern, (...args: unknown[]) => {
-      const groups = args.filter((value): value is string => typeof value === 'string');
+    text = text.replace(rule.pattern, (match: string, ...rest: unknown[]) => {
+      const groups = captureArgs(match, rest);
       const replaced = rule.replace(...groups);
-      if (replaced !== groups[0]) {
+      if (replaced !== match) {
         changes[rule.change] = (changes[rule.change] ?? 0) + 1;
       }
       return replaced;

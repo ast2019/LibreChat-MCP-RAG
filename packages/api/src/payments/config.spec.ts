@@ -110,6 +110,9 @@ describe('packPriceRial', () => {
   it('rounds rial prices up to the step and to whole tens', () => {
     expect(packPriceRial(1_000_000, { code: 'IRR', rate: 1_000_001 })).toBe(1_000_010);
   });
+  it('rounds fractional toman without a price step to whole tens of rials', () => {
+    expect(packPriceRial(1_000_000, { code: 'IRT', rate: 100.05 })).toBe(1_010);
+  });
   it('refuses currencies a gateway cannot charge', () => {
     expect(packPriceRial(1_000_000, { code: 'USD', rate: 1 })).toBeNull();
     expect(packPriceRial(1_000_000, undefined)).toBeNull();

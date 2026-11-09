@@ -1,4 +1,5 @@
 import { logger } from '@librechat/data-schemas';
+import { MAX_GIFT_CREDITS } from 'librechat-data-provider';
 import type { AppConfig, IUser } from '@librechat/data-schemas';
 import type { Request, Response } from 'express';
 import { resolveReferralSettings } from '~/referral/service';
@@ -22,7 +23,6 @@ export interface GiftSettings {
   changedAt?: string;
 }
 
-const MAX_CREDITS = 100_000_000;
 const MAX_REWARDS = 10_000;
 
 export interface AdminGiftDeps {
@@ -51,7 +51,7 @@ export function readGiftSettings(appConfig: AppConfig | null | undefined): GiftS
 }
 
 const isCredits = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_CREDITS;
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_GIFT_CREDITS;
 
 /** The fields an admin sent, validated; only the ones present are changed. */
 export function parseGiftUpdate(

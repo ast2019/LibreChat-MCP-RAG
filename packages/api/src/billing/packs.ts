@@ -1,7 +1,7 @@
+import { MAX_GRANT_CREDITS } from 'librechat-data-provider';
 import type { TBalancePack } from 'librechat-data-provider';
 
-/** Upper bound for one grant: $100,000 of usage, a guard against a mistyped amount. */
-export const MAX_GRANT_CREDITS = 100_000_000_000;
+export { MAX_GRANT_CREDITS };
 
 export type BalanceGrantErrorCode =
   | 'grant_target_required'

@@ -1,5 +1,12 @@
-import { getRefillEligibilityDate } from './balance';
 import type { RefillIntervalUnit } from './balance';
+import {
+  getRefillEligibilityDate,
+  MAX_GIFT_CREDITS,
+  MAX_GRANT_CREDITS,
+  MAX_PACK_CREDITS,
+  packPriceRial,
+  packSaleAmount,
+} from './balance';
 
 describe('getRefillEligibilityDate', () => {
   it.each([
@@ -45,5 +52,30 @@ describe('getRefillEligibilityDate', () => {
     const unknownUnit = 'years' as unknown as RefillIntervalUnit;
 
     expect(getRefillEligibilityDate(lastRefill, 1, unknownUnit)).toEqual(lastRefill);
+  });
+});
+
+describe('credit ceilings', () => {
+  it('keeps gift < pack < grant, documented as distinct surfaces', () => {
+    expect(MAX_GIFT_CREDITS).toBe(100_000_000);
+    expect(MAX_PACK_CREDITS).toBe(1_000_000_000);
+    expect(MAX_GRANT_CREDITS).toBe(100_000_000_000);
+    expect(MAX_GIFT_CREDITS).toBeLessThan(MAX_PACK_CREDITS);
+    expect(MAX_PACK_CREDITS).toBeLessThan(MAX_GRANT_CREDITS);
+  });
+});
+
+describe('packSaleAmount / packPriceRial', () => {
+  it('rounds the display amount up to the price step', () => {
+    expect(packSaleAmount(2_000_000, 269_525, 1000)).toBe(540_000);
+    expect(packSaleAmount(2_000_000, 270_000, 1000)).toBe(540_000);
+  });
+
+  it('converts toman to rials and rounds up to whole tens', () => {
+    expect(packPriceRial(2_000_000, { code: 'IRT', rate: 269_500, priceStep: 1000 })).toBe(
+      5_390_000,
+    );
+    expect(packPriceRial(1_000_000, { code: 'IRT', rate: 100.05 })).toBe(1_010);
+    expect(packPriceRial(1_000_000, { code: 'USD', rate: 1 })).toBeNull();
   });
 });
