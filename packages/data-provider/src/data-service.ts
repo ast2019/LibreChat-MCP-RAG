@@ -24,6 +24,8 @@ import type {
   TAdminBrowserAccessResponse,
   TAdminAttachVmAccessRequest,
   TAdminAttachVmAccessResponse,
+  TAdminHiggsfieldAccessRequest,
+  TAdminHiggsfieldAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -52,7 +54,11 @@ import type { TPhoneCodeRequest, TPhoneCodeRequestResponse, TPhoneCodeVerify } f
 import type { CodeSetupAttempt, CodeSetupApprovalRequest } from './codeSetup';
 import type { TReferralInfo, TReferralClaimResponse } from './referral';
 import type { TMediaAvailability, TMediaJobView } from './media';
-import type { TServiceStatusResponse } from './types/status';
+import type {
+  TServiceStatusResponse,
+  TAdminHiggsfieldStatus,
+  TAdminHiggsfieldUpdate,
+} from './types/status';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
 import type * as b from './browser';
@@ -102,6 +108,16 @@ export function getAdminBillingSummary(days: number): Promise<TAdminBillingSumma
 
 export function getAdminServiceStatus(): Promise<TServiceStatusResponse> {
   return request.get(endpoints.adminServiceStatus());
+}
+
+export function getAdminHiggsfield(): Promise<TAdminHiggsfieldStatus> {
+  return request.get(endpoints.adminHiggsfield());
+}
+
+export function updateAdminHiggsfield(
+  body: TAdminHiggsfieldUpdate,
+): Promise<TAdminHiggsfieldStatus> {
+  return request.put(endpoints.adminHiggsfield(), body);
 }
 
 export function refreshAdminServiceStatus(): Promise<TServiceStatusResponse> {
@@ -246,6 +262,13 @@ export function updateAdminUserAttachVmAccess({
   attachVmAccess,
 }: TAdminAttachVmAccessRequest): Promise<TAdminAttachVmAccessResponse> {
   return request.patch(endpoints.adminUserAttachVmAccess(userId), { attachVmAccess });
+}
+
+export function updateAdminUserHiggsfieldAccess({
+  userId,
+  higgsfieldAccess,
+}: TAdminHiggsfieldAccessRequest): Promise<TAdminHiggsfieldAccessResponse> {
+  return request.patch(endpoints.adminUserHiggsfieldAccess(userId), { higgsfieldAccess });
 }
 
 export function getBrowserSession(conversationId: string): Promise<b.TBrowserSessionResponse> {

@@ -7,7 +7,8 @@ export type TServiceId =
   | 'openrouter'
   | 'sms'
   | 'payments'
-  | 'ollama';
+  | 'ollama'
+  | 'higgsfield';
 
 /**
  * `ok` healthy with room to spare; `warning` low (under the warning share or days); `exhausted`
@@ -83,13 +84,29 @@ export type TServiceStatus = {
   checkedAt?: string | null;
   /** Stable, secret-free code of the last failure (e.g. `http_401`, `timeout`). */
   errorCode?: string | null;
-  /** Gateways the payments service reports, by name. */
+  /** Gateways the payments service reports, by name; Higgsfield's parts (`api_keys`,
+   *  `shared_account`) with a stable code when one needs the admin. */
   details?: { name: string; healthy: boolean; errorCode?: string | null }[];
   /** Ollama only: the installed models, loaded ones flagged and listed first. */
   models?: TLocalModel[];
   /** Ollama only: false when the loaded models could not be read, so `loaded` is unknown. */
   loadedKnown?: boolean;
 };
+
+/** `GET|PUT /api/admin/status/higgsfield`: Higgsfield's setup and the shared account. */
+export type TAdminHiggsfieldStatus = {
+  /** The Higgsfield MCP server's name in the config file, or null when there is none */
+  mcpServer: string | null;
+  /** Whether `mediaGeneration.higgsfield` (the API way) exists in the config file */
+  apiDeclared: boolean;
+  /** Whether HIGGSFIELD_API_KEY_ID and HIGGSFIELD_API_KEY_SECRET are set */
+  apiKeysSet: boolean;
+  /** Whether the MCP server has `sharedOAuth`, so an account can be shared */
+  sharingEnabled: boolean;
+  owner: { email?: string; source?: 'admin' | 'env'; found: boolean; connected: boolean };
+};
+
+export type TAdminHiggsfieldUpdate = { ownerEmail: string | null };
 
 export type TServiceStatusResponse = {
   services: TServiceStatus[];

@@ -108,6 +108,11 @@ export const mediaGenerationSchema = z.object({
   video: mediaVideoSchema.optional(),
   speech: mediaSpeechSchema.optional(),
   higgsfield: mediaHiggsfieldSchema.optional(),
+  /**
+   * Email of the account whose Higgsfield MCP connection is shared, as chosen in the admin panel
+   * (stored as a deployment-wide override). Wins over `sharedOAuth.ownerEmail` on the server.
+   */
+  higgsfieldSharedOwnerEmail: z.string().email().optional(),
 });
 
 export type TMediaGenerationConfig = z.infer<typeof mediaGenerationSchema>;

@@ -8,3 +8,4 @@ export * from './jobs';
 export * from './availability';
 export * from './catalogue';
 export * from './models';
+export * from './higgsfieldShared';

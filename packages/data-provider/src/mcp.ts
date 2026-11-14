@@ -193,9 +193,9 @@ const OboOptionsSchema = z.object({
   scopes: z.string().min(1),
 });
 
-/** U+200C/U+200D (ZWNJ/ZWJ) are allowed after the first character for scripts like Persian (e.g. «پس‌آورد»). */
+/** U+200C (ZWNJ) is allowed after the first character for scripts like Persian (e.g. «پس‌آورد»). */
 export const MCP_SERVER_TITLE_PATTERN = new RegExp(
-  "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}\\u200C\\u200D'’ -]*$",
+  "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}\\u200C'’ -]*$",
   'u',
 );
 export const MCP_SERVER_TITLE_ERROR =
@@ -290,14 +290,14 @@ const BaseOptionsSchema = z.object({
    */
   serverInstructions: z.union([z.boolean(), z.string()]).optional(),
   /**
-   * Share one account's OAuth connection: users the rule allows run on the connection of the
-   * account with `ownerEmail` (an admin's per-user media switch wins; admins always may), and
-   * everyone else connects their own account as usual. The owner connects once from the picker.
+   * Share one account's OAuth connection: admins, and users an admin granted it (the per-user
+   * «shared Higgsfield account» switch), run on the owner's connection; everyone else connects
+   * their own account as usual. The owner is chosen in the admin panel, else `ownerEmail`, and
+   * connects once from the picker. A user's own connection always wins.
    */
   sharedOAuth: z
     .object({
-      ownerEmail: z.string().min(1),
-      allow: z.enum(['all', 'paid', 'admins']).default('paid'),
+      ownerEmail: z.string().optional(),
     })
     .optional(),
   /**

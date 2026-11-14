@@ -11,6 +11,7 @@ const {
   createAdminMediaAccessHandlers,
   createAdminBrowserAccessHandlers,
   createAdminAttachVmAccessHandlers,
+  createAdminHiggsfieldAccessHandlers,
   createAdminBulkAccessHandler,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
@@ -113,6 +114,11 @@ const attachVmAccess = createAdminAttachVmAccessHandlers({
     db.updateUser(id, { attachVmAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
+const higgsfieldAccess = createAdminHiggsfieldAccessHandlers({
+  saveUserHiggsfieldAccess: (id, value) =>
+    db.updateUser(id, { higgsfieldAccess: value }, {}, { preserveExpiresAt: true }),
+});
+
 const bulkAccess = createAdminBulkAccessHandler({
   findUserModelAccess: (id) => db.findUser({ _id: id }, '_id modelAccess'),
   saveUserModelAccess: (id, value) =>
@@ -125,6 +131,8 @@ const bulkAccess = createAdminBulkAccessHandler({
     db.updateUser(id, { browserAccess: value }, {}, { preserveExpiresAt: true }),
   saveAttachVmAccess: (id, value) =>
     db.updateUser(id, { attachVmAccess: value }, {}, { preserveExpiresAt: true }),
+  saveHiggsfieldAccess: (id, value) =>
+    db.updateUser(id, { higgsfieldAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -137,6 +145,7 @@ router.patch('/:id/api-access', requireManageUsers, apiAccess.updateApiAccess);
 router.patch('/:id/media-access', requireManageUsers, mediaAccess.updateMediaAccess);
 router.patch('/:id/browser-access', requireManageUsers, browserAccess.updateBrowserAccess);
 router.patch('/:id/attach-vm-access', requireManageUsers, attachVmAccess.updateAttachVmAccess);
+router.patch('/:id/higgsfield-access', requireManageUsers, higgsfieldAccess.updateHiggsfieldAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;

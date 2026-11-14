@@ -1,4 +1,3 @@
-import { SystemRoles, findPackGrants } from 'librechat-data-provider';
 import type { TMediaImageModel } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import type { ImageCatalogueModel } from './catalogue';
@@ -12,6 +11,7 @@ import {
 import { getSharedImageModelCatalogue } from './catalogue';
 import { getBalanceConfig } from '~/app/config';
 import { listImageModels } from './models';
+import { resolveHiggsfieldSharedOwner, resolveUserHiggsfieldAccess } from './higgsfieldShared';
 
 /** Why a way to generate is or is not usable for this user right now. */
 export type MediaWayState =
@@ -53,32 +53,22 @@ export interface MediaAvailabilityDeps {
 
 const readSharedCatalogue = () => getSharedImageModelCatalogue().getModels();
 
-function deniedState(userSwitch: boolean | null, allow: string): MediaWayState {
-  if (userSwitch === false) {
-    return 'disabled_by_admin';
-  }
-  return allow === 'paid' ? 'needs_pack' : 'not_allowed';
-}
-
 /**
  * Every way this user can make images and videos, and what each needs: one answer for the
  * «ساخت تصویر و ویدیو» panel, so the three Higgsfield routes are never a guess.
  */
 export async function getMediaAvailability(
   appConfig: AppConfig | null | undefined,
-  user: MediaUser & { mediaAccess?: boolean | null },
+  user: MediaUser & { mediaAccess?: boolean | null; higgsfieldAccess?: boolean | null },
   deps: MediaAvailabilityDeps,
 ): Promise<MediaAvailability> {
   const config = getMediaConfig(appConfig);
-  const isAdmin = user.role === SystemRoles.ADMIN;
   const userSwitch = typeof user.mediaAccess === 'boolean' ? user.mediaAccess : null;
   const higgsfield = findHiggsfieldServer(appConfig);
   const balance = await deps.findBalanceByUser(user.id);
   const hasPack = Boolean(balance?.packId);
   const paidOnly = config?.paidOnly !== false;
   const packs = getBalanceConfig(appConfig ?? undefined)?.packs;
-  /** Whether the current pack includes media; `undefined` when the pack does not say */
-  const packGrant = findPackGrants(packs, balance?.packId)?.media;
   const generatorAllowed = resolveUserMediaAccess(config, user, balance?.packId, packs).allowed;
 
   /** The same rule the tools apply when they run. */
@@ -119,19 +109,16 @@ export async function getMediaAvailability(
   if (higgsfield) {
     const [serverName, entry] = higgsfield;
     const ownConnected = await deps.hasMcpConnection(user.id, serverName);
-    const ownerEmail = entry.sharedOAuth?.ownerEmail?.trim().toLowerCase();
+    const owner = resolveHiggsfieldSharedOwner(appConfig, entry);
     let shared: MediaWayState = 'not_configured';
-    if (ownerEmail && !/^\$\{.+\}$/.test(ownerEmail)) {
-      const ownerId = await deps.findUserIdByEmail(ownerEmail);
-      const allow = entry.sharedOAuth?.allow ?? 'paid';
-      const allowed =
-        userSwitch ?? (isAdmin || allow === 'all' || (allow === 'paid' && (packGrant ?? hasPack)));
-      if (!ownerId) {
-        shared = 'owner_not_connected';
-      } else if (ownerId === user.id) {
+    if (owner.email) {
+      const ownerId = await deps.findUserIdByEmail(owner.email);
+      if (ownerId === user.id) {
         shared = ownConnected ? 'active' : 'needs_connection';
-      } else if (!allowed) {
-        shared = deniedState(userSwitch, allow);
+      } else if (!resolveUserHiggsfieldAccess(user).allowed) {
+        shared = 'not_allowed';
+      } else if (!ownerId) {
+        shared = 'owner_not_connected';
       } else {
         shared = (await deps.hasMcpConnection(ownerId, serverName))
           ? 'active'

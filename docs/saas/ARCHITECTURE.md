@@ -251,7 +251,7 @@ flowchart LR
 | مدل لوکال و محرمانه | `modelAccess.local/private` | مجوز نقش | همیشه دارد |
 | API برنامه‌نویسی | `apiAccess` | مجوز نقش `REMOTE_AGENTS` | نقش ادمین آن را دارد |
 | ساخت رسانه | `mediaAccess` | `paidOnly`: بسته (`balance.packId`) لازم است | همیشه دارد |
-| Higgsfield مشترک | `mediaAccess` | `sharedOAuth.allow` (پیش‌فرض: کسانی که بسته دارند) | همیشه دارد |
+| Higgsfield مشترک | `higgsfieldAccess` («حساب مشترک Higgsfield») | ندارد؛ بسته و `mediaAccess` آن را نمی‌دهند | همیشه دارد |
 
 در همه موارد `true` یعنی همیشه مجاز، `false` یعنی هرگز، و خالی یعنی قاعده پیش‌فرض. چت‌های محرمانه و لوکال هیچ‌وقت ابزار رسانه و MCP نمی‌گیرند.
 

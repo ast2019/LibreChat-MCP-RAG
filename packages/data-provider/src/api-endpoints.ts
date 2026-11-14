@@ -566,6 +566,7 @@ export const adminRoleMembers = (role: string, userId?: string) =>
   }`;
 export const adminServiceStatus = () => `${BASE_URL}/api/admin/status`;
 export const adminServiceStatusRefresh = () => `${adminServiceStatus()}/refresh`;
+export const adminHiggsfield = () => `${adminServiceStatus()}/higgsfield`;
 export const adminUserMediaAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/media-access`;
 export const adminUserBrowserAccess = (userId: string) =>
@@ -573,6 +574,8 @@ export const adminUserBrowserAccess = (userId: string) =>
 
 export const adminUserAttachVmAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/attach-vm-access`;
+export const adminUserHiggsfieldAccess = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/higgsfield-access`;
 export const adminServer = () => `${BASE_URL}/api/admin/server`;
 /** The signed-in user's agent browser in one conversation */
 export const browserSession = (conversationId: string) =>

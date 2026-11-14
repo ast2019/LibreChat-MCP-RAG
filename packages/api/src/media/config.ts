@@ -88,7 +88,7 @@ export function getChatMediaTools(
   );
 }
 
-type HiggsfieldMcpEntry = { url?: string; sharedOAuth?: { ownerEmail?: string; allow?: string } };
+type HiggsfieldMcpEntry = { url?: string; sharedOAuth?: { ownerEmail?: string } | null };
 
 /** The deployment's Higgsfield MCP server (one whose URL is on higgsfield.ai), by name. */
 export function findHiggsfieldServer(

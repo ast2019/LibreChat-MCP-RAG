@@ -2,9 +2,17 @@ import { z } from 'zod';
 
 /**
  * The per-user access classes an admin manages: local and private model specs, media generation
- * (image, video, speech, Higgsfield), the programming API, the agent browser, and Attached VM.
+ * (image, video, speech, Higgsfield API), the programming API, the agent browser, Attached VM, and
+ * the shared Higgsfield account.
  */
-export type TAccessClass = 'local' | 'private' | 'media' | 'api' | 'browser' | 'attachVm';
+export type TAccessClass =
+  | 'local'
+  | 'private'
+  | 'media'
+  | 'api'
+  | 'browser'
+  | 'attachVm'
+  | 'higgsfield';
 
 export const ACCESS_CLASSES: readonly TAccessClass[] = [
   'local',
@@ -13,6 +21,7 @@ export const ACCESS_CLASSES: readonly TAccessClass[] = [
   'api',
   'browser',
   'attachVm',
+  'higgsfield',
 ];
 
 /** Browsers one user may have open at once when the pack does not say. */
@@ -35,6 +44,8 @@ export const packGrantsSchema = z
     browser: z.boolean().optional(),
     /** Not used by packs today; Attached VM is admin-granted only. */
     attachVm: z.boolean().optional(),
+    /** Not used by packs; the shared Higgsfield account is admin-granted only. */
+    higgsfield: z.boolean().optional(),
   })
   .strict();
 
@@ -182,6 +193,26 @@ export function resolveBrowserAccess({
  * per-user grant. Packs do not grant this class.
  */
 export function resolveAttachVmAccess({
+  isAdmin,
+  override,
+}: {
+  isAdmin: boolean;
+  override?: boolean | null;
+}): TEffectiveAccess {
+  if (isAdmin) {
+    return { allowed: true, source: 'admin' };
+  }
+  if (decided(override)) {
+    return { allowed: override, source: 'user' };
+  }
+  return { allowed: false, source: 'rule' };
+}
+
+/**
+ * The shared Higgsfield account (the admin-chosen owner's MCP connection): admin always;
+ * otherwise only an explicit per-user grant. Packs and media access do not grant it.
+ */
+export function resolveHiggsfieldSharedAccess({
   isAdmin,
   override,
 }: {

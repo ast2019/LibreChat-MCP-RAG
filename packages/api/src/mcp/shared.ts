@@ -1,22 +1,29 @@
 import { logger } from '@librechat/data-schemas';
-import { SystemRoles, findPackGrants, extractEnvVariable } from 'librechat-data-provider';
+import {
+  SystemRoles,
+  extractEnvVariable,
+  resolveHiggsfieldSharedAccess,
+} from 'librechat-data-provider';
 import type { IUser } from '@librechat/data-schemas';
-import type { TPackGrants } from 'librechat-data-provider';
 import type { ParsedServerConfig } from './types';
 
 /** `sharedOAuth` on an MCP server: one account's OAuth connection used by the users it allows. */
 export interface SharedOAuthConfig {
-  /** Email of the account whose connection is shared; `${ENV}` references are resolved */
-  ownerEmail: string;
-  /** Who may use it besides admins: everyone, users with a pack, or admins only */
-  allow?: 'all' | 'paid' | 'admins';
+  /** Fallback owner email from the config file; `${ENV}` references are resolved. The admin
+   *  panel's choice (`getOwnerEmail`) wins. */
+  ownerEmail?: string;
 }
 
 export interface SharedMCPPrincipalDeps {
   findUserByEmail: (email: string) => Promise<IUser | null>;
-  findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>;
-  /** The configured balance packs, whose `grants.media` decides the `paid` rule per pack. */
-  getPacks?: () => ReadonlyArray<{ id?: string; grants?: TPackGrants }> | null | undefined;
+  /**
+   * The user's stored «shared Higgsfield account» switch (`higgsfieldAccess`). Request users are
+   * often stripped to identity fields, so the switch is read here; without this dep the value on
+   * the user object is used.
+   */
+  findSharedAccess?: (userId: string) => Promise<boolean | null | undefined>;
+  /** The owner email chosen in the admin panel, if any; it wins over `sharedOAuth.ownerEmail`. */
+  getOwnerEmail?: () => Promise<string | null | undefined>;
   /**
    * Whether this user holds stored OAuth tokens for the server. When given, a user's own
    * connection wins over the shared one, and the shared one is used only once the owner has
@@ -42,13 +49,19 @@ export type SharedMCPPrincipalResolver = (args: {
 const OWNER_CACHE_MS = 60_000;
 
 function sharedConfigOf(config: ParsedServerConfig | undefined): SharedOAuthConfig | undefined {
-  const shared = (config as { sharedOAuth?: SharedOAuthConfig } | undefined)?.sharedOAuth;
-  return shared?.ownerEmail ? shared : undefined;
+  const shared = (config as { sharedOAuth?: SharedOAuthConfig | null } | undefined)?.sharedOAuth;
+  return shared ?? undefined;
+}
+
+/** A trimmed, lowercased email, or empty when unset or an unresolved `${ENV}` reference. */
+function normalizeEmail(value: string | null | undefined): string {
+  const email = value ? extractEnvVariable(value).trim().toLowerCase() : '';
+  return /^\$\{.+\}$/.test(email) ? '' : email;
 }
 
 /**
- * Resolves who an MCP request runs as. On a server with `sharedOAuth`, a user the rule allows
- * (an admin's per-user media switch wins; admins always may) uses the owner's connection and
+ * Resolves who an MCP request runs as. On a server with `sharedOAuth`, an admin, or a user the
+ * admin granted the shared account (`higgsfieldAccess`), uses the owner's connection and
  * tokens, unless the user has connected their own account or the owner has not connected yet.
  * Anyone else, and the owner, keeps their own connection as before.
  */
@@ -71,24 +84,15 @@ export function createSharedMCPPrincipalResolver(
     return user;
   }
 
-  async function isAllowed(user: IUser, shared: SharedOAuthConfig): Promise<boolean> {
-    const override = (user as IUser & { mediaAccess?: boolean | null }).mediaAccess;
-    if (override === true || override === false) {
-      return override;
-    }
-    if (user.role === SystemRoles.ADMIN) {
+  async function isAllowed(user: IUser): Promise<boolean> {
+    const isAdmin = user.role === SystemRoles.ADMIN;
+    if (isAdmin) {
       return true;
     }
-    const allow = shared.allow ?? 'paid';
-    if (allow === 'all') {
-      return true;
-    }
-    if (allow === 'admins') {
-      return false;
-    }
-    const balance = await deps.findBalanceByUser(user.id);
-    /** A pack that says whether it includes media decides; any other pack counts as paid */
-    return findPackGrants(deps.getPacks?.(), balance?.packId)?.media ?? Boolean(balance?.packId);
+    const override = deps.findSharedAccess
+      ? await deps.findSharedAccess(user.id)
+      : (user as IUser & { higgsfieldAccess?: boolean | null }).higgsfieldAccess;
+    return resolveHiggsfieldSharedAccess({ isAdmin, override }).allowed;
   }
 
   return async ({ serverName, config, user }) => {
@@ -96,8 +100,11 @@ export function createSharedMCPPrincipalResolver(
     if (!shared || !user?.id) {
       return { user, shared: false };
     }
-    const email = extractEnvVariable(shared.ownerEmail).trim().toLowerCase();
-    if (!email || /^\$\{.+\}$/.test(email)) {
+    if (!(await isAllowed(user))) {
+      return { user, shared: false };
+    }
+    const email = normalizeEmail(await deps.getOwnerEmail?.()) || normalizeEmail(shared.ownerEmail);
+    if (!email) {
       return { user, shared: false };
     }
     const owner = await findOwner(email);
@@ -105,7 +112,7 @@ export function createSharedMCPPrincipalResolver(
       logger.warn(`[MCP][${serverName}] The shared connection owner was not found`);
       return { user, shared: false };
     }
-    if (owner.id === user.id || !(await isAllowed(user, shared))) {
+    if (owner.id === user.id) {
       return { user, shared: false };
     }
     if (deps.hasOAuthTokens) {

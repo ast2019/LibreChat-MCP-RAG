@@ -10,11 +10,14 @@ export {
   createAdminMediaAccessHandlers,
   createAdminBrowserAccessHandlers,
   createAdminAttachVmAccessHandlers,
+  createAdminHiggsfieldAccessHandlers,
   createAdminBulkAccessHandler,
   readBulkUserIds,
   MAX_BULK_USERS,
 } from './access';
 export { computeEffectiveAccess, roleAccessFromPermissions } from './effectiveAccess';
+export { createAdminHiggsfieldHandlers } from './higgsfield';
+export type { AdminHiggsfieldDeps } from './higgsfield';
 export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminCodeEnvironmentHandlers } from './code';
 export { buildAuditContext } from './context';
@@ -42,6 +45,7 @@ export type {
   AdminMediaAccessDeps,
   AdminBrowserAccessDeps,
   AdminAttachVmAccessDeps,
+  AdminHiggsfieldAccessDeps,
   AdminBulkAccessDeps,
 } from './access';
 export type { AccessRules, RoleAccess, EffectiveAccessUser } from './effectiveAccess';

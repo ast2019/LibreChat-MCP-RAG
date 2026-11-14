@@ -29,6 +29,8 @@ export type TAdminBillingUser = {
   browserAccess?: boolean;
   /** Attached VM override; absent denies. Older servers omit it. */
   attachVmAccess?: boolean;
+  /** Shared Higgsfield account override; absent denies. Older servers omit it. */
+  higgsfieldAccess?: boolean;
   /** The pack copied onto the user on its last grant; its `grants` decide local, private and API */
   packId?: string;
   balance: TAdminBillingBalance | null;
@@ -203,6 +205,10 @@ export type TAdminBrowserAccessResponse = { id: string; browserAccess: boolean |
 export type TAdminAttachVmAccessRequest = { userId: string; attachVmAccess: boolean | null };
 
 export type TAdminAttachVmAccessResponse = { id: string; attachVmAccess: boolean | null };
+
+export type TAdminHiggsfieldAccessRequest = { userId: string; higgsfieldAccess: boolean | null };
+
+export type TAdminHiggsfieldAccessResponse = { id: string; higgsfieldAccess: boolean | null };
 
 /** `GET /api/admin/balance/usage?userId=&days=`: where one user's credits went. */
 export interface TAdminBillingUserUsage {
