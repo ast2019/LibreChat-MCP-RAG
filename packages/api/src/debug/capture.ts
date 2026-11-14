@@ -10,6 +10,9 @@ const MESSAGE_CHARS = 2_000;
 const META_CHARS = 2_000;
 /** Lines this process keeps for «لاگ سرور»; older lines fall off */
 export const SYSTEM_LOG_CAPACITY = 1_000;
+/** Warnings and errors this process keeps even while debug mode is off */
+export const PROBLEM_LOG_CAPACITY = 300;
+const PROBLEM_RANK = 1;
 const SKIPPED_KEYS = new Set(['level', 'message', 'timestamp', 'splat', 'stack']);
 
 const rank = (level: string) => {
@@ -80,13 +83,16 @@ export function toDebugLogLine(info: winston.Logform.TransformableInfo): TDebugL
 
 /**
  * A winston transport that, while debug mode is on, copies each line at or above the chosen
- * level into the current request's trace and into this process's recent lines. Lines pass the
- * same redaction as the log files. The class is built on first use: winston's typings name its
- * base `transport` while the runtime calls it `Transport`, and some test setups replace winston.
+ * level into the current request's trace and into this process's recent lines. Warnings and
+ * errors also go to `problems` at all times, so a failure (a refused sign-in, a crash) can be
+ * read after the fact without debug mode having been on. Lines pass the same redaction as the
+ * log files. The class is built on first use: winston's typings name its base `transport` while
+ * the runtime calls it `Transport`, and some test setups replace winston.
  */
 export function createDebugCaptureTransport(
   debugMode: DebugMode,
   buffer: SystemLogBuffer,
+  problems?: SystemLogBuffer,
 ): TransportStream {
   const Base = (winston as unknown as { Transport: typeof TransportStream }).Transport;
 
@@ -97,7 +103,12 @@ export function createDebugCaptureTransport(
 
     override log(info: winston.Logform.TransformableInfo, next: () => void): void {
       try {
-        if (debugMode.isActiveNow() && rank(String(info.level)) <= rank(debugMode.levelNow())) {
+        const level = rank(String(info.level));
+        const active = debugMode.isActiveNow() && level <= rank(debugMode.levelNow());
+        if (!active && problems && level <= PROBLEM_RANK) {
+          problems.push(toDebugLogLine(info));
+        }
+        if (active) {
           const line = toDebugLogLine(info);
           const recorder = getDebugRecorder();
           if (recorder) {
@@ -110,6 +121,9 @@ export function createDebugCaptureTransport(
             line.traceId = recorder.traceId;
           }
           buffer.push(line);
+          if (problems && level <= PROBLEM_RANK) {
+            problems.push(line);
+          }
         }
       } catch {
         /* A capture failure must never break logging */
@@ -139,6 +153,8 @@ export function followDebugLevel(
 
 export interface DebugCapture {
   buffer: SystemLogBuffer;
+  /** Warnings and errors of this process, kept whether or not debug mode is on */
+  problems: SystemLogBuffer;
 }
 
 let installed: DebugCapture | null = null;
@@ -152,7 +168,8 @@ export function installDebugCapture(
     return installed;
   }
   const buffer = new SystemLogBuffer();
-  logger.add(createDebugCaptureTransport(debugMode, buffer));
+  const problems = new SystemLogBuffer(PROBLEM_LOG_CAPACITY);
+  logger.add(createDebugCaptureTransport(debugMode, buffer, problems));
   const follow = followDebugLevel();
   let wasEnabled = false;
   debugMode.onChange((state) => {
@@ -168,6 +185,6 @@ export function installDebugCapture(
   }, refreshMs);
   timer.unref?.();
   void debugMode.getState();
-  installed = { buffer };
+  installed = { buffer, problems };
   return installed;
 }

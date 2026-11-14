@@ -44,5 +44,7 @@ const getDebugCapture = () => {
 };
 
 const getSystemLog = () => getDebugCapture().buffer.snapshot();
+/** Warnings and errors of this process, kept whether or not debug mode is on */
+const getProblemLog = () => getDebugCapture().problems.snapshot();
 
-module.exports = { debugMode, debugTraces, getDebugCapture, getSystemLog };
+module.exports = { debugMode, debugTraces, getDebugCapture, getSystemLog, getProblemLog };

@@ -431,7 +431,11 @@ const registerUser = async (user, additionalData = {}) => {
     }
 
     if (existingUser) {
-      logger.info(`[registerUser] Email in use [User ID: ${existingUser._id}]`);
+      /** A warning, kept even with debug mode off: the visitor is told it worked, but the
+       *  account and its first password stay as they were. */
+      logger.warn(
+        `[registerUser] Email in use: nothing changed, the first password still applies [User ID: ${existingUser._id}]`,
+      );
 
       // Sleep for 1 second
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -463,6 +467,10 @@ const registerUser = async (user, additionalData = {}) => {
     } else {
       await updateUser(newUserId, { emailVerified: true });
     }
+
+    logger.info(
+      `[registerUser] User created [User ID: ${newUserId}] [Email verification: ${emailEnabled ? 'sent' : 'not needed'}]`,
+    );
 
     /** `userCreated` separates this from the identical 200 returned when the email is
      * already in use, so a caller can act on an account having actually been created
