@@ -17,6 +17,8 @@ export {
 } from './access';
 export { computeEffectiveAccess, roleAccessFromPermissions } from './effectiveAccess';
 export { createAdminHiggsfieldHandlers } from './higgsfield';
+export { createAdminSetPasswordHandler } from './password';
+export type { AdminSetPasswordDeps } from './password';
 export type { AdminHiggsfieldDeps } from './higgsfield';
 export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminCodeEnvironmentHandlers } from './code';

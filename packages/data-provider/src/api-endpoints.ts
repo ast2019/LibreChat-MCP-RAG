@@ -576,6 +576,8 @@ export const adminUserBrowserAccess = (userId: string) =>
 
 export const adminUserAttachVmAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/attach-vm-access`;
+export const adminUserPassword = (userId: string) =>
+  `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/password`;
 export const adminUserHiggsfieldAccess = (userId: string) =>
   `${BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/higgsfield-access`;
 export const adminServer = () => `${BASE_URL}/api/admin/server`;

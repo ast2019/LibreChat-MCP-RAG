@@ -26,6 +26,8 @@ import type {
   TAdminAttachVmAccessResponse,
   TAdminHiggsfieldAccessRequest,
   TAdminHiggsfieldAccessResponse,
+  TAdminSetPasswordRequest,
+  TAdminSetPasswordResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -268,6 +270,13 @@ export function updateAdminUserAttachVmAccess({
   attachVmAccess,
 }: TAdminAttachVmAccessRequest): Promise<TAdminAttachVmAccessResponse> {
   return request.patch(endpoints.adminUserAttachVmAccess(userId), { attachVmAccess });
+}
+
+export function setAdminUserPassword({
+  userId,
+  password,
+}: TAdminSetPasswordRequest): Promise<TAdminSetPasswordResponse> {
+  return request.patch(endpoints.adminUserPassword(userId), { password });
 }
 
 export function updateAdminUserHiggsfieldAccess({

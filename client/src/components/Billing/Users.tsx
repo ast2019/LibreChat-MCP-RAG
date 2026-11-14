@@ -22,6 +22,7 @@ import UserActions from './UserActions';
 import GrantDialog from './GrantDialog';
 import UsageDialog from './UsageDialog';
 import UserDrawer from './UserDrawer';
+import PasswordDialog from './PasswordDialog';
 import RoleDialog from './RoleDialog';
 import GiftNote from './GiftNote';
 import { cn } from '~/utils';
@@ -239,6 +240,7 @@ export default function Users() {
   const [granting, setGranting] = useState<TAdminBillingUser | null>(null);
   const [viewingUsage, setViewingUsage] = useState<TAdminBillingUser | null>(null);
   const [changingRole, setChangingRole] = useState<TAdminBillingUser | null>(null);
+  const [settingPassword, setSettingPassword] = useState<TAdminBillingUser | null>(null);
   const [creating, setCreating] = useState(false);
   const { user: currentUser } = useAuthContext();
   const { currency } = useBalanceDisplay();
@@ -320,6 +322,8 @@ export default function Users() {
       setViewingUsage(row);
     } else if (action === 'grant') {
       setGranting(row);
+    } else if (action === 'password') {
+      setSettingPassword(row);
     } else {
       setChangingRole(row);
     }
@@ -657,6 +661,9 @@ export default function Users() {
       )}
       {changingRole != null && (
         <RoleDialog user={changingRole} onClose={() => setChangingRole(null)} />
+      )}
+      {settingPassword != null && (
+        <PasswordDialog user={settingPassword} onClose={() => setSettingPassword(null)} />
       )}
       {creating && <CreateUserDialog open onClose={() => setCreating(false)} />}
       <UserDrawer

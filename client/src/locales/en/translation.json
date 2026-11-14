@@ -4639,5 +4639,15 @@
   "com_ui_packs_includes_media": "Image, video and speech generation",
   "com_ui_packs_includes_api": "Programming API",
   "com_ui_packs_includes_browser": "Agent browser",
-  "com_ui_packs_includes_browser_sessions": "Agent browser, up to {{0}} at once"
+  "com_ui_packs_includes_browser_sessions": "Agent browser, up to {{0}} at once",
+  "com_admin_password_title": "Set a new password",
+  "com_admin_password_body": "Set a new password for {{0}} and pass it on to them. Their current sessions end and they sign in with the new password.",
+  "com_admin_password_no_email": "This account has no email and signs in by mobile; a password does nothing for it.",
+  "com_admin_password_new": "New password",
+  "com_admin_password_confirm": "Repeat the new password",
+  "com_admin_password_save": "Save password",
+  "com_admin_password_saved": "The password of {{0}} was changed.",
+  "com_admin_password_invalid": "The password must be at least {{0}} characters.",
+  "com_admin_password_admin_forbidden": "Only an admin who may manage roles can change an admin's password.",
+  "com_admin_password_user_missing": "This user no longer exists."
 }

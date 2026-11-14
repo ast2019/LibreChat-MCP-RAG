@@ -206,6 +206,11 @@ export type TAdminAttachVmAccessRequest = { userId: string; attachVmAccess: bool
 
 export type TAdminAttachVmAccessResponse = { id: string; attachVmAccess: boolean | null };
 
+/** `PATCH /api/admin/users/:id/password`: an admin sets a new password; the user's sessions end */
+export type TAdminSetPasswordRequest = { userId: string; password: string };
+
+export type TAdminSetPasswordResponse = { id: string; updated: boolean };
+
 export type TAdminHiggsfieldAccessRequest = { userId: string; higgsfieldAccess: boolean | null };
 
 export type TAdminHiggsfieldAccessResponse = { id: string; higgsfieldAccess: boolean | null };

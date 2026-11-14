@@ -384,21 +384,21 @@ mcpServers:
       change needs confirm: true, which you may set only after showing in Persian exactly what
       will change and getting the user's explicit approval. Never invent passwords, domains or
       file contents; ask for them.
-  # NewsWatch: each user connects their own NewsWatch account, read only, with a personal
+  # «سامانه ویک سیگنال» (WeakSignal, code name NewsWatch): each user connects their own account, read only, with a personal
   # token they create in NewsWatch (Settings → Account → API tokens). The NewsWatch address is
   # NEWSWATCH_MCP_URL on the `sitemcp` service; unset, the tools say it is not set up.
   newswatch:
     type: streamable-http
     url: 'http://sitemcp:3200/newswatch/mcp'
-    title: 'NewsWatch'
-    description: 'جستجو و پایش خبر در حساب NewsWatch خودتان (فقط خواندنی): آخرین خبرها، جستجو، خوشه‌ها و سیگنال‌های ضعیف'
+    title: 'سامانه ویک سیگنال'
+    description: 'جستجو و پایش خبر در حساب سامانه ویک سیگنال خودتان (فقط خواندنی): آخرین خبرها، جستجو، خوشه‌ها و سیگنال‌های ضعیف'
     setupHelp: |
-      برای اتصال یک توکن شخصی در NewsWatch بسازید:
-      ۱. وارد NewsWatch شوید و به تنظیمات ← حساب کاربری ← «توکن‌های API» بروید.
+      برای اتصال یک توکن شخصی در سامانه ویک سیگنال بسازید:
+      ۱. وارد سامانه ویک سیگنال شوید و به تنظیمات ← حساب کاربری ← «توکن‌های API» بروید.
       ۲. یک نام مثل HiveGPT بدهید، مدت اعتبار را انتخاب کنید و توکن را بسازید.
       ۳. توکن (که با nwt_ شروع می‌شود) را کپی کنید؛ دوباره نشان داده نمی‌شود.
 
-      بعد توکن را در کادر زیر وارد کنید. دسترسی فقط خواندنی است و همان بخش‌ها و پنل‌هایی را می‌بیند که حساب NewsWatch شما دارد. با تغییر رمز NewsWatch یا باطل کردن توکن در همان صفحه، اتصال قطع می‌شود.
+      بعد توکن را در کادر زیر وارد کنید. دسترسی فقط خواندنی است و همان بخش‌ها و پنل‌هایی را می‌بیند که حساب شما در سامانه ویک سیگنال دارد. با تغییر رمز سامانه ویک سیگنال یا باطل کردن توکن در همان صفحه، اتصال قطع می‌شود.
     startup: false
     chatMenu: true
     timeout: 120000
@@ -408,15 +408,16 @@ mcpServers:
       X-Newswatch-Token: '{{NEWSWATCH_TOKEN}}'
     customUserVars:
       NEWSWATCH_TOKEN:
-        title: 'توکن API ‏NewsWatch'
-        description: 'در NewsWatch: تنظیمات ← حساب کاربری ← توکن‌های API؛ یک توکن بسازید (با nwt_ شروع می‌شود) و اینجا بگذارید.'
+        title: 'توکن API سامانه ویک سیگنال'
+        description: 'در سامانه ویک سیگنال: تنظیمات ← حساب کاربری ← توکن‌های API؛ یک توکن بسازید (با nwt_ شروع می‌شود) و اینجا بگذارید.'
     serverInstructions: |
-      NewsWatch reads news from the user's own NewsWatch account, read only, with that account's
+      WeakSignal («سامانه ویک سیگنال», code name NewsWatch) reads news from the user's own
+      account, read only, with that account's
       own sections and panels. Use latest_news or search_news for simple questions,
       advanced_search or semantic_search for research, similar_articles and list_clusters /
       cluster_timeline for how a story spread, and weak_signals for emerging topics. Pass
       workspace "persian" for Persian-language media. Cite every item with its title, source,
-      date and link, and answer in Persian.
+      date and link, and answer in Persian. Call the system «سامانه ویک سیگنال».
 
 # Image, video and speech generation the chat model calls on its own when a user asks, also in
 # the middle of a conversation (no special mode). Charged to the user's HiveGPT credit: the

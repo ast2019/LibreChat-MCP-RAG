@@ -28,6 +28,8 @@ import type {
   TAdminAttachVmAccessResponse,
   TAdminHiggsfieldAccessRequest,
   TAdminHiggsfieldAccessResponse,
+  TAdminSetPasswordRequest,
+  TAdminSetPasswordResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -172,6 +174,13 @@ export const useAdminSetUserRoleMutation = (): UseMutationResult<
     },
   });
 };
+
+/** An admin sets a new password for one user; the user's sessions end. */
+export const useAdminSetUserPasswordMutation = (): UseMutationResult<
+  TAdminSetPasswordResponse,
+  unknown,
+  TAdminSetPasswordRequest
+> => useMutation((payload: TAdminSetPasswordRequest) => dataService.setAdminUserPassword(payload));
 
 /** Applies a model-access change to a stored override: `null` clears a key, `undefined` keeps it. */
 export function applyModelAccessChange(
