@@ -1,14 +1,20 @@
-const { resolveAppReleaseInfo, getBrowserStartupConfig } = require('@librechat/api');
+const {
+  resolveAppReleaseInfo,
+  getBrowserStartupConfig,
+  selectShareLogLines,
+} = require('@librechat/api');
 const { getAppConfig } = require('~/server/services/Config');
 
 /**
- * Sanitized diagnostics for AI paste codes. Never includes secrets, tokens, or raw logs.
+ * Sanitized diagnostics for AI paste codes: versions, service health and this process's recent
+ * log lines (warnings and errors always; every line at the chosen level while debug mode is
+ * on), redacted again for sharing. Never includes secrets, tokens, emails or full IPs.
  * @returns {Promise<object>}
  */
 async function buildDebugShareSnapshot() {
   const notes = [
-    'Sanitized HiveGPT diagnostics. No secrets, JWT keys, or bridge admin tokens.',
-    'Admin Debug panel and Browser log UIs remain the interactive sources of truth.',
+    'Sanitized HiveGPT diagnostics. No secrets, JWT keys, bridge admin tokens, emails or full IPs.',
+    'The link is rebuilt on every open, so it shows lines logged after it was made.',
   ];
 
   let appVersion;
@@ -73,12 +79,27 @@ async function buildDebugShareSnapshot() {
     notes.push('Could not load app config for attach/browser summary.');
   }
 
+  let logs;
   try {
-    const { debugMode: mode } = require('~/server/services/Debug');
+    const { debugMode: mode, getSystemLog, getProblemLog } = require('~/server/services/Debug');
     const state = await mode.getState();
     debugMode = { enabled: state.enabled === true, ...(state.level && { level: state.level }) };
+    logs = selectShareLogLines({
+      debug: getSystemLog().lines,
+      problems: getProblemLog().lines,
+    });
+    if (!debugMode.enabled) {
+      notes.push(
+        'Debug mode is off: only warnings and errors are included. Turn it on (level info or debug), reproduce the problem, then open this link again for every line.',
+      );
+    }
+    if (logs.lines.length === 0) {
+      notes.push(
+        'No log lines in the window yet: reproduce the problem, then open this link again.',
+      );
+    }
   } catch {
-    /* optional */
+    notes.push('Could not read the log lines of this process.');
   }
 
   return {
@@ -89,6 +110,7 @@ async function buildDebugShareSnapshot() {
     attach,
     browser,
     debugMode,
+    ...(logs && { logs }),
     notes,
   };
 }

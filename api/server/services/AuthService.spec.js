@@ -805,8 +805,10 @@ describe('registerUser', () => {
 
     expect(result.status).toBe(200);
     expect(createUser).not.toHaveBeenCalled();
-    expect(logger.info.mock.calls).toEqual([
-      ['[registerUser] Email in use [User ID: existing-id]'],
+    expect(logger.warn.mock.calls).toEqual([
+      [
+        '[registerUser] Email in use: nothing changed, the first password still applies [User ID: existing-id]',
+      ],
     ]);
     const logged = loggedText();
     for (const secret of [

@@ -8,6 +8,14 @@ LibreChat versions are tracked separately in `package.json`.
 ## [Unreleased]
 
 ### Added
+- **The admin debug share link now carries recent log lines.** Warnings and errors are kept
+  at all times (last 300 per process), and every line at the chosen level while debug mode is
+  on. The link shows the last two hours, at most 300 lines, re-redacted (tokens, keys, cookies
+  and emails removed, IPs cut to `a.b.x.x`). It is rebuilt each time it is opened, so it shows
+  what happened after it was made.
+- **Sign-in and sign-up log lines say which account and what happened:** a failed sign-in
+  names the user ID and the reason (wrong password, no password, unknown email); a repeat sign-up
+  with a used email is a warning saying nothing changed; a new account logs its ID.
 - **Public «بسته‌ها» page at `/packs`**, before sign-in: every pack, its price in the display
   currency (same formula and live rate as checkout), what it includes, and a buy button that
   signs the visitor in and opens checkout with the pack chosen. Linked from the sign-in page.

@@ -197,6 +197,31 @@ describe('debug capture', () => {
     expect(out.calls[0].warnings).toBe(1);
   });
 
+  it('keeps warnings and errors in the problems buffer even while debug mode is off', async () => {
+    const mode = createDebugMode({ store: memoryStore() });
+    const buffer = new SystemLogBuffer();
+    const problems = new SystemLogBuffer();
+    const log = winston.createLogger({
+      level: 'silly',
+      transports: [createDebugCaptureTransport(mode, buffer, problems)],
+    });
+    log.error('[Login] [Login failed]');
+    log.warn('slow');
+    log.info('chatty');
+    expect(buffer.size).toBe(0);
+    expect(problems.snapshot().lines.map((line) => line.message)).toEqual([
+      '[Login] [Login failed]',
+      'slow',
+    ]);
+
+    await mode.enable({ minutes: 5, level: 'debug', by: 'a' });
+    log.info('now chatty');
+    log.error('both');
+    expect(buffer.snapshot().lines.map((line) => line.message)).toEqual(['now chatty', 'both']);
+    expect(problems.snapshot().lines.map((line) => line.message)).toContain('both');
+    expect(problems.snapshot().lines.map((line) => line.message)).not.toContain('now chatty');
+  });
+
   it('drops the oldest lines past capacity', () => {
     const buffer = new SystemLogBuffer(2);
     for (const message of ['a', 'b', 'c']) {
