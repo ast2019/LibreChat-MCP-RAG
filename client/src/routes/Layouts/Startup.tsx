@@ -15,6 +15,7 @@ import AuthLayout from '~/components/Auth/AuthLayout';
 const headerMap: Record<string, TranslationKeys> = {
   '/login': 'com_auth_welcome_back',
   '/register': 'com_auth_create_account',
+  '/packs': 'com_ui_packs_title',
   '/forgot-password': 'com_auth_reset_password',
   '/reset-password': 'com_auth_reset_password',
   '/login/2fa': 'com_auth_verify_your_identity',

@@ -87,6 +87,7 @@ export * from './headers-helpers';
 export {
   loginPage,
   registerPage,
+  packsPage,
   apiBaseUrl,
   sharedFileDownload,
   buildLoginRedirectUrl,

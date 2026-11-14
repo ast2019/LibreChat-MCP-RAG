@@ -242,6 +242,11 @@ const BaseOptionsSchema = z.object({
   /** Description of the MCP server */
   description: z.string().optional(),
   /**
+   * Setup guide shown (as plain text, line breaks kept) in the dialog where a user enters this
+   * server's `customUserVars`: what to prepare and where to find each value. Operator-only.
+   */
+  setupHelp: z.string().max(4000).optional(),
+  /**
    * Controls whether the MCP server is initialized during application startup.
    * - true (default): Server is initialized during app startup and included in app-level connections
    * - false: Skips initialization at startup and excludes from app-level connections - useful for servers
@@ -598,6 +603,7 @@ const omitServerManagedFields = <T extends z.ZodObject<z.ZodRawShape>>(schema: T
     oauthPrompt: true,
     oauthToolCatalog: true,
     customUserVars: true,
+    setupHelp: true,
     oauth_headers: true,
   });
 

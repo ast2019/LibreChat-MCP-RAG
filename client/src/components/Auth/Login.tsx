@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OpenIDIcon, useToastContext } from '@librechat/client';
-import { ErrorTypes, registerPage } from 'librechat-data-provider';
+import { ErrorTypes, packsPage, registerPage } from 'librechat-data-provider';
 import { useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
 import type { TLoginLayoutContext } from '~/common';
 import type { TranslationKeys } from '~/hooks';
@@ -15,6 +15,8 @@ import LoginForm from './LoginForm';
 
 interface LoginLocationState {
   redirect_to?: string;
+  /** Set by the sign-up page: the email just registered */
+  registeredEmail?: string;
 }
 
 /** Error codes the server appends to the login redirect when an OAuth navigation is rejected. */
@@ -35,7 +37,11 @@ function Login() {
   const disableAutoRedirect = searchParams.get('redirect') === 'false';
 
   const [isAutoRedirectDisabled, setIsAutoRedirectDisabled] = useState(disableAutoRedirect);
-  const [chosenMethod, setChosenMethod] = useState<AuthMethod | null>(null);
+  const registeredEmail = (location.state as LoginLocationState | null)?.registeredEmail;
+  /** After an email sign-up the email form opens, not the mobile one. */
+  const [chosenMethod, setChosenMethod] = useState<AuthMethod | null>(
+    registeredEmail ? 'email' : null,
+  );
   const phoneEnabled = startupConfig?.phoneLoginEnabled === true;
   const emailEnabled = startupConfig?.emailLoginEnabled === true;
   /** Mobile is the default whenever it is offered. */
@@ -123,6 +129,14 @@ function Login() {
     <>
       {phoneEnabled && emailEnabled && <MethodSwitch value={method} onChange={setChosenMethod} />}
       {method === 'phone' && startupConfig && <PhoneSignIn startupConfig={startupConfig} />}
+      {method === 'email' && registeredEmail && error == null && (
+        <div
+          role="status"
+          className="border-status-success-border bg-status-success-subtle text-text-secondary rounded-md border px-3 py-2 text-center text-sm"
+        >
+          {localize('com_auth_registered_sign_in')}
+        </div>
+      )}
       {method === 'email' && error != null && (
         <ErrorMessage>{localize(getLoginError(error))}</ErrorMessage>
       )}
@@ -132,6 +146,7 @@ function Login() {
           startupConfig={startupConfig}
           error={error}
           setError={setError}
+          defaultEmail={registeredEmail}
         />
       )}
       {startupConfig?.registrationEnabled === true && (
@@ -146,6 +161,11 @@ function Login() {
           </a>
         </p>
       )}
+      <p className="text-text-secondary text-center text-sm">
+        <a href={packsPage()} className="text-accent-primary font-medium hover:underline">
+          {localize('com_ui_packs_link')}
+        </a>
+      </p>
     </>
   );
 }

@@ -1268,3 +1268,51 @@ describe('chat list endpoint filter limit', () => {
     });
   });
 });
+
+describe('GET /api/config/packs', () => {
+  const packsConfig = {
+    ...baseAppConfig,
+    balance: {
+      enabled: true,
+      packs: [
+        {
+          id: 'starter',
+          label: 'بسته پایه',
+          credits: 4000000,
+          description: 'admin-only note',
+          grants: { media: true, browser: true, attachVm: true, local: false },
+          browserSessions: 2,
+        },
+        { id: 'pro', label: 'بسته حرفه‌ای', credits: 30000000 },
+      ],
+    },
+    interfaceConfig: { currency: { code: 'IRT', rate: 100000, priceStep: 1000 } },
+  };
+
+  it('lists packs and the display currency without sign-in, hiding admin notes', async () => {
+    mockGetAppConfig.mockResolvedValue(packsConfig);
+    const response = await request(createApp()).get('/api/config/packs');
+
+    expect(response.statusCode).toBe(200);
+    expect(mockGetAppConfig).toHaveBeenCalledWith(expect.objectContaining({ role: 'USER' }));
+    expect(response.body.packs).toEqual([
+      {
+        id: 'starter',
+        label: 'بسته پایه',
+        credits: 4000000,
+        includes: ['media', 'browser'],
+        browserSessions: 2,
+      },
+      { id: 'pro', label: 'بسته حرفه‌ای', credits: 30000000, includes: [] },
+    ]);
+    expect(response.body.currency).toEqual({ code: 'IRT', rate: 100000, priceStep: 1000 });
+    expect(JSON.stringify(response.body)).not.toContain('admin-only note');
+  });
+
+  it('lists no packs when the balance is off', async () => {
+    mockGetAppConfig.mockResolvedValue({ ...packsConfig, balance: { enabled: false } });
+    const response = await request(createApp()).get('/api/config/packs');
+    expect(response.statusCode).toBe(200);
+    expect(response.body.packs).toEqual([]);
+  });
+});

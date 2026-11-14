@@ -22,6 +22,10 @@ interface MCPConfigDialogProps {
   isSubmitting?: boolean;
   onRevoke?: () => void;
   serverName: string;
+  /** The server's display name; falls back to its key */
+  serverTitle?: string;
+  /** Operator-written setup guide, shown above the fields as plain text */
+  setupHelp?: string;
   serverStatus?: MCPServerStatus;
   conversationId?: string | null;
   storageContextKey?: string;
@@ -35,6 +39,8 @@ export default function MCPConfigDialog({
   isSubmitting = false,
   onRevoke,
   serverName,
+  serverTitle,
+  setupHelp,
   serverStatus,
   conversationId,
   storageContextKey,
@@ -42,9 +48,10 @@ export default function MCPConfigDialog({
   const localize = useLocalize();
 
   const hasFields = Object.keys(fieldsSchema).length > 0;
+  const displayName = serverTitle || serverName;
   const dialogTitle = hasFields
-    ? localize('com_ui_configure_mcp_variables_for', { 0: serverName })
-    : `${serverName} MCP Server`;
+    ? localize('com_ui_configure_mcp_variables_for', { 0: displayName })
+    : `${displayName} MCP Server`;
 
   const fullTitle = useMemo(() => {
     if (!serverStatus) {
@@ -155,6 +162,15 @@ export default function MCPConfigDialog({
             {renderStatusBadge()}
           </div>
         </OGDialogHeader>
+
+        {setupHelp && (
+          <div
+            className="border-border-light bg-surface-secondary text-text-secondary max-h-60 overflow-y-auto rounded-lg border p-3 text-sm leading-6 whitespace-pre-line"
+            data-testid="mcp-setup-help"
+          >
+            {setupHelp}
+          </div>
+        )}
 
         {/* Custom User Variables Section */}
         <CustomUserVarsSection

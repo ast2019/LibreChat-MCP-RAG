@@ -51,6 +51,12 @@ const loadPaymentCheckout = () =>
     Component: m.CheckoutView,
   }));
 
+/** The public «بسته‌ها» page: packs and prices before sign-in */
+const loadPublicPacks = () =>
+  importWithRecovery(() => import('~/components/Payments/PublicPacks')).then((m) => ({
+    Component: m.default,
+  }));
+
 const loadPaymentResult = () =>
   importWithRecovery(() => import('~/components/Payments')).then((m) => ({
     Component: m.ResultView,
@@ -103,6 +109,10 @@ export const router = createBrowserRouter(
         {
           path: 'register',
           element: <Registration />,
+        },
+        {
+          path: 'packs',
+          lazy: loadPublicPacks,
         },
         {
           path: 'forgot-password',
