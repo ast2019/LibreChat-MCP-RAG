@@ -7,9 +7,9 @@ const TOKEN = /^nwt_[A-Za-z0-9_-]{20,128}$/;
 
 const MESSAGES = {
   unauthorized:
-    'NewsWatch refused the token: it may be revoked or expired, or the password was changed. ' +
-    'Create a new one in NewsWatch (Settings → Account → API tokens).',
-  notFound: 'NewsWatch has no MCP endpoint at the configured address.',
+    'سامانه ویک سیگنال (WeakSignal) refused the token: it may be revoked or expired, or the ' +
+    'password was changed. Create a new one there (Settings → Account → API tokens).',
+  notFound: 'سامانه ویک سیگنال (WeakSignal) has no MCP endpoint at the configured address.',
 };
 
 /**
@@ -19,14 +19,17 @@ const MESSAGES = {
 export function readNewswatchCredentials(headers, { allowHttp = false, env = process.env } = {}) {
   const configured = String(env.NEWSWATCH_MCP_URL ?? '').trim();
   if (!configured) {
-    throw new SiteError('not_configured', 'NewsWatch is not set up on this server yet.');
+    throw new SiteError(
+      'not_configured',
+      'سامانه ویک سیگنال (WeakSignal) is not set up on this server yet.',
+    );
   }
   const endpoint = readSiteUrl(configured, { ports: NEWSWATCH_PORTS, allowHttp });
   const token = String(headers['x-newswatch-token'] ?? '').trim();
   if (!TOKEN.test(token)) {
     throw new SiteError(
       'invalid_token',
-      'Enter a NewsWatch API token (it starts with nwt_), from Settings → Account → API tokens.',
+      'Enter a سامانه ویک سیگنال API token (it starts with nwt_), from Settings → Account → API tokens.',
     );
   }
   return { endpoint, authorization: `Bearer ${token}` };

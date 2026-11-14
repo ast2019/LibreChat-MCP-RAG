@@ -56,7 +56,7 @@ const ENDPOINTS = {
 };
 
 const NEWSWATCH_INSTRUCTIONS =
-  "Reads news from the user's own NewsWatch account (read only). Prefer latest_news and " +
+  "Reads news from the user's own «سامانه ویک سیگنال» (WeakSignal) account (read only). Prefer latest_news and " +
   'search_news for simple questions, advanced_search or semantic_search for research, and ' +
   'list_clusters / cluster_timeline for how a story spread. Cite each item with its title, ' +
   'source, date and link. Answer in the user’s language.';

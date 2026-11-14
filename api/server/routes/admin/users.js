@@ -12,11 +12,13 @@ const {
   createAdminBrowserAccessHandlers,
   createAdminAttachVmAccessHandlers,
   createAdminHiggsfieldAccessHandlers,
+  createAdminSetPasswordHandler,
   createAdminBulkAccessHandler,
+  hashSecret,
   revokeUserCodeEnvironmentWorkers,
 } = require('@librechat/api');
 const { SystemCapabilities, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
-const { requireCapability } = require('~/server/middleware/roles/capabilities');
+const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
 const { requireJwtAuth } = require('~/server/middleware');
 const {
   drainAgentTriggerDeliveriesForUser,
@@ -119,6 +121,17 @@ const higgsfieldAccess = createAdminHiggsfieldAccessHandlers({
     db.updateUser(id, { higgsfieldAccess: value }, {}, { preserveExpiresAt: true }),
 });
 
+/** An admin sets a user's password when they cannot recover it; their sessions end. */
+const setPassword = createAdminSetPasswordHandler({
+  findUser: (id) => db.findUser({ _id: id }, 'role email provider'),
+  hashSecret,
+  savePassword: (id, hash) =>
+    db.updateUser(id, { password: hash }, {}, { preserveExpiresAt: true }),
+  endSessions: (id) => db.deleteAllUserSessions({ userId: id }),
+  canManageAdmins: (req) => hasCapability(req.user, SystemCapabilities.MANAGE_ROLES),
+  minPasswordLength: parseInt(process.env.MIN_PASSWORD_LENGTH, 10) || 8,
+});
+
 const bulkAccess = createAdminBulkAccessHandler({
   findUserModelAccess: (id) => db.findUser({ _id: id }, '_id modelAccess'),
   saveUserModelAccess: (id, value) =>
@@ -145,6 +158,7 @@ router.patch('/:id/api-access', requireManageUsers, apiAccess.updateApiAccess);
 router.patch('/:id/media-access', requireManageUsers, mediaAccess.updateMediaAccess);
 router.patch('/:id/browser-access', requireManageUsers, browserAccess.updateBrowserAccess);
 router.patch('/:id/attach-vm-access', requireManageUsers, attachVmAccess.updateAttachVmAccess);
+router.patch('/:id/password', requireManageUsers, setPassword);
 router.patch('/:id/higgsfield-access', requireManageUsers, higgsfieldAccess.updateHiggsfieldAccess);
 // router.delete('/:id', requireManageUsers, handlers.deleteUser);
 

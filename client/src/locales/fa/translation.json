@@ -4639,5 +4639,15 @@
   "com_ui_packs_includes_media": "ساخت تصویر، ویدیو و صدا",
   "com_ui_packs_includes_api": "API برنامه‌نویسی",
   "com_ui_packs_includes_browser": "مرورگر هوشمند (Agent)",
-  "com_ui_packs_includes_browser_sessions": "مرورگر هوشمند (Agent)، تا {{0}} مرورگر هم‌زمان"
+  "com_ui_packs_includes_browser_sessions": "مرورگر هوشمند (Agent)، تا {{0}} مرورگر هم‌زمان",
+  "com_admin_password_title": "تعیین رمز جدید",
+  "com_admin_password_body": "برای {{0}} یک رمز جدید بگذارید و آن را به خودش بدهید. ورودهای فعلی این کاربر قطع می‌شود و باید با رمز جدید وارد شود.",
+  "com_admin_password_no_email": "این حساب ایمیل ندارد و با موبایل وارد می‌شود؛ رمز برای آن کاربردی ندارد.",
+  "com_admin_password_new": "رمز جدید",
+  "com_admin_password_confirm": "تکرار رمز جدید",
+  "com_admin_password_save": "ذخیره رمز",
+  "com_admin_password_saved": "رمز {{0}} عوض شد.",
+  "com_admin_password_invalid": "رمز باید دست‌کم {{0}} نویسه باشد.",
+  "com_admin_password_admin_forbidden": "رمز حساب مدیر را فقط مدیری که اجازه مدیریت نقش‌ها دارد می‌تواند عوض کند.",
+  "com_admin_password_user_missing": "این کاربر دیگر وجود ندارد."
 }

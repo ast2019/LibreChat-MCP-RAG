@@ -5,6 +5,7 @@ import { DropdownPopup, Button } from '@librechat/client';
 import {
   ChartPie,
   Ellipsis,
+  KeyRound,
   ShieldCheck,
   ShieldOff,
   SlidersHorizontal,
@@ -14,7 +15,7 @@ import type { TAdminBillingUser } from 'librechat-data-provider';
 import type * as t from '~/common';
 import { useLocalize } from '~/hooks';
 
-export type UserAction = 'details' | 'usage' | 'grant' | 'role';
+export type UserAction = 'details' | 'usage' | 'grant' | 'password' | 'role';
 
 /** One row's actions behind a single «⋯» button, so the table stays narrow. */
 export default function UserActions({
@@ -57,6 +58,16 @@ export default function UserActions({
       onClick: () => onAction('grant', user),
     },
   ];
+
+  /** Only an account that signs in with an email can use a password; admins need role rights. */
+  if (user.email && (canChangeRole || user.role !== SystemRoles.ADMIN)) {
+    items.push({
+      id: `password-${user.id}`,
+      label: localize('com_admin_password_title'),
+      icon: <KeyRound className="text-text-secondary size-4" aria-hidden="true" />,
+      onClick: () => onAction('password', user),
+    });
+  }
 
   if (canChangeRole) {
     items.push(

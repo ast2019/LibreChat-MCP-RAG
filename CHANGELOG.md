@@ -8,6 +8,13 @@ LibreChat versions are tracked separately in `package.json`.
 ## [Unreleased]
 
 ### Added
+- **Admins can set a new password for a user** («تعیین رمز جدید» in the users list), for an
+  account that cannot sign in and cannot recover its password (no email service, password reset
+  off, or a sign-up repeated with another password). The user's sessions end. Changing an
+  admin's password needs role management.
+
+### Changed
+- **NewsWatch is shown as «سامانه ویک سیگنال»** in the chat tools, its setup guide and docs.
 - **The admin debug share link now carries recent log lines.** Warnings and errors are kept
   at all times (last 300 per process), and every line at the chosen level while debug mode is
   on. The link shows the last two hours, at most 300 lines, re-redacted (tokens, keys, cookies
