@@ -93,6 +93,9 @@ flowchart LR
 | پس‌آورد MCP | تخفیف واقعی کالا در دیجی‌کالا/اسنپ‌شاپ (مستقیم) | `mcpServers.pasavard` |
 | وایب‌فارسی MCP | قواعد و کامپوننت UI فارسی/RTL (مستقیم) | `mcpServers.vibefarsi` |
 | ابر آروان MCP | CDN/DNS/سرور آروان با کلید Machine User کاربر | `mcpServers.arvancloud` |
+| وردپرس MCP | سایت وردپرس خود کاربر با افزونه رسمی MCP Adapter و رمز برنامه کاربر (از راه `sitemcp`) | `mcpServers.wordpress` |
+| cPanel MCP | هاست cPanel خود کاربر با ابزارهای محدود و توکن API کاربر (از راه `sitemcp`) | `mcpServers.cpanel` |
+| NewsWatch MCP | جستجو و پایش خبر در حساب NewsWatch خود کاربر، فقط خواندنی (از راه `sitemcp`) | `mcpServers.newswatch` |
 
 ---
 

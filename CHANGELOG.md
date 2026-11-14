@@ -7,6 +7,19 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Added
+- **Users connect their own WordPress, cPanel and NewsWatch in the chat tools.** Each user
+  enters their own values once (stored encrypted); a new internal service, `sitemcp`
+  (`deploy/site-mcp`), carries each request and reaches public addresses only, follows no
+  redirects and stores nothing.
+  - **WordPress** goes through the site's official «MCP Adapter» plugin (WordPress 6.9+) with
+    the user's application password, so WordPress's own permissions apply.
+  - **cPanel** offers 17 curated UAPI tools (account, domains, DNS read, email accounts, files,
+    SSL, backups). Cron, SSH keys, API tokens and Git deploy are left out; every change needs
+    `confirm: true` after the user approves.
+  - **NewsWatch** is read only, with a personal token created in NewsWatch; set
+    `NEWSWATCH_MCP_URL` on the `sitemcp` service.
+
 ### Changed
 - **The shared Higgsfield account is its own per-user switch.** «حساب مشترک Higgsfield» in the
   admin users list (and bulk access) grants it; admins always have it, and packs or «رسانه»
