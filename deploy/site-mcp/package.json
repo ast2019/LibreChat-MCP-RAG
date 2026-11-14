@@ -1,0 +1,20 @@
+{
+  "name": "hivegpt-site-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP servers for each user's own sites: cPanel (curated UAPI tools), WordPress (official MCP Adapter) and NewsWatch (personal token), called by the api service only.",
+  "type": "module",
+  "main": "src/server.mjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "undici": "^7.16.0",
+    "zod": "^3.25.76"
+  }
+}

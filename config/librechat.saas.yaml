@@ -198,6 +198,9 @@ mcpSettings:
     - 'vibefarsi.ir'
     - 'mcp.arvancloud.ir'
     - 'arvancloud.ir'
+    # Users' own sites (cPanel, WordPress, NewsWatch) go through the internal `sitemcp`
+    # service, which reaches public addresses only. Exactly this host, port and scheme.
+    - 'http://sitemcp:3200'
 mcpServers:
   higgsfield:
     type: streamable-http
@@ -290,6 +293,104 @@ mcpServers:
       first. Prefer read-only inspection unless the user clearly asks to change or delete
       resources. Before any create, update, delete, power-cycle, purge, or paid action, confirm
       in Persian what will change and wait for approval. Never invent API keys or account IDs.
+  # Users' own sites, through the internal `sitemcp` service (deploy/site-mcp). Each user enters
+  # their own values once (stored encrypted); the service gets them per request, reaches public
+  # addresses only, follows no redirects and stores nothing. SITE_MCP_TOKEN lets only this api
+  # call it.
+  # WordPress: the user's site runs the official «MCP Adapter» plugin (WordPress 6.9+); the user
+  # enters the site address, their WordPress username and an application password, and works
+  # with that account's own WordPress permissions.
+  wordpress:
+    type: streamable-http
+    url: 'http://sitemcp:3200/wordpress/mcp'
+    title: 'وردپرس'
+    description: 'کار با سایت وردپرس خودتان (افزونه رسمی MCP Adapter) با رمز برنامه حساب وردپرس خودتان'
+    startup: false
+    chatMenu: true
+    timeout: 120000
+    initTimeout: 30000
+    headers:
+      X-Site-Mcp-Token: '${SITE_MCP_TOKEN}'
+      X-Wordpress-Url: '{{WORDPRESS_SITE_URL}}'
+      X-Wordpress-Username: '{{WORDPRESS_USERNAME}}'
+      X-Wordpress-App-Password: '{{WORDPRESS_APP_PASSWORD}}'
+    customUserVars:
+      WORDPRESS_SITE_URL:
+        title: 'آدرس سایت'
+        description: 'مثل https://example.com (فقط https). افزونه «MCP Adapter» باید روی سایت نصب و فعال باشد.'
+        sensitive: false
+      WORDPRESS_USERNAME:
+        title: 'نام کاربری وردپرس'
+        description: 'نام کاربری حسابی که با آن وارد پیشخوان وردپرس می‌شوید.'
+        sensitive: false
+      WORDPRESS_APP_PASSWORD:
+        title: 'رمز برنامه (Application Password)'
+        description: 'در پیشخوان وردپرس: کاربران ← نمایه ← رمزهای برنامه؛ یک رمز بسازید و اینجا بگذارید. رمز ورود اصلی را وارد نکنید.'
+    serverInstructions: |
+      This is the user's own WordPress site, through its MCP Adapter plugin, acting as the user's
+      own WordPress account. Discover the available abilities first. Read before you change
+      anything. Before publishing, editing or deleting, show in Persian exactly what will change
+      and wait for the user's approval. Never invent content, passwords or IDs.
+  # cPanel: a curated set of the cPanel API (account, domains, DNS read, email accounts, files,
+  # SSL, backups). No cron, SSH keys, API tokens or Git deploy, since those can run code on the
+  # host or take the account over. Every change needs the user's confirmation.
+  cpanel:
+    type: streamable-http
+    url: 'http://sitemcp:3200/cpanel/mcp'
+    title: 'cPanel'
+    description: 'مدیریت هاست cPanel خودتان: دامنه‌ها، ایمیل‌ها، فایل‌ها، DNS، SSL و بکاپ با توکن API خودتان'
+    startup: false
+    chatMenu: true
+    timeout: 120000
+    initTimeout: 30000
+    headers:
+      X-Site-Mcp-Token: '${SITE_MCP_TOKEN}'
+      X-Cpanel-Url: '{{CPANEL_URL}}'
+      X-Cpanel-Username: '{{CPANEL_USERNAME}}'
+      X-Cpanel-Token: '{{CPANEL_API_TOKEN}}'
+    customUserVars:
+      CPANEL_URL:
+        title: 'آدرس cPanel'
+        description: 'مثل https://example.com:2083 (همان آدرسی که با آن وارد cPanel می‌شوید، با https و پورت ۲۰۸۳).'
+        sensitive: false
+      CPANEL_USERNAME:
+        title: 'نام کاربری cPanel'
+        description: 'نام کاربری حساب هاست.'
+        sensitive: false
+      CPANEL_API_TOKEN:
+        title: 'توکن API ‏cPanel'
+        description: 'در cPanel: Security ← Manage API Tokens ← Create؛ توکن ساخته‌شده را اینجا بگذارید.'
+    serverInstructions: |
+      This is the user's own cPanel hosting account. Read before you change anything. Every
+      change needs confirm: true, which you may set only after showing in Persian exactly what
+      will change and getting the user's explicit approval. Never invent passwords, domains or
+      file contents; ask for them.
+  # NewsWatch: each user connects their own NewsWatch account, read only, with a personal
+  # token they create in NewsWatch (Settings → Account → API tokens). The NewsWatch address is
+  # NEWSWATCH_MCP_URL on the `sitemcp` service; unset, the tools say it is not set up.
+  newswatch:
+    type: streamable-http
+    url: 'http://sitemcp:3200/newswatch/mcp'
+    title: 'NewsWatch'
+    description: 'جستجو و پایش خبر در حساب NewsWatch خودتان (فقط خواندنی): آخرین خبرها، جستجو، خوشه‌ها و سیگنال‌های ضعیف'
+    startup: false
+    chatMenu: true
+    timeout: 120000
+    initTimeout: 30000
+    headers:
+      X-Site-Mcp-Token: '${SITE_MCP_TOKEN}'
+      X-Newswatch-Token: '{{NEWSWATCH_TOKEN}}'
+    customUserVars:
+      NEWSWATCH_TOKEN:
+        title: 'توکن API ‏NewsWatch'
+        description: 'در NewsWatch: تنظیمات ← حساب کاربری ← توکن‌های API؛ یک توکن بسازید (با nwt_ شروع می‌شود) و اینجا بگذارید.'
+    serverInstructions: |
+      NewsWatch reads news from the user's own NewsWatch account, read only, with that account's
+      own sections and panels. Use latest_news or search_news for simple questions,
+      advanced_search or semantic_search for research, similar_articles and list_clusters /
+      cluster_timeline for how a story spread, and weak_signals for emerging topics. Pass
+      workspace "persian" for Persian-language media. Cite every item with its title, source,
+      date and link, and answer in Persian.
 
 # Image, video and speech generation the chat model calls on its own when a user asks, also in
 # the middle of a conversation (no special mode). Charged to the user's HiveGPT credit: the
