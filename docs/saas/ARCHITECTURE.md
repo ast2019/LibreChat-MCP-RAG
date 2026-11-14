@@ -87,6 +87,12 @@ flowchart LR
 | tgju | نرخ دلار بازار آزاد برای قیمت تومانی | `interface.currency` |
 | Higgsfield MCP | ساخت تصویر و ویدیو با حساب Higgsfield (شخصی یا مشترک) | `mcpServers.higgsfield` |
 | Higgsfield API | همان کار با کلید سرور، از اعتبار HiveGPT | `mediaGeneration.higgsfield` |
+| ارزبین MCP | قیمت دلار، طلا، سکه و رمزارز (مستقیم) | `mcpServers.arzbin` |
+| دادرس MCP | قوانین ایران و محاسبات حقوقی (مستقیم) | `mcpServers.dadras` |
+| زرین‌پال docs MCP | مستندات رسمی درگاه پرداخت (مستقیم) | `mcpServers.zarinpal-docs` |
+| پس‌آورد MCP | تخفیف واقعی کالا در دیجی‌کالا/اسنپ‌شاپ (مستقیم) | `mcpServers.pasavard` |
+| وایب‌فارسی MCP | قواعد و کامپوننت UI فارسی/RTL (مستقیم) | `mcpServers.vibefarsi` |
+| ابر آروان MCP | CDN/DNS/سرور آروان با کلید Machine User کاربر | `mcpServers.arvancloud` |
 
 ---
 

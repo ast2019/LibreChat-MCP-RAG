@@ -188,6 +188,15 @@ mcpSettings:
     - 'mcp.higgsfield.ai'
     - 'higgsfield.ai'
     - '*.higgsfield.ai'
+    # Direct Iranian MCP providers (not via mcpfarsi router)
+    - 'hub.arzbin.com'
+    - 'mcp.dadrasai.com'
+    - 'www.zarinpal.com'
+    - 'zarinpal.com'
+    - 'pasavard.ir'
+    - 'vibefarsi.ir'
+    - 'mcp.arvancloud.ir'
+    - 'arvancloud.ir'
 mcpServers:
   higgsfield:
     type: streamable-http
@@ -212,6 +221,73 @@ mcpServers:
       is ready, give its direct link on its own line so the chat can show it, plus a one-line
       Persian description. Images attached to the chat cannot be passed to Higgsfield; offer its
       upload window instead.
+  # Direct provider MCPs (provider's own HTTPS endpoint; no mcpfarsi middleman).
+  arzbin:
+    type: streamable-http
+    url: 'https://hub.arzbin.com/mcp'
+    title: 'ارزبین'
+    description: 'قیمت لحظه‌ای دلار، یورو، طلا، سکه و رمزارز به تومان و تبدیل مبلغ'
+    startup: false
+    chatMenu: true
+    timeout: 60000
+    initTimeout: 15000
+  dadras:
+    type: streamable-http
+    url: 'https://mcp.dadrasai.com/mcp'
+    title: 'دادرس'
+    description: 'قوانین و مقررات ایران، واژه‌نامه حقوقی و ماشین‌حساب مهریه، دیه، ارث و هزینه دادرسی'
+    startup: false
+    chatMenu: true
+    timeout: 60000
+    initTimeout: 15000
+  zarinpal-docs:
+    type: streamable-http
+    url: 'https://www.zarinpal.com/docs/mcp'
+    title: 'مستندات زرین‌پال'
+    description: 'جستجو و خواندن مستندات رسمی درگاه پرداخت زرین‌پال و توضیح کدهای خطا'
+    startup: false
+    chatMenu: true
+    timeout: 60000
+    initTimeout: 15000
+  pasavard:
+    type: streamable-http
+    url: 'https://pasavard.ir/api/mcp'
+    title: 'پس‌آورد'
+    description: 'پیدا کردن کالای واقعاً ارزان در دیجی‌کالا و اسنپ‌شاپ با لینک خرید و کش‌بک'
+    startup: false
+    chatMenu: true
+    timeout: 60000
+    initTimeout: 15000
+  vibefarsi:
+    type: streamable-http
+    url: 'https://vibefarsi.ir/mcp'
+    title: 'وایب‌فارسی'
+    description: 'قواعد طراحی و کامپوننت‌های آماده برای رابط فارسی و راست‌به‌چپ با React و Tailwind'
+    startup: false
+    chatMenu: true
+    timeout: 60000
+    initTimeout: 15000
+  # Official ArvanCloud MCP — each user supplies a Machine User API key.
+  # Header value is typically `apikey <uuid>` from the Arvan panel.
+  arvancloud:
+    type: streamable-http
+    url: 'https://mcp.arvancloud.ir/mcp'
+    title: 'ابر آروان'
+    description: 'مدیریت CDN، DNS، سرور، فضای ذخیره‌سازی و سرویس‌های ابر آروان با کلید Machine User خودتان'
+    startup: false
+    chatMenu: true
+    timeout: 120000
+    initTimeout: 30000
+    apiKey:
+      source: user
+      authorization_type: custom
+      custom_header: 'Arvancloud-Api-Key'
+    serverInstructions: |
+      ArvanCloud MCP manages the user's own Arvan Cloud account (CDN, DNS, IaaS, storage,
+      and related services). Require the user to have configured their Machine User API key
+      first. Prefer read-only inspection unless the user clearly asks to change or delete
+      resources. Before any create, update, delete, power-cycle, purge, or paid action, confirm
+      in Persian what will change and wait for approval. Never invent API keys or account IDs.
 
 # Image, video and speech generation the chat model calls on its own when a user asks, also in
 # the middle of a conversation (no special mode). Charged to the user's HiveGPT credit: the
