@@ -193,8 +193,9 @@ const OboOptionsSchema = z.object({
   scopes: z.string().min(1),
 });
 
+/** U+200C/U+200D (ZWNJ/ZWJ) are allowed after the first character for scripts like Persian (e.g. «پس‌آورد»). */
 export const MCP_SERVER_TITLE_PATTERN = new RegExp(
-  "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}'’ -]*$",
+  "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}\\u200C\\u200D'’ -]*$",
   'u',
 );
 export const MCP_SERVER_TITLE_ERROR =
