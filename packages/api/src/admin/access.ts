@@ -193,6 +193,27 @@ export function createAdminAttachVmAccessHandlers(deps: AdminAttachVmAccessDeps)
   };
 }
 
+export interface AdminHiggsfieldAccessDeps {
+  /** Sets or clears the shared Higgsfield account override and evicts the cached auth document. */
+  saveUserHiggsfieldAccess: SaveUserSwitch<'higgsfieldAccess'>;
+}
+
+/**
+ * `PATCH /api/admin/users/:id/higgsfield-access`: lets one user run on the shared Higgsfield
+ * account (`true`), stops them (`false`) or clears it (`null` → default deny). Admins always may.
+ */
+export function createAdminHiggsfieldAccessHandlers(deps: AdminHiggsfieldAccessDeps): {
+  updateHiggsfieldAccess: (req: ServerRequest, res: Response) => Promise<Response>;
+} {
+  return {
+    updateHiggsfieldAccess: createUserSwitchHandler(
+      'higgsfieldAccess',
+      deps.saveUserHiggsfieldAccess,
+      'Higgsfield access',
+    ),
+  };
+}
+
 /** Most users one bulk request may change; the users list shows at most 100 per page. */
 export const MAX_BULK_USERS = 100;
 
@@ -201,6 +222,7 @@ export interface AdminBulkAccessDeps extends AdminModelAccessDeps {
   saveMediaAccess: SaveUserSwitch<'mediaAccess'>;
   saveBrowserAccess: SaveUserSwitch<'browserAccess'>;
   saveAttachVmAccess: SaveUserSwitch<'attachVmAccess'>;
+  saveHiggsfieldAccess: SaveUserSwitch<'higgsfieldAccess'>;
 }
 
 /** The user ids of a bulk request: 1 to {@link MAX_BULK_USERS} valid ids, kept once each. */
@@ -216,7 +238,7 @@ export function readBulkUserIds(value: unknown): string[] | null {
 
 /**
  * `POST /api/admin/users/bulk-access`: sets one access class (`local`, `private`, `api`,
- * `media`, `browser` or `attachVm`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
+ * `media`, `browser`, `attachVm` or `higgsfield`) to allow (`true`), deny (`false`) or default (`null`) for several users at once,
  * through the same saves as the per-user switches. Answers with how many changed and which ids
  * no longer exist.
  */
@@ -235,6 +257,9 @@ export function createAdminBulkAccessHandler(deps: AdminBulkAccessDeps): {
     }
     if (field === 'attachVm') {
       return deps.saveAttachVmAccess(id, value);
+    }
+    if (field === 'higgsfield') {
+      return deps.saveHiggsfieldAccess(id, value);
     }
     const user = await deps.findUserModelAccess(id);
     if (!user) {

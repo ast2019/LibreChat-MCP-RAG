@@ -1,5 +1,6 @@
 import type { TServiceStatus, TServiceUnit } from 'librechat-data-provider';
 import type { ChainHttp } from '~/web/chain/types';
+import type { HiggsfieldStatus } from '~/media/higgsfieldShared';
 import { getFailureCode } from '~/web/chain/classify';
 
 /** What one check found; health, estimates and failover state are added by the service. */
@@ -468,6 +469,49 @@ export async function probePayments(
       errorCode: healthy ? null : 'no_healthy_gateway',
       details: active.map(({ name, healthy: ok, errorCode }) => ({ name, healthy: ok, errorCode })),
     };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/**
+ * Higgsfield's setup for the admin: whether the API keys resolve from the environment and the
+ * shared account's owner is chosen, exists and has connected. Unconfigured when the deployment
+ * has neither the API block nor the MCP server.
+ */
+export async function probeHiggsfield(
+  getHiggsfieldStatus?: () => Promise<HiggsfieldStatus>,
+): Promise<ServiceProbe> {
+  if (!getHiggsfieldStatus) {
+    return UNCONFIGURED;
+  }
+  try {
+    const status = await getHiggsfieldStatus();
+    if (!status.apiDeclared && !status.mcpServer) {
+      return UNCONFIGURED;
+    }
+    const details: NonNullable<ServiceProbe['details']> = [];
+    if (status.apiDeclared) {
+      details.push({
+        name: 'api_keys',
+        healthy: status.apiKeysSet,
+        errorCode: status.apiKeysSet ? null : 'api_keys_missing',
+      });
+    }
+    if (status.mcpServer && status.sharingEnabled) {
+      const { owner } = status;
+      let errorCode: string | null = null;
+      if (!owner.email) {
+        errorCode = 'owner_not_set';
+      } else if (!owner.found) {
+        errorCode = 'owner_not_found';
+      } else if (!owner.connected) {
+        errorCode = 'owner_not_connected';
+      }
+      details.push({ name: 'shared_account', healthy: errorCode == null, errorCode });
+    }
+    const firstProblem = details.find((detail) => !detail.healthy)?.errorCode ?? null;
+    return { configured: true, reachable: null, errorCode: firstProblem, details };
   } catch (error) {
     return failed(error);
   }

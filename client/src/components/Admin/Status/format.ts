@@ -16,6 +16,17 @@ export const SERVICE_NAME_KEYS: Record<TServiceStatus['id'], TranslationKeys> = 
   sms: 'com_admin_status_service_sms',
   payments: 'com_admin_status_service_payments',
   ollama: 'com_admin_status_service_ollama',
+  higgsfield: 'com_admin_status_service_higgsfield',
+};
+
+/** Higgsfield's status lines by part and code; any other code shows the generic line. */
+export const HIGGSFIELD_DETAIL_KEYS: Record<string, TranslationKeys> = {
+  api_keys: 'com_admin_higgsfield_api_keys_set',
+  api_keys_missing: 'com_admin_higgsfield_api_keys_missing',
+  shared_account: 'com_admin_higgsfield_owner_ok',
+  owner_not_set: 'com_admin_higgsfield_owner_not_set',
+  owner_not_found: 'com_admin_higgsfield_owner_not_found_short',
+  owner_not_connected: 'com_admin_higgsfield_owner_not_connected_short',
 };
 
 export const HEALTH_KEYS: Record<TServiceHealth, TranslationKeys> = {

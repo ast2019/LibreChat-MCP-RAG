@@ -4,6 +4,7 @@ import { Button, EmptyState, Skeleton, Spinner } from '@librechat/client';
 import { useAdminServiceStatusQuery, useRefreshAdminServiceStatusMutation } from '~/data-provider';
 import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { SERVICE_NAME_KEYS, formatNumber } from './format';
+import HiggsfieldCard from './HiggsfieldCard';
 import ServiceCard from './ServiceCard';
 import { useLocalize } from '~/hooks';
 
@@ -157,6 +158,8 @@ export default function StatusPanel() {
           </section>
         </>
       )}
+
+      <HiggsfieldCard />
     </div>
   );
 }

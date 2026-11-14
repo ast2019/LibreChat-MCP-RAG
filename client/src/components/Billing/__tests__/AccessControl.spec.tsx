@@ -26,6 +26,7 @@ jest.mock('~/data-provider', () => ({
   useAdminUserMediaAccessMutation: () => ({ mutate: mockMediaMutate, isLoading: false }),
   useAdminUserBrowserAccessMutation: () => ({ mutate: mockBrowserMutate, isLoading: false }),
   useAdminUserAttachVmAccessMutation: () => ({ mutate: jest.fn(), isLoading: false }),
+  useAdminUserHiggsfieldAccessMutation: () => ({ mutate: jest.fn(), isLoading: false }),
 }));
 
 const packs = [{ id: 'pro', label: 'Pro', credits: 1, grants: { media: true } }];
@@ -46,6 +47,7 @@ const user: TAdminBillingUser = {
     api: { allowed: false, source: 'role' },
     browser: { allowed: false, source: 'rule' },
     attachVm: { allowed: false, source: 'rule' },
+    higgsfield: { allowed: false, source: 'rule' },
   },
 };
 

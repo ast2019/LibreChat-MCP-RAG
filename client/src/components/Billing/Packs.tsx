@@ -287,23 +287,25 @@ function PackCard({
           {localize('com_admin_packs_grants')}
         </legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {ACCESS_CLASSES.filter((field) => field !== 'attachVm').map((field) => {
-            const label = localize(ACCESS_LABELS[field].full);
-            return (
-              <div key={field} className="flex items-center justify-between gap-3">
-                <span className="text-text-secondary text-sm">{label}</span>
-                <Dropdown
-                  variant="compact"
-                  value={toChoice(row.grants[field])}
-                  options={grantOptions}
-                  onChange={(value) => setGrant(field, value as GrantChoice)}
-                  ariaLabel={`${label}: ${title}`}
-                  testId={`pack-grant-${field}-${row.key}`}
-                  sizeClasses="z-50"
-                />
-              </div>
-            );
-          })}
+          {ACCESS_CLASSES.filter((field) => field !== 'attachVm' && field !== 'higgsfield').map(
+            (field) => {
+              const label = localize(ACCESS_LABELS[field].full);
+              return (
+                <div key={field} className="flex items-center justify-between gap-3">
+                  <span className="text-text-secondary text-sm">{label}</span>
+                  <Dropdown
+                    variant="compact"
+                    value={toChoice(row.grants[field])}
+                    options={grantOptions}
+                    onChange={(value) => setGrant(field, value as GrantChoice)}
+                    ariaLabel={`${label}: ${title}`}
+                    testId={`pack-grant-${field}-${row.key}`}
+                    sizeClasses="z-50"
+                  />
+                </div>
+              );
+            },
+          )}
         </div>
         {row.grants.browser === true && (
           <Field

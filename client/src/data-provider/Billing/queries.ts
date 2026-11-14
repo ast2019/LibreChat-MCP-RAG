@@ -26,6 +26,8 @@ import type {
   TAdminBrowserAccessResponse,
   TAdminAttachVmAccessRequest,
   TAdminAttachVmAccessResponse,
+  TAdminHiggsfieldAccessRequest,
+  TAdminHiggsfieldAccessResponse,
   TAdminMediaAccessResponse,
   TAdminGiftSettings,
   TAdminGiftUpdate,
@@ -241,7 +243,12 @@ export const useAdminUserModelAccessMutation = (): UseMutationResult<
   );
 };
 
-type UserSwitchField = 'apiAccess' | 'mediaAccess' | 'browserAccess' | 'attachVmAccess';
+type UserSwitchField =
+  | 'apiAccess'
+  | 'mediaAccess'
+  | 'browserAccess'
+  | 'attachVmAccess'
+  | 'higgsfieldAccess';
 
 /** Sets or clears one per-user switch; the lists show it at once and roll back if refused. */
 function useAdminUserSwitchMutation<P extends { userId: string }, R>(
@@ -317,6 +324,14 @@ export const useAdminUserAttachVmAccessMutation = (): UseMutationResult<
   TAdminAttachVmAccessRequest,
   ModelAccessContext
 > => useAdminUserSwitchMutation('attachVmAccess', dataService.updateAdminUserAttachVmAccess);
+
+/** One user's shared Higgsfield account override (`null` clears to default deny; admins always). */
+export const useAdminUserHiggsfieldAccessMutation = (): UseMutationResult<
+  TAdminHiggsfieldAccessResponse,
+  unknown,
+  TAdminHiggsfieldAccessRequest,
+  ModelAccessContext
+> => useAdminUserSwitchMutation('higgsfieldAccess', dataService.updateAdminUserHiggsfieldAccess);
 
 /** Where one user's credits went in the window, for the admin users table. */
 export const useAdminBillingUserUsageQuery = (

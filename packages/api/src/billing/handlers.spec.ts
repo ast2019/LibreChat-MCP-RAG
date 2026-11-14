@@ -293,6 +293,9 @@ describe('createAdminBalanceHandlers effective access and bulk grants', () => {
       media: { allowed: false, source: 'user' },
       /** No pack includes the browser, so it stays off */
       browser: { allowed: false, source: 'rule' },
+      /** Admin-granted only */
+      attachVm: { allowed: false, source: 'rule' },
+      higgsfield: { allowed: false, source: 'rule' },
     });
     expect(second.effective).toMatchObject({
       local: { allowed: false, source: 'role' },

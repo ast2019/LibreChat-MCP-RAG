@@ -344,6 +344,7 @@ export type TUser = {
   /** Per-user agent browser override; absent follows the pack. */
   browserAccess?: boolean;
   attachVmAccess?: boolean;
+  higgsfieldAccess?: boolean;
   /** The current balance pack; its `grants` (in the startup config's packs) apply. */
   packId?: string;
   personalization?: {

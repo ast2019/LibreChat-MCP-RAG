@@ -11,11 +11,13 @@ import type { ChainCache, ChainStateStore } from '~/web/chain/state';
 import type { ChainHttp } from '~/web/chain/types';
 import type { ServiceProbe } from './fetchers';
 import type { HistoryEntry } from './history';
+import type { HiggsfieldStatus } from '~/media/higgsfieldShared';
 import {
   probeSms,
   probeSerper,
   probeTavily,
   probeOllama,
+  probeHiggsfield,
   probeSerpApi,
   probeSearxng,
   probePayments,
@@ -52,6 +54,8 @@ export interface ServiceStatusDeps {
   getSmsBalance?: () => Promise<unknown>;
   /** The payments module's gateway report (`getPaymentGatewaysStatus`), when present. */
   getPaymentGatewaysStatus?: () => Promise<unknown>;
+  /** Higgsfield's setup (`getHiggsfieldStatus`), when present. */
+  getHiggsfieldStatus?: () => Promise<HiggsfieldStatus>;
   now?: () => number;
 }
 
@@ -62,6 +66,7 @@ const SERVICE_IDS: readonly TServiceId[] = [
   'sms',
   'payments',
   'ollama',
+  'higgsfield',
 ];
 const SNAPSHOT_KEY = 'snapshot';
 const historyKey = (id: TServiceId) => `history:${id}`;
@@ -159,6 +164,7 @@ export function createServiceStatusService(deps: ServiceStatusDeps): ServiceStat
       sms: () => probeSms(deps.getSmsBalance),
       payments: () => probePayments(deps.getPaymentGatewaysStatus),
       ollama: () => probeOllama(ctx, settings.ollamaUrl),
+      higgsfield: () => probeHiggsfield(deps.getHiggsfieldStatus),
     };
     const results = await Promise.all(
       SERVICE_IDS.map(async (id) => {

@@ -52,6 +52,8 @@ jest.mock('~/data-provider', () => ({
   useAdminBillingBulkGrantMutation: () => ({ mutate: mockBulkGrantMutate, isLoading: false }),
   useAdminUsersBulkAccessMutation: () => ({ mutate: mockBulkAccessMutate, isLoading: false }),
   useAdminServiceStatusQuery: () => mockStatus,
+  useAdminHiggsfieldQuery: () => ({ isLoading: false, data: undefined }),
+  useUpdateAdminHiggsfieldMutation: () => ({ mutate: jest.fn(), isLoading: false }),
   useRefreshAdminServiceStatusMutation: () => ({
     mutate: jest.fn(),
     isLoading: false,
@@ -66,6 +68,7 @@ jest.mock('~/data-provider', () => ({
 
   useAdminUserBrowserAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
   useAdminUserAttachVmAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
+  useAdminUserHiggsfieldAccessMutation: () => ({ mutate: mockMediaAccessMutate, isLoading: false }),
   useAdminGiftsQuery: () => ({
     data: {
       startBalance: 200_000,
@@ -329,6 +332,7 @@ describe('AdminView', () => {
               api: { allowed: false, source: 'role' },
               browser: { allowed: false, source: 'rule' },
               attachVm: { allowed: false, source: 'rule' },
+              higgsfield: { allowed: false, source: 'rule' },
             },
           },
         ],

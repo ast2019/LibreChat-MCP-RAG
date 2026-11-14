@@ -5,6 +5,7 @@ import type { CurrencyConfig } from '~/utils';
 import {
   HEALTH_KEYS,
   SERVICE_NAME_KEYS,
+  HIGGSFIELD_DETAIL_KEYS,
   formatDate,
   formatAmount,
   formatNumber,
@@ -263,17 +264,27 @@ export default function ServiceCard({
             })}
           </li>
         )}
-        {service.details?.map((gateway) => (
-          <li key={gateway.name}>
-            {localize(
-              gateway.healthy ? 'com_admin_status_gateway_ok' : 'com_admin_status_gateway_down',
-              {
-                0: gateway.name,
-              },
-            )}
-          </li>
-        ))}
-        {service.errorCode != null && (
+        {service.id === 'higgsfield' &&
+          service.details?.map((part) => (
+            <li key={part.name}>
+              {localize(
+                HIGGSFIELD_DETAIL_KEYS[part.healthy ? part.name : (part.errorCode ?? '')] ??
+                  'com_admin_status_gateway_down',
+              )}
+            </li>
+          ))}
+        {service.id !== 'higgsfield' &&
+          service.details?.map((gateway) => (
+            <li key={gateway.name}>
+              {localize(
+                gateway.healthy ? 'com_admin_status_gateway_ok' : 'com_admin_status_gateway_down',
+                {
+                  0: gateway.name,
+                },
+              )}
+            </li>
+          ))}
+        {service.errorCode != null && service.id !== 'higgsfield' && (
           <li>
             {localize('com_admin_status_error_label')}{' '}
             <code dir="ltr" className="font-mono">

@@ -7,6 +7,7 @@ import {
   useAdminUserMediaAccessMutation,
   useAdminUserBrowserAccessMutation,
   useAdminUserAttachVmAccessMutation,
+  useAdminUserHiggsfieldAccessMutation,
   useAdminUserModelAccessMutation,
 } from '~/data-provider';
 import { ACCESS_LABELS, decidingPack, describeSource, overrideOf } from './accessLabels';
@@ -36,6 +37,7 @@ const TEST_IDS: Record<TAccessClass, (id: string) => string> = {
   media: (id) => `media-access-${id}`,
   browser: (id) => `browser-access-${id}`,
   attachVm: (id) => `attach-vm-access-${id}`,
+  higgsfield: (id) => `higgsfield-access-${id}`,
 };
 
 /**
@@ -59,13 +61,18 @@ export default function AccessControl({
   const mediaAccess = useAdminUserMediaAccessMutation();
   const browserAccess = useAdminUserBrowserAccessMutation();
   const attachVmAccess = useAdminUserAttachVmAccessMutation();
+  const higgsfieldAccess = useAdminUserHiggsfieldAccessMutation();
   const [failed, setFailed] = useState(false);
   const label = localize(ACCESS_LABELS[field].full);
   const userName = user.name || user.username || user.email || user.phone || '';
   const effective = user.effective?.[field];
   /* Admins always have these; a switch would suggest it could be turned off. */
   const alwaysForAdmin =
-    field === 'local' || field === 'private' || field === 'browser' || field === 'attachVm';
+    field === 'local' ||
+    field === 'private' ||
+    field === 'browser' ||
+    field === 'attachVm' ||
+    field === 'higgsfield';
 
   if (alwaysForAdmin && user.role === SystemRoles.ADMIN) {
     return (
@@ -113,6 +120,8 @@ export default function AccessControl({
       browserAccess.mutate({ userId: user.id, browserAccess: value }, options);
     } else if (field === 'attachVm') {
       attachVmAccess.mutate({ userId: user.id, attachVmAccess: value }, options);
+    } else if (field === 'higgsfield') {
+      higgsfieldAccess.mutate({ userId: user.id, higgsfieldAccess: value }, options);
     } else {
       modelAccess.mutate({ userId: user.id, [field]: value }, options);
     }

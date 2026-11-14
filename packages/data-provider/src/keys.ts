@@ -38,6 +38,7 @@ export enum QueryKeys {
   mediaStatus = 'mediaStatus',
   mediaJob = 'mediaJob',
   adminServiceStatus = 'adminServiceStatus',
+  adminHiggsfield = 'adminHiggsfield',
   adminServerStatus = 'adminServerStatus',
   adminBrowserLog = 'adminBrowserLog',
   adminDebugMode = 'adminDebugMode',
@@ -151,6 +152,7 @@ export const DynamicQueryKeys = {
 
 export enum MutationKeys {
   refreshAdminServiceStatus = 'refreshAdminServiceStatus',
+  updateAdminHiggsfield = 'updateAdminHiggsfield',
   paymentCheckout = 'paymentCheckout',
   approveCodeSetup = 'approveCodeSetup',
   denyCodeSetup = 'denyCodeSetup',

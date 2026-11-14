@@ -108,8 +108,19 @@ describe('createAdminBulkAccessHandler.updateBulkAccess', () => {
       saveAttachVmAccess: jest.fn(async (id: string, value: boolean | null) =>
         id === userId ? { attachVmAccess: value ?? undefined } : null,
       ),
+      saveHiggsfieldAccess: jest.fn(async (id: string, value: boolean | null) =>
+        id === userId ? { higgsfieldAccess: value ?? undefined } : null,
+      ),
     };
   }
+
+  it('routes the Higgsfield class to its own switch, not the model override', async () => {
+    const deps = bulkDeps();
+    const { json } = await bulk(deps, { userIds: [userId], field: 'higgsfield', value: true });
+    expect(json).toHaveBeenCalledWith({ updated: 1, notFound: [] });
+    expect(deps.saveHiggsfieldAccess).toHaveBeenCalledWith(userId, true);
+    expect(deps.saveUserModelAccess).not.toHaveBeenCalled();
+  });
 
   it('routes the browser class to its own switch, not the model override', async () => {
     const deps = bulkDeps();

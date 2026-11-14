@@ -43,7 +43,21 @@ describe('computeEffectiveAccess', () => {
       browser: { allowed: false, source: 'rule' },
       /** Attached VM is admin-granted only; default deny */
       attachVm: { allowed: false, source: 'rule' },
+      /** The shared Higgsfield account is admin-granted only; packs do not open it */
+      higgsfield: { allowed: false, source: 'rule' },
     });
+  });
+
+  it('opens the shared Higgsfield account only from an explicit user grant (or admin)', () => {
+    expect(
+      computeEffectiveAccess({ role: 'USER', higgsfieldAccess: true }, rules, role).higgsfield,
+    ).toEqual({ allowed: true, source: 'user' });
+    expect(
+      computeEffectiveAccess({ role: 'USER', mediaAccess: true }, rules, role).higgsfield,
+    ).toEqual({ allowed: false, source: 'rule' });
+    expect(
+      computeEffectiveAccess({ role: 'ADMIN', higgsfieldAccess: false }, rules, role).higgsfield,
+    ).toEqual({ allowed: true, source: 'admin' });
   });
 
   it('opens Attached VM only from an explicit user grant (or admin)', () => {

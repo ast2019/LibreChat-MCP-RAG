@@ -7,6 +7,7 @@ import {
   resolveMediaAccess,
   resolveBrowserAccess,
   resolveAttachVmAccess,
+  resolveHiggsfieldSharedAccess,
   resolveModelClassAccess,
 } from 'librechat-data-provider';
 import type { TPackGrants, TUserModelAccess, TEffectiveAccessMap } from 'librechat-data-provider';
@@ -50,6 +51,7 @@ export interface EffectiveAccessUser {
   mediaAccess?: boolean;
   browserAccess?: boolean;
   attachVmAccess?: boolean;
+  higgsfieldAccess?: boolean;
   /** `user.packId`, which local, private and API enforcement read from the loaded user */
   packId?: string;
   /** The balance pack, which media enforcement reads */
@@ -101,6 +103,10 @@ export function computeEffectiveAccess(
     attachVm: resolveAttachVmAccess({
       isAdmin,
       override: user.attachVmAccess,
+    }),
+    higgsfield: resolveHiggsfieldSharedAccess({
+      isAdmin,
+      override: user.higgsfieldAccess,
     }),
   };
 }

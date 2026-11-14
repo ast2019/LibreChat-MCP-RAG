@@ -33,6 +33,7 @@ export const PUBLIC_USER_RESPONSE_FIELDS = [
   'mediaAccess',
   'browserAccess',
   'attachVmAccess',
+  'higgsfieldAccess',
   'packId',
 ] as const;
 

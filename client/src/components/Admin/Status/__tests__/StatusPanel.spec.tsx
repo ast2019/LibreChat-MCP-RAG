@@ -24,6 +24,8 @@ jest.mock('~/hooks/useBalanceSummary', () => ({
 jest.mock('~/data-provider', () => ({
   useAdminServiceStatusQuery: () => mockStatus,
   useRefreshAdminServiceStatusMutation: () => mockRefresh,
+  useAdminHiggsfieldQuery: () => ({ isLoading: false, data: undefined }),
+  useUpdateAdminHiggsfieldMutation: () => ({ mutate: jest.fn(), isLoading: false }),
 }));
 
 const NOW = Date.now();
@@ -203,7 +205,9 @@ describe('StatusPanel', () => {
         'com_admin_status_openrouter_account(com_admin_status_remaining_of($45.00 · ۴٬۵۰۰٬۰۰۰ تومان|$50.00 · ۵٬۰۰۰٬۰۰۰ تومان))',
       ),
     ).toBeInTheDocument();
-    expect(within(card).getByLabelText('com_admin_status_openrouter_key_progress')).toBeInTheDocument();
+    expect(
+      within(card).getByLabelText('com_admin_status_openrouter_key_progress'),
+    ).toBeInTheDocument();
     expect(
       within(card).getByLabelText('com_admin_status_openrouter_account_progress'),
     ).toBeInTheDocument();

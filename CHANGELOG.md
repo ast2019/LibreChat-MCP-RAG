@@ -7,7 +7,23 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+### Changed
+- **The shared Higgsfield account is its own per-user switch.** «حساب مشترک Higgsfield» in the
+  admin users list (and bulk access) grants it; admins always have it, and packs or «رسانه»
+  (`mediaAccess`) no longer do. Users who had it through a pack lose it until an admin allows
+  them. `sharedOAuth.allow` is gone.
+- **The shared Higgsfield account is chosen in the admin panel** (Service status → Higgsfield),
+  stored as a deployment-wide override; `HIGGSFIELD_SHARED_OWNER_EMAIL` is only a fallback.
+
+### Added
+- **Higgsfield in Service status:** whether `HIGGSFIELD_API_KEY_ID`/`HIGGSFIELD_API_KEY_SECRET`
+  are set, and whether the shared account is chosen, exists and has connected.
+
 ### Fixed
+- **A user's own Higgsfield connection wins over the shared one**, and the shared one is used
+  only once its owner has connected; before, a user allowed on it could never connect their own.
+- **Higgsfield env vars reach the `api` container** under the Coolify compose.
+- **Persian MCP server titles with ZWNJ (نیم‌فاصله) pass config validation.**
 - **The credit warning comes back after a new pack is bought.** Dismissing the "you have used
   90% of your credit" or "you are out of credit" notice hid it for good, because the dismissal
   was remembered by its tone alone and every pack spends the same two tones: the user never saw

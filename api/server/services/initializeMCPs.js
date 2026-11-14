@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { logger } = require('@librechat/data-schemas');
-const { resolveMCPAppsPolicy } = require('librechat-data-provider');
+const { SystemRoles, resolveMCPAppsPolicy } = require('librechat-data-provider');
 const {
   registerShutdownTask,
   setMCPToolsChangedHandler,
@@ -12,7 +12,7 @@ const {
   createMCPPolicyResolver,
   reportStoredMCPTombstones,
   createSharedMCPPrincipalResolver,
-  getBalanceConfig,
+  readAdminOwnerEmail,
 } = require('@librechat/api');
 const { syncStaticTools, mergeAppTools, getAppConfig, invalidateCachedTools } = require('./Config');
 const { startMCPAuthorizationFenceRetryWorker } = require('./MCPAuthorizationFenceRetry');
@@ -131,8 +131,11 @@ async function initializeMCPs() {
       appBindingCodec: createMCPAppBindingCodec(process.env.JWT_SECRET),
       sharedPrincipal: createSharedMCPPrincipalResolver({
         findUserByEmail: (email) => db.findUser({ email }),
-        findBalanceByUser: db.findBalanceByUser,
-        getPacks: () => getBalanceConfig(appConfig)?.packs,
+        findSharedAccess: async (userId) =>
+          (await db.findUser({ _id: userId }, 'higgsfieldAccess'))?.higgsfieldAccess,
+        /** The admin panel's choice, a deployment-wide override; read through the config cache */
+        getOwnerEmail: async () =>
+          readAdminOwnerEmail(await getAppConfig({ role: SystemRoles.USER })),
         hasOAuthTokens: async (userId, serverName) =>
           Boolean(
             await db.findToken({ userId, type: 'mcp_oauth', identifier: `mcp:${serverName}` }),

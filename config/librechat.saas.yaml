@@ -179,10 +179,11 @@ openapi:
 # their specs hide the picker and the server drops tools a request picks for itself.
 # Finished videos are links to Higgsfield's storage; to play them inline, add that host to
 # CSP_MEDIA_SRC_EXTRA (otherwise the link still opens them).
-# Shared connection: the account with HIGGSFIELD_SHARED_OWNER_EMAIL connects once from the picker;
-# then users with a pack (and admins) run on that connection and its Higgsfield credits without
-# connecting their own. «رسانه» in the admin users list allows or blocks one user. Users who may
-# not use it, and the owner, connect their own account as before. Unset, nothing is shared.
+# Shared connection: the admin panel (Service status → Higgsfield) picks the account whose
+# connection is shared (HIGGSFIELD_SHARED_OWNER_EMAIL is only a fallback); it connects once from
+# the picker. Admins, and users granted «حساب مشترک Higgsfield» in the admin users list, then run
+# on that connection and its Higgsfield credits. Packs and «رسانه» do not grant it. A user's own
+# connection always wins, and anyone not granted connects their own account as before.
 mcpSettings:
   allowedDomains:
     - 'mcp.higgsfield.ai'
@@ -206,9 +207,10 @@ mcpServers:
     iconPath: '/assets/higgsfield.svg'
     startup: false
     requiresOAuth: true
+    # Shared account: chosen in the admin panel (Service status → Higgsfield); the env var is
+    # only a fallback. Admins and users granted «shared Higgsfield account» use it.
     sharedOAuth:
       ownerEmail: '${HIGGSFIELD_SHARED_OWNER_EMAIL}'
-      allow: 'paid'
     chatMenu: true
     timeout: 300000
     initTimeout: 30000
