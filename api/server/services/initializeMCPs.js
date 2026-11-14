@@ -133,6 +133,10 @@ async function initializeMCPs() {
         findUserByEmail: (email) => db.findUser({ email }),
         findBalanceByUser: db.findBalanceByUser,
         getPacks: () => getBalanceConfig(appConfig)?.packs,
+        hasOAuthTokens: async (userId, serverName) =>
+          Boolean(
+            await db.findToken({ userId, type: 'mcp_oauth', identifier: `mcp:${serverName}` }),
+          ),
       }),
     });
     startMCPAuthorizationFenceRetryWorker(invalidateCachedTools, {

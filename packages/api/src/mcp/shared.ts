@@ -17,6 +17,12 @@ export interface SharedMCPPrincipalDeps {
   findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>;
   /** The configured balance packs, whose `grants.media` decides the `paid` rule per pack. */
   getPacks?: () => ReadonlyArray<{ id?: string; grants?: TPackGrants }> | null | undefined;
+  /**
+   * Whether this user holds stored OAuth tokens for the server. When given, a user's own
+   * connection wins over the shared one, and the shared one is used only once the owner has
+   * connected; otherwise the user keeps their own connection and can authorize it.
+   */
+  hasOAuthTokens?: (userId: string, serverName: string) => Promise<boolean>;
   now?: () => number;
 }
 
@@ -43,7 +49,8 @@ function sharedConfigOf(config: ParsedServerConfig | undefined): SharedOAuthConf
 /**
  * Resolves who an MCP request runs as. On a server with `sharedOAuth`, a user the rule allows
  * (an admin's per-user media switch wins; admins always may) uses the owner's connection and
- * tokens; anyone else, and the owner, keeps their own connection as before.
+ * tokens, unless the user has connected their own account or the owner has not connected yet.
+ * Anyone else, and the owner, keeps their own connection as before.
  */
 export function createSharedMCPPrincipalResolver(
   deps: SharedMCPPrincipalDeps,
@@ -100,6 +107,17 @@ export function createSharedMCPPrincipalResolver(
     }
     if (owner.id === user.id || !(await isAllowed(user, shared))) {
       return { user, shared: false };
+    }
+    if (deps.hasOAuthTokens) {
+      if (await deps.hasOAuthTokens(user.id, serverName)) {
+        return { user, shared: false };
+      }
+      if (!(await deps.hasOAuthTokens(owner.id, serverName))) {
+        logger.debug(
+          `[MCP][${serverName}] Shared owner is not connected; user ${user.id} uses their own`,
+        );
+        return { user, shared: false };
+      }
     }
     logger.debug(`[MCP][${serverName}] User ${user.id} uses the shared connection of ${owner.id}`);
     return { user: owner, shared: true };

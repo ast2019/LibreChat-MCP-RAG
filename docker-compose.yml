@@ -113,6 +113,12 @@ services:
       # Pack purchase; a gateway is offered once its key is set.
       ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID:-}
       IDPAY_API_KEY: ${IDPAY_API_KEY:-}
+      # Higgsfield: server API keys (paid from HiveGPT credit) and the email of the account whose
+      # Higgsfield MCP connection is shared. Empty = that way is off; users can still connect
+      # their own Higgsfield account.
+      HIGGSFIELD_API_KEY_ID: ${HIGGSFIELD_API_KEY_ID:-}
+      HIGGSFIELD_API_KEY_SECRET: ${HIGGSFIELD_API_KEY_SECRET:-}
+      HIGGSFIELD_SHARED_OWNER_EMAIL: ${HIGGSFIELD_SHARED_OWNER_EMAIL:-}
 
       # Accounts
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
