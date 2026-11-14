@@ -11,6 +11,9 @@ import {
   collectMCPToolAliases,
   getServerNameFromTool,
   agentHasDeferredTools,
+  AUTO_DEFER_MCP_TOOL_THRESHOLD,
+  applyAutoDeferMcpTools,
+  agentHasExplicitDeferOption,
 } from './classification';
 import { bindToolApproval, getToolApprovalAuthKind } from './approval';
 import { extractMCPToolDefinition } from './classification';
@@ -390,6 +393,99 @@ describe('classification.ts', () => {
       expect(result.toolRegistry).toBeUndefined();
       expect(result.hasDeferredTools).toBe(false);
       expect(result.additionalTools.length).toBe(0);
+    });
+
+    it('should auto-defer a large unset MCP set and enable tool_search', async () => {
+      const loadedTools: GenericTool[] = Array.from(
+        { length: AUTO_DEFER_MCP_TOOL_THRESHOLD },
+        (_, i) => createMCPTool(`tool${i}`),
+      );
+
+      const result = await buildToolClassification({
+        loadedTools,
+        userId: 'user1',
+        agentId: 'agent1',
+        deferredToolsEnabled: true,
+      });
+
+      expect(result.hasDeferredTools).toBe(true);
+      expect(result.additionalTools.some((t) => t.name === 'tool_search')).toBe(true);
+      for (let i = 0; i < AUTO_DEFER_MCP_TOOL_THRESHOLD; i++) {
+        expect(result.toolRegistry?.get(`tool${i}`)?.defer_loading).toBe(true);
+      }
+    });
+
+    it('should not auto-defer when the MCP set is below the threshold', async () => {
+      const loadedTools: GenericTool[] = Array.from(
+        { length: AUTO_DEFER_MCP_TOOL_THRESHOLD - 1 },
+        (_, i) => createMCPTool(`tool${i}`),
+      );
+
+      const result = await buildToolClassification({
+        loadedTools,
+        userId: 'user1',
+        agentId: 'agent1',
+        deferredToolsEnabled: true,
+      });
+
+      expect(result.hasDeferredTools).toBe(false);
+      expect(result.additionalTools.some((t) => t.name === 'tool_search')).toBe(false);
+    });
+
+    it('should not auto-defer when any tool has an explicit defer_loading flag', async () => {
+      const loadedTools: GenericTool[] = Array.from(
+        { length: AUTO_DEFER_MCP_TOOL_THRESHOLD },
+        (_, i) => createMCPTool(`tool${i}`),
+      );
+      const agentToolOptions: AgentToolOptions = {
+        tool0: { defer_loading: false },
+      };
+
+      const result = await buildToolClassification({
+        loadedTools,
+        userId: 'user1',
+        agentId: 'agent1',
+        agentToolOptions,
+        deferredToolsEnabled: true,
+      });
+
+      expect(result.hasDeferredTools).toBe(false);
+      expect(result.toolRegistry?.get('tool0')?.defer_loading).toBe(false);
+      expect(result.toolRegistry?.get('tool1')?.defer_loading).toBe(false);
+    });
+  });
+
+  describe('applyAutoDeferMcpTools', () => {
+    const makeRegistry = (names: string[]): LCToolRegistry => {
+      const registry = new Map();
+      for (const name of names) {
+        registry.set(name, { name, toolType: 'mcp', defer_loading: false });
+      }
+      return registry as LCToolRegistry;
+    };
+
+    it('reports explicit defer options only for tools in the registry', () => {
+      const registry = makeRegistry(['a', 'b']);
+      expect(agentHasExplicitDeferOption(registry, { a: { defer_loading: true } })).toBe(true);
+      expect(agentHasExplicitDeferOption(registry, { z: { defer_loading: true } })).toBe(false);
+      expect(agentHasExplicitDeferOption(registry, undefined)).toBe(false);
+    });
+
+    it('defers every tool when the set is large and unset', () => {
+      const names = Array.from({ length: AUTO_DEFER_MCP_TOOL_THRESHOLD }, (_, i) => `t${i}`);
+      const registry = makeRegistry(names);
+      expect(applyAutoDeferMcpTools(registry, undefined, true, 'agent1')).toBe(true);
+      for (const name of names) {
+        expect(registry.get(name)?.defer_loading).toBe(true);
+      }
+    });
+
+    it('is a no-op when deferred tools are disabled', () => {
+      const registry = makeRegistry(
+        Array.from({ length: AUTO_DEFER_MCP_TOOL_THRESHOLD }, (_, i) => `t${i}`),
+      );
+      expect(applyAutoDeferMcpTools(registry, undefined, false)).toBe(false);
+      expect(registry.get('t0')?.defer_loading).toBe(false);
     });
   });
 

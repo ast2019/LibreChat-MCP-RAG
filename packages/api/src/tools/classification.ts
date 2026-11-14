@@ -10,6 +10,8 @@ import { getToolReviewAuthority } from './approval';
 /**
  * @fileoverview Utility functions for building tool registries from agent tool_options.
  * Tool classification (deferred_tools, allowed_callers) is configured via the agent UI.
+ * Large unset MCP sets are auto-deferred when `deferred_tools` is enabled so model-spec
+ * chats do not bill every tool schema on every LLM step.
  *
  * @module packages/api/src/tools/classification
  */
@@ -274,6 +276,57 @@ export function cleanupMCPToolSchemas(tools: MCPToolInstance[]): void {
   }
 }
 
+/**
+ * When this many MCP tools are attached and the agent never set `defer_loading`
+ * on any of them, every schema rides every LLM call. Model-spec chats do that
+ * by default (no `tool_options`), so Claude Opus + NewsWatch alone burned a
+ * large share of a starter pack on tool schemas. Above this count we defer
+ * them and let `tool_search` load only what the model asks for.
+ */
+export const AUTO_DEFER_MCP_TOOL_THRESHOLD = 8;
+
+/** True when any attached MCP tool has an explicit `defer_loading` boolean. */
+export function agentHasExplicitDeferOption(
+  toolRegistry: LCToolRegistry,
+  agentToolOptions?: AgentToolOptions,
+): boolean {
+  if (agentToolOptions == null) {
+    return false;
+  }
+  for (const name of toolRegistry.keys()) {
+    if (typeof agentToolOptions[name]?.defer_loading === 'boolean') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Defers every MCP tool when the set is large and the agent left classification
+ * unset. Returns whether any tool was changed. No-op when the capability is
+ * off, the set is small, or the agent already chose per-tool deferral.
+ */
+export function applyAutoDeferMcpTools(
+  toolRegistry: LCToolRegistry,
+  agentToolOptions: AgentToolOptions | undefined,
+  deferredToolsEnabled: boolean,
+  agentId?: string,
+): boolean {
+  if (!deferredToolsEnabled || toolRegistry.size < AUTO_DEFER_MCP_TOOL_THRESHOLD) {
+    return false;
+  }
+  if (agentHasExplicitDeferOption(toolRegistry, agentToolOptions)) {
+    return false;
+  }
+  for (const toolDef of toolRegistry.values()) {
+    toolDef.defer_loading = true;
+  }
+  logger.info(
+    `[buildToolClassification] Auto-deferred ${toolRegistry.size} MCP tools for ${agentId ?? 'agent'} (threshold ${AUTO_DEFER_MCP_TOOL_THRESHOLD})`,
+  );
+  return true;
+}
+
 /** Builds tool registry from MCP tool definitions. */
 function buildToolRegistry(
   mcpToolDefs: ToolDefinition[],
@@ -429,6 +482,8 @@ export async function buildToolClassification(
 
   /** Clean up temporary mcpJsonSchema property from tools now that registry is populated */
   cleanupMCPToolSchemas(mcpTools);
+
+  applyAutoDeferMcpTools(toolRegistry, agentToolOptions, deferredToolsEnabled, agentId);
 
   /**
    * Check if this agent actually has tools configured for these features.

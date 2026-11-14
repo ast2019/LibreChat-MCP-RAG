@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.17] - 2026-11-14
+
+### Fixed
+- **Large MCP tool sets no longer ride every LLM call by default.** When `deferred_tools` is on
+  and an agent (including ephemeral model-spec chats) attaches eight or more MCP tools without
+  setting `defer_loading` on any of them, those tools are deferred and discovered through
+  `tool_search`. Before, Claude Opus + سامانه ویک سیگنال (and other MCP servers) sent ~27 tool
+  schemas on every agent step, which could burn a large share of a starter pack in one
+  multi-step reply. Explicit per-tool `defer_loading` still wins; sets below the threshold stay
+  eager.
+
 ### Added
 - **Admins can set a new password for a user** («تعیین رمز جدید» in the users list), for an
   account that cannot sign in and cannot recover its password (no email service, password reset
