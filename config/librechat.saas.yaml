@@ -480,7 +480,7 @@ memory:
   messageWindowSize: 5
   tokenLimit: 2000
   validKeys: ['profile', 'preferences', 'work', 'goals', 'context']
-  excludeEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink']
+  excludeEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder']
   excludeEndpointsRead: true
   learnFromFeedback: true
   agent:
@@ -614,7 +614,7 @@ documentOcr:
   maxSide: 2000
   # Which route a conversation uses: specs with `privacy: 'local'`/`'private'` and these endpoints
   # (the stricter wins; a stored conversation can only become stricter, never public).
-  localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink']
+  localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder']
   privateEndpoints: ['OpenRouterPrivate']
   public:
     endpoint: 'OpenRouter'
@@ -833,6 +833,7 @@ endpoints:
     #   (Ryzen 9 3900, 12 threads), in USD per 1M tokens:
     #     gemma3:4b             ~100 tok/s reading, ~15 tok/s writing → 0.8 / 5.5
     #     Qwen 3.6 35B (3B act.) ~50 tok/s reading, ~10 tok/s writing → 1.6 / 8
+    #     Qwen2.5-Coder 32B dense ~20 tok/s reading, ~4 tok/s writing → 4 / 20 (estimate)
     #   A stronger model is slower per token, so it costs more. Thinking tokens bill as output,
     #   so the "think" spec costs more per answer at the same rate. Re-measure the speeds
     #   (`ollama run --verbose`) and scale these numbers when the server or models change.
@@ -887,6 +888,23 @@ endpoints:
           context: 16384
       titleConvo: false
       modelDisplayLabel: 'بدون سانسور — فکر عمیق'
+      iconURL: '/assets/logo.svg'
+
+    # Admin-only coding model beside the general uncensored Qwen (not a replacement).
+    # Dense 32B is slower on CPU than the MoE uncensored model; use for code, not general chat.
+    - name: 'LocalCoder'
+      apiKey: 'ollama'
+      baseURL: 'http://ollama:11434/v1'
+      models:
+        default: ['hivegpt-coder']
+        fetch: false
+      tokenConfig:
+        'hivegpt-coder':
+          prompt: 4
+          completion: 20
+          context: 16384
+      titleConvo: false
+      modelDisplayLabel: 'کدنویسی لوکال'
       iconURL: '/assets/logo.svg'
 
 modelSpecs:
@@ -1267,3 +1285,16 @@ modelSpecs:
         endpoint: 'LocalUncensoredThink'
         model: 'hivegpt-uncensored'
         modelLabel: 'بدون سانسور'
+    - name: 'local-coder'
+      privacy: 'local'
+      label: 'کدنویسی لوکال — بدون سانسور'
+      description: 'Qwen2.5-Coder ۳۲B مخصوص کد روی سرور خودمان؛ برای سوالات عمومی همان «بدون سانسور» را بزنید. اولین بار بعد از انتخاب ممکن است ده‌ها ثانیه برای بارگذاری طول بکشد'
+      group: 'ادمین'
+      groupIcon: '/assets/admin.svg'
+      iconURL: 'qwen'
+      adminOnly: true
+      hideBadgeRow: true
+      preset:
+        endpoint: 'LocalCoder'
+        model: 'hivegpt-coder'
+        modelLabel: 'کدنویسی لوکال'

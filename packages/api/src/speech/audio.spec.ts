@@ -65,7 +65,7 @@ describe('speech config', () => {
     expect(getServerSpeechClientConfig(appConfig)).toEqual({
       stt: { language: 'fa', maxDurationSeconds: 120, private: false },
       tts: { voices: ['Kore'], private: false },
-      localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink'],
+      localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder'],
       privateEndpoints: ['OpenRouterPrivate'],
     });
     expect(getServerSpeechClientConfig({} as AppConfig)).toBeUndefined();

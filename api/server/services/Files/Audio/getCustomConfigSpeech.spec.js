@@ -120,7 +120,7 @@ describe('getCustomConfigSpeech', () => {
     expect(settings.serverSpeech).toEqual({
       stt: { language: 'fa', maxDurationSeconds: 120, private: false },
       tts: { voices: ['Kore', 'Charon', 'Leda', 'Puck'], private: false },
-      localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink'],
+      localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder'],
       privateEndpoints: ['OpenRouterPrivate'],
     });
     /* Credentials and model ids stay on the server. */
