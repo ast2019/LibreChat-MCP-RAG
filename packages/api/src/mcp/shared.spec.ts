@@ -42,6 +42,22 @@ describe('shared MCP connection', () => {
     ).toBe(false);
   });
 
+  it("prefers the user's own connection and skips an owner who has not connected", async () => {
+    const withTokens = (holders: string[]) =>
+      createSharedMCPPrincipalResolver({
+        findUserByEmail: jest.fn().mockResolvedValue(owner),
+        findBalanceByUser: jest.fn().mockResolvedValue({ packId: 'starter' }),
+        hasOAuthTokens: jest.fn(async (userId: string) => holders.includes(userId)),
+      });
+    expect((await withTokens(['owner'])({ serverName: 'h', config, user: user() })).shared).toBe(
+      true,
+    );
+    expect(
+      (await withTokens(['owner', 'u1'])({ serverName: 'h', config, user: user() })).shared,
+    ).toBe(false);
+    expect((await withTokens([])({ serverName: 'h', config, user: user() })).shared).toBe(false);
+  });
+
   it('shares nothing without the setting, or when the owner is unknown', async () => {
     const { resolve } = resolverWith('starter');
     expect((await resolve({ serverName: 'h', config: {} as never, user: user() })).shared).toBe(
