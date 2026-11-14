@@ -21,9 +21,17 @@ type TLoginFormProps = {
   startupConfig: TStartupConfig;
   error: Pick<TAuthContext, 'error'>['error'];
   setError: Pick<TAuthContext, 'setError'>['setError'];
+  /** Filled in after sign-up, so the new user only types the password */
+  defaultEmail?: string;
 };
 
-const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, setError }) => {
+const LoginForm: React.FC<TLoginFormProps> = ({
+  onSubmit,
+  startupConfig,
+  error,
+  setError,
+  defaultEmail,
+}) => {
   const localize = useLocalize();
   const { theme } = useContext(ThemeContext);
   const {
@@ -31,7 +39,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
     getValues,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<TLoginUser>();
+  } = useForm<TLoginUser>({ defaultValues: { email: defaultEmail ?? '' } });
   const [showResendLink, setShowResendLink] = useState<boolean>(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 

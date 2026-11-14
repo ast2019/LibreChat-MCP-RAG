@@ -33,6 +33,7 @@ import type {
 import type {
   TPaymentOrder,
   TPaymentOptions,
+  TPublicPacksResponse,
   TAdminPaymentsParams,
   TAdminPaymentsSummary,
   TAdminPaymentsResponse,
@@ -199,6 +200,11 @@ export function getAdminBillingUserUsage(
 
 export function getPaymentOptions(): Promise<TPaymentOptions> {
   return request.get(endpoints.paymentOptions());
+}
+
+/** The packs and their display currency for the public «بسته‌ها» page; no sign-in needed. */
+export function getPublicPacks(): Promise<TPublicPacksResponse> {
+  return request.get(endpoints.publicPacks());
 }
 
 export function createPaymentCheckout(

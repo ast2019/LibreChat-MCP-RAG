@@ -286,6 +286,8 @@ export const confirmEmailChange = () => `${BASE_URL}/api/user/email/verify`;
 // Auth page URLs (for client-side navigation and redirects)
 export const loginPage = () => `${BASE_URL}/login`;
 export const registerPage = () => `${BASE_URL}/register`;
+export const packsPage = () => `${BASE_URL}/packs`;
+export const publicPacks = () => `${BASE_URL}/api/config/packs`;
 
 const REDIRECT_PARAM = 'redirect_to';
 const LOGIN_PATH_RE = /(?:^|\/)login(?:\/|$)/;

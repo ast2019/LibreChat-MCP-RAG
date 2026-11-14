@@ -58,14 +58,16 @@ const Registration: React.FC = () => {
     onMutate: () => {
       setIsSubmitting(true);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       setIsSubmitting(false);
       setCountdown(3);
       const timer = setInterval(() => {
         setCountdown((prevCountdown) => {
           if (prevCountdown <= 1) {
             clearInterval(timer);
-            navigate('/c/new', { replace: true });
+            /** Straight to the email sign-in with this email filled in: no session exists yet,
+             *  and the mobile form (the default) would not sign in this account. */
+            navigate('/login', { replace: true, state: { registeredEmail: variables?.email } });
             return 0;
           } else {
             return prevCountdown - 1;

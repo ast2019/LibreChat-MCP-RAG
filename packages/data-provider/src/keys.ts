@@ -47,6 +47,7 @@ export enum QueryKeys {
   adminDebugSystemLog = 'adminDebugSystemLog',
   browserSession = 'browserSession',
   paymentOptions = 'paymentOptions',
+  publicPacks = 'publicPacks',
   referral = 'referral',
   paymentOrder = 'paymentOrder',
   adminPayments = 'adminPayments',

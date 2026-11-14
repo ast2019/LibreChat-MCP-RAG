@@ -832,8 +832,11 @@ export function useMCPServerManager({
       });
     }
 
+    const serverConfig = loadedServers?.[selectedToolForConfig.name];
     return {
       serverName: selectedToolForConfig.name,
+      serverTitle: serverConfig?.title,
+      setupHelp: serverConfig?.setupHelp,
       serverStatus: connectionStatus?.[selectedToolForConfig.name],
       isOpen: isConfigModalOpen,
       onOpenChange: handleDialogOpenChange,
@@ -845,6 +848,7 @@ export function useMCPServerManager({
     };
   }, [
     selectedToolForConfig,
+    loadedServers,
     connectionStatus,
     isConfigModalOpen,
     handleDialogOpenChange,

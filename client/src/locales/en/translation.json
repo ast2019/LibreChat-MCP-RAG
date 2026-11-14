@@ -4625,5 +4625,19 @@
   "com_admin_higgsfield_owner_label": "Email of the shared account",
   "com_admin_higgsfield_owner_clear": "Clear",
   "com_admin_higgsfield_owner_hint": "Admins, and users with «Shared Higgsfield account» allowed in the users list, use this account's connection and credits. A user who connects their own Higgsfield account uses their own.",
-  "com_admin_higgsfield_invalid_email": "Enter a valid email."
+  "com_admin_higgsfield_invalid_email": "Enter a valid email.",
+  "com_auth_registered_sign_in": "Now sign in with this email and the password you chose. If this email already had an account, that account is unchanged and its password still applies.",
+  "com_ui_packs_title": "Packs and prices",
+  "com_ui_packs_link": "See packs and prices",
+  "com_ui_packs_intro": "Each pack's credit pays for chatting with HiveGPT's models and tools. After you buy one, its credit is added to your account.",
+  "com_ui_packs_empty": "No packs are available yet.",
+  "com_ui_packs_load_error": "The packs could not be loaded.",
+  "com_ui_packs_buy": "Buy",
+  "com_ui_packs_note": "Sign in or create an account to buy. Local prices follow today's exchange rate.",
+  "com_ui_packs_includes_local": "Local model (fully private)",
+  "com_ui_packs_includes_private": "Private models",
+  "com_ui_packs_includes_media": "Image, video and speech generation",
+  "com_ui_packs_includes_api": "Programming API",
+  "com_ui_packs_includes_browser": "Agent browser",
+  "com_ui_packs_includes_browser_sessions": "Agent browser, up to {{0}} at once"
 }

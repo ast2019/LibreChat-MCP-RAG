@@ -8,6 +8,19 @@ LibreChat versions are tracked separately in `package.json`.
 ## [Unreleased]
 
 ### Added
+- **Public «بسته‌ها» page at `/packs`**, before sign-in: every pack, its price in the display
+  currency (same formula and live rate as checkout), what it includes, and a buy button that
+  signs the visitor in and opens checkout with the pack chosen. Linked from the sign-in page.
+  Served by `GET /api/config/packs` (no admin notes).
+- **Setup guide when a user picks WordPress, cPanel or NewsWatch.** A new operator-only MCP
+  server field, `setupHelp`, is shown above the fields in the connect dialog; the three servers
+  explain what to prepare (plugin, application password, API token) and where to find it.
+
+### Fixed
+- **After signing up, the user lands on the email sign-in with the email filled in.** Before,
+  the page went to `/c/new`, bounced to sign-in and opened the mobile form, so a new email
+  account looked as if it could not sign in. The notice also says that an email that already
+  had an account keeps its first password.
 - **Users connect their own WordPress, cPanel and NewsWatch in the chat tools.** Each user
   enters their own values once (stored encrypted); a new internal service, `sitemcp`
   (`deploy/site-mcp`), carries each request and reaches public addresses only, follows no

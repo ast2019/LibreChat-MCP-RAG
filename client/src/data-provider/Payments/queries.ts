@@ -3,6 +3,7 @@ import { MutationKeys, QueryKeys, dataService } from 'librechat-data-provider';
 import type {
   TPaymentOrder,
   TPaymentOptions,
+  TPublicPacksResponse,
   TAdminPaymentsParams,
   TAdminPaymentsSummary,
   TAdminPaymentsResponse,
@@ -24,6 +25,17 @@ export const usePaymentOptionsQuery = (
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     retry: false,
+    ...config,
+  });
+
+/** The packs and display currency for the public «بسته‌ها» page; works signed out. */
+export const usePublicPacksQuery = (
+  config?: UseQueryOptions<TPublicPacksResponse>,
+): QueryObserverResult<TPublicPacksResponse> =>
+  useQuery<TPublicPacksResponse>([QueryKeys.publicPacks], () => dataService.getPublicPacks(), {
+    staleTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
     ...config,
   });
 

@@ -753,6 +753,7 @@ export function redactServerSecrets(
     consumeOnly: config.consumeOnly,
     inspectionFailed: config.inspectionFailed,
     customUserVars: config.customUserVars,
+    setupHelp: config.setupHelp,
     serverInstructions: config.serverInstructions,
     /** Safe derived metadata: it exposes no placeholder-bearing value, but lets
      *  clients attach tools that can only be discovered during a chat turn. */

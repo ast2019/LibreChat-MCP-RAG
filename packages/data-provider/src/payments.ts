@@ -176,3 +176,21 @@ export type TAdminPaymentsReconcileResponse = {
   credited: number;
   failed: number;
 };
+
+/** One pack on the public «بسته‌ها» page (shown before sign-in). */
+export interface TPublicPack {
+  id: string;
+  label: string;
+  credits: number;
+  /** What the pack turns on beyond plain chat (classes the pack grants `true`) */
+  includes: Array<'local' | 'private' | 'media' | 'api' | 'browser'>;
+  /** Agent browsers one user of the pack may have open at once, when the pack grants it */
+  browserSessions?: number;
+}
+
+/** `GET /api/config/packs`: the deployment's packs and display currency, without sign-in. */
+export interface TPublicPacksResponse {
+  packs: TPublicPack[];
+  /** The display currency (live rate when configured); null shows USD only */
+  currency: { code: string; rate: number; priceStep?: number } | null;
+}
