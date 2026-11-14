@@ -10,7 +10,7 @@ const specs = [
 
 const context = {
   specs,
-  localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink'],
+  localEndpoints: ['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder'],
   privateEndpoints: ['OpenRouterPrivate'],
 };
 
@@ -24,6 +24,7 @@ describe('resolveOcrRoute', () => {
     [{ endpoint: 'Local' }, 'local'],
     [{ endpoint: 'LocalUncensored' }, 'local'],
     [{ endpoint: 'LocalUncensoredThink' }, 'local'],
+    [{ endpoint: 'LocalCoder' }, 'local'],
     [{ endpoint: 'OpenRouter', spec: 'local' }, 'local'],
     [{ spec: 'local' }, 'local'],
     [{}, 'public'],

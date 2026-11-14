@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.18] - 2026-11-14
+
+### Added
+- **Admin-only local coding model beside the general uncensored Qwen.** Spec `local-coder`
+  (`LocalCoder` / `hivegpt-coder`) uses `huihui_ai/qwen2.5-coder-abliterate:32b`. It does not
+  replace «بدون سانسور»: for general chat keep that; for code pick this. Ollama still loads one
+  model at a time (`OLLAMA_MAX_LOADED_MODELS=1`), so the first call after switching may take tens
+  of seconds. Set `LOCAL_MODEL_CODER=none` to skip the download. Default context 16k.
+
 ## [0.38.17] - 2026-11-14
 
 ### Fixed

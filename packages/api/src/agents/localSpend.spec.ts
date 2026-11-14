@@ -36,6 +36,12 @@ describe('isLocalChatSpend', () => {
     expect(
       isLocalChatSpend({
         endpoint: 'agents',
+        agentEndpoint: 'LocalCoder',
+      }),
+    ).toBe(true);
+    expect(
+      isLocalChatSpend({
+        endpoint: 'agents',
         spec: 'hive',
         specs: [{ name: 'hive', preset: { endpoint: 'Local' } }],
       }),

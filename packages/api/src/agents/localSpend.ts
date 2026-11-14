@@ -5,6 +5,7 @@ export const DEFAULT_LOCAL_ENDPOINTS = [
   'Local',
   'LocalUncensored',
   'LocalUncensoredThink',
+  'LocalCoder',
 ] as const;
 
 /** Transaction `context` for a completed local chat turn (mirrors `ocr_local`). */

@@ -2486,7 +2486,9 @@ const hiveSpeechRouteSchema = z.object({
 const hiveSpeechBaseSchema = z.object({
   /** Conversations on these endpoints (or a spec with `privacy: 'local'`) never send audio or
    *  text out: server speech refuses them and the client uses the browser engine. */
-  localEndpoints: z.array(z.string()).default(['Local', 'LocalUncensored', 'LocalUncensoredThink']),
+  localEndpoints: z
+    .array(z.string())
+    .default(['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder']),
   /** Conversations on these endpoints (or a spec with `privacy: 'private'`) use `private`. */
   privateEndpoints: z.array(z.string()).default(['OpenRouterPrivate']),
   /** Per provider call. */
@@ -4063,7 +4065,9 @@ export const documentOcrSchema = z.object({
   estimateCompletionTokensPerPage: z.number().int().min(0).default(2000),
   /** Conversations on these endpoints OCR on the server (`local` route); a spec with
    * `privacy: 'local'` does too. */
-  localEndpoints: z.array(z.string()).default(['Local', 'LocalUncensored', 'LocalUncensoredThink']),
+  localEndpoints: z
+    .array(z.string())
+    .default(['Local', 'LocalUncensored', 'LocalUncensoredThink', 'LocalCoder']),
   /** Conversations on these endpoints use the `private` route; a spec with
    * `privacy: 'private'` does too. */
   privateEndpoints: z.array(z.string()).default(['OpenRouterPrivate']),
