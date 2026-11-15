@@ -5435,6 +5435,47 @@ describe('MCPConnectionFactory', () => {
       expect(mockOAuthStart).not.toHaveBeenCalled();
     });
 
+    it('should skip unauthenticated discovery when requiresOAuth and no tokens', async () => {
+      const serverConfig = {
+        type: 'streamable-http' as const,
+        url: 'https://mcp.higgsfield.ai/mcp',
+        requiresOAuth: true,
+      } as t.StreamableHTTPOptions;
+
+      mockProcessMCPEnv.mockReturnValue(serverConfig);
+      mockFlowManager.createFlowWithHandler.mockResolvedValue(null);
+      mockConnectionInstance.connect.mockRejectedValue(new Error('should not connect'));
+
+      const result = await MCPConnectionFactory.discoverTools(
+        { serverName: 'higgsfield', serverConfig },
+        {
+          useOAuth: true,
+          user: mockUser as unknown as IUser,
+          flowManager: mockFlowManager,
+          tokenMethods: {
+            findToken: jest.fn().mockResolvedValue(null),
+            createToken: jest.fn(),
+            replaceTokenIfCurrent: jest.fn(),
+            updateToken: jest.fn(),
+            deleteTokens: jest.fn(),
+          },
+        },
+      );
+
+      expect(result).toEqual({
+        tools: null,
+        connection: null,
+        oauthRequired: true,
+        oauthUrl: null,
+      });
+      expect(mockMCPConnection).not.toHaveBeenCalled();
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[Discovery] OAuth required and no tokens; skipping unauthenticated tool listing',
+        ),
+      );
+    });
+
     it('should fast-fail discovery when non-OAuth server returns 401', async () => {
       const basicOptions = {
         serverName: 'github',

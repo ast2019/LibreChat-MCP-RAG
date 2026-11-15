@@ -11,6 +11,7 @@ import { createLoadConfigModels } from '~/endpoints/config/models';
 import { getSharedImageModelCatalogue } from '~/media/catalogue';
 import { getSharedCurrencyRates } from '~/billing/currency';
 import { describePasskeyStatus } from '~/auth/passkey';
+import { preferPublicHttpsBaseUrl } from '~/oauth/url';
 
 export interface WarmStartupCachesDeps {
   /** Override for tests; defaults to the shared `fetchModels` */
@@ -49,6 +50,17 @@ export function warmStartupCaches(
 
   const passkeys = describePasskeyStatus();
   logger[passkeys.level](passkeys.message);
+
+  const domainServer = (process.env.DOMAIN_SERVER || '').replace(/\/+$/, '');
+  if (domainServer) {
+    const oauthBase = preferPublicHttpsBaseUrl(domainServer);
+    if (oauthBase !== domainServer) {
+      logger.warn(
+        `[oauth] DOMAIN_SERVER is ${domainServer}; MCP/action OAuth callbacks use ${oauthBase}. ` +
+          'Set the Coolify api domain to https://… so DOMAIN_SERVER matches the public origin.',
+      );
+    }
+  }
 
   const warmModels = async () => {
     const loadConfigModels = createLoadConfigModels({

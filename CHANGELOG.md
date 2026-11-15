@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.19] - 2026-11-15
+
+### Fixed
+- **MCP/action OAuth callbacks use HTTPS when `DOMAIN_SERVER` is a public `http://` URL.** Behind
+  Arvan/Cloudflare TLS, Coolify often leaves `DOMAIN_SERVER` as `http://hivelink.co` while browsers
+  use `https://`. Higgsfield (and similar providers) need the https redirect URI; without it,
+  `GET /api/mcp/tools` logged repeated OAuth handling / connection failures for every user who had
+  not connected. Localhost stays http. Debug share links use the same https base.
+- **Discovery no longer opens a second unauthenticated connect for `requiresOAuth` servers with no
+  tokens.** That attempt always 401'd and only added hard error logs; the catalog already returns
+  `reauth_required`.
+
 ## [0.38.18] - 2026-11-14
 
 ### Added

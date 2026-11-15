@@ -524,6 +524,21 @@ export class MCPConnectionFactory {
       return { tools: null, connection: null, oauthRequired, oauthUrl };
     }
 
+    /** A server marked `requiresOAuth` with no tokens already needs sign-in. A second
+     *  unauthenticated connect only repeats 401 → oauthFailed → hard error logs on every
+     *  GET /api/mcp/tools; it cannot list tools. OBO still tries the fallback above. */
+    if (
+      oauthRequired &&
+      !this.usesObo &&
+      isOAuthServer(this.serverConfig) &&
+      !shouldAttemptAuthenticatedDiscovery
+    ) {
+      logger.debug(
+        `${this.logPrefix} [Discovery] OAuth required and no tokens; skipping unauthenticated tool listing`,
+      );
+      return { tools: null, connection: null, oauthRequired, oauthUrl };
+    }
+
     try {
       const tools = await this.attemptUnauthenticatedToolListing(abortSignal);
       if (tools && tools.length > 0) {
