@@ -15,7 +15,7 @@ const shared = `The chat shows the file as a video card; do not invent a downloa
 export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
   [ClipTools.clip]: {
     name: ClipTools.clip,
-    description: `Renders a short branded vertical or landscape MP4 on the HiveGPT server with Remotion (titles, bullets, captions, optional narration). Use after the «clip-builder» / کلیپ‌ساز skill brief: confirm topic, duration, aspect ratio, theme/animation style and audio mode, show a one-line-per-scene outline, wait for approval, then call this tool. Themes: ${themeList}. Audio: mode "tts" (server synthesizes Persian/English narration from audio.tts_text or from the scenes), mode "upload" (audio.file_id of a file the user attached), or mode "none". ${shared}`,
+    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Every other theme is a full style film (vendored Remotion animation-styles + HiveGPT extras): real SVG/canvas motion of the pour story with caption overlay from scenes — not a colour skin. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350 for ~5s. Audio: mode "tts", "upload", or "none". ${shared}`,
     schema: {
       type: 'object',
       properties: {

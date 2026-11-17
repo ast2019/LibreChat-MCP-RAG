@@ -56,6 +56,16 @@ const THEMES = new Set([
   'claymation',
 ]);
 
+/** Themes that use full style films (see src/themeMap.ts). Brand shells stay on HiveGPTClip. */
+const STYLE_FILM_THEMES = new Set([
+  'comic-art', 'cgi-motion', 'lego', 'chalkboard', 'pixel-art', 'flat-vector', 'zackd-films',
+  'glow-sketch', 'ps2', 'dan-koe', 'woodblock-print', 'noir-comic', 'cartoon-1930s', 'brick-toy',
+  'clay-diorama', 'crt-vector', 'knitted-puppet', 'sumi-ink', 'isometric', 'paper-cut',
+  'data-chart-3d', 'synthwave', 'explainer-3d', 'maths-diagram', 'cartoon-explainer',
+  'domino-reveal', 'glow-atom', 'blueprint', 'mosaic', 'watercolor', 'threejs-3d', 'claymation',
+]);
+
+
 let bundleLocationPromise;
 const getBundle = () => {
   bundleLocationPromise ??= bundle({
@@ -235,6 +245,7 @@ async function renderJob(input) {
     }
 
     const serveUrl = await getBundle();
+    const styleFilm = STYLE_FILM_THEMES.has(theme);
     const inputProps = {
       title,
       theme,
@@ -243,19 +254,25 @@ async function renderJob(input) {
       scenes,
       ...(audioSrc ? { audioSrc } : {}),
     };
+    const compositionId = styleFilm ? 'HiveGPTStyledFilm' : 'HiveGPTClip';
     const composition = await selectComposition({
       serveUrl,
-      id: 'HiveGPTClip',
+      id: compositionId,
       inputProps,
     });
+    const outWidth = styleFilm ? 1080 : width;
+    const outHeight = styleFilm ? 1350 : height;
+    const outDurationFrames = styleFilm
+      ? 150
+      : Math.max(1, Math.round(durationSec * fps));
     const outputPath = path.join(workDir, 'out.mp4');
     await renderMedia({
       composition: {
         ...composition,
-        width,
-        height,
+        width: outWidth,
+        height: outHeight,
         fps,
-        durationInFrames: Math.max(1, Math.round(durationSec * fps)),
+        durationInFrames: outDurationFrames,
       },
       serveUrl,
       codec: 'h264',

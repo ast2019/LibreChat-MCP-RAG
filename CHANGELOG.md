@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.23] - 2026-11-17
+
+### Added
+- **Full Remotion style films for every non-brand clip theme.** Vendored the MIT
+  [deenukhan/animation-styles](https://github.com/deenukhan/animation-styles) Remotion pack
+  (39 SVG/canvas looks) into `deploy/remotion/src/animation-styles/`, added HiveGPT extras
+  (Dan Koe, Synthwave, Glow Sketch, ZackD, Noir Comic, Comic Art, CGI Motion, CRT Vector,
+  Knitted Puppet, Domino Reveal), and mapped all 32 animation themes onto real style
+  compositions via `HiveGPTStyledFilm` (1080×1350, caption/brand overlay). Brand shells still
+  use text slides. New deployment skill `animation-styles`.
+
 ## [0.38.22] - 2026-11-17
 
 ### Added

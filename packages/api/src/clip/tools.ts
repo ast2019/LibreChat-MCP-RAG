@@ -131,7 +131,7 @@ export function createClipTools(
       }
     }
 
-    const { width, height } = dimensionsFor(spec.aspectRatio, config.height);
+    const { width, height } = dimensionsFor(spec.aspectRatio, config.height, spec.theme);
     const payload: WorkerRenderRequest = {
       title: spec.title,
       durationSec: spec.durationSec,

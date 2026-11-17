@@ -17,6 +17,7 @@ export {
   resolveClipTheme,
 } from './themes';
 export type { ClipTheme } from './themes';
+export { STYLE_FILM_THEMES, STYLE_FILM_SIZE, usesStyleFilm } from './styleFilms';
 export { createClipTools } from './tools';
 export { getClipAttachments } from './attachments';
 export { clipToolDefinitions } from './definitions';

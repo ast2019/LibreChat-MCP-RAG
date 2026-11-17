@@ -1,7 +1,7 @@
 ---
 name: clip-builder
 display-title: کلیپ‌ساز
-description: Plans and builds a short branded MP4 clip on the HiveGPT Remotion worker - titles, bullets, captions, optional TTS or uploaded narration, plus many Claude animation styles (کلیپ، ریلز، comic, synthwave, sumi, isometric, claymation). Use when the user wants a short clip or reel.
+description: Plans and builds short MP4s on the HiveGPT Remotion worker — brand text slides or full Claude animation-style films (comic, chalkboard, claymation, synthwave, ukiyo-e / sumi, brick toy, …). Use for کلیپ، ریلز، استایل انیمیشن.
 allowed-tools:
   - create_remotion_clip
 license: MIT
@@ -9,72 +9,48 @@ license: MIT
 
 # کلیپ‌ساز
 
+## Two render modes
+
+1. **Brand slides** — themes `brand-dark`, `brand-light`, `ugc`: title / bullets / closing text
+   cards (up to ۳۰s, 9:16 or 16:9).
+2. **Style films** — every other theme: a full Remotion animation (SVG/canvas), based on the open
+   [animation-styles](https://github.com/deenukhan/animation-styles) pack plus HiveGPT extras
+   (Dan Koe, Synthwave, Glow Sketch, ZackD, Noir Comic, …). Native size 1080×1350 (~۵ ثانیه)
+   with brand + caption overlay from the scene text. Same pour-story timing; the look is the style.
+
 ## The flow
 
 Go one step per message and wait where a step says so.
 
-1. **Brief (wait).** Ask only what is still unknown. When `ask_user_question` is available, ask
-   with it, not in text: at most four questions in one call, in the order below, each with 2 to 5
-   short options in the user's language and `recommended` set to the default; whatever you did
-   not ask takes its default, named in one line when you go on. Without the tool, ask in one
-   message, each item with a default the user can accept with «خوب است»:
-   - topic and the one message the clip should leave
-   - length: ۵ ثانیه، ۱۵ ثانیه (default)، ۳۰ ثانیه (hard max)
-   - aspect: عمودی ۹:۱۶ (default for Reels/TikTok)، افقی ۱۶:۹
-   - look / theme (default `brand-dark`). Offer brand shells first, then a short shortlist of
-     animation styles (or ask which family they want). Pass the canonical `theme` id below.
-   - audio, always asked: «بدون صدا» (default)، «متن به گفتار» (TTS on the server, free for
-     now)، «صوت خودم» (the user attaches an audio file to a message)
-   Building the clip does not add a separate fee beyond the conversation's token use.
-2. **Outline (wait).** One line per scene: its type (`title`, `bullets`, `closing`), about how
-   many seconds, and what it says. Durations should sum to the chosen length (at most ۳۰ ثانیه).
-   Ask the user to approve or change it; when `ask_user_question` is available, one question with
-   «تأیید طرح کلیپ» and «تغییر می‌خواهم» after the outline in the message.
-3. **Build.** Call `create_remotion_clip` with every scene and the chosen `theme`, then tell the
-   user in two or three lines what the clip has. The chat shows the MP4 as a video card; do not
-   invent a download link. Put the markdown the tool returns into your reply exactly so the video
-   plays.
+1. **Brief (wait).** Ask only what is still unknown (use `ask_user_question` when available):
+   - topic / one message the clip should leave
+   - mode: brand slides vs style film (if style, pick a theme id below)
+   - length: for slides ۵ / ۱۵ (default) / ۳۰ ثانیه؛ style films are ~۵s
+   - aspect: only for brand slides — ۹:۱۶ (default) or ۱۶:۹
+   - audio: none (default) / TTS / uploaded file
+2. **Outline (wait).** For slides: one line per scene. For style films: one caption line per beat
+   (hook → action → result) from the scenes' headings/bodies; approve before render.
+3. **Build.** Call `create_remotion_clip` with `theme` set, then put the tool's markdown into the
+   reply so the video card plays. Do not invent download links.
 
-## Themes (`theme`)
+## Theme ids (`theme`)
 
-Brand shells: `brand-dark`, `brand-light`, `ugc`.
+Brand slides: `brand-dark`, `brand-light`, `ugc`.
 
-First animation pack: `comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`,
-`zackd-films`, `glow-sketch`, `ps2`, `dan-koe`.
+Style films (full motion):
+`comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`, `zackd-films`,
+`glow-sketch`, `ps2`, `dan-koe`, `woodblock-print`, `noir-comic`, `cartoon-1930s`, `brick-toy`,
+`clay-diorama`, `crt-vector`, `knitted-puppet`, `sumi-ink`, `isometric`, `paper-cut`,
+`data-chart-3d`, `synthwave`, `explainer-3d`, `maths-diagram`, `cartoon-explainer`,
+`domino-reveal`, `glow-atom`, `blueprint`, `mosaic`, `watercolor`, `threejs-3d`, `claymation`.
 
-Viral / print pack: `woodblock-print`, `noir-comic`, `cartoon-1930s`, `brick-toy`, `clay-diorama`,
-`crt-vector`, `knitted-puppet`, `sumi-ink` (also accepts alias `ink-wash`).
+Aliases: `neon-synth` → `synthwave`, `paper-cutout` → `paper-cut`, `ink-wash` → `sumi-ink`.
 
-Explainer pack: `isometric`, `paper-cut` (alias `paper-cutout`), `data-chart-3d`, `synthwave`
-(alias `neon-synth`), `explainer-3d`, `maths-diagram`, `cartoon-explainer`, `domino-reveal`,
-`glow-atom`.
+## Honest limits
 
-Art pack: `blueprint`, `mosaic`, `watercolor`, `threejs-3d`, `claymation`.
-
-`pixel-art` and `ps2` already cover Pixel Art / PS2 Style from every list — do not invent a second
-id.
-
-## Scenes that work
-
-- At most twelve scenes. Prefer ۳–۶. One idea per scene.
-- `title` for the hook, `bullets` for two to four short points, `closing` for the last line or CTA.
-- Keep headings short; bodies under about one sentence. Bullets: at most six, each under about
-  twelve words.
-- Animation styles change the Remotion look (colors and decorations). Scene types stay the same;
-  do not invent new scene types or claim full character lip-sync / After Effects motion.
-- Audio:
-  - `none`: silent clip
-  - `tts`: set `audio.mode` to `tts`; optional `audio.tts_text`, otherwise headings and bodies are
-    joined. Persian TTS uses a Persian voice on the worker.
-  - `upload`: the user attaches audio to this message; use the id the tool lists as `audio.file_id`
-- Optional `logo_file_id` from an image attached to this message (reserved for later brand frames).
-- `version`: 1 for the first clip in this chat, then one more for each new clip.
-
-## Changes after delivery
-
-- «کوتاه‌ترش کن»، «صحنه ۲ را عوض کن»، «با استایل Synthwave»، «با صوت خودم»: change only what they
-  asked and keep the rest.
-- Then call the tool again with every scene and the next `version`; earlier versions stay in
-  «خروجی‌های این گفتگو».
-- If the tool says the queue is full (only two clips render at once), tell the user to wait a
-  moment and ask again.
+- Style films redraw a fixed motion story (object pours → container fills → aftermath) in the
+  chosen look, with your captions on top. They are not After Effects templates and not lip-synced
+  characters.
+- Claymation / brick / low-poly looks are code-rendered imitations (same as upstream), not real 3D
+  clay or branded toys.
+- Building a clip does not add a separate fee beyond conversation tokens.

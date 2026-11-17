@@ -14,4 +14,5 @@ export const FEATURE_SKILL_LABELS: Readonly<Record<string, TranslationKeys>> = {
   [OFFICE_TOOL_SKILLS[OfficeTools.word][0]]: 'com_ui_create_article',
   [OFFICE_TOOL_SKILLS[OfficeTools.slides][0]]: 'com_ui_create_slides',
   [CLIP_TOOL_SKILLS[ClipTools.clip][0]]: 'com_ui_create_clip',
+  [CLIP_TOOL_SKILLS[ClipTools.clip][1]]: 'com_ui_animation_styles',
 };

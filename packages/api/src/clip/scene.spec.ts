@@ -100,6 +100,11 @@ describe('dimensionsFor / narrationTextFromSpec', () => {
     expect(dimensionsFor('16:9', 720)).toEqual({ width: 1280, height: 720 });
   });
 
+  it('uses 1080×1350 for full style films', () => {
+    expect(dimensionsFor('9:16', 720, 'claymation')).toEqual({ width: 1080, height: 1350 });
+    expect(dimensionsFor('16:9', 720, 'brand-dark')).toEqual({ width: 1280, height: 720 });
+  });
+
   it('joins scene text for TTS when tts_text is absent', () => {
     const spec = parseClipInput(
       {

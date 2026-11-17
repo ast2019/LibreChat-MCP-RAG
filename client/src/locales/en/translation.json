@@ -1633,6 +1633,7 @@
   "com_ui_create_clip": "Clip builder",
   "com_ui_create_clip_hint": "Short MP4 (up to 30s): brand shells or animation styles, optional TTS or your audio",
   "com_ui_create_clip_starter": "Make a short branded clip about ",
+  "com_ui_animation_styles": "Animation styles",
   "com_ui_concise": "Concise",
   "com_ui_configure": "Configure",
   "com_ui_configure_mcp_variables_for": "Configure Variables for {{0}}",

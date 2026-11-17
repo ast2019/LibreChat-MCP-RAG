@@ -9,7 +9,7 @@ export const CLIP_TOOL_NAMES: readonly string[] = Object.values(ClipTools);
 
 /** Deployment skills that declare the clip tool. */
 export const CLIP_TOOL_SKILLS: Readonly<Record<ClipTools, readonly string[]>> = {
-  [ClipTools.clip]: ['clip-builder'],
+  [ClipTools.clip]: ['clip-builder', 'animation-styles'],
 };
 
 /** The file context generated clip files are stored under. */

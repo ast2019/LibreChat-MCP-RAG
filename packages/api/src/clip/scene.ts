@@ -1,6 +1,7 @@
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipTheme } from './themes';
 import { resolveClipTheme } from './themes';
+import { STYLE_FILM_SIZE, usesStyleFilm } from './styleFilms';
 
 export type ClipAspectRatio = '9:16' | '16:9';
 export type { ClipTheme } from './themes';
@@ -178,7 +179,12 @@ export function parseClipInput(
 export function dimensionsFor(
   aspectRatio: ClipAspectRatio,
   height: number,
+  theme?: string,
 ): { width: number; height: number } {
+  if (theme && usesStyleFilm(theme)) {
+    /** Style films are authored at 1080×1350 (4:5); keep that canvas for fidelity. */
+    return { width: STYLE_FILM_SIZE.width, height: STYLE_FILM_SIZE.height };
+  }
   const h = height;
   if (aspectRatio === '16:9') {
     return { width: Math.round((h * 16) / 9), height: h };
