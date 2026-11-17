@@ -7,6 +7,17 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.22] - 2026-11-17
+
+### Added
+- **Twenty-two more Remotion animation styles on کلیپ‌ساز.** New themes include
+  `woodblock-print`, `noir-comic`, `cartoon-1930s`, `brick-toy`, `clay-diorama`, `crt-vector`,
+  `knitted-puppet`, `sumi-ink`, `isometric`, `paper-cut`, `data-chart-3d`, `synthwave`,
+  `explainer-3d`, `maths-diagram`, `cartoon-explainer`, `domino-reveal`, `glow-atom`,
+  `blueprint`, `mosaic`, `watercolor`, `threejs-3d`, and `claymation`, each with Remotion
+  decorations. Aliases: `neon-synth` → `synthwave`, `paper-cutout` → `paper-cut`,
+  `ink-wash` → `sumi-ink`. Duplicates already covered (`pixel-art`, `ps2`) are not re-added.
+
 ## [0.38.21] - 2026-11-17
 
 ### Added

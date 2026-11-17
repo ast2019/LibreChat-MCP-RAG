@@ -1,7 +1,7 @@
 ---
 name: clip-builder
 display-title: کلیپ‌ساز
-description: Plans and builds a short branded MP4 clip on the HiveGPT Remotion worker - titles, bullets, captions, optional TTS or uploaded narration, plus Claude animation styles (کلیپ، ریلز، تیک‌تاک، استوری، ویدیو کوتاه، comic, lego, pixel, dan koe). Use when the user wants a short clip or reel.
+description: Plans and builds a short branded MP4 clip on the HiveGPT Remotion worker - titles, bullets, captions, optional TTS or uploaded narration, plus many Claude animation styles (کلیپ، ریلز، comic, synthwave, sumi, isometric, claymation). Use when the user wants a short clip or reel.
 allowed-tools:
   - create_remotion_clip
 license: MIT
@@ -21,13 +21,8 @@ Go one step per message and wait where a step says so.
    - topic and the one message the clip should leave
    - length: ۵ ثانیه، ۱۵ ثانیه (default)، ۳۰ ثانیه (hard max)
    - aspect: عمودی ۹:۱۶ (default for Reels/TikTok)، افقی ۱۶:۹
-   - look / theme (default `brand-dark`). Offer brand shells first, then animation styles when the
-     user wants a stylized clip. Ids for `theme`:
-     - brand: `brand-dark`, `brand-light`, `ugc`
-     - animation: `comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`,
-       `zackd-films`, `glow-sketch`, `ps2`, `dan-koe`
-     Labels the user may say: Comic Art, CGI Motion, Lego Style, Chalkboard, Pixel Art,
-     Flat Vector, ZackD Films, Glow Sketch, PS2 Style, Dan Koe Style.
+   - look / theme (default `brand-dark`). Offer brand shells first, then a short shortlist of
+     animation styles (or ask which family they want). Pass the canonical `theme` id below.
    - audio, always asked: «بدون صدا» (default)، «متن به گفتار» (TTS on the server, free for
      now)، «صوت خودم» (the user attaches an audio file to a message)
    Building the clip does not add a separate fee beyond the conversation's token use.
@@ -40,15 +35,33 @@ Go one step per message and wait where a step says so.
    invent a download link. Put the markdown the tool returns into your reply exactly so the video
    plays.
 
+## Themes (`theme`)
+
+Brand shells: `brand-dark`, `brand-light`, `ugc`.
+
+First animation pack: `comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`,
+`zackd-films`, `glow-sketch`, `ps2`, `dan-koe`.
+
+Viral / print pack: `woodblock-print`, `noir-comic`, `cartoon-1930s`, `brick-toy`, `clay-diorama`,
+`crt-vector`, `knitted-puppet`, `sumi-ink` (also accepts alias `ink-wash`).
+
+Explainer pack: `isometric`, `paper-cut` (alias `paper-cutout`), `data-chart-3d`, `synthwave`
+(alias `neon-synth`), `explainer-3d`, `maths-diagram`, `cartoon-explainer`, `domino-reveal`,
+`glow-atom`.
+
+Art pack: `blueprint`, `mosaic`, `watercolor`, `threejs-3d`, `claymation`.
+
+`pixel-art` and `ps2` already cover Pixel Art / PS2 Style from every list — do not invent a second
+id.
+
 ## Scenes that work
 
 - At most twelve scenes. Prefer ۳–۶. One idea per scene.
 - `title` for the hook, `bullets` for two to four short points, `closing` for the last line or CTA.
 - Keep headings short; bodies under about one sentence. Bullets: at most six, each under about
   twelve words.
-- Animation styles change the Remotion look (colors, decorations, stick-figure orbits for
-  `dan-koe`, chalkboard dust, comic halftone, PS2 scanlines, …). Scene types stay the same; do
-  not invent new scene types or claim character lip-sync.
+- Animation styles change the Remotion look (colors and decorations). Scene types stay the same;
+  do not invent new scene types or claim full character lip-sync / After Effects motion.
 - Audio:
   - `none`: silent clip
   - `tts`: set `audio.mode` to `tts`; optional `audio.tts_text`, otherwise headings and bodies are
@@ -59,7 +72,7 @@ Go one step per message and wait where a step says so.
 
 ## Changes after delivery
 
-- «کوتاه‌ترش کن»، «صحنه ۲ را عوض کن»، «با استایل Pixel Art»، «با صوت خودم»: change only what they
+- «کوتاه‌ترش کن»، «صحنه ۲ را عوض کن»، «با استایل Synthwave»، «با صوت خودم»: change only what they
   asked and keep the rest.
 - Then call the tool again with every scene and the next `version`; earlier versions stay in
   «خروجی‌های این گفتگو».

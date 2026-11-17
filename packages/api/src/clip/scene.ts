@@ -1,6 +1,6 @@
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipTheme } from './themes';
-import { isClipTheme } from './themes';
+import { resolveClipTheme } from './themes';
 
 export type ClipAspectRatio = '9:16' | '16:9';
 export type { ClipTheme } from './themes';
@@ -132,7 +132,7 @@ export function parseClipInput(
   }
 
   const aspectRatio = input.aspect_ratio === '16:9' ? '16:9' : '9:16';
-  const theme: ClipTheme = isClipTheme(input.theme) ? input.theme : 'brand-dark';
+  const theme: ClipTheme = resolveClipTheme(input.theme);
   const brandName = str(input.brand_name, 40) ?? 'HiveGPT';
   const brandColor =
     typeof input.brand_color === 'string' && HEX.test(input.brand_color.trim())

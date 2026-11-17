@@ -24,7 +24,7 @@ describe('parseClipInput', () => {
     });
   });
 
-  it('accepts Claude animation style themes', () => {
+  it('accepts Claude animation style themes and aliases', () => {
     const spec = parseClipInput(
       {
         title: 'orbit',
@@ -45,6 +45,26 @@ describe('parseClipInput', () => {
       config,
     );
     expect(comic).toMatchObject({ theme: 'comic-art' });
+    const aliased = parseClipInput(
+      {
+        title: 'neon',
+        theme: 'neon-synth',
+        scenes: [{ type: 'title', duration_sec: 3, heading: 'Glow' }],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(aliased).toMatchObject({ theme: 'synthwave' });
+    const sumi = parseClipInput(
+      {
+        title: 'ink',
+        theme: 'sumi-ink',
+        scenes: [{ type: 'title', duration_sec: 3, heading: 'Ink' }],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(sumi).toMatchObject({ theme: 'sumi-ink' });
   });
 
   it('requires upload file_id and clamps duration to 30s', () => {

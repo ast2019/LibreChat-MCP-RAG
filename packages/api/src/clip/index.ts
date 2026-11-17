@@ -10,9 +10,11 @@ export {
 export type { RemotionServiceTarget } from './config';
 export {
   CLIP_THEMES,
+  CLIP_THEME_ALIASES,
   CLIP_THEME_LABELS,
   CLIP_THEME_SET,
   isClipTheme,
+  resolveClipTheme,
 } from './themes';
 export type { ClipTheme } from './themes';
 export { createClipTools } from './tools';
