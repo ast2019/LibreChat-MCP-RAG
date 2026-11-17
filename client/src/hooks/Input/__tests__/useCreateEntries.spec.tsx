@@ -37,17 +37,35 @@ describe('useCreateEntries', () => {
   const onShowAll = jest.fn();
   const stage = jest.fn();
   const unstage = jest.fn();
+  const setFeatures = jest.fn();
   const skills = (staged: string[] = []) => ({ staged, stage, unstage });
-  const render = (enabled = true, staged: ReturnType<typeof skills> | null = skills()) =>
-    renderHook(() => useCreateEntries({ enabled, onCompose, onShowAll, skills: staged })).result
-      .current;
+  const features = (flags: { media?: boolean; office?: boolean; clip?: boolean } = {}) => ({
+    media: flags.media === true,
+    office: flags.office === true,
+    clip: flags.clip === true,
+    set: setFeatures,
+  });
+  const render = (
+    enabled = true,
+    staged: ReturnType<typeof skills> | null = skills(),
+    featureFlags: ReturnType<typeof features> | null = features(),
+  ) =>
+    renderHook(() =>
+      useCreateEntries({
+        enabled,
+        onCompose,
+        onShowAll,
+        skills: staged,
+        features: featureFlags,
+      }),
+    ).result.current;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockStartupConfig.mockReturnValue(office());
   });
 
-  it('starts an available request in the composer and closes the palette', () => {
+  it('starts an available request in the composer and equips media tools', () => {
     mockStatus.mockReturnValue(availability([{ id: 'image', state: 'active' }]));
     const [image, all] = render();
     expect(image).toMatchObject({
@@ -56,8 +74,10 @@ describe('useCreateEntries', () => {
       dismiss: true,
       favoritable: false,
       description: 'com_ui_create_image_hint',
+      active: false,
     });
     image.onSelect();
+    expect(setFeatures).toHaveBeenCalledWith({ media: true, ask_user_question: true });
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_image_starter');
     expect(all.key).toBe('create:all');
   });
@@ -110,23 +130,25 @@ describe('useCreateEntries', () => {
     expect(article.badge).toBeTruthy();
   });
 
-  it('turns the skill on for the next message and starts the request', () => {
+  it('turns the skill on for the next message, equips office/clip tools, and starts the request', () => {
     mockStatus.mockReturnValue(availability([]));
     mockStartupConfig.mockReturnValue(office({ word: true, slides: true }, { clip: true }));
     const slides = render().find((entry) => entry.key === 'create:slides')!;
     slides.onSelect();
     expect(stage).toHaveBeenCalledWith('slide-builder');
+    expect(setFeatures).toHaveBeenCalledWith({ office: true, ask_user_question: true });
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_slides_starter');
     const clip = render().find((entry) => entry.key === 'create:clip')!;
     clip.onSelect();
     expect(stage).toHaveBeenCalledWith('clip-builder');
+    expect(setFeatures).toHaveBeenCalledWith({ clip: true, ask_user_question: true });
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_clip_starter');
   });
 
   it('shows a staged row as on, and picking it again takes the skill off', () => {
     mockStatus.mockReturnValue(availability([]));
     mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
-    const entries = render(true, skills(['article-writer']));
+    const entries = render(true, skills(['article-writer']), features({ office: true }));
     const article = entries.find((entry) => entry.key === 'create:article')!;
     const slides = entries.find((entry) => entry.key === 'create:slides')!;
     expect(article.active).toBe(true);
@@ -137,12 +159,13 @@ describe('useCreateEntries', () => {
     expect(onCompose).not.toHaveBeenCalled();
   });
 
-  it('still starts the request when the user cannot use skills', () => {
+  it('still starts the request and equips office tools when the user cannot use skills', () => {
     mockStatus.mockReturnValue(availability([]));
     mockStartupConfig.mockReturnValue(office({ word: true, slides: false }));
     const entries = render(true, null);
     expect(entries.map((entry) => entry.key)).toEqual(['create:article', 'create:all']);
     entries[0].onSelect();
+    expect(setFeatures).toHaveBeenCalledWith({ office: true, ask_user_question: true });
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_article_starter');
   });
 

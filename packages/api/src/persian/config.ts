@@ -16,8 +16,8 @@ export function getPersianConfig(appConfig: AppConfig | null | undefined): TPers
 }
 
 /**
- * The Persian tools an ordinary chat offers. A confidential or local spec keeps the tool set the
- * operator chose for it, the same rule the media tools follow.
+ * The Persian tools an ordinary chat may offer once the composer opts in. A confidential or
+ * local spec keeps them off; `persianTools.chat: false` disables them for every chat.
  */
 export function getChatPersianTools(
   appConfig: AppConfig | null | undefined,

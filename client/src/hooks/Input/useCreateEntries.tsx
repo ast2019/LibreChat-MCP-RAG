@@ -22,11 +22,21 @@ import type {
   TOfficeToolsStartupConfig,
 } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
+import type { FeatureToolPatch } from './featureToolFlags';
 import type { PaletteEntry } from './usePaletteEntries';
 import type { StagedSkills } from './useStageSkill';
 import { useMediaStatusQuery, useGetStartupConfig } from '~/data-provider';
 import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import useLocalize from '~/hooks/useLocalize';
+
+/** Composer flags that equip feature tools only after the user picks a «ساختن» row. */
+export type CreateFeatureTools = {
+  media: boolean;
+  office: boolean;
+  clip: boolean;
+  /** Merge flags onto the conversation's ephemeral agent (and reconcile ask_user). */
+  set: (patch: FeatureToolPatch) => void;
+};
 
 /** The three ways the chat model makes media itself, in the order the palette lists them. */
 const CREATE_WAYS: ReadonlyArray<{
@@ -122,11 +132,10 @@ const STATE_LABEL: Partial<Record<TMediaWayState, TranslationKeys>> = {
 /**
  * The palette's «ساختن» rows: image, video and audio, each with the reason it is off when it is,
  * then the article wizard, the slide builder and the clip builder, marked «آزمایشی». An available
- * media way starts the request in the composer; an unavailable one, and «همه روش‌ها», open the
- * media dialog that says what turns it on. The article, slide and clip rows also turn their skill
- * on for the next message, when the user may use skills, and show as on until it is sent; picking
- * one that is on turns it off again. Ways the deployment has not set up are left out rather than
- * offered as dead rows.
+ * media way equips media tools for this chat and starts the request; an unavailable one, and
+ * «همه روش‌ها», open the media dialog. Article, slide and clip rows equip their tools (and stage
+ * their skill when skills are allowed); picking an on row turns that feature off again. Ways the
+ * deployment has not set up are left out rather than offered as dead rows.
  */
 export default function useCreateEntries({
   enabled,
@@ -134,6 +143,7 @@ export default function useCreateEntries({
   onShowAll,
   skills,
   imageModel,
+  features,
 }: {
   enabled: boolean;
   /** Puts the starting words of a request into the composer and focuses it */
@@ -143,6 +153,8 @@ export default function useCreateEntries({
   skills?: StagedSkills | null;
   /** The image model the next picture uses, and opening the picker; absent hides the row */
   imageModel?: { current?: string; onOpen: () => void } | null;
+  /** Opt-in feature tool flags for this conversation; required for schemas to load */
+  features?: CreateFeatureTools | null;
 }): PaletteEntry[] {
   const localize = useLocalize();
   const status = useMediaStatusQuery(enabled);
@@ -163,24 +175,32 @@ export default function useCreateEntries({
         continue;
       }
       const Icon = way.icon;
-      const active = state === 'active';
+      const available = state === 'active';
+      const equipped = features?.media === true;
       const reason = STATE_LABEL[state];
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
         itemId: `create_${way.id}`,
         label: localize(way.label),
-        description: active || reason == null ? localize(way.hint) : localize(reason),
+        description: available || reason == null ? localize(way.hint) : localize(reason),
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: false,
+        active: equipped,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect: active ? () => onCompose(localize(way.starter)) : onShowAll,
+        onSelect: !available
+          ? onShowAll
+          : equipped
+            ? () => features?.set({ media: false })
+            : () => {
+                features?.set({ media: true, ask_user_question: true });
+                onCompose(localize(way.starter));
+              },
       });
       /* The model the picture is made with, when the deployment offers more than one. */
-      if (way.id === 'image' && active && imageModel != null && (imageModels?.length ?? 0) > 1) {
+      if (way.id === 'image' && available && imageModel != null && (imageModels?.length ?? 0) > 1) {
         const current =
           imageModels?.find((model) => model.id === imageModel.current) ??
           imageModels?.find((model) => model.default === true);
@@ -208,6 +228,7 @@ export default function useCreateEntries({
       }
       const Icon = way.icon;
       const staged = skills?.staged.includes(way.skill) === true;
+      const equipped = features?.office === true && (skills == null || staged);
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
@@ -217,16 +238,23 @@ export default function useCreateEntries({
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: staged,
+        active: equipped || staged,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect: staged
-          ? () => skills?.unstage(way.skill)
-          : () => {
-              skills?.stage(way.skill);
-              onCompose(localize(way.starter));
-            },
+        onSelect:
+          equipped || staged
+            ? () => {
+                skills?.unstage(way.skill);
+                if (skills == null) {
+                  features?.set({ office: false });
+                }
+              }
+            : () => {
+                skills?.stage(way.skill);
+                features?.set({ office: true, ask_user_question: true });
+                onCompose(localize(way.starter));
+              },
       });
     }
     for (const way of CLIP_WAYS) {
@@ -235,6 +263,7 @@ export default function useCreateEntries({
       }
       const Icon = way.icon;
       const staged = skills?.staged.includes(way.skill) === true;
+      const equipped = features?.clip === true && (skills == null || staged);
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
@@ -244,16 +273,23 @@ export default function useCreateEntries({
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: staged,
+        active: equipped || staged,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect: staged
-          ? () => skills?.unstage(way.skill)
-          : () => {
-              skills?.stage(way.skill);
-              onCompose(localize(way.starter));
-            },
+        onSelect:
+          equipped || staged
+            ? () => {
+                skills?.unstage(way.skill);
+                if (skills == null) {
+                  features?.set({ clip: false });
+                }
+              }
+            : () => {
+                skills?.stage(way.skill);
+                features?.set({ clip: true, ask_user_question: true });
+                onCompose(localize(way.starter));
+              },
       });
     }
     if (ways != null) {
@@ -273,5 +309,17 @@ export default function useCreateEntries({
       });
     }
     return entries;
-  }, [enabled, ways, imageModels, imageModel, office, clip, localize, onCompose, onShowAll, skills]);
+  }, [
+    enabled,
+    ways,
+    imageModels,
+    imageModel,
+    office,
+    clip,
+    localize,
+    onCompose,
+    onShowAll,
+    skills,
+    features,
+  ]);
 }

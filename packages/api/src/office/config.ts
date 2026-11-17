@@ -28,8 +28,8 @@ export function getEnabledOfficeTools(config: TOfficeToolsConfig): OfficeTools[]
 }
 
 /**
- * The Office tools an ordinary chat offers. A confidential or local spec keeps the tool set the
- * operator chose for it, the rule the media and Persian tools follow.
+ * The Office tools an ordinary chat may offer once the composer opts in (`ephemeralAgent.office`).
+ * A confidential or local spec keeps them off.
  */
 export function getChatOfficeTools(
   appConfig: AppConfig | null | undefined,

@@ -3,6 +3,7 @@ import { useAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import { pendingManualSkillsByConvoId } from '@librechat/chat/react';
 import { Permissions, PermissionTypes, defaultAgentCapabilities } from 'librechat-data-provider';
+import { flagsForSkillName, reconcileFeatureFlags } from './featureToolFlags';
 import { useAgentCapabilities, useHasAccess } from '~/hooks';
 import { ephemeralAgentByConvoId } from '~/store';
 import { useBadgeRowContext } from '~/Providers';
@@ -40,13 +41,14 @@ export default function useStageSkill(conversationId: string): StagedSkills | nu
     return {
       staged,
       stage: (name: string) => {
-        setEphemeralAgent((agent) =>
-          agent?.skills === true ? agent : { ...(agent ?? {}), skills: true },
-        );
+        setEphemeralAgent((agent) => reconcileFeatureFlags(agent, staged, flagsForSkillName(name)));
         setPendingSkills((current) => (current.includes(name) ? current : [...current, name]));
       },
-      unstage: (name: string) =>
-        setPendingSkills((current) => current.filter((skill) => skill !== name)),
+      unstage: (name: string) => {
+        const remaining = staged.filter((skill) => skill !== name);
+        setEphemeralAgent((agent) => reconcileFeatureFlags(agent, remaining));
+        setPendingSkills(() => remaining);
+      },
     };
   }, [canUseSkills, skillsEnabled, staged, setEphemeralAgent, setPendingSkills]);
 }

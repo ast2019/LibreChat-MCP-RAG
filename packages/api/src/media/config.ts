@@ -68,9 +68,9 @@ export function getConfiguredMediaTools(config: TMediaGenerationConfig | null): 
 }
 
 /**
- * The media tools a chat on this spec offers this user. Confidential and local specs promise
- * the chat reaches no third party, so they get none; a user an admin switched off gets none. The
- * paid-pack rule is checked when a tool runs, so the model can tell the user how to unlock it.
+ * The media tools a chat on this spec may offer this user once the composer opts in
+ * (`ephemeralAgent.media` / `higgsfield`). Confidential and local specs get none; a user an
+ * admin switched off gets none. The paid-pack rule is checked when a tool runs.
  */
 export function getChatMediaTools(
   appConfig: AppConfig | null | undefined,
