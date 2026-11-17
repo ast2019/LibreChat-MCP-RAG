@@ -145,18 +145,35 @@ describe('useCreateEntries', () => {
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_clip_starter');
   });
 
-  it('shows a staged row as on, and picking it again takes the skill off', () => {
+  it('shows equipped office rows as on, and picking a staged one unstages it', () => {
     mockStatus.mockReturnValue(availability([]));
     mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
     const entries = render(true, skills(['article-writer']), features({ office: true }));
     const article = entries.find((entry) => entry.key === 'create:article')!;
     const slides = entries.find((entry) => entry.key === 'create:slides')!;
     expect(article.active).toBe(true);
-    expect(slides.active).toBe(false);
+    expect(slides.active).toBe(true);
     article.onSelect();
     expect(unstage).toHaveBeenCalledWith('article-writer');
+    expect(setFeatures).not.toHaveBeenCalled();
     expect(stage).not.toHaveBeenCalled();
     expect(onCompose).not.toHaveBeenCalled();
+  });
+
+  it('keeps office/clip rows on after staged skills were drained, and click clears the flag', () => {
+    mockStatus.mockReturnValue(availability([]));
+    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }, { clip: true }));
+    const entries = render(true, skills([]), features({ office: true, clip: true }));
+    const article = entries.find((entry) => entry.key === 'create:article')!;
+    const clip = entries.find((entry) => entry.key === 'create:clip')!;
+    expect(article.active).toBe(true);
+    expect(clip.active).toBe(true);
+    article.onSelect();
+    expect(unstage).not.toHaveBeenCalled();
+    expect(setFeatures).toHaveBeenCalledWith({ office: false });
+    expect(stage).not.toHaveBeenCalled();
+    clip.onSelect();
+    expect(setFeatures).toHaveBeenCalledWith({ clip: false });
   });
 
   it('still starts the request and equips office tools when the user cannot use skills', () => {

@@ -228,7 +228,9 @@ export default function useCreateEntries({
       }
       const Icon = way.icon;
       const staged = skills?.staged.includes(way.skill) === true;
-      const equipped = features?.office === true && (skills == null || staged);
+      /** Stay tied to the equipped flag: submit drains staged skills but keeps
+       *  `ephemeralAgent.office` so later wizard turns still have the tools. */
+      const equipped = features?.office === true;
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
@@ -238,23 +240,24 @@ export default function useCreateEntries({
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: equipped || staged,
+        active: equipped,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect:
-          equipped || staged
-            ? () => {
+        onSelect: equipped
+          ? () => {
+              if (staged) {
+                /** `unstage` reconciles office from whatever skills remain. */
                 skills?.unstage(way.skill);
-                if (skills == null) {
-                  features?.set({ office: false });
-                }
+              } else {
+                features?.set({ office: false });
               }
-            : () => {
-                skills?.stage(way.skill);
-                features?.set({ office: true, ask_user_question: true });
-                onCompose(localize(way.starter));
-              },
+            }
+          : () => {
+              skills?.stage(way.skill);
+              features?.set({ office: true, ask_user_question: true });
+              onCompose(localize(way.starter));
+            },
       });
     }
     for (const way of CLIP_WAYS) {
@@ -263,7 +266,8 @@ export default function useCreateEntries({
       }
       const Icon = way.icon;
       const staged = skills?.staged.includes(way.skill) === true;
-      const equipped = features?.clip === true && (skills == null || staged);
+      /** Same as office: the flag outlives the drained skill chip. */
+      const equipped = features?.clip === true;
       entries.push({
         key: `create:${way.id}`,
         itemType: 'builtin',
@@ -273,23 +277,23 @@ export default function useCreateEntries({
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
         section: 'create',
-        active: equipped || staged,
+        active: equipped,
         pinned: false,
         favoritable: false,
         dismiss: true,
-        onSelect:
-          equipped || staged
-            ? () => {
+        onSelect: equipped
+          ? () => {
+              if (staged) {
                 skills?.unstage(way.skill);
-                if (skills == null) {
-                  features?.set({ clip: false });
-                }
+              } else {
+                features?.set({ clip: false });
               }
-            : () => {
-                skills?.stage(way.skill);
-                features?.set({ clip: true, ask_user_question: true });
-                onCompose(localize(way.starter));
-              },
+            }
+          : () => {
+              skills?.stage(way.skill);
+              features?.set({ clip: true, ask_user_question: true });
+              onCompose(localize(way.starter));
+            },
       });
     }
     if (ways != null) {
