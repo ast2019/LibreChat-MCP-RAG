@@ -92,7 +92,7 @@ const SceneView: React.FC<{
   index: number;
 }> = ({ scene, brandName, brandColor, theme, index }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, height, width } = useVideoConfig();
   const visual = THEME_VISUALS[theme] ?? THEME_VISUALS['brand-dark'];
   const accent = resolveAccent(theme, brandColor);
   const brandIn = spring({ frame, fps, config: { damping: 18, stiffness: 120 } });
@@ -110,7 +110,17 @@ const SceneView: React.FC<{
     extrapolateRight: 'clamp',
   });
   const centered = visual.textAlign === 'center';
-  const contentTop = visual.decor === 'orbit' ? '52%' : undefined;
+  /** Orbit text sits under the stick figure; pad from height (CSS % padding is width-based). */
+  const orbitPad =
+    visual.decor === 'orbit'
+      ? (() => {
+          const bottom = Math.round(height * 0.08);
+          const side = Math.round(width * 0.1);
+          const minText = Math.round(height * 0.28);
+          const top = Math.min(Math.round(height * 0.52), height - bottom - minText);
+          return { paddingTop: top, paddingBottom: bottom, paddingLeft: side, paddingRight: side };
+        })()
+      : null;
 
   return (
     <AbsoluteFill
@@ -129,7 +139,7 @@ const SceneView: React.FC<{
       <ThemeDecor kind={visual.decor} accent={accent} />
       <AbsoluteFill
         style={{
-          padding: centered ? '8% 10%' : '10% 8%',
+          ...(orbitPad ?? { padding: centered ? '8% 10%' : '10% 8%' }),
           display: 'flex',
           flexDirection: 'column',
           justifyContent: centered ? 'flex-end' : 'center',
@@ -137,7 +147,6 @@ const SceneView: React.FC<{
           gap: 22,
           direction: visual.direction ?? 'rtl',
           textAlign: visual.textAlign ?? 'right',
-          paddingTop: contentTop,
         }}
       >
         <div
