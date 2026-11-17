@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.20] - 2026-11-17
+
+### Fixed
+- **Coolify deploy of the Remotion clip worker.** `deploy/remotion/Dockerfile` installed
+  `fonts-vazirmatn` from apt on `node:20-bookworm-slim`, but that package is not in Debian
+  bookworm (`E: Unable to locate package fonts-vazirmatn`), so the compose build failed and
+  HiveGPT stayed on 0.38.18. The image now vendors Vazirmatn (SIL OFL) under `fonts/` and uses
+  Noto from apt.
+
 ## [0.38.19] - 2026-11-17
 
 ### Added

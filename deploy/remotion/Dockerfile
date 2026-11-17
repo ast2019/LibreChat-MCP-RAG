@@ -1,4 +1,6 @@
 # HiveGPT Remotion clip worker: renders short MP4s for the api (max 2 concurrent by default).
+# Base is Debian bookworm; do not apt-install fonts-vazirmatn (that package is only on
+# trixie/sid and Ubuntu). Vazirmatn ships in fonts/ (same SIL OFL faces as Office).
 FROM node:20-bookworm-slim
 
 RUN apt-get update \
@@ -6,13 +8,19 @@ RUN apt-get update \
     chromium \
     fonts-liberation \
     fonts-noto-color-emoji \
-    fonts-vazirmatn \
+    fonts-noto-core \
     ffmpeg \
     python3 \
     python3-pip \
     ca-certificates \
+    fontconfig \
   && pip3 install --no-cache-dir --break-system-packages edge-tts \
   && rm -rf /var/lib/apt/lists/*
+
+# Persian face for Remotion Chromium (Regular + Bold).
+COPY fonts/Vazirmatn-Regular.ttf fonts/Vazirmatn-Bold.ttf /usr/local/share/fonts/vazirmatn/
+COPY fonts/Vazirmatn-OFL.txt /usr/local/share/fonts/vazirmatn/
+RUN fc-cache -f
 
 WORKDIR /app
 COPY package.json package-lock.json ./
