@@ -15,7 +15,7 @@ const shared = `The chat shows the file as a video card; do not invent a downloa
 export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
   [ClipTools.clip]: {
     name: ClipTools.clip,
-    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Every other theme is a full style film (vendored Remotion animation-styles + HiveGPT extras): real SVG/canvas motion of the pour story with caption overlay from scenes — not a colour skin. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350 for ~5s. Audio: mode "tts", "upload", or "none". ${shared}`,
+    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Other themes are full style films from the vendored deenukhan/animation-styles Remotion pack (real SVG/canvas motion with caption overlay) — only catalog-backed looks are offered. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350 for ~5s. Audio: mode "tts", "upload", or "none". ${shared}`,
     schema: {
       type: 'object',
       properties: {
@@ -34,7 +34,7 @@ export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
           type: 'string',
           enum: [...CLIP_THEMES],
           description:
-            'Visual shell or Claude animation style. Default brand-dark. Animation styles: comic-art, cgi-motion, lego, chalkboard, pixel-art, flat-vector, zackd-films, glow-sketch, ps2, dan-koe.',
+            'Visual shell or catalog style film. Default brand-dark. Style films: chalkboard, pixel-art, flat-vector, woodblock-print, cartoon-1930s, brick-toy, paper-cut, maths-diagram, cartoon-explainer, blueprint, watercolor, claymation.',
         },
         brand_name: { type: 'string', description: 'Brand line, default HiveGPT.' },
         brand_color: {

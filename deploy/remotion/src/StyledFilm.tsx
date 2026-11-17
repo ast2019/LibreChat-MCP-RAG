@@ -89,7 +89,7 @@ const CaptionOverlay: React.FC<{
 };
 
 /**
- * Full style film (vendored animation-styles + HiveGPT extras) with caption/brand overlay.
+ * Full style film (vendored animation-styles catalog) with caption/brand overlay.
  * Native size is 1080×1350 @ 30fps for 5s; the worker may scale the output.
  */
 export const HiveGPTStyledFilm: React.FC<StyledFilmProps> = ({

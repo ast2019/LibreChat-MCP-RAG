@@ -1,7 +1,7 @@
 ---
 name: animation-styles
 display-title: استایل‌های انیمیشن
-description: Full Remotion style films on HiveGPT (comic, chalkboard, claymation, synthwave, sumi/ukiyo-e, brick toy, pixel RPG, …). Prefer when the user asks for Claude animation styles or a stylized short silent/ narrated film. Uses create_remotion_clip.
+description: Catalog Remotion style films on HiveGPT (chalkboard, claymation, brick toy, pixel RPG, woodcut, papercut, …). Prefer when the user asks for Claude animation styles or a stylized short film. Uses create_remotion_clip.
 allowed-tools:
   - create_remotion_clip
 license: MIT
@@ -10,8 +10,8 @@ license: MIT
 # استایل‌های انیمیشن
 
 HiveGPT vendors the open [deenukhan/animation-styles](https://github.com/deenukhan/animation-styles)
-Remotion pack (MIT) plus HiveGPT extras. Rendering happens on the Remotion worker via
-`create_remotion_clip` — you do not write new Remotion files in chat.
+Remotion pack (MIT). Rendering happens on the Remotion worker via `create_remotion_clip` — you do
+not write new Remotion files in chat. Only themes mapped to a real catalog film are selectable.
 
 ## Flow
 
@@ -23,4 +23,4 @@ Remotion pack (MIT) plus HiveGPT extras. Rendering happens on the Remotion worke
 
 ## Restyle
 
-«همین را claymation کن» / «synthwave»: keep scenes and audio, change `theme`, bump `version`.
+«همین را claymation کن» / «pixel-art»: keep scenes and audio, change `theme`, bump `version`.

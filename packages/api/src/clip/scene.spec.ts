@@ -24,47 +24,47 @@ describe('parseClipInput', () => {
     });
   });
 
-  it('accepts Claude animation style themes and aliases', () => {
-    const spec = parseClipInput(
+  it('accepts catalog style-film themes and paper-cut alias', () => {
+    const chalk = parseClipInput(
       {
-        title: 'orbit',
-        theme: 'dan-koe',
+        title: 'board',
+        theme: 'chalkboard',
         scenes: [{ type: 'title', duration_sec: 4, heading: 'Focus' }],
         audio: { mode: 'none' },
       },
       config,
     );
-    expect(spec).toMatchObject({ theme: 'dan-koe' });
-    const comic = parseClipInput(
+    expect(chalk).toMatchObject({ theme: 'chalkboard' });
+    const clay = parseClipInput(
       {
-        title: 'boom',
-        theme: 'comic-art',
-        scenes: [{ type: 'bullets', duration_sec: 5, heading: 'Pow', bullets: ['a', 'b'] }],
+        title: 'clay',
+        theme: 'claymation',
+        scenes: [{ type: 'bullets', duration_sec: 5, heading: 'Shape', bullets: ['a', 'b'] }],
         audio: { mode: 'none' },
       },
       config,
     );
-    expect(comic).toMatchObject({ theme: 'comic-art' });
+    expect(clay).toMatchObject({ theme: 'claymation' });
     const aliased = parseClipInput(
       {
-        title: 'neon',
-        theme: 'neon-synth',
+        title: 'paper',
+        theme: 'paper-cutout',
+        scenes: [{ type: 'title', duration_sec: 3, heading: 'Cut' }],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(aliased).toMatchObject({ theme: 'paper-cut' });
+    const unknown = parseClipInput(
+      {
+        title: 'gone',
+        theme: 'synthwave',
         scenes: [{ type: 'title', duration_sec: 3, heading: 'Glow' }],
         audio: { mode: 'none' },
       },
       config,
     );
-    expect(aliased).toMatchObject({ theme: 'synthwave' });
-    const sumi = parseClipInput(
-      {
-        title: 'ink',
-        theme: 'sumi-ink',
-        scenes: [{ type: 'title', duration_sec: 3, heading: 'Ink' }],
-        audio: { mode: 'none' },
-      },
-      config,
-    );
-    expect(sumi).toMatchObject({ theme: 'sumi-ink' });
+    expect(unknown).toMatchObject({ theme: 'brand-dark' });
   });
 
   it('requires upload file_id and clamps duration to 30s', () => {
@@ -109,7 +109,7 @@ describe('dimensionsFor / narrationTextFromSpec', () => {
     const long = parseClipInput(
       {
         title: 'style',
-        theme: 'synthwave',
+        theme: 'claymation',
         duration_sec: 20,
         scenes: [
           { type: 'title', duration_sec: 10, heading: 'a' },
@@ -119,7 +119,7 @@ describe('dimensionsFor / narrationTextFromSpec', () => {
       },
       config,
     );
-    expect(long).toMatchObject({ theme: 'synthwave', durationSec: 5 });
+    expect(long).toMatchObject({ theme: 'claymation', durationSec: 5 });
   });
 
   it('joins scene text for TTS when tts_text is absent', () => {
