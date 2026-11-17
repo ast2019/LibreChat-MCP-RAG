@@ -1,7 +1,7 @@
 ---
 name: clip-builder
 display-title: کلیپ‌ساز
-description: Plans and builds a short branded MP4 clip on the HiveGPT Remotion worker - titles, bullets, captions, optional TTS or uploaded narration (کلیپ، ریلز، تیک‌تاک، استوری، ویدیو کوتاه). Use when the user wants a short clip or reel.
+description: Plans and builds a short branded MP4 clip on the HiveGPT Remotion worker - titles, bullets, captions, optional TTS or uploaded narration, plus Claude animation styles (کلیپ، ریلز، تیک‌تاک، استوری، ویدیو کوتاه، comic, lego, pixel, dan koe). Use when the user wants a short clip or reel.
 allowed-tools:
   - create_remotion_clip
 license: MIT
@@ -21,17 +21,24 @@ Go one step per message and wait where a step says so.
    - topic and the one message the clip should leave
    - length: ۵ ثانیه، ۱۵ ثانیه (default)، ۳۰ ثانیه (hard max)
    - aspect: عمودی ۹:۱۶ (default for Reels/TikTok)، افقی ۱۶:۹
-   - theme: تیره برند (`brand-dark`, default)، روشن برند (`brand-light`)، ساده یو‌جی‌سی (`ugc`)
+   - look / theme (default `brand-dark`). Offer brand shells first, then animation styles when the
+     user wants a stylized clip. Ids for `theme`:
+     - brand: `brand-dark`, `brand-light`, `ugc`
+     - animation: `comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`,
+       `zackd-films`, `glow-sketch`, `ps2`, `dan-koe`
+     Labels the user may say: Comic Art, CGI Motion, Lego Style, Chalkboard, Pixel Art,
+     Flat Vector, ZackD Films, Glow Sketch, PS2 Style, Dan Koe Style.
    - audio, always asked: «بدون صدا» (default)، «متن به گفتار» (TTS on the server, free for
      now)، «صوت خودم» (the user attaches an audio file to a message)
-   Building the clip does not add a separate fee beyond this conversation's token use.
+   Building the clip does not add a separate fee beyond the conversation's token use.
 2. **Outline (wait).** One line per scene: its type (`title`, `bullets`, `closing`), about how
    many seconds, and what it says. Durations should sum to the chosen length (at most ۳۰ ثانیه).
    Ask the user to approve or change it; when `ask_user_question` is available, one question with
    «تأیید طرح کلیپ» and «تغییر می‌خواهم» after the outline in the message.
-3. **Build.** Call `create_remotion_clip` with every scene, then tell the user in two or three
-   lines what the clip has. The chat shows the MP4 as a video card; do not invent a download link.
-   Put the markdown the tool returns into your reply exactly so the video plays.
+3. **Build.** Call `create_remotion_clip` with every scene and the chosen `theme`, then tell the
+   user in two or three lines what the clip has. The chat shows the MP4 as a video card; do not
+   invent a download link. Put the markdown the tool returns into your reply exactly so the video
+   plays.
 
 ## Scenes that work
 
@@ -39,6 +46,9 @@ Go one step per message and wait where a step says so.
 - `title` for the hook, `bullets` for two to four short points, `closing` for the last line or CTA.
 - Keep headings short; bodies under about one sentence. Bullets: at most six, each under about
   twelve words.
+- Animation styles change the Remotion look (colors, decorations, stick-figure orbits for
+  `dan-koe`, chalkboard dust, comic halftone, PS2 scanlines, …). Scene types stay the same; do
+  not invent new scene types or claim character lip-sync.
 - Audio:
   - `none`: silent clip
   - `tts`: set `audio.mode` to `tts`; optional `audio.tts_text`, otherwise headings and bodies are
@@ -49,7 +59,8 @@ Go one step per message and wait where a step says so.
 
 ## Changes after delivery
 
-- «کوتاه‌ترش کن»، «صحنه ۲ را عوض کن»، «با صوت خودم»: change only what they asked and keep the rest.
+- «کوتاه‌ترش کن»، «صحنه ۲ را عوض کن»، «با استایل Pixel Art»، «با صوت خودم»: change only what they
+  asked and keep the rest.
 - Then call the tool again with every scene and the next `version`; earlier versions stay in
   «خروجی‌های این گفتگو».
 - If the tool says the queue is full (only two clips render at once), tell the user to wait a

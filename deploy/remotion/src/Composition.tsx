@@ -8,9 +8,16 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { ThemeDecor } from './decorations';
+import {
+  resolveAccent,
+  resolveTheme,
+  THEME_VISUALS,
+  type ClipTheme,
+  type SceneType,
+} from './themes';
 
-export type SceneType = 'title' | 'bullets' | 'closing';
-export type ClipTheme = 'brand-dark' | 'brand-light' | 'ugc';
+export type { ClipTheme, SceneType };
 
 export interface ClipScene {
   type: SceneType;
@@ -30,28 +37,51 @@ export interface ClipProps {
   audioSrc?: string;
 }
 
-const THEMES: Record<
-  ClipTheme,
-  { bg: string; fg: string; muted: string; gradient: string }
-> = {
-  'brand-dark': {
-    bg: '#0b1412',
-    fg: '#f4f7f5',
-    muted: 'rgba(244,247,245,0.78)',
-    gradient: 'radial-gradient(ellipse at 50% 18%, rgba(46, 168, 132, 0.45) 0%, transparent 55%)',
-  },
-  'brand-light': {
-    bg: '#f7faf8',
-    fg: '#0b1412',
-    muted: 'rgba(11,20,18,0.72)',
-    gradient: 'radial-gradient(ellipse at 50% 12%, rgba(46, 168, 132, 0.22) 0%, transparent 55%)',
-  },
-  ugc: {
-    bg: '#121212',
-    fg: '#ffffff',
-    muted: 'rgba(255,255,255,0.78)',
-    gradient: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)',
-  },
+const BulletMark: React.FC<{
+  shape: (typeof THEME_VISUALS)[ClipTheme]['bulletShape'];
+  color: string;
+}> = ({ shape, color }) => {
+  if (shape === 'square' || shape === 'pixel' || shape === 'brick') {
+    return (
+      <span
+        style={{
+          width: shape === 'brick' ? 16 : 12,
+          height: shape === 'brick' ? 10 : 12,
+          marginTop: 10,
+          borderRadius: shape === 'brick' ? 2 : 0,
+          backgroundColor: color,
+          flexShrink: 0,
+          boxShadow: shape === 'brick' ? 'inset 0 1px 0 rgba(255,255,255,0.35)' : undefined,
+        }}
+      />
+    );
+  }
+  if (shape === 'dash' || shape === 'chalk') {
+    return (
+      <span
+        style={{
+          width: 16,
+          height: shape === 'chalk' ? 3 : 2,
+          marginTop: 14,
+          backgroundColor: color,
+          flexShrink: 0,
+          opacity: 0.9,
+        }}
+      />
+    );
+  }
+  return (
+    <span
+      style={{
+        width: 10,
+        height: 10,
+        marginTop: 12,
+        borderRadius: 999,
+        backgroundColor: color,
+        flexShrink: 0,
+      }}
+    />
+  );
 };
 
 const SceneView: React.FC<{
@@ -63,7 +93,8 @@ const SceneView: React.FC<{
 }> = ({ scene, brandName, brandColor, theme, index }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const colors = THEMES[theme] ?? THEMES['brand-dark'];
+  const visual = THEME_VISUALS[theme] ?? THEME_VISUALS['brand-dark'];
+  const accent = resolveAccent(theme, brandColor);
   const brandIn = spring({ frame, fps, config: { damping: 18, stiffness: 120 } });
   const headlineIn = spring({
     frame: frame - 8,
@@ -78,36 +109,46 @@ const SceneView: React.FC<{
   const progress = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
     extrapolateRight: 'clamp',
   });
+  const centered = visual.textAlign === 'center';
+  const contentTop = visual.decor === 'orbit' ? '52%' : undefined;
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: colors.bg,
-        color: colors.fg,
-        fontFamily: '"Vazirmatn", "Tahoma", "Segoe UI", system-ui, sans-serif',
+        backgroundColor: visual.bg,
+        color: visual.fg,
+        fontFamily: visual.fontFamily,
         overflow: 'hidden',
+        border: visual.border,
+        boxSizing: 'border-box',
       }}
     >
-      <AbsoluteFill style={{ background: colors.gradient }} />
+      {visual.gradient !== 'none' ? (
+        <AbsoluteFill style={{ background: visual.gradient }} />
+      ) : null}
+      <ThemeDecor kind={visual.decor} accent={accent} />
       <AbsoluteFill
         style={{
-          padding: '10% 8%',
+          padding: centered ? '8% 10%' : '10% 8%',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
+          justifyContent: centered ? 'flex-end' : 'center',
+          alignItems: centered ? 'center' : undefined,
           gap: 22,
-          direction: 'rtl',
-          textAlign: 'right',
+          direction: visual.direction ?? 'rtl',
+          textAlign: visual.textAlign ?? 'right',
+          paddingTop: contentTop,
         }}
       >
         <div
           style={{
             opacity: brandIn,
             transform: `translateY(${(1 - brandIn) * 20}px)`,
-            fontSize: 26,
-            letterSpacing: '0.06em',
-            color: brandColor,
-            fontWeight: 700,
+            fontSize: visual.brandSize,
+            letterSpacing: visual.letterSpacing ?? '0.06em',
+            color: accent,
+            fontWeight: visual.fontWeight ?? 700,
+            textShadow: visual.textShadow,
           }}
         >
           {brandName}
@@ -117,10 +158,11 @@ const SceneView: React.FC<{
             style={{
               opacity: headlineIn,
               transform: `translateY(${(1 - headlineIn) * 28}px)`,
-              fontSize: scene.type === 'title' ? 56 : 44,
+              fontSize: scene.type === 'title' ? visual.titleSize : visual.headingSize,
               lineHeight: 1.3,
-              fontWeight: 800,
-              maxWidth: '92%',
+              fontWeight: visual.fontWeight ?? 800,
+              maxWidth: centered ? '88%' : '92%',
+              textShadow: visual.textShadow,
             }}
           >
             {scene.heading}
@@ -131,10 +173,11 @@ const SceneView: React.FC<{
             style={{
               opacity: bodyIn,
               transform: `translateY(${(1 - bodyIn) * 18}px)`,
-              fontSize: 28,
+              fontSize: visual.bodySize,
               lineHeight: 1.55,
-              color: colors.muted,
-              maxWidth: '90%',
+              color: visual.muted,
+              maxWidth: centered ? '86%' : '90%',
+              textShadow: visual.textShadow,
             }}
           >
             {scene.body}
@@ -150,9 +193,11 @@ const SceneView: React.FC<{
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
-              fontSize: 28,
+              fontSize: visual.bodySize,
               lineHeight: 1.4,
-              color: colors.muted,
+              color: visual.muted,
+              alignItems: centered ? 'center' : undefined,
+              maxWidth: '92%',
             }}
           >
             {scene.bullets.map((bullet, i) => (
@@ -162,19 +207,11 @@ const SceneView: React.FC<{
                   display: 'flex',
                   gap: 12,
                   alignItems: 'flex-start',
+                  textAlign: visual.textAlign ?? 'right',
                 }}
               >
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    marginTop: 12,
-                    borderRadius: 999,
-                    backgroundColor: brandColor,
-                    flexShrink: 0,
-                  }}
-                />
-                <span>{bullet}</span>
+                <BulletMark shape={visual.bulletShape} color={accent} />
+                <span style={{ textShadow: visual.textShadow }}>{bullet}</span>
               </li>
             ))}
           </ul>
@@ -186,9 +223,9 @@ const SceneView: React.FC<{
           left: '6%',
           right: '6%',
           bottom: '4%',
-          height: 4,
-          backgroundColor: 'rgba(255,255,255,0.12)',
-          borderRadius: 999,
+          height: visual.bulletShape === 'pixel' ? 6 : 4,
+          backgroundColor: visual.progressTrack,
+          borderRadius: visual.bulletShape === 'pixel' ? 0 : 999,
           overflow: 'hidden',
         }}
       >
@@ -196,7 +233,7 @@ const SceneView: React.FC<{
           style={{
             height: '100%',
             width: `${progress * 100}%`,
-            backgroundColor: brandColor,
+            backgroundColor: accent,
           }}
         />
       </div>
@@ -212,6 +249,7 @@ export const HiveGPTClip: React.FC<ClipProps> = ({
   audioSrc,
 }) => {
   const { fps } = useVideoConfig();
+  const resolved = resolveTheme(theme);
   let from = 0;
   return (
     <AbsoluteFill>
@@ -226,7 +264,7 @@ export const HiveGPTClip: React.FC<ClipProps> = ({
               scene={scene}
               brandName={brandName}
               brandColor={brandColor}
-              theme={theme}
+              theme={resolved}
               index={index}
             />
           </Sequence>

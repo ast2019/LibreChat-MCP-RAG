@@ -24,6 +24,29 @@ describe('parseClipInput', () => {
     });
   });
 
+  it('accepts Claude animation style themes', () => {
+    const spec = parseClipInput(
+      {
+        title: 'orbit',
+        theme: 'dan-koe',
+        scenes: [{ type: 'title', duration_sec: 4, heading: 'Focus' }],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(spec).toMatchObject({ theme: 'dan-koe' });
+    const comic = parseClipInput(
+      {
+        title: 'boom',
+        theme: 'comic-art',
+        scenes: [{ type: 'bullets', duration_sec: 5, heading: 'Pow', bullets: ['a', 'b'] }],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(comic).toMatchObject({ theme: 'comic-art' });
+  });
+
   it('requires upload file_id and clamps duration to 30s', () => {
     expect(
       parseClipInput(

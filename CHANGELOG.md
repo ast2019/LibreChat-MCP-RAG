@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.21] - 2026-11-17
+
+### Added
+- **Ten Claude animation styles on the Remotion clip builder.** Besides `brand-dark`,
+  `brand-light` and `ugc`, `create_remotion_clip` and the «کلیپ‌ساز» skill accept
+  `comic-art`, `cgi-motion`, `lego`, `chalkboard`, `pixel-art`, `flat-vector`, `zackd-films`,
+  `glow-sketch`, `ps2` and `dan-koe` — each with its own Remotion colors, type and decorations
+  (halftone, brick studs, chalk dust, scanlines, orbit stick figure, …). Scene types stay
+  title / bullets / closing.
+
 ## [0.38.20] - 2026-11-17
 
 ### Fixed

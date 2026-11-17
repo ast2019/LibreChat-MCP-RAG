@@ -8,6 +8,13 @@ export {
   buildClipToolContext,
 } from './config';
 export type { RemotionServiceTarget } from './config';
+export {
+  CLIP_THEMES,
+  CLIP_THEME_LABELS,
+  CLIP_THEME_SET,
+  isClipTheme,
+} from './themes';
+export type { ClipTheme } from './themes';
 export { createClipTools } from './tools';
 export { getClipAttachments } from './attachments';
 export { clipToolDefinitions } from './definitions';

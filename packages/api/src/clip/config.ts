@@ -86,7 +86,7 @@ export function buildClipToolContext(
     Boolean(file?.file_id),
   );
   const parts = [
-    'Build short branded MP4 clips with create_remotion_clip (max 30s, 720p). Ask before rendering.',
+    'Build short MP4 clips with create_remotion_clip (max 30s, 720p). Themes include brand-dark/light, ugc, and animation styles comic-art, cgi-motion, lego, chalkboard, pixel-art, flat-vector, zackd-films, glow-sketch, ps2, dan-koe. Ask before rendering.',
   ];
   if (images.length > 0) {
     parts.push(
