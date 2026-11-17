@@ -9,6 +9,7 @@ export * from './referral';
 export * from './media';
 export * from './persian';
 export * from './office';
+export * from './clip';
 export * from './browser';
 export * from './debug';
 export * from './footer';

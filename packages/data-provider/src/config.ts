@@ -51,6 +51,8 @@ import { mediaGenerationSchema } from './media';
 import { browserConfigSchema } from './browser';
 import { persianToolsSchema } from './persian';
 import { officeToolsSchema } from './office';
+import { clipToolsSchema } from './clip';
+import type { TClipToolsStartupConfig } from './clip';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -3675,6 +3677,8 @@ export type TStartupConfig = {
   referral?: TReferralStartupConfig;
   /** The Word and PowerPoint builders ordinary chats offer, from `officeTools` */
   officeTools?: TOfficeToolsStartupConfig;
+  /** The Remotion clip builder ordinary chats offer, from `clipTools` */
+  clipTools?: TClipToolsStartupConfig;
   /** The agent browser is set up, so the composer may offer it to users who have it */
   browser?: TBrowserStartupConfig;
   /** Where `interface.currency.rate` came from: the live source, or the yaml fallback. */
@@ -4818,6 +4822,8 @@ export const configSchema = z.object({
   persianTools: persianToolsSchema.optional(),
   /** The in-chat Word and PowerPoint builders (the article wizard and the slide builder). */
   officeTools: officeToolsSchema.optional(),
+  /** Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). */
+  clipTools: clipToolsSchema.optional(),
   /** The agent browser's limits (experimental). */
   browser: browserConfigSchema.optional(),
   transactions: transactionsSchema.optional(),

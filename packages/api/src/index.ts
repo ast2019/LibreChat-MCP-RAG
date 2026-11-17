@@ -23,6 +23,7 @@ export * from './billing';
 export * from './media';
 export * from './persian';
 export * from './office';
+export * from './clip';
 export * from './browser';
 /* admin debug mode */
 export * from './debug';

@@ -1,4 +1,9 @@
-import { OfficeTools, OFFICE_TOOL_SKILLS } from 'librechat-data-provider';
+import {
+  ClipTools,
+  CLIP_TOOL_SKILLS,
+  OfficeTools,
+  OFFICE_TOOL_SKILLS,
+} from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 
 /**
@@ -8,4 +13,5 @@ import type { TranslationKeys } from '~/hooks/useLocalize';
 export const FEATURE_SKILL_LABELS: Readonly<Record<string, TranslationKeys>> = {
   [OFFICE_TOOL_SKILLS[OfficeTools.word][0]]: 'com_ui_create_article',
   [OFFICE_TOOL_SKILLS[OfficeTools.slides][0]]: 'com_ui_create_slides',
+  [CLIP_TOOL_SKILLS[ClipTools.clip][0]]: 'com_ui_create_clip',
 };

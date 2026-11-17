@@ -79,6 +79,7 @@ const {
   getOutboundTimeoutMs,
   buildMediaToolContext,
   buildOfficeToolContext,
+  buildClipToolContext,
   buildBrowserToolContext,
 } = require('@librechat/api');
 const {
@@ -108,6 +109,7 @@ const {
   resolveMCPAppsPolicy,
   MEDIA_TOOL_NAMES,
   OFFICE_TOOL_NAMES,
+  CLIP_TOOL_NAMES,
   BROWSER_TOOL_NAMES,
   PERSIAN_TOOL_NAMES,
 } = require('librechat-data-provider');
@@ -793,6 +795,7 @@ const nativeTools = new Set([
   Tools.memory,
   ...MEDIA_TOOL_NAMES,
   ...OFFICE_TOOL_NAMES,
+  ...CLIP_TOOL_NAMES,
   ...BROWSER_TOOL_NAMES,
   ...PERSIAN_TOOL_NAMES,
 ]);
@@ -1635,7 +1638,13 @@ async function loadToolDefinitionsWrapper({
   );
 
   const imageFiles = tool_resources?.[EToolResources.image_edit]?.files ?? [];
+  const contextFiles = tool_resources?.[EToolResources.context]?.files ?? [];
+  const audioFiles = contextFiles.filter((file) => file?.type?.startsWith?.('audio/'));
   Object.assign(dynamicToolContextMap, buildOfficeToolContext(filteredTools, imageFiles));
+  Object.assign(
+    dynamicToolContextMap,
+    buildClipToolContext(filteredTools, imageFiles, audioFiles),
+  );
   Object.assign(dynamicToolContextMap, buildBrowserToolContext(filteredTools));
   if (imageFiles.length > 0) {
     const hasOaiImageGen = filteredTools.includes('image_gen_oai');
