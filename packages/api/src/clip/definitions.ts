@@ -1,4 +1,5 @@
 import { ClipTools } from 'librechat-data-provider';
+import { CLIP_THEMES, CLIP_THEME_LABELS } from './themes';
 
 export interface ClipToolDefinition {
   name: ClipTools;
@@ -7,12 +8,14 @@ export interface ClipToolDefinition {
   responseFormat: 'content_and_artifact';
 }
 
+const themeList = CLIP_THEMES.map((id) => `${id} (${CLIP_THEME_LABELS[id]})`).join(', ');
+
 const shared = `The chat shows the file as a video card; do not invent a download link. Rendering uses the HiveGPT Remotion worker (not the user's computer). Clips are at most 30 seconds at 720p. Building the clip does not add a separate fee beyond this conversation's token use. To change a clip, call the tool again with the full updated scene and the next version.`;
 
 export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
   [ClipTools.clip]: {
     name: ClipTools.clip,
-    description: `Renders a short branded vertical or landscape MP4 on the HiveGPT server with Remotion (titles, bullets, captions, optional narration). Use after the «clip-builder» / کلیپ‌ساز skill brief: confirm topic, duration, aspect ratio, theme and audio mode, show a one-line-per-scene outline, wait for approval, then call this tool. Audio: mode "tts" (server synthesizes Persian/English narration from audio.tts_text or from the scenes), mode "upload" (audio.file_id of a file the user attached), or mode "none". ${shared}`,
+    description: `Renders a short branded vertical or landscape MP4 on the HiveGPT server with Remotion (titles, bullets, captions, optional narration). Use after the «clip-builder» / کلیپ‌ساز skill brief: confirm topic, duration, aspect ratio, theme/animation style and audio mode, show a one-line-per-scene outline, wait for approval, then call this tool. Themes: ${themeList}. Audio: mode "tts" (server synthesizes Persian/English narration from audio.tts_text or from the scenes), mode "upload" (audio.file_id of a file the user attached), or mode "none". ${shared}`,
     schema: {
       type: 'object',
       properties: {
@@ -28,13 +31,14 @@ export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
         },
         theme: {
           type: 'string',
-          enum: ['brand-dark', 'brand-light', 'ugc'],
-          description: 'Visual shell. Default brand-dark.',
+          enum: [...CLIP_THEMES],
+          description:
+            'Visual shell or Claude animation style. Default brand-dark. Animation styles: comic-art, cgi-motion, lego, chalkboard, pixel-art, flat-vector, zackd-films, glow-sketch, ps2, dan-koe.',
         },
         brand_name: { type: 'string', description: 'Brand line, default HiveGPT.' },
         brand_color: {
           type: 'string',
-          description: 'Accent hex, e.g. #2ea884.',
+          description: 'Accent hex, e.g. #2ea884. Some animation styles ignore it for their look.',
         },
         logo_file_id: {
           type: 'string',

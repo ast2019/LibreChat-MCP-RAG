@@ -18,7 +18,21 @@ const BODY_LIMIT = 25 * 1024 * 1024;
 const ENTRY = path.join(__dirname, 'index.ts');
 
 const HEX = /^#([0-9a-fA-F]{6})$/;
-const THEMES = new Set(['brand-dark', 'brand-light', 'ugc']);
+const THEMES = new Set([
+  'brand-dark',
+  'brand-light',
+  'ugc',
+  'comic-art',
+  'cgi-motion',
+  'lego',
+  'chalkboard',
+  'pixel-art',
+  'flat-vector',
+  'zackd-films',
+  'glow-sketch',
+  'ps2',
+  'dan-koe',
+]);
 
 let bundleLocationPromise;
 const getBundle = () => {

@@ -77,5 +77,6 @@ describe('buildClipToolContext', () => {
   it('still describes the tool when nothing is attached', () => {
     const context = buildClipToolContext([ClipTools.clip], [], []);
     expect(context[ClipTools.clip]).toContain('create_remotion_clip');
+    expect(context[ClipTools.clip]).toContain('dan-koe');
   });
 });
