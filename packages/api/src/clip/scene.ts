@@ -134,6 +134,10 @@ export function parseClipInput(
 
   const aspectRatio = input.aspect_ratio === '16:9' ? '16:9' : '9:16';
   const theme: ClipTheme = resolveClipTheme(input.theme);
+  /** Style films are authored at a fixed 5s; clamp so the reported length matches the MP4. */
+  if (usesStyleFilm(theme)) {
+    durationSec = STYLE_FILM_SIZE.durationSec;
+  }
   const brandName = str(input.brand_name, 40) ?? 'HiveGPT';
   const brandColor =
     typeof input.brand_color === 'string' && HEX.test(input.brand_color.trim())

@@ -22,7 +22,8 @@ export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
         title: { type: 'string', description: 'Clip title for the filename and brand line.' },
         duration_sec: {
           type: 'number',
-          description: 'Total length in seconds, 1–30. Defaults to the sum of scene durations.',
+          description:
+            'Total length in seconds, 1–30 for brand slides. Style-film themes are always ~5s (clamped); defaults to the sum of scene durations for slides.',
         },
         aspect_ratio: {
           type: 'string',

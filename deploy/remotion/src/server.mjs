@@ -292,9 +292,10 @@ async function renderJob(input) {
       ok: true,
       videoBase64: buffer.toString('base64'),
       mime: 'video/mp4',
-      width,
-      height,
-      durationSec,
+      width: outWidth,
+      height: outHeight,
+      /** Always the rendered length (style films are fixed at 5s / 150 frames). */
+      durationSec: outDurationFrames / fps,
       renderMs: Date.now() - started,
     };
   } finally {

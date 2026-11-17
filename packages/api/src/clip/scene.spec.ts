@@ -105,6 +105,23 @@ describe('dimensionsFor / narrationTextFromSpec', () => {
     expect(dimensionsFor('16:9', 720, 'brand-dark')).toEqual({ width: 1280, height: 720 });
   });
 
+  it('clamps style-film duration to 5s so the reported length matches the MP4', () => {
+    const long = parseClipInput(
+      {
+        title: 'style',
+        theme: 'synthwave',
+        duration_sec: 20,
+        scenes: [
+          { type: 'title', duration_sec: 10, heading: 'a' },
+          { type: 'closing', duration_sec: 10, heading: 'b' },
+        ],
+        audio: { mode: 'none' },
+      },
+      config,
+    );
+    expect(long).toMatchObject({ theme: 'synthwave', durationSec: 5 });
+  });
+
   it('joins scene text for TTS when tts_text is absent', () => {
     const spec = parseClipInput(
       {
