@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.24] - 2026-11-18
+
+### Changed
+- **Clip themes trimmed to catalog-backed looks only.** Removed approximate / duplicate /
+  HiveGPT-extra themes that did not have a distinct real Remotion film (`dan-koe`, `synthwave`,
+  `sumi-ink`, `isometric`, `glow-atom`, `comic-art`, `lego`, `ps2`, …). Selectable style films are
+  now the twelve themes mapped 1:1 onto [deenukhan/animation-styles](https://github.com/deenukhan/animation-styles)
+  compositions, plus brand slides. Unknown former ids fall back to `brand-dark`.
+
 ## [0.38.23] - 2026-11-17
 
 ### Added

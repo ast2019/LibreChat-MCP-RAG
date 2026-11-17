@@ -86,7 +86,7 @@ export function buildClipToolContext(
     Boolean(file?.file_id),
   );
   const parts = [
-    'Build short MP4s with create_remotion_clip. brand-dark/light/ugc = text slides (≤30s). All other themes = full Remotion style films (~5s, 1080×1350) from the vendored animation-styles pack + HiveGPT extras. Ask before rendering.',
+    'Build short MP4s with create_remotion_clip. brand-dark/light/ugc = text slides (≤30s). Other themes = catalog style films (~5s, 1080×1350) from the vendored animation-styles pack (only looks that have a real film). Ask before rendering.',
   ];
   if (images.length > 0) {
     parts.push(

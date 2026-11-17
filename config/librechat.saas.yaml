@@ -531,8 +531,8 @@ officeTools:
 
 # Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). Free for now
 # (conversation tokens only). Max 30s at 720p; the worker runs at most 2 renders at once.
-# Themes: brand shells plus ~30 animation styles (comic, synthwave, sumi-ink, isometric,
-# claymation, blueprint, … — see skill/clip-builder and packages/api/src/clip/themes.ts).
+# Themes: brand shells plus catalog-backed style films (chalkboard, claymation, brick-toy,
+# pixel-art, … — see skill/clip-builder and packages/api/src/clip/themes.ts).
 clipTools:
   clip: true
   maxDurationSec: 30
