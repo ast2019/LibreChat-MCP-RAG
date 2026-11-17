@@ -37,6 +37,7 @@ jest.mock('@librechat/api', () => ({
   createToolTimingAdapter: jest.requireActual('@librechat/api').createToolTimingAdapter,
   stampCommandExecutor: jest.requireActual('@librechat/api').stampCommandExecutor,
   getOfficeAttachments: jest.requireActual('@librechat/api').getOfficeAttachments,
+  getClipAttachments: jest.requireActual('@librechat/api').getClipAttachments,
 }));
 
 jest.mock('@librechat/data-schemas', () => ({

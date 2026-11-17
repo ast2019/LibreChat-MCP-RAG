@@ -14,6 +14,7 @@ const {
   AgentCapabilities,
   MEDIA_TOOL_NAMES,
   OFFICE_TOOL_NAMES,
+  CLIP_TOOL_NAMES,
   BROWSER_TOOL_NAMES,
   PERSIAN_TOOL_NAMES,
   defaultAgentCapabilities,
@@ -242,6 +243,7 @@ describe('isBuiltInTool — chat tools outside the manifest', () => {
   it.each([
     ['media', MEDIA_TOOL_NAMES],
     ['office', OFFICE_TOOL_NAMES],
+    ['clip', CLIP_TOOL_NAMES],
     ['browser', BROWSER_TOOL_NAMES],
     ['persian', PERSIAN_TOOL_NAMES],
   ])('accepts every %s tool', (_label, names) => {

@@ -148,6 +148,7 @@ import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
 import { getSkillOfficeTools } from '~/office/config';
+import { getSkillClipTools } from '~/clip/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
 import { getAgentInferencePolicy } from './input';
@@ -1565,6 +1566,7 @@ export async function initializeAgent(
     const preloaded = [
       ...getSkillPersianTools(skillScope),
       ...getSkillOfficeTools(appConfig, skillScope),
+      ...getSkillClipTools(appConfig, skillScope),
     ].filter((name) => !baseToolNames.includes(name) && !extraAllowedToolNames.includes(name));
     if (preloaded.length > 0) {
       extraAllowedToolNames = [...extraAllowedToolNames, ...preloaded];

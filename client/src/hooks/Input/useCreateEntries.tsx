@@ -1,7 +1,13 @@
 import React, { useMemo } from 'react';
-import { OfficeTools, OFFICE_TOOL_SKILLS } from 'librechat-data-provider';
+import {
+  ClipTools,
+  CLIP_TOOL_SKILLS,
+  OfficeTools,
+  OFFICE_TOOL_SKILLS,
+} from 'librechat-data-provider';
 import {
   Wand2,
+  Film,
   AudioLines,
   NotebookPen,
   Clapperboard,
@@ -12,6 +18,7 @@ import {
 import type {
   TMediaWayId,
   TMediaWayState,
+  TClipToolsStartupConfig,
   TOfficeToolsStartupConfig,
 } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
@@ -82,6 +89,27 @@ const OFFICE_WAYS: ReadonlyArray<{
   },
 ];
 
+/** The Remotion clip builder: starts its skill and its request. */
+const CLIP_WAYS: ReadonlyArray<{
+  id: 'clip';
+  tool: keyof TClipToolsStartupConfig;
+  skill: string;
+  label: TranslationKeys;
+  hint: TranslationKeys;
+  starter: TranslationKeys;
+  icon: React.ElementType;
+}> = [
+  {
+    id: 'clip',
+    tool: 'clip',
+    skill: CLIP_TOOL_SKILLS[ClipTools.clip][0],
+    label: 'com_ui_create_clip',
+    hint: 'com_ui_create_clip_hint',
+    starter: 'com_ui_create_clip_starter',
+    icon: Film,
+  },
+];
+
 /** Why a way is off, in the same words the media dialog uses. */
 const STATE_LABEL: Partial<Record<TMediaWayState, TranslationKeys>> = {
   needs_pack: 'com_media_state_needs_pack',
@@ -93,12 +121,12 @@ const STATE_LABEL: Partial<Record<TMediaWayState, TranslationKeys>> = {
 
 /**
  * The palette's «ساختن» rows: image, video and audio, each with the reason it is off when it is,
- * then the article wizard and the slide builder, marked «آزمایشی». An available media way starts
- * the request in the composer; an unavailable one, and «همه روش‌ها», open the media dialog that
- * says what turns it on. The article and slide rows also turn their skill on for the next
- * message, when the user may use skills, and show as on until it is sent; picking one that is on
- * turns it off again. Ways the deployment has not set up are left out rather than offered as
- * dead rows.
+ * then the article wizard, the slide builder and the clip builder, marked «آزمایشی». An available
+ * media way starts the request in the composer; an unavailable one, and «همه روش‌ها», open the
+ * media dialog that says what turns it on. The article, slide and clip rows also turn their skill
+ * on for the next message, when the user may use skills, and show as on until it is sent; picking
+ * one that is on turns it off again. Ways the deployment has not set up are left out rather than
+ * offered as dead rows.
  */
 export default function useCreateEntries({
   enabled,
@@ -122,6 +150,7 @@ export default function useCreateEntries({
   const ways = status.data?.ways;
   const imageModels = status.data?.imageModels;
   const office = startupConfig?.officeTools;
+  const clip = startupConfig?.clipTools;
 
   return useMemo(() => {
     if (!enabled) {
@@ -200,6 +229,33 @@ export default function useCreateEntries({
             },
       });
     }
+    for (const way of CLIP_WAYS) {
+      if (clip?.[way.tool] !== true) {
+        continue;
+      }
+      const Icon = way.icon;
+      const staged = skills?.staged.includes(way.skill) === true;
+      entries.push({
+        key: `create:${way.id}`,
+        itemType: 'builtin',
+        itemId: `create_${way.id}`,
+        label: localize(way.label),
+        description: localize(way.hint),
+        badge: <ExperimentalBadge />,
+        icon: <Icon className="icon-md" aria-hidden="true" />,
+        section: 'create',
+        active: staged,
+        pinned: false,
+        favoritable: false,
+        dismiss: true,
+        onSelect: staged
+          ? () => skills?.unstage(way.skill)
+          : () => {
+              skills?.stage(way.skill);
+              onCompose(localize(way.starter));
+            },
+      });
+    }
     if (ways != null) {
       entries.push({
         key: 'create:all',
@@ -217,5 +273,5 @@ export default function useCreateEntries({
       });
     }
     return entries;
-  }, [enabled, ways, imageModels, imageModel, office, localize, onCompose, onShowAll, skills]);
+  }, [enabled, ways, imageModels, imageModel, office, clip, localize, onCompose, onShowAll, skills]);
 }

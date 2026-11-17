@@ -82,6 +82,10 @@ services:
       BROWSER_SERVICE_URL: http://browser:3100
       BROWSER_SERVICE_TOKEN: ${SERVICE_HEX_64_BROWSER}
 
+      # Remotion clip builder («کلیپ‌ساز»): short MP4s on the `remotion` service below.
+      REMOTION_SERVICE_URL: http://remotion:3200
+      REMOTION_SERVICE_TOKEN: ${SERVICE_HEX_64_REMOTION}
+
       # Users' own sites over MCP (cPanel, WordPress, NewsWatch): the `sitemcp` service below.
       # Only this token may call it; each user's site credentials travel per request.
       SITE_MCP_TOKEN: ${SERVICE_HEX_64_SITEMCP}
@@ -272,6 +276,31 @@ services:
     environment:
       SEARXNG_SECRET: ${SERVICE_HEX_64_SEARXNG}
       SEARXNG_BASE_URL: http://searxng:8080/
+
+  # Remotion clip worker: short branded MP4s (max 30s, 720p). Only the api calls it; leave
+  # its domain empty. At most two renders at once; further requests wait in a small queue.
+  remotion:
+    build:
+      context: ./deploy/remotion
+    restart: unless-stopped
+    environment:
+      REMOTION_SERVICE_TOKEN: ${SERVICE_HEX_64_REMOTION}
+      REMOTION_MAX_CONCURRENT: ${REMOTION_MAX_CONCURRENT:-2}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3200/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: ${REMOTION_CPUS:-2}
+          memory: ${REMOTION_MEMORY:-4g}
 
   # Agent browser (experimental): one headless Chromium per session, each behind its own
   # filtering proxy, so pages reach only public addresses on ports 80 and 443 (never this

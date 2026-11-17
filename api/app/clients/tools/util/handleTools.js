@@ -35,6 +35,7 @@ const {
   resolveMCPClientCapabilityProfile,
   createPersianTools,
   buildOfficeToolContext,
+  buildClipToolContext,
   buildBrowserToolContext,
 } = require('@librechat/api');
 const {
@@ -47,6 +48,7 @@ const {
   AgentCapabilities,
   MEDIA_TOOL_NAMES,
   OFFICE_TOOL_NAMES,
+  CLIP_TOOL_NAMES,
   BROWSER_TOOL_NAMES,
   PERSIAN_TOOL_NAMES,
   resolveMCPAppsPolicy,
@@ -216,6 +218,21 @@ const loadTools = async ({
           const imageFiles = options.tool_resources?.[EToolResources.image_edit]?.files ?? [];
           Object.assign(dynamicToolContextMap, buildOfficeToolContext([name], imageFiles));
           return require('~/server/services/Office').loadOfficeTools(options.req, [name]);
+        },
+      ]),
+    ),
+    ...Object.fromEntries(
+      CLIP_TOOL_NAMES.map((name) => [
+        name,
+        async (_toolContextMap, dynamicToolContextMap) => {
+          const imageFiles = options.tool_resources?.[EToolResources.image_edit]?.files ?? [];
+          const contextFiles = options.tool_resources?.[EToolResources.context]?.files ?? [];
+          const audioFiles = contextFiles.filter((file) => file?.type?.startsWith?.('audio/'));
+          Object.assign(
+            dynamicToolContextMap,
+            buildClipToolContext([name], imageFiles, audioFiles),
+          );
+          return require('~/server/services/Clip').loadClipTools(options.req, [name]);
         },
       ]),
     ),

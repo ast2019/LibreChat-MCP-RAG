@@ -1,4 +1,10 @@
-import { Constants, OfficeTools, BrowserTools, splitToolCallName } from 'librechat-data-provider';
+import {
+  Constants,
+  ClipTools,
+  OfficeTools,
+  BrowserTools,
+  splitToolCallName,
+} from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 
 /**
@@ -31,6 +37,7 @@ export const TOOL_FRIENDLY_NAME_KEYS: Record<string, TranslationKeys> = {
   read_file: 'com_ui_tool_name_read_file',
   [OfficeTools.word]: 'com_ui_tool_name_word_document',
   [OfficeTools.slides]: 'com_ui_tool_name_presentation',
+  [ClipTools.clip]: 'com_ui_tool_name_remotion_clip',
   [BrowserTools.open]: 'com_ui_tool_name_browser_open',
   [BrowserTools.read]: 'com_ui_tool_name_browser_read',
   [BrowserTools.act]: 'com_ui_tool_name_browser_act',

@@ -33,6 +33,7 @@ import { getCustomEndpointConfig } from '~/app/config';
 import { getChatPersianTools } from '~/persian/config';
 import { getChatBrowserTools } from '~/browser/config';
 import { getChatOfficeTools } from '~/office/config';
+import { getChatClipTools } from '~/clip/config';
 import { debugTrace } from '~/debug/recorder';
 
 const { mcp_all, mcp_delimiter } = Constants;
@@ -196,6 +197,8 @@ export async function loadEphemeralAgent(
   tools.push(...getChatPersianTools(req.config, modelSpec));
   /** Word and PowerPoint files built from the conversation (the article and slide builders). */
   tools.push(...getChatOfficeTools(req.config, modelSpec));
+  /** Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). */
+  tools.push(...getChatClipTools(req.config, modelSpec));
   /** The agent browser, when the user turned it on for this chat and may use it. */
   if (ephemeralAgent?.browser === true) {
     tools.push(...getChatBrowserTools(req.config, req.user, modelSpec));

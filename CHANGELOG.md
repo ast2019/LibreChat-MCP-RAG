@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.19] - 2026-11-17
+
+### Added
+- **Clip builder («کلیپ‌ساز») in «ساختن».** Ordinary chats can stage the `clip-builder` skill and
+  call `create_remotion_clip` to render a short branded MP4 on the new `remotion` Docker service
+  (max 30s, 720p, at most 2 concurrent renders with a queue). Audio may be none, free Edge TTS, or
+  an uploaded file. Building a clip does not charge credits beyond the conversation's tokens.
+  Configure with `clipTools` in yaml and `REMOTION_SERVICE_URL` / `REMOTION_SERVICE_TOKEN`.
+
 ## [0.38.18] - 2026-11-14
 
 ### Added

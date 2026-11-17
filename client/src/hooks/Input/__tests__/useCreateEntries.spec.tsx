@@ -1,5 +1,9 @@
 import { renderHook } from '@testing-library/react';
-import type { TMediaAvailability, TOfficeToolsStartupConfig } from 'librechat-data-provider';
+import type {
+  TMediaAvailability,
+  TClipToolsStartupConfig,
+  TOfficeToolsStartupConfig,
+} from 'librechat-data-provider';
 import useCreateEntries from '../useCreateEntries';
 
 const mockStatus = jest.fn();
@@ -23,7 +27,10 @@ const availability = (ways: TMediaAvailability['ways']): { data: TMediaAvailabil
   data: { paidOnly: true, hasPack: false, userSwitch: null, ways },
 });
 
-const office = (officeTools?: TOfficeToolsStartupConfig) => ({ data: { officeTools } });
+const office = (
+  officeTools?: TOfficeToolsStartupConfig,
+  clipTools?: TClipToolsStartupConfig,
+) => ({ data: { officeTools, clipTools } });
 
 describe('useCreateEntries', () => {
   const onCompose = jest.fn();
@@ -82,14 +89,15 @@ describe('useCreateEntries', () => {
     expect(mockStatus).toHaveBeenCalledWith(false);
   });
 
-  it('offers the article wizard and the slide builder, marked experimental, before «all ways»', () => {
+  it('offers the article wizard, the slide builder and the clip builder, marked experimental, before «all ways»', () => {
     mockStatus.mockReturnValue(availability([{ id: 'image', state: 'active' }]));
-    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
+    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }, { clip: true }));
     const entries = render();
     expect(entries.map((entry) => entry.key)).toEqual([
       'create:image',
       'create:article',
       'create:slides',
+      'create:clip',
       'create:all',
     ]);
     const article = entries[1];
@@ -104,11 +112,15 @@ describe('useCreateEntries', () => {
 
   it('turns the skill on for the next message and starts the request', () => {
     mockStatus.mockReturnValue(availability([]));
-    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }));
+    mockStartupConfig.mockReturnValue(office({ word: true, slides: true }, { clip: true }));
     const slides = render().find((entry) => entry.key === 'create:slides')!;
     slides.onSelect();
     expect(stage).toHaveBeenCalledWith('slide-builder');
     expect(onCompose).toHaveBeenCalledWith('com_ui_create_slides_starter');
+    const clip = render().find((entry) => entry.key === 'create:clip')!;
+    clip.onSelect();
+    expect(stage).toHaveBeenCalledWith('clip-builder');
+    expect(onCompose).toHaveBeenCalledWith('com_ui_create_clip_starter');
   });
 
   it('shows a staged row as on, and picking it again takes the skill off', () => {

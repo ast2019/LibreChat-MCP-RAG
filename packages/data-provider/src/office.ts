@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CLIP_TOOL_SKILLS } from './clip';
 
 /** In-chat tools that turn the conversation into Office files the user downloads and edits. */
 export enum OfficeTools {
@@ -20,7 +21,10 @@ export const OFFICE_TOOL_SKILLS: Readonly<Record<OfficeTools, readonly string[]>
  * Deployment skills behind a feature with its own row in the composer's «ساختن» menu. They are
  * left out of the skill lists, so each feature has one entry point, and that row stages them.
  */
-export const FEATURE_SKILL_NAMES: readonly string[] = Object.values(OFFICE_TOOL_SKILLS).flat();
+export const FEATURE_SKILL_NAMES: readonly string[] = [
+  ...Object.values(OFFICE_TOOL_SKILLS).flat(),
+  ...Object.values(CLIP_TOOL_SKILLS).flat(),
+];
 
 /** A deployment skill that belongs to a feature row rather than the skill lists. */
 export function isFeatureSkill(skill: { name: string; source?: string }): boolean {

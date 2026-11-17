@@ -529,6 +529,14 @@ officeTools:
   maxImages: 20
   embedFonts: true
 
+# Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). Free for now
+# (conversation tokens only). Max 30s at 720p; the worker runs at most 2 renders at once.
+clipTools:
+  clip: true
+  maxDurationSec: 30
+  height: 720
+  maxConcurrent: 2
+
 # Agent browser (experimental): the `browser` service in docker-compose.yml. Who may open one is
 # set per pack and per user in the admin panel (admins always may); these are the server limits.
 browser:
