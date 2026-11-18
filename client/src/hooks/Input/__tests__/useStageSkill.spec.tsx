@@ -41,7 +41,7 @@ describe('useStageSkill', () => {
     mockSkillsEnabled = true;
   });
 
-  it('turns skills on and stages the skill once for the next message', () => {
+  it('turns skills on, equips office tools, and stages the skill once for the next message', () => {
     const { result, store } = setup();
     act(() => {
       result.current.skills?.stage('article-writer');
@@ -50,9 +50,11 @@ describe('useStageSkill', () => {
     expect(store.get(pendingManualSkillsByConvoId('convo1'))).toEqual(['article-writer']);
     expect(result.current.skills?.staged).toEqual(['article-writer']);
     expect(result.current.agent?.skills).toBe(true);
+    expect(result.current.agent?.office).toBe(true);
+    expect(result.current.agent?.ask_user_question).toBe(true);
   });
 
-  it('takes a staged skill off again', () => {
+  it('takes a staged skill off again and keeps office tools while another office skill remains', () => {
     const { result, store } = setup();
     act(() => {
       result.current.skills?.stage('article-writer');
@@ -60,6 +62,10 @@ describe('useStageSkill', () => {
     });
     act(() => result.current.skills?.unstage('article-writer'));
     expect(store.get(pendingManualSkillsByConvoId('convo1'))).toEqual(['slide-builder']);
+    expect(result.current.agent?.office).toBe(true);
+    act(() => result.current.skills?.unstage('slide-builder'));
+    expect(result.current.agent?.office).toBe(false);
+    expect(result.current.agent?.ask_user_question).toBe(false);
   });
 
   it('offers nothing to stage when the user may not use skills', () => {

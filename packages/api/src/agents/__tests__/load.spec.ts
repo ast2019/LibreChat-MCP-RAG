@@ -29,17 +29,20 @@ const deps: LoadAgentDeps = {
   getAccessibleMCPServers: mockGetAccessibleMCPServers,
 };
 
-/** Tools every ordinary chat gets (the question form, Persian calendar and spelling, Word and
- *  PowerPoint). */
-const CHAT_TOOLS = [
+/** Feature tools that stay off until the composer opts in (no longer always-on). */
+const OPT_IN_CHAT_TOOLS = [
   'ask_user_question',
   'persian_calendar',
   'persian_normalize',
   'create_word_document',
   'create_presentation',
+  'create_remotion_clip',
+  'generate_image',
+  'generate_video',
+  'generate_speech',
 ];
 const withoutChatTools = (tools: unknown[] | undefined) =>
-  (tools ?? []).filter((tool) => !CHAT_TOOLS.includes(String(tool)));
+  (tools ?? []).filter((tool) => !OPT_IN_CHAT_TOOLS.includes(String(tool)));
 
 describe('loadAgent', () => {
   let mongoServer: MongoMemoryServer;
@@ -528,12 +531,17 @@ describe('loadAgent', () => {
       expect(on.tools).toEqual(
         expect.arrayContaining(['higgsfield_generate', 'generate_mcp_higgsfield']),
       );
+      expect(on.tools).not.toContain('generate_image');
       expect(on.mcp).toEqual(['higgsfield']);
 
       const off = await load({ higgsfield: false, mcp: [] });
-      expect(off.tools).toContain('generate_image');
+      expect(off.tools).not.toContain('generate_image');
       expect(off.tools).not.toContain('higgsfield_generate');
       expect(off.tools).not.toContain('generate_mcp_higgsfield');
+
+      const mediaOn = await load({ higgsfield: false, mcp: [], media: true });
+      expect(mediaOn.tools).toContain('generate_image');
+      expect(mediaOn.tools).not.toContain('higgsfield_generate');
 
       /** A confidential spec reaches no third party, whatever the request asks for. */
       const contained = await load({ higgsfield: true }, 'private-spec');
@@ -699,7 +707,16 @@ describe('loadAgent', () => {
       },
       deps,
     );
-    expect(ordinary?.tools).toContain('ask_user_question');
+    expect(ordinary?.tools).not.toContain('ask_user_question');
+    expect(ordinary?.tools ?? []).not.toEqual(
+      expect.arrayContaining([
+        'generate_image',
+        'persian_calendar',
+        'create_word_document',
+        'create_presentation',
+        'create_remotion_clip',
+      ]),
+    );
   });
 
   test('synthesizes background tool_options for eligible MCP tools from the ephemeralAgent flag', async () => {

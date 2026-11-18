@@ -22,7 +22,11 @@ export const persianHolidaySchema = z.object({
 });
 
 export const persianToolsSchema = z.object({
-  /** Offer the tools in ordinary chats. Saved agents get them through their Persian skills. */
+  /**
+   * Allow ordinary chats to equip the tools when the user opts in (`ephemeralAgent.persian`
+   * or a primed Persian skill). Off keeps them out of chat entirely. Saved agents still get
+   * them through their Persian skills.
+   */
   chat: z.boolean().default(true),
   /** Time zone for "today" */
   timezone: z.string().min(1).default('Asia/Tehran'),

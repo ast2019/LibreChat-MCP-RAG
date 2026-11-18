@@ -24,6 +24,7 @@ export function getEnabledClipTools(
   return [ClipTools.clip];
 }
 
+/** Clip tools an ordinary chat may offer once the composer opts in (`ephemeralAgent.clip`). */
 export function getChatClipTools(
   appConfig: AppConfig | null | undefined,
   spec?: Pick<TModelSpec, 'privacy'> | null,

@@ -419,12 +419,13 @@ mcpServers:
       workspace "persian" for Persian-language media. Cite every item with its title, source,
       date and link, and answer in Persian. Call the system «سامانه ویک سیگنال».
 
-# Image, video and speech generation the chat model calls on its own when a user asks, also in
-# the middle of a conversation (no special mode). Charged to the user's HiveGPT credit: the
-# estimate is held first, the real provider cost x the endpoint's priceMultiplier is charged
-# after, and a failed generation costs nothing. Only users with a pack (bought or granted) may
-# generate; others are told how to unlock it. An admin can switch it on or off per user
-# («رسانه» in the users list). Confidential and local chats never get these tools.
+# Image, video and speech generation. Tools attach only when the user opts in from the
+# composer's «ساختن» rows (`ephemeralAgent.media`); bare chats do not pay the schema cost.
+# Charged to the user's HiveGPT credit: the estimate is held first, the real provider cost x
+# the endpoint's priceMultiplier is charged after, and a failed generation costs nothing. Only
+# users with a pack (bought or granted) may generate; others are told how to unlock it. An
+# admin can switch it on or off per user («رسانه» in the users list). Confidential and local
+# chats never get these tools.
 mediaGeneration:
   enabled: true
   paidOnly: true
@@ -506,6 +507,7 @@ memory:
       If nothing in the latest messages is worth remembering, end the turn without any tool call.
 
 # Deterministic Persian date and spelling tools (`persian_calendar`, `persian_normalize`).
+# Ordinary chats get them only when the user opts in (Persian skill / `ephemeralAgent.persian`).
 # The fixed Solar Hijri holidays are built in. The lunar ones move every year with the moon
 # sighting, so add each year's official list here once it is published, one entry per day with
 # the Solar Hijri date in Latin digits:
@@ -516,12 +518,10 @@ persianTools:
   timezone: 'Asia/Tehran'
   holidays: []
 
-# The article wizard and the slide builder (experimental): ordinary chats get two tools that turn
-# the conversation into an editable Word file (`create_word_document`) and an editable PowerPoint
-# deck (`create_presentation`), right to left in Vazirmatn. Files are built on this server and
-# cost nothing beyond the chat; confidential and local models do not get them. The «ساختن» rows
-# of the composer's `+` menu follow `word` and `slides`; the skills «ویزارد مقاله» and
-# «ساخت پاورپوینت» carry the step-by-step flow.
+# The article wizard and the slide builder (experimental): tools attach when the user picks the
+# «ساختن» rows (`ephemeralAgent.office` / staged skills), not on every bare chat. Files are built
+# on this server; confidential and local models do not get them. The composer's `+` menu follows
+# `word` and `slides`; the skills «ویزارد مقاله» and «ساخت پاورپوینت» carry the step-by-step flow.
 officeTools:
   word: true
   slides: true
@@ -529,8 +529,9 @@ officeTools:
   maxImages: 20
   embedFonts: true
 
-# Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). Free for now
-# (conversation tokens only). Max 30s at 720p; the worker runs at most 2 renders at once.
+# Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). Tools attach
+# only when that row is used (`ephemeralAgent.clip`). Free for now (conversation tokens only).
+# Max 30s at 720p; the worker runs at most 2 renders at once.
 # Themes: brand shells plus catalog-backed style films (chalkboard, claymation, brick-toy,
 # pixel-art, … — see skill/clip-builder and packages/api/src/clip/themes.ts).
 clipTools:

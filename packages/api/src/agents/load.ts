@@ -2,6 +2,7 @@ import { logger } from '@librechat/data-schemas';
 import {
   Tools,
   Constants,
+  MediaTools,
   isAgentsEndpoint,
   isEphemeralAgentId,
   getEphemeralSender,
@@ -89,6 +90,11 @@ function containEphemeralAgent(agent: TEphemeralAgent): TEphemeralAgent {
     execute_code: false,
     browser: false,
     higgsfield: false,
+    media: false,
+    office: false,
+    clip: false,
+    persian: false,
+    ask_user_question: false,
   };
 }
 
@@ -173,32 +179,37 @@ export async function loadEphemeralAgent(
   if (ephemeralAgent?.memory === true || modelSpec?.memory === true) {
     tools.push(Tools.memory);
   }
-  /** The question form, in every chat: the model asks its clarifying questions in a form
-   *  instead of a list of text. The agents capability `ask_user_question` turns it off for
-   *  the whole server, and `createRun` still equips it only when the request is
-   *  HITL-capable, the agent is not a subagent, and the admin hasn't excluded it
-   *  (filteredTools/includedTools); the OpenAI-compatible API never gets it. Private and
-   *  local specs get no chat tools, like the Persian and Office tools: their models may not
-   *  call tools at all. A spec's or the composer's own flag still equips it there. */
-  const privateSpec = modelSpec?.privacy === 'private' || modelSpec?.privacy === 'local';
-  if (
-    !privateSpec ||
-    ephemeralAgent?.ask_user_question === true ||
-    modelSpec?.askUserQuestion === true
-  ) {
+  /** Clarifying-question form: opt-in only. `createRun` still gates HITL, subagents, and
+   *  admin filters; the OpenAI-compatible API never gets it. A model spec may force it on. */
+  if (ephemeralAgent?.ask_user_question === true || modelSpec?.askUserQuestion === true) {
     tools.push(ASK_USER_QUESTION_TOOL_NAME);
   }
-  /** Image, video and speech generation the model can call in any chat; whether the user may
-   *  generate (a pack, or an admin's switch) is checked when a tool runs. */
-  tools.push(
-    ...getChatMediaTools(req.config, req.user, modelSpec, ephemeralAgent?.higgsfield === true),
-  );
-  /** Exact dates and Persian spelling fixes, so the model never works them out itself. */
-  tools.push(...getChatPersianTools(req.config, modelSpec));
-  /** Word and PowerPoint files built from the conversation (the article and slide builders). */
-  tools.push(...getChatOfficeTools(req.config, modelSpec));
-  /** Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). */
-  tools.push(...getChatClipTools(req.config, modelSpec));
+  /**
+   * Feature tools stay off until the composer opts in ( «ساختن» / Higgsfield toggle ).
+   * Their JSON schemas are large; attaching them on every "hello" burned thousands of
+   * input tokens. Pack / admin checks still run when a tool is invoked.
+   */
+  const wantMedia = ephemeralAgent?.media === true;
+  const wantHiggsfield = ephemeralAgent?.higgsfield === true;
+  if (wantMedia || wantHiggsfield) {
+    const mediaTools = getChatMediaTools(req.config, req.user, modelSpec, wantHiggsfield);
+    if (wantMedia && wantHiggsfield) {
+      tools.push(...mediaTools);
+    } else if (wantMedia) {
+      tools.push(...mediaTools.filter((name) => name !== MediaTools.higgsfield));
+    } else {
+      tools.push(...mediaTools.filter((name) => name === MediaTools.higgsfield));
+    }
+  }
+  if (ephemeralAgent?.persian === true) {
+    tools.push(...getChatPersianTools(req.config, modelSpec));
+  }
+  if (ephemeralAgent?.office === true) {
+    tools.push(...getChatOfficeTools(req.config, modelSpec));
+  }
+  if (ephemeralAgent?.clip === true) {
+    tools.push(...getChatClipTools(req.config, modelSpec));
+  }
   /** The agent browser, when the user turned it on for this chat and may use it. */
   if (ephemeralAgent?.browser === true) {
     tools.push(...getChatBrowserTools(req.config, req.user, modelSpec));

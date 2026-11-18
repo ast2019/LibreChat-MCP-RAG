@@ -131,6 +131,26 @@ export type TEphemeralAgent = {
   browser?: boolean;
   /** Let the model use Higgsfield: the Higgsfield MCP server and the Higgsfield API tool */
   higgsfield?: boolean;
+  /**
+   * Equip `generate_image` / `generate_video` / `generate_speech` for this chat.
+   * Off by default: ordinary chats must not pay the schema cost until the user
+   * picks a «ساختن» media row (or otherwise opts in).
+   */
+  media?: boolean;
+  /**
+   * Equip Word / PowerPoint builders (`create_word_document`, `create_presentation`).
+   * Off by default; set when the user picks the article or slides «ساختن» row.
+   */
+  office?: boolean;
+  /**
+   * Equip `create_remotion_clip`. Off by default; set from the «کلیپ‌ساز» row.
+   */
+  clip?: boolean;
+  /**
+   * Equip `persian_calendar` / `persian_normalize`. Off by default; set when the
+   * user stages a Persian skill (or an explicit composer control).
+   */
+  persian?: boolean;
   /** The image model the user picked in the composer for this conversation */
   image_model?: string;
   /** Equip the ephemeral agent with the `ask_user_question` HITL tool. */

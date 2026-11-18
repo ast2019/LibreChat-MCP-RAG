@@ -9,6 +9,7 @@ import {
   canToolResourceConsume,
   paramEndpoints,
   isAgentsEndpoint,
+  isEphemeralAgentId,
   AgentCapabilities,
   resolveAllowedStatefulCodeEnvironments,
   hasActivePiiFields,
@@ -148,9 +149,9 @@ import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
 import { getSkillOfficeTools } from '~/office/config';
-import { getSkillClipTools } from '~/clip/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
+import { getSkillClipTools } from '~/clip/config';
 import { getAgentInferencePolicy } from './input';
 import { getProviderConfig } from '~/endpoints';
 import { primeResources } from './resources';
@@ -1556,10 +1557,15 @@ export async function initializeAgent(
       perSkillExtras = union.perSkillExtras;
     }
     /** A skill the model selects mid-turn cannot add tools to a built graph, so the Persian
-     *  skills' deterministic tools, and the Word and PowerPoint builders of the article and
-     *  slide skills, load with the agent whenever those skills are in scope. */
+     *  skills' deterministic tools, and the Word / PowerPoint / clip builders, load with the
+     *  agent when those skills are in scope. Ephemeral chats only preload for skills primed
+     *  this turn (manual + always-apply): the full accessible catalog would otherwise attach
+     *  every feature schema whenever skills are merely available. */
+    const primedSkillIds = combinedPrimes.map((prime) => prime._id);
     const skillScope = {
-      accessibleSkillIds: params.accessibleSkillIds!,
+      accessibleSkillIds: isEphemeralAgentId(agent.id)
+        ? primedSkillIds
+        : params.accessibleSkillIds!,
       skillStates: params.skillStates,
       userId: user?.id,
     };
