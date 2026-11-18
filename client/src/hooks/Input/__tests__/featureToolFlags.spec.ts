@@ -1,4 +1,8 @@
-import { flagsForSkillName, reconcileFeatureFlags } from '../featureToolFlags';
+import {
+  clearFlagsForUnstage,
+  flagsForSkillName,
+  reconcileFeatureFlags,
+} from '../featureToolFlags';
 
 describe('featureToolFlags', () => {
   it('maps office, clip and persian skills to the matching tool flags', () => {
@@ -36,5 +40,26 @@ describe('featureToolFlags', () => {
     ]);
     expect(next.office).toBe(true);
     expect(next.ask_user_question).toBe(true);
+  });
+
+  it('keeps sticky clip after skills drain when staging an unrelated skill', () => {
+    const next = reconcileFeatureFlags({ clip: true, ask_user_question: true, skills: true }, [], {
+      ask_user_question: true,
+      skills: true,
+    });
+    expect(next.clip).toBe(true);
+    expect(next.ask_user_question).toBe(true);
+  });
+
+  it('clears clip only when unstaging the last clip skill', () => {
+    expect(clearFlagsForUnstage('clip-builder', [])).toEqual({ clip: false });
+    expect(clearFlagsForUnstage('clip-builder', ['animation-styles'])).toEqual({});
+    const next = reconcileFeatureFlags(
+      { clip: true, ask_user_question: true },
+      [],
+      clearFlagsForUnstage('clip-builder', []),
+    );
+    expect(next.clip).toBe(false);
+    expect(next.ask_user_question).toBe(false);
   });
 });

@@ -443,6 +443,38 @@ describe('loadAgent', () => {
     expect(result!.name).toBe('Test Agent');
   });
 
+  test('adds create_remotion_clip when clip is opted in or clip-builder is primed this turn', async () => {
+    const env = { ...process.env };
+    process.env.REMOTION_SERVICE_URL = 'http://remotion:3200';
+    process.env.REMOTION_SERVICE_TOKEN = 't'.repeat(40);
+    const load = async (body: {
+      ephemeralAgent?: TEphemeralAgent;
+      manualSkills?: string[];
+    }) => {
+      const result = await loadAgent(
+        {
+          req: {
+            user: { id: 'user123' },
+            body: { promptPrefix: 'x', ...body },
+          } as unknown as LoadAgentParams['req'],
+          agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+          endpoint: 'openai',
+          model_parameters: { model: 'gpt-4' } as unknown as AgentModelParameters,
+        },
+        deps,
+      );
+      return result?.tools?.includes('create_remotion_clip') === true;
+    };
+    try {
+      expect(await load({})).toBe(false);
+      expect(await load({ ephemeralAgent: { clip: true } })).toBe(true);
+      expect(await load({ manualSkills: ['clip-builder'] })).toBe(true);
+      expect(await load({ manualSkills: ['writer'] })).toBe(false);
+    } finally {
+      process.env = env;
+    }
+  });
+
   test('adds the browser tools only when the user turned the browser on and may use it', async () => {
     const env = { ...process.env };
     process.env.BROWSER_SERVICE_URL = 'http://browser:3100';

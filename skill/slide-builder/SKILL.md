@@ -2,6 +2,7 @@
 name: slide-builder
 display-title: پاورپوینت‌ساز
 description: Plans and builds a professional, editable PowerPoint deck - right to left in Vazirmatn, with native charts, the user's logo and brand color, pictures when wanted and speaker notes. Also turns an article, a text or an uploaded document into slides (پاورپوینت، اسلاید، ارائه، پرزنتیشن). Use when the user wants a presentation or slides.
+disable-model-invocation: true
 allowed-tools:
   - create_presentation
 license: MIT
