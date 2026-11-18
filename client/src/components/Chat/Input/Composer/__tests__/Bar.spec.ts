@@ -26,6 +26,18 @@ describe('projectBarEntries', () => {
 
     expect(projectBarEntries([active, pinned, inactive, skill])).toEqual([active, pinned]);
   });
+
+  it('keeps active create and builder chips so opt-in tools stay visible after skills drain', () => {
+    const create = entry('create:image', { section: 'create', active: true });
+    const builder = entry('create:clip', { section: 'builder', active: true });
+    const inactiveCreate = entry('create:video', { section: 'create', active: false });
+    const inactiveBuilder = entry('create:article', { section: 'builder', active: false });
+    const pinnedCreate = entry('create:speech', { section: 'create', pinned: true });
+
+    expect(
+      projectBarEntries([create, builder, inactiveCreate, inactiveBuilder, pinnedCreate]),
+    ).toEqual([create, builder]);
+  });
 });
 
 describe('chipMenuModes', () => {

@@ -4,14 +4,14 @@ import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { Mic, Plus, Check, Square, ChevronDown } from 'lucide-react';
 import { IconButton, TooltipAnchor, SendIcon } from '@librechat/client';
 import type { TConversation, EModelEndpoint, EndpointFileConfig } from 'librechat-data-provider';
-import type { FeatureToolPatch } from '~/hooks/Input/featureToolFlags';
 import type { PaletteEntry, PaletteMode } from '~/hooks/Input/usePaletteEntries';
+import type { FeatureToolPatch } from '~/hooks/Input/featureToolFlags';
 import type { Dictation } from '~/hooks/Input/useDictation';
 import type { ExtendedFile, FileSetter } from '~/common';
 import { useBadgeRowContext, useOptionalChatFormContext } from '~/Providers';
 import { ImageModelDialog, MediaToolsDialog } from '~/components/Media';
-import { useUpdateUserPreferencesMutation } from '~/data-provider';
 import { reconcileFeatureFlags } from '~/hooks/Input/featureToolFlags';
+import { useUpdateUserPreferencesMutation } from '~/data-provider';
 import usePaletteEntries from '~/hooks/Input/usePaletteEntries';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import useCreateEntries from '~/hooks/Input/useCreateEntries';
@@ -79,11 +79,18 @@ export function chipMenuModes(modes?: PaletteMode[]) {
 
 /** Projects palette state into the persistent quick controls in one pass. */
 export function projectBarEntries(entries: PaletteEntry[]): PaletteEntry[] {
-  /* Skills and the «ساختن» rows that stage one are staged context: their chip is in the tray. */
-  return entries.filter(
-    (entry) =>
-      entry.section !== 'skill' && entry.section !== 'create' && (entry.active || entry.pinned),
-  );
+  /* Skill rows stay in the tray (submit drains them). Create/builder opt-ins must stay visible
+   * as chips while equipped — otherwise clip/office look "off" after the skill chip is gone,
+   * and the model never gets create_remotion_clip / Office tools. */
+  return entries.filter((entry) => {
+    if (entry.section === 'skill') {
+      return false;
+    }
+    if (entry.section === 'create' || entry.section === 'builder') {
+      return entry.active;
+    }
+    return entry.active || entry.pinned;
+  });
 }
 
 interface RoundButtonProps {

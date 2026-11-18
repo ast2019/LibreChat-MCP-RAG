@@ -29,6 +29,12 @@ jest.mock('jotai', () => ({
   useAtomValue: jest.fn((atom: unknown) =>
     atom === 'show-skills-popover' ? mockShowSkillsPopover.current : undefined,
   ),
+  useAtom: jest.fn((atom: unknown) => {
+    if (atom === 'pending-manual-skills') {
+      return [[], mockSetPendingManualSkills] as const;
+    }
+    return [[], jest.fn()] as const;
+  }),
   useSetAtom: jest.fn((atom: unknown) => {
     if (atom === 'show-skills-popover') {
       return mockSetShowSkillsPopover;
@@ -259,13 +265,26 @@ describe('SkillsCommand', () => {
     expect(updater(['brand-guidelines'])).toEqual(['brand-guidelines']);
 
     /* Ephemeral agent gets skills enabled so the badge lights up and the
-       backend includes the skill catalog. */
+       backend includes the skill catalog. Non-feature skills reconcile the
+       same flags as the palette (office/clip/persian stay false here). */
     expect(mockSetEphemeralAgent).toHaveBeenCalledTimes(1);
     const agentUpdater = mockSetEphemeralAgent.mock.calls[0][0] as (
       prev: { skills?: boolean } | null,
-    ) => { skills?: boolean };
-    expect(agentUpdater(null)).toEqual({ skills: true });
-    expect(agentUpdater({ skills: true })).toEqual({ skills: true });
+    ) => Record<string, unknown>;
+    expect(agentUpdater(null)).toEqual({
+      skills: true,
+      ask_user_question: false,
+      office: false,
+      clip: false,
+      persian: false,
+    });
+    expect(agentUpdater({ skills: true })).toEqual({
+      skills: true,
+      ask_user_question: false,
+      office: false,
+      clip: false,
+      persian: false,
+    });
 
     /* Textarea is cleared of the `$` trigger but no `$skill-name ` cue is
        inserted — visual confirmation is the `SkillPills` row that

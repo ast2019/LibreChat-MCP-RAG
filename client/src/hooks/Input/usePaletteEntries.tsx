@@ -51,7 +51,8 @@ import { ephemeralAgentByConvoId } from '~/store';
 import { favoriteKey } from './useToolFavorites';
 import useLocalize from '~/hooks/useLocalize';
 
-export type PaletteSection = 'tool' | 'create' | 'skill' | 'mcp';
+/** Palette groups: chat tools, media create, document/clip builders, skills, MCP. */
+export type PaletteSection = 'tool' | 'create' | 'builder' | 'skill' | 'mcp';
 
 /**
  * One selectable row in the composer palette. Tools, skills and MCP servers are

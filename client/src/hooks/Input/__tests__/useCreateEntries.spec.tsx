@@ -124,10 +124,17 @@ describe('useCreateEntries', () => {
     expect(article).toMatchObject({
       label: 'com_ui_create_article',
       description: 'com_ui_create_article_hint',
+      section: 'builder',
       dismiss: true,
       favoritable: false,
     });
     expect(article.badge).toBeTruthy();
+    expect(entries.find((entry) => entry.key === 'create:clip')).toMatchObject({
+      section: 'builder',
+    });
+    expect(entries.find((entry) => entry.key === 'create:image')).toMatchObject({
+      section: 'create',
+    });
   });
 
   it('turns the skill on for the next message, equips office/clip tools, and starts the request', () => {
