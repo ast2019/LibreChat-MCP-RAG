@@ -1,7 +1,13 @@
 import { logger } from '@librechat/data-schemas';
 import { HumanMessage } from '@librechat/agents/langchain/messages';
-import { SkillsScope, isEphemeralAgentId, resolveAgentSkillsScope } from 'librechat-data-provider';
 import { formatSkillCatalog, SkillToolDefinition, ReadFileToolDefinition } from '@librechat/agents';
+import {
+  SkillsScope,
+  FEATURE_SKILL_NAMES,
+  isFeatureSkill,
+  isEphemeralAgentId,
+  resolveAgentSkillsScope,
+} from 'librechat-data-provider';
 import type {
   Agent,
   CodeWorkspaceOperation,
@@ -734,7 +740,15 @@ export async function injectSkillCatalog(
    * can't reach any of them anyway — registering the skill tool would
    * burn context tokens for nothing.
    */
-  const catalogVisibleSkills = activeSkills.filter((s) => s.disableModelInvocation !== true);
+  /** Feature builder skills (clip / office) stay out of the model catalog: they need
+   *  composer opt-in so create_remotion_clip / Office tools are in the graph. Manual
+   *  primes and `$` are unaffected; the skill tool also rejects these names mid-turn. */
+  const catalogVisibleSkills = activeSkills.filter(
+    (s) =>
+      s.disableModelInvocation !== true &&
+      !isFeatureSkill(s) &&
+      !FEATURE_SKILL_NAMES.includes(s.name),
+  );
 
   /**
    * Resolve same-name collisions in the runtime ACL set: when an invocable

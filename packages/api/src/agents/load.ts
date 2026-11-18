@@ -3,6 +3,9 @@ import {
   Tools,
   Constants,
   MediaTools,
+  CLIP_TOOL_SKILLS,
+  OFFICE_TOOL_SKILLS,
+  PERSIAN_TOOL_SKILLS,
   isAgentsEndpoint,
   isEphemeralAgentId,
   getEphemeralSender,
@@ -60,6 +63,10 @@ export interface LoadAgentDeps {
   ) => Promise<Record<string, ParsedServerConfig>>;
 }
 
+const OFFICE_SKILL_NAMES = new Set(Object.values(OFFICE_TOOL_SKILLS).flat());
+const CLIP_SKILL_NAMES = new Set(Object.values(CLIP_TOOL_SKILLS).flat());
+const PERSIAN_SKILL_NAMES = new Set(Object.values(PERSIAN_TOOL_SKILLS).flat());
+
 export interface LoadAgentParams {
   req: {
     user?: { id?: string; role?: string; mediaAccess?: boolean | null };
@@ -67,6 +74,8 @@ export interface LoadAgentParams {
     body?: {
       promptPrefix?: string;
       ephemeralAgent?: TEphemeralAgent;
+      /** Skills staged for this turn; also equip their feature tools when the flag was missed. */
+      manualSkills?: string[];
     };
   };
   spec?: string;
@@ -201,13 +210,23 @@ export async function loadEphemeralAgent(
       tools.push(...mediaTools.filter((name) => name === MediaTools.higgsfield));
     }
   }
-  if (ephemeralAgent?.persian === true) {
+  /** Composer flags are the primary opt-in. Same-turn `manualSkills` is a safety net when
+   *  the client staged a feature skill but the sticky flag did not land on this request. */
+  const manualSkills = Array.isArray(req.body?.manualSkills) ? req.body.manualSkills : [];
+  const wantPersian =
+    ephemeralAgent?.persian === true ||
+    manualSkills.some((name) => PERSIAN_SKILL_NAMES.has(name));
+  const wantOffice =
+    ephemeralAgent?.office === true || manualSkills.some((name) => OFFICE_SKILL_NAMES.has(name));
+  const wantClip =
+    ephemeralAgent?.clip === true || manualSkills.some((name) => CLIP_SKILL_NAMES.has(name));
+  if (wantPersian) {
     tools.push(...getChatPersianTools(req.config, modelSpec));
   }
-  if (ephemeralAgent?.office === true) {
+  if (wantOffice) {
     tools.push(...getChatOfficeTools(req.config, modelSpec));
   }
-  if (ephemeralAgent?.clip === true) {
+  if (wantClip) {
     tools.push(...getChatClipTools(req.config, modelSpec));
   }
   /** The agent browser, when the user turned it on for this chat and may use it. */

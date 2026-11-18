@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.26] - 2026-11-18
+
+### Fixed
+- **Clip skill text without `create_remotion_clip`.** Feature builders (کلیپ‌ساز /
+  مقاله / اسلاید) are no longer model-invocable via the `skill` tool or catalog —
+  loading SKILL.md mid-turn could not add tools to the graph, so the model fell
+  back to Remotion source. Start them from Builders / «ساختن». Sticky
+  `ephemeralAgent.clip` survives skill-chip drain and unrelated skill staging;
+  same-turn `manualSkills: ['clip-builder']` also equips the tool in `load.ts`.
+
 ## [0.38.25] - 2026-11-18
 
 ### Fixed

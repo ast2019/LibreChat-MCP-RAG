@@ -2,12 +2,17 @@
 name: clip-builder
 display-title: کلیپ‌ساز
 description: Plans and builds short MP4s on the HiveGPT Remotion worker — brand text slides or catalog-backed Remotion style films (chalkboard, claymation, brick toy, pixel art, …). Use for کلیپ، ریلز، استایل انیمیشن.
+disable-model-invocation: true
 allowed-tools:
   - create_remotion_clip
 license: MIT
 ---
 
 # کلیپ‌ساز
+
+Start this skill from the composer's **Builders / «ساختن»** row (کلیپ‌ساز), not via the
+`$` skills list or the model `skill` tool. That row equips `create_remotion_clip` for the chat.
+Without it, do not invent Remotion source or download links — ask the user to turn on کلیپ‌ساز.
 
 ## Two render modes
 

@@ -2,6 +2,7 @@
 name: animation-styles
 display-title: استایل‌های انیمیشن
 description: Catalog Remotion style films on HiveGPT (chalkboard, claymation, brick toy, pixel RPG, woodcut, papercut, …). Prefer when the user asks for Claude animation styles or a stylized short film. Uses create_remotion_clip.
+disable-model-invocation: true
 allowed-tools:
   - create_remotion_clip
 license: MIT

@@ -26,9 +26,19 @@ export const FEATURE_SKILL_NAMES: readonly string[] = [
   ...Object.values(CLIP_TOOL_SKILLS).flat(),
 ];
 
-/** A deployment skill that belongs to a feature row rather than the skill lists. */
-export function isFeatureSkill(skill: { name: string; source?: string }): boolean {
-  return skill.source === 'deployment' && FEATURE_SKILL_NAMES.includes(skill.name);
+/**
+ * A deployment skill that belongs to a feature row rather than the skill lists.
+ * Accepts either API `source: 'deployment'` or in-memory `deployment: true` (catalog / handler docs).
+ */
+export function isFeatureSkill(skill: {
+  name: string;
+  source?: string;
+  deployment?: boolean;
+}): boolean {
+  if (!FEATURE_SKILL_NAMES.includes(skill.name)) {
+    return false;
+  }
+  return skill.source === 'deployment' || skill.deployment === true;
 }
 
 /** The file context generated Office files are stored under. */

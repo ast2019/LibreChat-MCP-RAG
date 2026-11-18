@@ -41,10 +41,14 @@ import {
   useAgentCapabilities,
   useSkillActiveState,
 } from '~/hooks';
+import {
+  clearFlagsForUnstage,
+  flagsForSkillName,
+  reconcileFeatureFlags,
+} from './featureToolFlags';
 import { useMediaStatusQuery, useGetStartupConfig, useSkillsInfiniteQuery } from '~/data-provider';
 import { getStatusColor, getStatusTextKey } from '~/components/MCP/mcpServerUtils';
 import { filterSkillsForPopover } from '~/components/Chat/Input/SkillsCommand';
-import { flagsForSkillName, reconcileFeatureFlags } from './featureToolFlags';
 import { useAgentsMapContext, useBadgeRowContext } from '~/Providers';
 import ExperimentalBadge from '~/components/ui/ExperimentalBadge';
 import { ephemeralAgentByConvoId } from '~/store';
@@ -288,7 +292,9 @@ export default function usePaletteEntries({
     (name: string) => {
       if (pendingManualSkills.includes(name)) {
         const remaining = pendingManualSkills.filter((staged) => staged !== name);
-        setEphemeralAgent((agent) => reconcileFeatureFlags(agent, remaining));
+        setEphemeralAgent((agent) =>
+          reconcileFeatureFlags(agent, remaining, clearFlagsForUnstage(name, remaining)),
+        );
         setPendingManualSkills(remaining);
         return;
       }

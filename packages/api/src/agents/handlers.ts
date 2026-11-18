@@ -13,6 +13,8 @@ import {
   hasActivePiiFields,
   hasActivePiiPatterns,
   hasToolCallErrorPrefix,
+  FEATURE_SKILL_NAMES,
+  isFeatureSkill,
 } from 'librechat-data-provider';
 import type {
   LCTool,
@@ -4932,7 +4934,10 @@ async function handleReadFileCall(
    * yet in this exception list — that's a known limitation tracked for
    * a follow-up. Same-turn priming is the load-bearing path.
    */
-  if (skill.disableModelInvocation === true && !isPrimedThisTurn) {
+  if (
+    (skill.disableModelInvocation === true || FEATURE_SKILL_NAMES.includes(skillName)) &&
+    !isPrimedThisTurn
+  ) {
     return {
       toolCallId: tc.id,
       status: 'error',
@@ -5275,13 +5280,23 @@ async function handleSkillToolCall(
    * explicitly so the error message tells the model exactly why and it
    * doesn't loop retrying. Manual `$` invocation goes through
    * `resolveManualSkills`, which is unaffected by this flag.
+   *
+   * Feature skills (کلیپ‌ساز / مقاله / اسلاید) are the same shape: their tools
+   * are only in the graph when the composer opts in. Loading SKILL.md via the
+   * skill tool without those tools leaves the model describing Remotion code
+   * instead of calling create_remotion_clip.
    */
-  if (skill.disableModelInvocation === true) {
+  const featureBuilder =
+    isFeatureSkill(skill) || FEATURE_SKILL_NAMES.includes(args.skillName);
+  if (skill.disableModelInvocation === true || featureBuilder) {
+    const featureHint = featureBuilder
+      ? ` Start it from the composer's Builders / «ساختن» row so its tools are equipped for this chat.`
+      : '';
     return {
       toolCallId: tc.id,
       status: 'error',
       content: '',
-      errorMessage: `Skill "${args.skillName}" cannot be invoked by the model`,
+      errorMessage: `Skill "${args.skillName}" cannot be invoked by the model.${featureHint}`,
     };
   }
 

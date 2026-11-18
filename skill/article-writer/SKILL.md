@@ -2,6 +2,7 @@
 name: article-writer
 display-title: ویزارد مقاله
 description: Writes a professional article step by step - brief, research, an outline the user approves, the full text - and delivers it as an editable Word file. Blog and SEO posts, academic and student papers, news reports, how-to guides and product articles (مقاله، مقاله‌ی سئو، مقاله‌ی علمی، گزارش، فایل ورد). Use when the user wants a full article, a long report or a Word document.
+disable-model-invocation: true
 allowed-tools:
   - create_word_document
 license: MIT
