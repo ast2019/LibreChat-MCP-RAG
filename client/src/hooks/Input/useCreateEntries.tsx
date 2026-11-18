@@ -130,12 +130,11 @@ const STATE_LABEL: Partial<Record<TMediaWayState, TranslationKeys>> = {
 };
 
 /**
- * The palette's «ساختن» rows: image, video and audio, each with the reason it is off when it is,
- * then the article wizard, the slide builder and the clip builder, marked «آزمایشی». An available
- * media way equips media tools for this chat and starts the request; an unavailable one, and
- * «همه روش‌ها», open the media dialog. Article, slide and clip rows equip their tools (and stage
- * their skill when skills are allowed); picking an on row turns that feature off again. Ways the
- * deployment has not set up are left out rather than offered as dead rows.
+ * Palette create + builder rows: image/video/audio under «ساختن», then article/slides/clip under
+ * «سازندگان» (marked «آزمایشی»). An available media way equips media tools and starts the request;
+ * an unavailable one, and «همه روش‌ها», open the media dialog. Builder rows equip their tools (and
+ * stage their skill when skills are allowed); picking an on row turns that feature off again. Ways
+ * the deployment has not set up are left out rather than offered as dead rows.
  */
 export default function useCreateEntries({
   enabled,
@@ -239,7 +238,7 @@ export default function useCreateEntries({
         description: localize(way.hint),
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
-        section: 'create',
+        section: 'builder',
         active: equipped,
         pinned: false,
         favoritable: false,
@@ -276,7 +275,7 @@ export default function useCreateEntries({
         description: localize(way.hint),
         badge: <ExperimentalBadge />,
         icon: <Icon className="icon-md" aria-hidden="true" />,
-        section: 'create',
+        section: 'builder',
         active: equipped,
         pinned: false,
         favoritable: false,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useSetAtom } from 'jotai';
+import { useAtom } from 'jotai';
 import { ScrollText } from 'lucide-react';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { pendingManualSkillsByConvoId } from '@librechat/chat/react';
@@ -13,6 +13,7 @@ import {
 } from 'librechat-data-provider';
 import type { TSkillSummary } from 'librechat-data-provider';
 import type { MentionOption } from '~/common';
+import { flagsForSkillName, reconcileFeatureFlags } from '~/hooks/Input/featureToolFlags';
 import useAgentCapabilities from '~/hooks/Agents/useAgentCapabilities';
 import useGetAgentsConfig from '~/hooks/Agents/useGetAgentsConfig';
 import { useSkillsInfiniteQuery } from '~/data-provider';
@@ -110,7 +111,9 @@ export function useSkillOptions({
   enabled?: boolean;
 }) {
   const setEphemeralAgent = useSetRecoilState(ephemeralAgentByConvoId(conversationId));
-  const setPendingManualSkills = useSetAtom(pendingManualSkillsByConvoId(conversationId));
+  const [pendingManualSkills, setPendingManualSkills] = useAtom(
+    pendingManualSkillsByConvoId(conversationId),
+  );
   const agentsMap = useAgentsMapContext();
   const { isActive } = useSkillActiveState();
 
@@ -191,17 +194,17 @@ export function useSkillOptions({
      mislead users into thinking free-form text invocation is supported. Visual
      confirmation after submit comes from `SkillPills` on the user message bubble
      until the live skill-card stream takes over. */
+  /* Same flag reconcile as the palette / «ساختن» rows: Persian calendar skills
+     (and any other non-feature skill that owns tools) must flip ephemeralAgent
+     flags, not only `skills: true`. Feature skills stay out of this picker. */
   const select = useCallback(
     (name: string) => {
-      setEphemeralAgent((prev) => {
-        if (prev?.skills) {
-          return prev;
-        }
-        return { ...(prev || {}), skills: true };
-      });
+      setEphemeralAgent((prev) =>
+        reconcileFeatureFlags(prev, pendingManualSkills, flagsForSkillName(name)),
+      );
       setPendingManualSkills((prev) => (prev.includes(name) ? prev : [...prev, name]));
     },
-    [setEphemeralAgent, setPendingManualSkills],
+    [pendingManualSkills, setEphemeralAgent, setPendingManualSkills],
   );
 
   return { options, isLoading, isError, isFetchingNextPage, select };

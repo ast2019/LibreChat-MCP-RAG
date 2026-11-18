@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.38.25] - 2026-11-18
+
+### Fixed
+- **Composer shows equipped builders and categorizes create vs builders.** Article /
+  slides / clip sit in a new «Builders» palette section (above chat Tools), and
+  active create/builder chips stay on the bar after staged skills drain — so
+  کلیپ‌ساز remains visibly equipped and `create_remotion_clip` stays opted in.
+  The `$` skill picker also reconciles feature-tool flags (Persian calendar, etc.)
+  the same way as the palette.
+
 ## [0.38.24] - 2026-11-18
 
 ### Changed

@@ -96,6 +96,7 @@ const rowElementId = (index: number, key: string) => {
 const SECTION_LABEL: Record<PaletteSection, TranslationKeys> = {
   tool: 'com_ui_composer_tools',
   create: 'com_ui_composer_create',
+  builder: 'com_ui_composer_builders',
   skill: 'com_ui_skills',
   mcp: 'com_ui_composer_mcp',
 };
@@ -440,6 +441,7 @@ function Palette({
     const buckets: Record<PaletteSection, PaletteEntry[]> = {
       tool: [],
       create: [],
+      builder: [],
       skill: [],
       mcp: [],
     };
@@ -461,6 +463,7 @@ function Palette({
       favoriteMatches.sort(byRank);
       buckets.tool.sort(byRank);
       buckets.create.sort(byRank);
+      buckets.builder.sort(byRank);
       buckets.skill.sort(byRank);
       buckets.mcp.sort(byRank);
     }
@@ -512,9 +515,9 @@ function Palette({
       if (list.length === 0) {
         return;
       }
-      /* Tools and the create rows are short fixed sets; skills and servers run
+      /* Tools / create / builders are short fixed sets; skills and servers run
          to hundreds, so the palette keeps a handful and the dialog holds the rest. */
-      const capped = section !== 'tool' && section !== 'create';
+      const capped = section !== 'tool' && section !== 'create' && section !== 'builder';
       next.push({
         type: 'header',
         key: `h:${section}`,
@@ -527,8 +530,11 @@ function Palette({
       }
     };
 
-    pushSection('tool');
+    /* Builders (article / slides / clip) sit above generic chat tools so opt-in
+       create paths are findable without scrolling past web-search and MCP. */
     pushSection('create');
+    pushSection('builder');
+    pushSection('tool');
     pushSection('skill');
     pushSection('mcp');
 
