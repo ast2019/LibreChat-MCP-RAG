@@ -86,7 +86,7 @@ export const STYLES: Style[] = [
   s("58", "brick-toy", "Brick toy", "3D look", "Everything built from toy bricks and studs on a green baseplate.", "", "3d/island-and-bricks.ts", glView(draw58)),
   s("59", "glass-product", "Glass product", "3D look", "A clear glass kettle and cup lit like a product shot, with refraction and glow.", "", "3d/glass.ts", glView(draw59)),
   s("62", "claymation", "Claymation", "3D look", "Lumpy plasticine shapes with fingerprints, stepped like stop-motion.", "", "3d/clay-and-lidar.ts", glView(draw62)),
-  s("80", "lidar-survey", "Lidar survey", "3D look", "A glowing 3D point cloud, like a laser scan, in blue and gold.", "", "3d/clay-and-lidar.ts", glView(draw80, 1.25)),
+  s("80", "lidar-survey", "Lidar survey", "3D look", "A glowing 3D point cloud, like a laser scan, in blue and gold.", "", "3d/clay-and-lidar.ts", glView(draw80, 1)),
 
   s("70", "silent-film", "Silent film", "Cinema eras", "Black and white 1920s film: grain, flicker, scratches and a stage curtain.", "intertitles: A CUP OF CHAI / Piping hot!", "graphic-and-cinema/graphic-and-cinema.tsx", SilentFilm),
   s("71", "newsreel", "Newsreel", "Cinema eras", "Sepia 1940s newsreel with a slanted headline banner and film damage.", "headlines: THE POUR BEGINS / CUP FILLS FAST / STEAM RISES, and a CHAI! title card", "graphic-and-cinema/graphic-and-cinema.tsx", Newsreel),

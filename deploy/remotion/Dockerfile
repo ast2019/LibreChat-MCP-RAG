@@ -1,4 +1,4 @@
-# HiveGPT Remotion clip worker: renders short MP4s for the api (max 2 concurrent by default).
+# HiveGPT Remotion clip worker: renders short MP4s for the api (1 render at a time by default).
 # Base is Debian bookworm; do not apt-install fonts-vazirmatn (that package is only on
 # trixie/sid and Ubuntu). Vazirmatn ships in fonts/ (same SIL OFL faces as Office).
 FROM node:20-bookworm-slim
@@ -27,12 +27,13 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
   && npm cache clean --force
 
-COPY remotion.config.ts tsconfig.json ./
+COPY tsconfig.json ./
 COPY src ./src
 
 ENV NODE_ENV=production \
   PORT=3200 \
-  REMOTION_MAX_CONCURRENT=2 \
+  REMOTION_MAX_CONCURRENT=1 \
+  REMOTION_RENDER_CONCURRENCY=1 \
   REMOTION_GL=angle \
   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
   REMOTION_BROWSER_EXECUTABLE=/usr/bin/chromium
