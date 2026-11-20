@@ -90,7 +90,7 @@ function maskDeep<T>(value: T, depth = 0): T {
  */
 export function buildRemotionShareSection(
   diagnostics: RemotionDiagnostics,
-  maxBytes = DEBUG_SHARE_REMOTION_MAX_BYTES,
+  maxBytes: number = DEBUG_SHARE_REMOTION_MAX_BYTES,
 ): RemotionDiagnostics {
   const masked = maskDeep(diagnostics);
   const size = () => Buffer.byteLength(JSON.stringify(masked));
