@@ -1,4 +1,5 @@
 import { clipToolsSchema } from 'librechat-data-provider';
+import { STYLE_FILM_3D_MAX_SEC, STYLE_FILM_MAX_SEC } from './styleFilms';
 import { dimensionsFor, narrationTextFromSpec, parseClipInput } from './scene';
 
 const config = clipToolsSchema.parse({});
@@ -105,21 +106,32 @@ describe('dimensionsFor / narrationTextFromSpec', () => {
     expect(dimensionsFor('16:9', 720, 'brand-dark')).toEqual({ width: 1280, height: 720 });
   });
 
-  it('clamps style-film duration to 5s so the reported length matches the MP4', () => {
-    const long = parseClipInput(
-      {
-        title: 'style',
-        theme: 'claymation',
-        duration_sec: 20,
-        scenes: [
-          { type: 'title', duration_sec: 10, heading: 'a' },
-          { type: 'closing', duration_sec: 10, heading: 'b' },
-        ],
-        audio: { mode: 'none' },
-      },
-      config,
-    );
-    expect(long).toMatchObject({ theme: 'claymation', durationSec: 5 });
+  const styleInput = (theme: string, sceneSec: number[], extra: Record<string, unknown> = {}) => ({
+    title: 'style',
+    theme,
+    scenes: sceneSec.map((duration_sec) => ({ type: 'title', duration_sec, heading: 'a' })),
+    audio: { mode: 'none' },
+    ...extra,
+  });
+
+  it('clamps 3D style films to the 3D cap and others to the style-film cap', () => {
+    const clay = parseClipInput(styleInput('claymation', [10, 10], { duration_sec: 20 }), config);
+    expect(clay).toMatchObject({ theme: 'claymation', durationSec: STYLE_FILM_3D_MAX_SEC });
+    const chalk = parseClipInput(styleInput('chalkboard', [10, 10], { duration_sec: 20 }), config);
+    expect(chalk).toMatchObject({ theme: 'chalkboard', durationSec: STYLE_FILM_MAX_SEC });
+  });
+
+  it('keeps a short style-film length instead of forcing 5s', () => {
+    expect(parseClipInput(styleInput('chalkboard', [3, 4]), config)).toMatchObject({
+      durationSec: 7,
+    });
+  });
+
+  it('never exceeds the deployment max duration for style films', () => {
+    const small = { ...config, maxDurationSec: 8 };
+    expect(parseClipInput(styleInput('chalkboard', [10]), small)).toMatchObject({
+      durationSec: 8,
+    });
   });
 
   it('joins scene text for TTS when tts_text is absent', () => {

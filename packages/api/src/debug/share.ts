@@ -2,6 +2,7 @@ import { logger, redactMessage } from '@librechat/data-schemas';
 import { createHash, randomBytes } from 'node:crypto';
 import type { TDebugLogLine } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
+import type { RemotionDiagnostics } from '~/clip/probe';
 
 export const DEBUG_SHARE_DEFAULT_TTL_MS: number = 60 * 60 * 1000;
 export const DEBUG_SHARE_MAX_TTL_MS: number = 24 * 60 * 60 * 1000;
@@ -29,6 +30,8 @@ export type DebugShareSnapshot = {
   debugMode?: { enabled: boolean; level?: string };
   /** Recent log lines of this process, re-redacted for sharing (see {@link selectShareLogLines}) */
   logs?: DebugShareLogs;
+  /** Remotion worker diagnostics, every string masked (see {@link buildRemotionShareSection}) */
+  remotion?: RemotionDiagnostics;
   notes: string[];
 };
 
@@ -60,6 +63,46 @@ export function maskShareLogText(text: string): string {
     .replace(IPV4, '$1.$2.x.x')
     .replace(IPV6, '$1:…')
     .slice(0, SHARE_LINE_CHARS);
+}
+
+export const DEBUG_SHARE_REMOTION_MAX_BYTES = 60_000;
+
+function maskDeep<T>(value: T, depth = 0): T {
+  if (typeof value === 'string') {
+    return maskShareLogText(value) as T;
+  }
+  if (depth > 8 || value == null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => maskDeep(item, depth + 1)) as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = maskDeep(item, depth + 1);
+  }
+  return out as T;
+}
+
+/**
+ * The `remotion` section of a share: every string masked, and kept under about 60 KB by
+ * dropping the oldest worker log lines and API clip events first.
+ */
+export function buildRemotionShareSection(
+  diagnostics: RemotionDiagnostics,
+  maxBytes = DEBUG_SHARE_REMOTION_MAX_BYTES,
+): RemotionDiagnostics {
+  const masked = maskDeep(diagnostics);
+  const size = () => Buffer.byteLength(JSON.stringify(masked));
+  while (size() > maxBytes && (masked.workerLogs.length > 20 || masked.clipEvents.length > 20)) {
+    masked.workerLogs = masked.workerLogs.slice(Math.ceil(masked.workerLogs.length * 0.2));
+    masked.clipEvents = masked.clipEvents.slice(Math.ceil(masked.clipEvents.length * 0.2));
+  }
+  if (size() > maxBytes) {
+    masked.status = undefined;
+    masked.hints.push('The worker status was left out: it exceeded the size limit.');
+  }
+  return masked;
 }
 
 /**

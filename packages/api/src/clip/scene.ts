@@ -1,7 +1,7 @@
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipTheme } from './themes';
 import { resolveClipTheme } from './themes';
-import { STYLE_FILM_SIZE, usesStyleFilm } from './styleFilms';
+import { STYLE_FILM_SIZE, styleFilmMaxSec, usesStyleFilm } from './styleFilms';
 
 export type ClipAspectRatio = '9:16' | '16:9';
 export type { ClipTheme } from './themes';
@@ -134,9 +134,9 @@ export function parseClipInput(
 
   const aspectRatio = input.aspect_ratio === '16:9' ? '16:9' : '9:16';
   const theme: ClipTheme = resolveClipTheme(input.theme);
-  /** Style films are authored at a fixed 5s; clamp so the reported length matches the MP4. */
+  /** Style films loop a 5s animation up to a cap; the worker's reported length stays authoritative. */
   if (usesStyleFilm(theme)) {
-    durationSec = STYLE_FILM_SIZE.durationSec;
+    durationSec = Math.min(durationSec, config.maxDurationSec, styleFilmMaxSec(theme));
   }
   const brandName = str(input.brand_name, 40) ?? 'HiveGPT';
   const brandColor =

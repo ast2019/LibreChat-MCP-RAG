@@ -2,7 +2,7 @@
   "name": "hivegpt-remotion",
   "version": "0.1.0",
   "private": true,
-  "description": "Remotion clip renderer for HiveGPT (max 2 concurrent, 720p, 30s)",
+  "description": "Remotion clip renderer for HiveGPT (1 render at a time, 30s)",
   "type": "module",
   "main": "src/server.mjs",
   "scripts": {

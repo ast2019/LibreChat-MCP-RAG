@@ -2,6 +2,8 @@ const {
   resolveAppReleaseInfo,
   getBrowserStartupConfig,
   selectShareLogLines,
+  getRemotionDiagnostics,
+  buildRemotionShareSection,
 } = require('@librechat/api');
 const { getAppConfig } = require('~/server/services/Config');
 
@@ -102,6 +104,16 @@ async function buildDebugShareSnapshot() {
     notes.push('Could not read the log lines of this process.');
   }
 
+  let remotion;
+  try {
+    remotion = buildRemotionShareSection(await getRemotionDiagnostics());
+    notes.push(
+      'remotion: worker container state and logs fetched by the api (health, status, workerLogs), the api-side clip tool events (clipEvents, kept even with debug mode off) and plain-language hints. Read hints first, then clipEvents and workerLogs for the same jobId.',
+    );
+  } catch {
+    notes.push('Could not collect the Remotion diagnostics.');
+  }
+
   return {
     ...(appVersion && { appVersion }),
     ...(librechatVersion && { librechatVersion }),
@@ -111,6 +123,7 @@ async function buildDebugShareSnapshot() {
     browser,
     debugMode,
     ...(logs && { logs }),
+    ...(remotion && { remotion }),
     notes,
   };
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   AbsoluteFill,
   Audio,
-  Sequence,
+  Loop,
   interpolate,
   useCurrentFrame,
   useVideoConfig,
@@ -18,6 +18,8 @@ export interface StyledFilmProps {
   brandColor: string;
   scenes: ClipScene[];
   audioSrc?: string;
+  /** Output length in seconds; the style loops (native loop is DUR frames). */
+  durationSec?: number;
 }
 
 const CaptionOverlay: React.FC<{
@@ -32,9 +34,13 @@ const CaptionOverlay: React.FC<{
     .flatMap((scene) => [scene.heading, scene.body, ...(scene.bullets ?? [])])
     .filter((x): x is string => Boolean(x))
     .slice(0, 6);
-  const last = Math.max(1, durationInFrames - 1);
-  const fadeIn = Math.min(12, Math.floor(last * 0.1));
-  const fadeOut = Math.max(fadeIn + 1, last - Math.min(18, Math.floor(last * 0.12)));
+  // inputRange must be strictly increasing, also for very short compositions.
+  const last = Math.max(3, durationInFrames - 1);
+  const fadeIn = Math.max(1, Math.min(12, Math.floor(last * 0.1)));
+  const fadeOut = Math.min(
+    last - 1,
+    Math.max(fadeIn + 1, last - Math.min(18, Math.floor(last * 0.12))),
+  );
   const fade = interpolate(frame, [0, fadeIn, fadeOut, last], [0, 1, 1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -90,7 +96,7 @@ const CaptionOverlay: React.FC<{
 
 /**
  * Full style film (vendored animation-styles catalog) with caption/brand overlay.
- * Native size is 1080×1350 @ 30fps for 5s; the worker may scale the output.
+ * Native size is 1080×1350 @ 30fps, one 5s loop that repeats for the requested length.
  */
 export const HiveGPTStyledFilm: React.FC<StyledFilmProps> = ({
   theme,
@@ -112,17 +118,15 @@ export const HiveGPTStyledFilm: React.FC<StyledFilmProps> = ({
   return (
     <AbsoluteFill>
       {audioSrc ? <Audio src={audioSrc} /> : null}
-      <Sequence from={0} durationInFrames={DUR}>
+      <Loop durationInFrames={DUR}>
         <Style />
-      </Sequence>
-      <Sequence from={0} durationInFrames={DUR}>
-        <CaptionOverlay
-          scenes={scenes}
-          brandName={brandName}
-          brandColor={brandColor}
-          title={title}
-        />
-      </Sequence>
+      </Loop>
+      <CaptionOverlay
+        scenes={scenes}
+        brandName={brandName}
+        brandColor={brandColor}
+        title={title}
+      />
     </AbsoluteFill>
   );
 };

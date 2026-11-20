@@ -7,6 +7,36 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-20
+
+### Added
+- **Remotion diagnostics.** The worker now has authenticated `GET /status` (bundle, self-checks,
+  effective config, memory, counters, last jobs) and `GET /logs` (its own log ring) and the
+  public `/health` reports `ready` and the bundle state. Render errors carry `stage`, `detail`
+  and `jobId`; successes carry `timings` and `warnings`.
+- **`remotion` section in the debug share link** (`GET /api/debug/share/:code`): worker health,
+  `/status`, the worker's last log lines, the API's clip tool events (kept even with debug mode
+  off, never message text or media), and plain-language hints (missing env vars, token mismatch,
+  failed bundle, memory near the limit, full queue, missing edge-tts or Chromium). Every string
+  is masked and the section stays under about 60 KB.
+- The clip tool logs `[clip]` lines (invoked, worker error with code/stage/jobId, saved) and
+  traces `clip.render` and `clip.equip` in debug mode. The tool reply tells the model the worker
+  error code and warns when TTS failed so the clip has no voice.
+- A drift test reads the worker's theme lists and caps from disk and fails if they diverge from
+  the API's.
+
+### Fixed
+- Uploaded audio failed in the worker because of a `file://` URL; it is now served over local
+  HTTP.
+- A failed bundle build was cached forever; the bundle is retried and warmed at startup.
+- Style films were forced to 5 s. They now loop to the requested length (up to 15 s, 6 s for the
+  3D themes brick-toy and claymation, which render on a CPU software rasterizer).
+- Caption fade crash in style films.
+- Worker concurrency defaults to one render at a time and one render thread, and a job timeout
+  (7 minutes, code `timeout`, HTTP 504) replaces hung renders; the API waits 8 minutes and tells
+  a timeout from a connection failure.
+- Removed the unused `remotion.config.ts`.
+
 ## [0.38.26] - 2026-11-18
 
 ### Fixed

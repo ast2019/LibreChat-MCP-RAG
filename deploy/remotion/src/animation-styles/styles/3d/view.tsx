@@ -26,8 +26,9 @@ const GLView: React.FC<{ draw: Draw; ss: number }> = ({ draw, ss }) => {
 };
 
 // Wraps a 3D draw function as a Remotion component. `ss` is the internal canvas scale
-// (1.5 = drawn at 1620x2025, then shown at 1080x1350). Raise it for sharper 4K, at the cost of speed.
-export const glView = (draw: Draw, ss = 1.5): React.FC => {
+// (1 = drawn at 1080x1350). HiveGPT worker change: upstream used 1.5 (1620x2025), which is a
+// CPU software rasterizer and rendered at about 1-2.5 s per frame; 1 is ~2.2x cheaper.
+export const glView = (draw: Draw, ss = 1): React.FC => {
   const C: React.FC = () => <GLView draw={draw} ss={ss} />;
   return C;
 };

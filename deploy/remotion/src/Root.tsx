@@ -52,6 +52,11 @@ export const RemotionRoot: React.FC = () => {
         width={STYLED_FILM_META.width}
         height={STYLED_FILM_META.height}
         defaultProps={DEFAULT_STYLED}
+        calculateMetadata={async ({ props }) => {
+          const sec = Number(props.durationSec);
+          const durationSec = Number.isFinite(sec) ? Math.min(30, Math.max(1, sec)) : 5;
+          return { durationInFrames: Math.max(15, Math.round(durationSec * STYLED_FILM_META.fps)) };
+        }}
       />
       {/* Upstream style compositions (direct render by id for debugging / future tools). */}
       {STYLES.map((style) => (

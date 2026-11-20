@@ -17,7 +17,19 @@ export {
   resolveClipTheme,
 } from './themes';
 export type { ClipTheme } from './themes';
-export { STYLE_FILM_THEMES, STYLE_FILM_SIZE, usesStyleFilm } from './styleFilms';
+export {
+  STYLE_FILM_THEMES,
+  STYLE_FILM_SIZE,
+  STYLE_FILM_MAX_SEC,
+  STYLE_FILM_3D_MAX_SEC,
+  STYLE_FILM_3D_THEMES,
+  styleFilmMaxSec,
+  usesStyleFilm,
+} from './styleFilms';
+export { recordClipEvent, getClipEvents, clearClipEvents, CLIP_EVENT_LIMIT } from './diagnostics';
+export type { ClipEvent, ClipEventName } from './diagnostics';
+export { getRemotionDiagnostics } from './probe';
+export type { RemotionDiagnostics, RemotionWorkerLogLine } from './probe';
 export { createClipTools } from './tools';
 export { getClipAttachments } from './attachments';
 export { clipToolDefinitions } from './definitions';
