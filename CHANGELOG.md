@@ -7,6 +7,14 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-11-20
+
+### Fixed
+- **Production image build failed at `@librechat/api`.** `buildRemotionShareSection` in
+  `packages/api/src/debug/share.ts` had an untyped default parameter (`maxBytes = ...`), which
+  the tsdown declaration emit rejects under isolated declarations (TS9011). The parameter is now
+  annotated `number`.
+
 ## [0.39.0] - 2026-11-20
 
 ### Added
