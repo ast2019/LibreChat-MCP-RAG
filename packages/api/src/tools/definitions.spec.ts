@@ -1,3 +1,10 @@
+import {
+  CLIP_TOOL_NAMES,
+  MEDIA_TOOL_NAMES,
+  OFFICE_TOOL_NAMES,
+  BROWSER_TOOL_NAMES,
+  PERSIAN_TOOL_NAMES,
+} from 'librechat-data-provider';
 import { Providers, WebSearchToolDefinition, GitHubCompareToolDefinition } from '@librechat/agents';
 import type {
   LoadToolDefinitionsParams,
@@ -33,7 +40,43 @@ describe('definitions.ts', () => {
     expect(definition.description.length).toBeLessThanOrEqual(MAX_PROVIDER_TOOL_DESCRIPTION_LENGTH);
   });
 
+  describe('feature tool registry coverage', () => {
+    const groups: Record<string, readonly string[]> = {
+      media: MEDIA_TOOL_NAMES,
+      persian: PERSIAN_TOOL_NAMES,
+      office: OFFICE_TOOL_NAMES,
+      clip: CLIP_TOOL_NAMES,
+      browser: BROWSER_TOOL_NAMES,
+    };
+
+    it.each(Object.entries(groups))(
+      'registers every %s tool with a description and schema',
+      (_g, names) => {
+        expect(names.length).toBeGreaterThan(0);
+        for (const name of names) {
+          const def = getToolDefinition(name);
+          expect(def).toBeDefined();
+          expect(def?.description?.length ?? 0).toBeGreaterThan(0);
+          expect(def?.schema).toBeDefined();
+        }
+      },
+    );
+  });
+
   describe('loadToolDefinitions', () => {
+    it('loads create_remotion_clip with the real registry (no_registry_definition regression)', async () => {
+      const result = await loadToolDefinitions(
+        {
+          userId: 'user',
+          agentId: 'a',
+          tools: ['create_remotion_clip'],
+          debug: true,
+        } as LoadToolDefinitionsParams,
+        { getOrFetchMCPServerTools: mockGetOrFetchMCPServerTools, isBuiltInTool: () => true },
+      );
+      expect(result.toolDefinitions.map(({ name }) => name)).toEqual(['create_remotion_clip']);
+    });
+
     it.each([undefined, false, true])(
       'gates selected comparison definitions on explicit opt-in (%p)',
       async (githubCompareEnabled) => {
