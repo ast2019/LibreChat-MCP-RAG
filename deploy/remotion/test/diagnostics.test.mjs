@@ -64,3 +64,13 @@ test('job summaries and counters', () => {
   assert.equal(diag.counters().rendersFailed, 10);
   assert.equal(diag.counters().lastError.message, 'boom');
 });
+
+test('secret-named keys are redacted for objects and arrays too', async () => {
+  const { createDiagnostics } = await import('../src/diagnostics.mjs');
+  const diag = createDiagnostics({ print: false });
+  diag.info('x', { token: { value: 'abc' }, secrets: ['a'], ok: 1 });
+  const [entry] = diag.getLogs();
+  assert.equal(entry.data.token, '[redacted]');
+  assert.equal(entry.data.secrets, '[redacted]');
+  assert.equal(entry.data.ok, 1);
+});

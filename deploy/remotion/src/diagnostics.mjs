@@ -35,7 +35,7 @@ const clean = (value, depth = 0) => {
   if (typeof value === 'object') {
     const out = {};
     for (const [key, item] of Object.entries(value).slice(0, 40)) {
-      out[key] = SECRET_KEY.test(key) && typeof item === 'string' ? '[redacted]' : clean(item, depth + 1);
+      out[key] = SECRET_KEY.test(key) && item != null ? '[redacted]' : clean(item, depth + 1);
     }
     return out;
   }

@@ -226,3 +226,80 @@ test('/media serves only registered files; unknown ids and traversal give 404', 
     await fs.rm(dir, { recursive: true, force: true });
   });
 });
+
+const postRender = (base) =>
+  fetch(`${base}/render`, {
+    method: 'POST',
+    headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenes }),
+  });
+
+test('a select stage that never settles still times out and frees the slot', async () => {
+  const impls = { ...fakeImpls(), selectImpl: () => new Promise(() => {}) };
+  await withServer({ ...impls, jobTimeoutMs: 30, jobGraceMs: 30 }, async ({ base, diagnostics }) => {
+    const res = await postRender(base);
+    const body = await res.json();
+    assert.equal(res.status, 504);
+    assert.equal(body.error, 'timeout');
+    assert.equal(body.stage, 'select');
+    assert.ok(body.jobId);
+    const health = await (await fetch(`${base}/health`)).json();
+    assert.equal(health.active, 0);
+    assert.ok(diagnostics.lastJobs().some((job) => job.error === 'timeout'));
+  });
+});
+
+test('a TTS stage that never settles times out and aborts the child via signal', async () => {
+  let aborted = false;
+  const impls = {
+    ...fakeImpls(),
+    ttsImpl: (_text, _voice, _dir, { signal }) =>
+      new Promise(() => {
+        signal.addEventListener('abort', () => {
+          aborted = true;
+        });
+      }),
+  };
+  await withServer({ ...impls, jobTimeoutMs: 30, jobGraceMs: 30 }, async ({ base }) => {
+    const res = await fetch(`${base}/render`, {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenes, ttsText: 'hello' }),
+    });
+    const body = await res.json();
+    assert.equal(body.error, 'timeout');
+    assert.equal(body.stage, 'audio');
+    assert.equal(aborted, true);
+  });
+});
+
+test('/media stream errors do not crash the process', async () => {
+  await withServer(fakeImpls(), async ({ base, server }) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'media-test-'));
+    const file = path.join(dir, 'a.wav');
+    await fs.writeFile(file, 'x'.repeat(1000));
+    server.media.set('33333333-3333-3333-3333-333333333333', { file, name: 'a.wav' });
+    // File vanishes after registration: stat fails, answer is 404, no throw.
+    await fs.rm(dir, { recursive: true, force: true });
+    const res = await fetch(`${base}/media/33333333-3333-3333-3333-333333333333/a.wav`);
+    assert.equal(res.status, 404);
+    assert.equal((await fetch(`${base}/health`)).status, 200);
+  });
+});
+
+test('browser console text is never logged, only its length', async () => {
+  const impls = {
+    ...fakeImpls(),
+    renderImpl: async (opts) => {
+      opts.onBrowserLog?.({ type: 'error', text: 'SECRET scene heading content' });
+      await fs.writeFile(opts.outputLocation, Buffer.from('fakemp4'));
+    },
+  };
+  await withServer(impls, async ({ base, diagnostics }) => {
+    assert.equal((await postRender(base)).status, 200);
+    const entry = diagnostics.getLogs().find((e) => e.event === 'browser.log');
+    assert.ok(entry);
+    assert.equal(entry.data.chars, 28);
+    assert.ok(!JSON.stringify(entry).includes('SECRET'));
+  });
+});

@@ -232,7 +232,7 @@ const parseScenes = (raw) => {
 };
 
 /** Free Edge TTS when the request asks for narration and did not upload audio. */
-const synthesizeTts = async (text, voice, workDir) => {
+const synthesizeTts = async (text, voice, workDir, { signal } = {}) => {
   const out = path.join(workDir, 'tts.mp3');
   const chosen =
     typeof voice === 'string' && voice.trim()
@@ -244,7 +244,7 @@ const synthesizeTts = async (text, voice, workDir) => {
     const child = spawn(
       'edge-tts',
       ['--voice', chosen, '--text', text.slice(0, 4000), '--write-media', out],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'], signal },
     );
     let err = '';
     child.stderr.on('data', (chunk) => {
@@ -446,7 +446,7 @@ const stackHead = (error) => String(error?.stack ?? '').split('\n').slice(0, 6).
  * One render. `ctx` carries the per-server pieces: diag, bundles, media registry, port and the
  * injectable bundle/select/render functions.
  */
-async function renderJob(ctx, input, queuedMs) {
+async function renderJobInner(ctx, input, queuedMs, guard) {
   const { diag } = ctx;
   const started = Date.now();
   const jobId = crypto.randomUUID().slice(0, 8);
@@ -465,6 +465,7 @@ async function renderJob(ctx, input, queuedMs) {
   };
   const timeout = { hit: false };
   const { cancelSignal, cancel } = makeCancelSignal();
+  Object.assign(guard, { jobId, summary, cancel });
   const timer = setTimeout(() => {
     timeout.hit = true;
     cancel();
@@ -521,7 +522,9 @@ async function renderJob(ctx, input, queuedMs) {
       const ttsStart = Date.now();
       diag.info('tts.start', { chars: String(input.ttsText).length, voice: input.ttsVoice }, jobId);
       try {
-        audioFile = await ctx.ttsImpl(input.ttsText.trim(), input.ttsVoice, workDir);
+        audioFile = await ctx.ttsImpl(input.ttsText.trim(), input.ttsVoice, workDir, {
+          signal: guard.abort.signal,
+        });
         summary.audio = 'tts';
         timings.ttsMs = Date.now() - ttsStart;
         diag.info('tts.ok', { ms: timings.ttsMs, bytes: (await fs.stat(audioFile)).size }, jobId);
@@ -624,7 +627,7 @@ async function renderJob(ctx, input, queuedMs) {
           return;
         }
         browserLogs += 1;
-        diag.warn('browser.log', { type: entry.type, msg: entry.text }, jobId);
+        diag.warn('browser.log', { type: entry.type, chars: String(entry.text ?? '').length }, jobId);
       },
     });
     timings.renderMs = Date.now() - renderStart;
@@ -659,6 +662,10 @@ async function renderJob(ctx, input, queuedMs) {
     };
   } catch (raw) {
     const error = raw instanceof Error ? raw : new Error(String(raw));
+    if (guard.abandoned) {
+      // The deadline already answered and recorded this job; only clean up.
+      throw error;
+    }
     if (timeout.hit) {
       error.code = 'timeout';
       error.message = `Job exceeded ${ctx.jobTimeoutMs}ms at stage ${summary.stage}`;
@@ -690,6 +697,50 @@ async function renderJob(ctx, input, queuedMs) {
       ctx.media.delete(mediaId);
     }
     await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+/**
+ * Runs one render and enforces the job deadline as a hard limit. The cooperative cancel only
+ * reaches `renderMedia`; a hang in bundle, select or TTS would otherwise hold the queue slot
+ * forever, so the deadline (timeout + grace) rejects regardless of the stage and aborts the TTS child.
+ */
+async function renderJob(ctx, input, queuedMs) {
+  const guard = { abandoned: false, abort: new AbortController() };
+  const inner = renderJobInner(ctx, input, queuedMs, guard);
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      guard.abandoned = true;
+      guard.cancel?.();
+      guard.abort.abort();
+      const stage = guard.summary?.stage ?? 'init';
+      const error = makeError('timeout', `Job exceeded ${ctx.jobTimeoutMs}ms at stage ${stage}`);
+      Object.assign(error, {
+        stage,
+        detail: cleanString(error.message),
+        ...(guard.jobId ? { jobId: guard.jobId } : {}),
+      });
+      ctx.diag.error(
+        'job.fail',
+        { stage, code: 'timeout', message: error.message, abandoned: true },
+        guard.jobId,
+      );
+      ctx.diag.recordJob({
+        ...(guard.summary ?? {}),
+        ok: false,
+        error: 'timeout',
+        message: error.message,
+      });
+      reject(error);
+    }, ctx.jobTimeoutMs + (ctx.jobGraceMs ?? 5000));
+    timer.unref?.();
+  });
+  inner.catch(() => undefined);
+  try {
+    return await Promise.race([inner, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -749,7 +800,10 @@ const serveMedia = (ctx, url, res) => {
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-store',
       });
-      createReadStream(entry.file).pipe(res);
+      const stream = createReadStream(entry.file);
+      stream.on('error', () => res.destroy());
+      res.on('close', () => stream.destroy());
+      stream.pipe(res);
     })
     .catch(() => send(res, 404, { error: 'not_found', message: 'Not found' }));
 };
@@ -767,6 +821,7 @@ export function createServer({
   ttsImpl = synthesizeTts,
   probeImpl = probeAudioSec,
   jobTimeoutMs = JOB_TIMEOUT_MS,
+  jobGraceMs = 5000,
   browserOptions = process.env.REMOTION_BROWSER_EXECUTABLE
     ? { browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE }
     : {},
@@ -784,6 +839,7 @@ export function createServer({
     ttsImpl,
     probeImpl,
     jobTimeoutMs,
+    jobGraceMs,
     browserOptions,
     getPort: () => server.address()?.port ?? PORT,
   };
