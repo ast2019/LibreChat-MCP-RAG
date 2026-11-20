@@ -65,6 +65,7 @@ A green build is not a typecheck: `packages/api`, `packages/client`, `packages/c
 with `tsdown`, which emits without checking types. Run `npx tsc --noEmit` in the workspace you
 changed. `packages/client` excludes `*.spec.ts(x)` and `*.test.ts(x)` from typechecking entirely.
 `npm run sort-imports` with no arguments rewrites every source root — pass the paths you touched.
+Run `npm run verify:prod` before pushing code or Docker changes: it runs the `tsdown` package builds in `Dockerfile.multi` order, the Dockerfile/compose static checks and the apt package check, and prints SKIPPED when no docker daemon is available (the `.husky/pre-push` hook runs it).
 Run `npm run static-checks -- --against origin/dev` to reproduce the PR's static checks; use
 `npm run static-checks:full` for the slower gates. Fix all formatting, lint, and TypeScript
 warnings/errors in the code you change.

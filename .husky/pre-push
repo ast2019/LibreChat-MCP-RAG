@@ -1,0 +1,9 @@
+#!/bin/sh
+[ -n "$CI" ] && exit 0
+
+# Production build guard: the steps `docker build` runs that tsc and jest do not
+# (tsdown declaration emit, apt packages in the base suite, COPY sources).
+# About 25 s, so it lives here rather than in every commit. Bypass with
+# SKIP_VERIFY_PROD=1 only when the push touches no code or Docker files.
+[ -n "$SKIP_VERIFY_PROD" ] && exit 0
+npm run verify:prod

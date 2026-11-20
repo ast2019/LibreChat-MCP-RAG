@@ -13,6 +13,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { LoadAgentParams, LoadAgentDeps } from '../load';
 import { STANDARD_MCP_CAPABILITY_PROFILE } from '~/mcp/capabilities';
 import { loadAddedAgent } from '../added';
+import { loadToolDefinitions } from '~/tools/definitions';
 import { loadAgent } from '../load';
 
 let Agent: mongoose.Model<unknown>;
@@ -447,10 +448,7 @@ describe('loadAgent', () => {
     const env = { ...process.env };
     process.env.REMOTION_SERVICE_URL = 'http://remotion:3200';
     process.env.REMOTION_SERVICE_TOKEN = 't'.repeat(40);
-    const load = async (body: {
-      ephemeralAgent?: TEphemeralAgent;
-      manualSkills?: string[];
-    }) => {
+    const load = async (body: { ephemeralAgent?: TEphemeralAgent; manualSkills?: string[] }) => {
       const result = await loadAgent(
         {
           req: {
@@ -470,6 +468,35 @@ describe('loadAgent', () => {
       expect(await load({ ephemeralAgent: { clip: true } })).toBe(true);
       expect(await load({ manualSkills: ['clip-builder'] })).toBe(true);
       expect(await load({ manualSkills: ['writer'] })).toBe(false);
+    } finally {
+      process.env = env;
+    }
+  });
+
+  test('create_remotion_clip survives loadToolDefinitions for a clip-builder turn', async () => {
+    const env = { ...process.env };
+    process.env.REMOTION_SERVICE_URL = 'http://remotion:3200';
+    process.env.REMOTION_SERVICE_TOKEN = 't'.repeat(64);
+    try {
+      const agent = await loadAgent(
+        {
+          req: {
+            user: { id: 'user123' },
+            body: { promptPrefix: 'x', ephemeralAgent: {}, manualSkills: ['clip-builder'] },
+          } as unknown as LoadAgentParams['req'],
+          agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+          endpoint: 'anthropic',
+          model_parameters: { model: 'claude-sonnet-4' } as unknown as AgentModelParameters,
+        },
+        deps,
+      );
+      const tools = (agent?.tools ?? []).map(String);
+      expect(tools).toContain('create_remotion_clip');
+      const result = await loadToolDefinitions(
+        { userId: 'user123', agentId: 'a', tools },
+        { getOrFetchMCPServerTools: jest.fn().mockResolvedValue(null), isBuiltInTool: () => true },
+      );
+      expect(result.toolDefinitions.map(({ name }) => name)).toContain('create_remotion_clip');
     } finally {
       process.env = env;
     }
