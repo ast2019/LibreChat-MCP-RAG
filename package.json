@@ -125,6 +125,7 @@
     "clickui:drift": "node scripts/clickui.mts",
     "sort-imports": "node scripts/sort-imports.mts",
     "sort-imports:check": "node scripts/sort-imports.mts --check",
+    "verify:prod": "node scripts/verify-production-build.mts",
     "static-checks": "node scripts/static-checks.mts",
     "static-checks:full": "node scripts/static-checks.mts --full",
     "format": "npx prettier --write \"{,!(node_modules|venv)/**/}*.{js,jsx,ts,tsx}\"",

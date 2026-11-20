@@ -132,6 +132,17 @@ const FILTERS = {
     'scripts/static-checks.mts',
     '.github/workflows/static-checks.yml',
   ],
+  // What the production image build runs: package sources, Dockerfiles, compose, the lockfile.
+  prod_build: [
+    'packages/*/src/**',
+    'packages/*/package.json',
+    'Dockerfile*',
+    'deploy/**',
+    'docker-compose.yml',
+    'package-lock.json',
+    'scripts/verify-production-build.mts',
+    '!**.md',
+  ],
   config: ['api/**', 'config/**', 'packages/**', '.github/workflows/static-checks.yml', '!**.md'],
   i18n: [
     'scripts/i18n*.mts',
@@ -1751,6 +1762,25 @@ function runConfigTests(): CheckOutcome {
   return { ok: result.status === 0, output: result.output };
 }
 
+// --------------------------------------------------------------- production build
+
+/** `npm run verify:prod`: tsdown declaration build, Dockerfile and compose checks. */
+function runProdBuildGuard(): CheckOutcome {
+  const unit = runCommand(
+    {
+      command: process.execPath,
+      args: ['--test', resolve(ROOT, 'scripts/verify-production-build.test.mts')],
+    },
+    [],
+  );
+  if (unit.status !== 0) return { ok: false, output: unit.output };
+  const result = runCommand(
+    { command: process.execPath, args: [resolve(ROOT, 'scripts/verify-production-build.mts')] },
+    [],
+  );
+  return { ok: result.status === 0, output: result.output };
+}
+
 // --------------------------------------------------------------- unused i18n keys
 
 const TOKEN_PATTERN = /[A-Za-z0-9_]+/g;
@@ -2225,6 +2255,13 @@ const CHECKS: Check[] = [
     tier: 'slow',
     group: 'config',
     run: runConfigTests,
+  },
+  {
+    id: 'prod-build',
+    title: 'Production build guard',
+    tier: 'slow',
+    group: 'prod_build',
+    run: runProdBuildGuard,
   },
   { id: 'i18n', title: 'Unused i18n keys', tier: 'slow', group: 'i18n', run: findUnusedI18nKeys },
   {

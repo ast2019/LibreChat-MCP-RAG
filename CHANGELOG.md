@@ -7,6 +7,22 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.39.2] - 2026-11-20
+
+### Fixed
+- **`create_remotion_clip` never reached the model.** The clip tool definitions were not
+  registered in the tool registry (`getToolDefinition`), so `loadToolDefinitions` dropped the
+  tool as `no_registry_definition`. Registry coverage and end-to-end tests now cover every
+  feature tool list.
+
+### Added
+- **`npm run verify:prod` production build guard.** Builds `data-provider`, `data-schemas`,
+  `api`, `client` and `chat` in `Dockerfile.multi` order (so tsdown isolated-declaration errors
+  such as TS9011 fail locally), runs the tool registry specs and the Remotion worker tests, checks
+  compose builds, Dockerfile COPY sources and that every `apt-get install` package exists in the
+  base image's Debian/Ubuntu suite. Image builds report `SKIPPED: docker daemon unavailable`
+  when there is no daemon. Runs in `.husky/pre-push` and as the slow `prod-build` static check.
+
 ## [0.39.1] - 2026-11-20
 
 ### Fixed
