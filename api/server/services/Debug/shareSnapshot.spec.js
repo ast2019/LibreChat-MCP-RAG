@@ -101,3 +101,65 @@ describe('buildDebugShareSnapshot logs', () => {
     expect(snapshot.notes.join(' ')).toMatch(/Debug mode is off/);
   });
 });
+
+describe('buildDebugShareSnapshot remotion', () => {
+  const previousFetch = global.fetch;
+  const previousEnv = { ...process.env };
+
+  beforeEach(() => {
+    getAppConfig.mockResolvedValue({});
+    getBrowserStartupConfig.mockReturnValue({ enabled: false });
+    process.env.REMOTION_SERVICE_URL = 'http://remotion:3200';
+    process.env.REMOTION_SERVICE_TOKEN = 'x'.repeat(40);
+    global.fetch = jest.fn(async (url) => {
+      const route = new URL(url).pathname;
+      const body =
+        route === '/logs'
+          ? {
+              ok: true,
+              entries: [
+                {
+                  id: 1,
+                  at: 't',
+                  level: 'error',
+                  event: 'render.fail',
+                  data: { message: 'failed for a@b.com from 10.0.4.17' },
+                },
+              ],
+            }
+          : { ok: true, ready: true, bundle: 'ready', bundleDetail: { state: 'ready' } };
+      return { status: 200, json: async () => body };
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = previousFetch;
+    process.env = { ...previousEnv };
+  });
+
+  it('adds a masked remotion section with health, status, workerLogs, clipEvents and hints', async () => {
+    const snapshot = await buildDebugShareSnapshot();
+
+    expect(snapshot.remotion).toMatchObject({
+      configured: true,
+      urlHost: 'remotion',
+      health: { ok: true, ready: true },
+    });
+    expect(snapshot.remotion.status).toBeDefined();
+    expect(snapshot.remotion.workerLogs).toHaveLength(1);
+    expect(Array.isArray(snapshot.remotion.clipEvents)).toBe(true);
+    expect(snapshot.remotion.hints.length).toBeGreaterThan(0);
+    const text = JSON.stringify(snapshot.remotion);
+    expect(text).not.toContain('a@b.com');
+    expect(text).not.toContain('10.0.4.17');
+    expect(text).not.toContain('x'.repeat(40));
+    expect(snapshot.notes.join(' ')).toMatch(/remotion:/);
+  });
+
+  it('reports not configured when the env is missing', async () => {
+    delete process.env.REMOTION_SERVICE_URL;
+    const snapshot = await buildDebugShareSnapshot();
+    expect(snapshot.remotion.configured).toBe(false);
+    expect(snapshot.remotion.hints.join(' ')).toContain('REMOTION_SERVICE_URL');
+  });
+});

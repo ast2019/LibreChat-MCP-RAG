@@ -12,6 +12,8 @@ import {
   type ClipSpec,
   type WorkerRenderRequest,
 } from './scene';
+import { debugTrace } from '~/debug/recorder';
+import { recordClipEvent } from './diagnostics';
 import { createRemotionServiceClient, RemotionServiceError } from './client';
 import { getClipConfig, getRemotionServiceTarget } from './config';
 
@@ -85,7 +87,7 @@ function mediaLink(saved: ClipFile): string {
 
 /**
  * Short Remotion clips. Each call validates the scene, optionally loads upload audio, asks the
- * Remotion worker (max 2 concurrent on the worker) to render at most 30s at 720p, saves the MP4
+ * Remotion worker to render at most 30s at 720p, saves the MP4
  * and attaches it. Building a clip does not charge credits; only the conversation's tokens apply.
  */
 export function createClipTools(
@@ -101,6 +103,8 @@ export function createClipTools(
   ): Promise<ToolResult> {
     const target = getRemotionServiceTarget();
     if (!target) {
+      logger.warn('[clip] tool.unconfigured: REMOTION_SERVICE_URL/TOKEN missing or invalid');
+      recordClipEvent({ event: 'tool.unconfigured', level: 'warn' });
       return reply(
         'The clip builder is not available on this deployment (the Remotion worker is not configured). Apologise and suggest trying later.',
       );
@@ -112,10 +116,17 @@ export function createClipTools(
 
     if (spec.audio.mode === 'upload' && spec.audio.fileId) {
       if (!FILE_ID.test(spec.audio.fileId)) {
+        recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'invalid_audio_file_id' });
         return reply('Nothing was built: audio.file_id is not a valid file id.');
       }
       const audio = await deps.loadAudio(req, spec.audio.fileId);
       if (!audio) {
+        logger.warn('[clip] tool.rejected reason=uploaded_audio_not_found');
+        recordClipEvent({
+          event: 'tool.rejected',
+          level: 'warn',
+          reason: 'uploaded_audio_not_found',
+        });
         return reply(
           'Nothing was built: the uploaded audio was not found. Ask the user to attach an audio file to this message and use its id.',
         );
@@ -125,6 +136,7 @@ export function createClipTools(
     } else if (spec.audio.mode === 'tts') {
       ttsText = narrationTextFromSpec(spec);
       if (!ttsText) {
+        recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'tts_without_text' });
         return reply(
           'Nothing was built: TTS needs narration text (audio.tts_text or scene headings/bodies).',
         );
@@ -147,28 +159,87 @@ export function createClipTools(
     };
 
     const client = createRemotionServiceClient(target, doFetch);
+    const audioMode = spec.audio.mode;
+    logger.info(
+      `[clip] tool.invoked theme=${spec.theme} scenes=${spec.scenes.length} durationSec=${spec.durationSec} audio=${audioMode} version=${spec.version}`,
+    );
+    recordClipEvent({
+      event: 'tool.invoked',
+      theme: spec.theme,
+      scenes: spec.scenes.length,
+      durationSec: spec.durationSec,
+      audio: audioMode,
+      version: spec.version,
+    });
+    debugTrace('clip.render', {
+      phase: 'start',
+      theme: spec.theme,
+      scenes: spec.scenes.length,
+      durationSec: spec.durationSec,
+      audio: audioMode,
+      width,
+      height,
+    });
+    const started = Date.now();
     let rendered;
     try {
       rendered = await client.render(payload);
     } catch (error) {
       if (error instanceof RemotionServiceError) {
+        const ms = Date.now() - started;
+        const fields = {
+          code: error.code,
+          status: error.status,
+          stage: error.stage,
+          jobId: error.jobId,
+          detail: error.detail,
+          message: error.message,
+          ms,
+        };
+        recordClipEvent({ event: 'worker.error', level: 'warn', ...fields });
+        debugTrace('clip.render', { phase: 'error', ...fields });
         if (error.code === 'busy') {
+          logger.warn(
+            `[clip] worker.error code=busy status=${error.status} jobId=${error.jobId ?? '-'} ms=${ms}`,
+          );
           return reply(
-            'The clip queue is full right now (only two renders run at once). Tell the user to wait a moment and ask again.',
+            'The clip queue is full right now (the worker renders one clip at a time). Tell the user to wait a moment and ask again.',
           );
         }
-        logger.warn('[clip] Remotion render refused', {
-          code: error.code,
-          message: error.message,
-        });
+        logger.warn(
+          `[clip] worker.error code=${error.code} status=${error.status} stage=${error.stage ?? '-'} jobId=${error.jobId ?? '-'} ms=${ms} message=${error.message}${error.detail ? ` detail=${error.detail}` : ''}`,
+        );
         return reply(
-          `Nothing was built: the Remotion worker could not render this clip (${error.code}). Apologise and suggest trying again.`,
+          `Nothing was built: the Remotion worker could not render this clip (code ${error.code}${error.stage ? `, stage ${error.stage}` : ''}). Tell the user the code, apologise and suggest trying again.`,
         );
       }
       throw error;
     }
 
+    const renderMs = Date.now() - started;
+    logger.info(
+      `[clip] worker.call ok jobId=${rendered.jobId ?? '-'} ms=${renderMs} bytes=${rendered.buffer.length} durationSec=${rendered.durationSec} warnings=${rendered.warnings.length}`,
+    );
+    recordClipEvent({
+      event: 'worker.call',
+      ms: renderMs,
+      bytes: rendered.buffer.length,
+      durationSec: rendered.durationSec,
+      jobId: rendered.jobId,
+      warnings: rendered.warnings.length,
+    });
+    for (const warning of rendered.warnings) {
+      logger.warn(`[clip] worker.warning jobId=${rendered.jobId ?? '-'} ${warning}`);
+      recordClipEvent({
+        event: 'worker.warning',
+        level: 'warn',
+        jobId: rendered.jobId,
+        message: warning,
+      });
+    }
+
     const filename = clipFilename(spec.title, spec.version);
+    const saveStarted = Date.now();
     const saved = await deps.saveMedia(req, {
       buffer: rendered.buffer,
       type: rendered.type || MP4,
@@ -177,14 +248,32 @@ export function createClipTools(
       conversationId: run?.configurable?.thread_id,
     });
 
+    logger.info(`[clip] tool.saved bytes=${saved.bytes} ms=${Date.now() - saveStarted}`);
+    recordClipEvent({ event: 'tool.saved', bytes: saved.bytes, ms: Date.now() - saveStarted });
+    debugTrace('clip.render', {
+      phase: 'end',
+      ms: Date.now() - started,
+      bytes: saved.bytes,
+      durationSec: rendered.durationSec,
+      warnings: rendered.warnings.length,
+    });
+
     const link = mediaLink(saved);
+    const warningNote = rendered.warnings.length
+      ? ` Worker warnings: ${rendered.warnings.join('; ')}.${
+          rendered.warnings.some((w) => w.startsWith('tts_failed'))
+            ? ' The clip has NO voice (narration failed): tell the user.'
+            : ''
+        }`
+      : '';
     const parts = [
-      `The clip «${filename}» is ready (${spec.durationSec}s, ${width}×${height}`,
+      `The clip «${filename}» is ready (${rendered.durationSec}s, ${width}×${height}`,
       spec.audio.mode === 'tts' ? ', with TTS narration' : '',
       spec.audio.mode === 'upload' ? ', with the uploaded audio' : '',
       '). The chat already shows it as a video card; do not invent another download link.',
       ` Put this markdown in your reply exactly so it plays: ${link}`,
       ` To change the clip, call ${ClipTools.clip} again with the full scene and version ${spec.version + 1}.`,
+      warningNote,
     ];
     return [[{ type: 'text', text: parts.join('') }], { [CLIP_ARTIFACT_KEY]: [saved] }];
   }
@@ -201,12 +290,26 @@ export function createClipTools(
     return async (input: unknown, runnable: unknown): Promise<ToolResult> => {
       const config = getClipConfig(req.config);
       if (!enabled(config) || !req.user?.id) {
+        logger.warn(
+          `[clip] tool.unavailable name=${name} enabled=${enabled(config)} user=${Boolean(req.user?.id)}`,
+        );
+        recordClipEvent({
+          event: 'tool.unconfigured',
+          level: 'warn',
+          reason: 'disabled_or_no_user',
+        });
         return reply('This builder is not available on this deployment.');
       }
       try {
         return await build(config, record(input), runnable as RunnableConfig | undefined);
       } catch (error) {
-        logger.error(`[clip] ${name} failed`, error);
+        logger.error(`[clip] tool.exception ${name} failed`, error);
+        recordClipEvent({
+          event: 'tool.exception',
+          level: 'error',
+          name: (error as Error)?.name,
+          message: (error as Error)?.message,
+        });
         return reply(
           'The clip could not be built because of an error on the server, and nothing was saved. Apologise to the user and suggest trying again.',
         );
@@ -217,13 +320,20 @@ export function createClipTools(
   const builders: Record<ClipTools, () => StructuredToolInterface> = {
     [ClipTools.clip]: () =>
       tool(
-        guarded(ClipTools.clip, (config) => config.clip, async (config, input, run) => {
-          const parsed = parseClipInput(input, config);
-          if (typeof parsed === 'string') {
-            return reply(`Nothing was built: ${parsed}`);
-          }
-          return renderClip(config, parsed, run);
-        }),
+        guarded(
+          ClipTools.clip,
+          (config) => config.clip,
+          async (config, input, run) => {
+            const parsed = parseClipInput(input, config);
+            if (typeof parsed === 'string') {
+              logger.warn(`[clip] tool.rejected reason=${parsed}`);
+              recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: parsed });
+              debugTrace('clip.render', { phase: 'rejected', reason: parsed });
+              return reply(`Nothing was built: ${parsed}`);
+            }
+            return renderClip(config, parsed, run);
+          },
+        ),
         { ...clipToolDefinitions[ClipTools.clip] } as never,
       ) as unknown as StructuredToolInterface,
   };

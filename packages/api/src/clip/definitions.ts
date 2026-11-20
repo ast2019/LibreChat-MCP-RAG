@@ -1,5 +1,6 @@
 import { ClipTools } from 'librechat-data-provider';
 import { CLIP_THEMES, CLIP_THEME_LABELS } from './themes';
+import { STYLE_FILM_3D_MAX_SEC, STYLE_FILM_MAX_SEC } from './styleFilms';
 
 export interface ClipToolDefinition {
   name: ClipTools;
@@ -15,15 +16,14 @@ const shared = `The chat shows the file as a video card; do not invent a downloa
 export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
   [ClipTools.clip]: {
     name: ClipTools.clip,
-    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Other themes are full style films from the vendored deenukhan/animation-styles Remotion pack (real SVG/canvas motion with caption overlay) — only catalog-backed looks are offered. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350 for ~5s. Audio: mode "tts", "upload", or "none". ${shared}`,
+    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Other themes are full style films from the vendored deenukhan/animation-styles Remotion pack (real SVG/canvas motion with caption overlay) — only catalog-backed looks are offered. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350; the 5s animation loops to the requested length (up to ${STYLE_FILM_MAX_SEC}s, brick-toy and claymation up to ${STYLE_FILM_3D_MAX_SEC}s). Audio: mode "tts", "upload", or "none". ${shared}`,
     schema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Clip title for the filename and brand line.' },
         duration_sec: {
           type: 'number',
-          description:
-            'Total length in seconds, 1–30 for brand slides. Style-film themes are always ~5s (clamped); defaults to the sum of scene durations for slides.',
+          description: `Total length in seconds, 1–30 for brand slides. Style-film themes are clamped to ${STYLE_FILM_MAX_SEC}s (${STYLE_FILM_3D_MAX_SEC}s for brick-toy and claymation); defaults to the sum of scene durations.`,
         },
         aspect_ratio: {
           type: 'string',

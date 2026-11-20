@@ -8,6 +8,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { SkillScopeParams } from '~/skills/scoped';
 import { getSkillScopedTools } from '~/skills/scoped';
 import { readConfigSection } from '~/app/config';
+import { STYLE_FILM_3D_MAX_SEC, STYLE_FILM_MAX_SEC } from './styleFilms';
 
 export function getClipConfig(appConfig: AppConfig | null | undefined): TClipToolsConfig {
   const parsed = clipToolsSchema.safeParse(readConfigSection(appConfig, 'clipTools') ?? {});
@@ -87,7 +88,7 @@ export function buildClipToolContext(
     Boolean(file?.file_id),
   );
   const parts = [
-    'Build short MP4s with create_remotion_clip. brand-dark/light/ugc = text slides (≤30s). Other themes = catalog style films (~5s, 1080×1350) from the vendored animation-styles pack (only looks that have a real film). Ask before rendering.',
+    `Build short MP4s with create_remotion_clip. brand-dark/light/ugc = text slides (≤30s). Other themes = catalog style films (1080×1350, the 5s animation loops to the requested length, up to ${STYLE_FILM_MAX_SEC}s; brick-toy and claymation up to ${STYLE_FILM_3D_MAX_SEC}s) from the vendored animation-styles pack (only looks that have a real film). Ask before rendering.`,
   ];
   if (images.length > 0) {
     parts.push(

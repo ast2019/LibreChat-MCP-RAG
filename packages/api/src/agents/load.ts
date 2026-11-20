@@ -227,7 +227,15 @@ export async function loadEphemeralAgent(
     tools.push(...getChatOfficeTools(req.config, modelSpec));
   }
   if (wantClip) {
-    tools.push(...getChatClipTools(req.config, modelSpec));
+    const clipTools = getChatClipTools(req.config, modelSpec);
+    if (clipTools.length === 0) {
+      /** The user asked for the clip builder but it is off here: say why, once per request. */
+      logger.warn(
+        '[clip] requested but not equipped: clipTools disabled, REMOTION_SERVICE_URL/TOKEN missing or invalid, or a private/local model spec',
+      );
+      debugTrace('clip.equip', { requested: true, equipped: false });
+    }
+    tools.push(...clipTools);
   }
   /** The agent browser, when the user turned it on for this chat and may use it. */
   if (ephemeralAgent?.browser === true) {
