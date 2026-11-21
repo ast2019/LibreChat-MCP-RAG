@@ -29,6 +29,8 @@ const {
   resolveRunUsageContext,
   isLocalChatSpend,
   toLocalSpendContext,
+  TIME_METER_CONTEXT,
+  addTimePackMeteredCredits,
   getScheduleMCPExecution,
   createScheduledMCPPolicyRecorder,
   recordFallbackTokenUsage,
@@ -176,6 +178,7 @@ const {
   resolveLangChainError,
   resolveYouTubeInjectionConfig,
   decrementPendingRequest,
+  releaseAdmittedRequestSlot,
   maybePrewarmCodeSandbox,
   assertModelBoundContent,
   reportLocatorTraversalFailure,
@@ -3898,11 +3901,13 @@ class AgentClient extends BaseClient {
         appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
     });
     const spendContext = toLocalSpendContext(context, local);
+    const timePackMetering = req?._timePackSeatHeld === true;
+    const pricing = { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier };
     const result = await recordCollectedUsage(
       {
         spendTokens: db.spendTokens,
         spendStructuredTokens: db.spendStructuredTokens,
-        pricing: { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier },
+        pricing,
         bulkWriteOps: { insertMany: db.bulkInsertTransactions, updateBalance: db.updateBalance },
       },
       {
@@ -3910,10 +3915,10 @@ class AgentClient extends BaseClient {
         conversationId: this.conversationId,
         collectedUsage,
         model: model ?? this.model ?? this.options.agent.model_parameters.model,
-        context: spendContext,
+        context: timePackMetering ? TIME_METER_CONTEXT : spendContext,
         messageId: this.responseMessageId,
-        balance,
-        transactions,
+        balance: timePackMetering ? { enabled: false } : balance,
+        transactions: timePackMetering ? { enabled: true } : transactions,
         endpointTokenConfig: overrideTokenConfig
           ? endpointTokenConfig
           : this.options.endpointTokenConfig,
@@ -3922,6 +3927,23 @@ class AgentClient extends BaseClient {
           : { resolveEndpointTokenConfig: (usage) => this.resolveAgentEndpointTokenConfig(usage) }),
       },
     );
+
+    if (timePackMetering && Array.isArray(collectedUsage) && collectedUsage.length > 0) {
+      const userId = this.user ?? req?.user?.id;
+      const tokenConfig = overrideTokenConfig
+        ? endpointTokenConfig
+        : this.options.endpointTokenConfig;
+      let meteredCredits = 0;
+      for (const usage of collectedUsage) {
+        if (usage == null) {
+          continue;
+        }
+        meteredCredits += computeUsageCostUSD(usage, pricing, tokenConfig) * 1_000_000;
+      }
+      if (userId && meteredCredits > 0) {
+        await addTimePackMeteredCredits(userId, meteredCredits, appConfig?.balance?.timePack);
+      }
+    }
 
     if (result && updateStreamUsage) {
       this.usage = result;
@@ -4348,9 +4370,11 @@ class AgentClient extends BaseClient {
     }
     if (!this.pendingRequestReleased) {
       try {
-        if (this.options.req?._scheduleConcurrencyExempt !== true) {
-          await decrementPendingRequest(this.options.req?.user?.id);
-        }
+        await releaseAdmittedRequestSlot({
+          req: this.options.req,
+          userId: this.options.req?.user?.id,
+          decrementPendingRequest,
+        });
         this.pendingRequestReleased = true;
       } catch (err) {
         logger.error(

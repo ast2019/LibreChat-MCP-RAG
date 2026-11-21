@@ -60,6 +60,11 @@ export type TModelSpec = {
    */
   privacy?: 'private' | 'local';
   /**
+   * Spec is offered only while the user has an active Claude time pack. When a time pack is
+   * active, credit-path Claude specs (`group: 'Claude'` without this flag) are hidden instead.
+   */
+  timePack?: boolean;
+  /**
    * Set on specs the catalogue added (`autoDiscover`): when the provider published the model,
    * in Unix seconds. The selector marks a spec published in the last two weeks as new.
    */
@@ -210,6 +215,7 @@ export const tModelSpecSchema = z.object({
   showInMenu: z.boolean().optional(),
   adminOnly: z.boolean().optional(),
   privacy: z.enum(['private', 'local']).optional(),
+  timePack: z.boolean().optional(),
   discoveredAt: z.number().optional(),
   iconURL: z.union([z.string(), eModelEndpointSchema]).optional(),
   authType: authTypeSchema.optional(),

@@ -15,6 +15,7 @@ import {
   normalizeEndpointName,
   setMaxSubagents,
   findPackGrants,
+  getActiveTimePackEntitlement,
 } from 'librechat-data-provider';
 import type { AppConfig, RolePermissions, ConfigOverrideLayer } from '@librechat/data-schemas';
 import type { TUserModelAccess } from 'librechat-data-provider';
@@ -28,6 +29,7 @@ import {
   applyAdminOnlySpecs,
   resolvePrivacyAccess,
   applyPrivacyAccessSpecs,
+  applyTimePackSpecs,
 } from './admin';
 import { createEnvReferencePolicy, parseEnvAllowlist } from './allowlist';
 import { getSharedModelCatalogue } from '~/modelSpecs/catalogue';
@@ -300,6 +302,10 @@ export interface GetAppConfigOptions {
    * classes the user has no override for. Read from the loaded user, never from the database.
    */
   packId?: string | null;
+  /** Active Claude time entitlement fields from the loaded user (for model-spec filtering). */
+  timePackId?: string | null;
+  timePackExpiresAt?: Date | string | null;
+  timePackEndpoint?: string | null;
   refresh?: boolean;
   /** When true, return only the YAML-derived base config — no DB override queries. */
   baseOnly?: boolean;
@@ -325,6 +331,9 @@ export interface AppConfigUserLike {
   idOnTheSource?: string | null;
   modelAccess?: TUserModelAccess | null;
   packId?: string | null;
+  timePackId?: string | null;
+  timePackExpiresAt?: Date | string | null;
+  timePackEndpoint?: string | null;
 }
 
 export function getAppConfigOptionsFromUser(
@@ -341,6 +350,9 @@ export function getAppConfigOptionsFromUser(
     tenantId: tenantId ?? user?.tenantId ?? getTenantId(),
     modelAccess: user?.modelAccess ?? undefined,
     packId: user?.packId ?? undefined,
+    timePackId: user?.timePackId ?? undefined,
+    timePackExpiresAt: user?.timePackExpiresAt ?? undefined,
+    timePackEndpoint: user?.timePackEndpoint ?? undefined,
   };
 }
 
@@ -711,8 +723,17 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
     });
     /** Discovered specs join before the access filters, so the same rules hide them */
     const discovered = applyAutoDiscoveredSpecs(config, getModelCatalogue());
+    const hasActiveTimePack =
+      getActiveTimePackEntitlement({
+        timePackId: options.timePackId,
+        timePackExpiresAt: options.timePackExpiresAt,
+        timePackEndpoint: options.timePackEndpoint,
+      }) != null;
     return applyAdminFullAccess(
-      applyPrivacyAccessSpecs(applyAdminOnlySpecs(discovered, options.role), access),
+      applyTimePackSpecs(
+        applyPrivacyAccessSpecs(applyAdminOnlySpecs(discovered, options.role), access),
+        hasActiveTimePack,
+      ),
       options.role,
     );
   }

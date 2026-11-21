@@ -105,6 +105,14 @@ export interface IUser extends Document {
   modelAccess?: TUserModelAccess;
   /** The current balance pack, copied from the balance on each grant; its `grants` apply. */
   packId?: string;
+  /** Active Claude time-pack id; independent of credit `packId`. */
+  timePackId?: string;
+  timePackLabel?: string;
+  /** Stored as Date; API responses may serialize to ISO strings. */
+  timePackExpiresAt?: Date | string;
+  timePackGrantedAt?: Date | string;
+  /** Dedicated custom endpoint for the active time pack. */
+  timePackEndpoint?: string;
   favorites?: TUserFavorite[];
   /** Display order for the sidebar's Pinned section: favorite and pinned-chat
    *  entry keys interleaved (`agent:`, `spec:`, `model:`, `convo:` prefixes). */

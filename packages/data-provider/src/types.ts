@@ -367,6 +367,12 @@ export type TUser = {
   higgsfieldAccess?: boolean;
   /** The current balance pack; its `grants` (in the startup config's packs) apply. */
   packId?: string;
+  /** Active Claude time-pack id; independent of credit `packId`. */
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: string;
+  timePackGrantedAt?: string;
+  timePackEndpoint?: string;
   personalization?: {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
@@ -1354,6 +1360,12 @@ export type TBalanceResponse = {
   /** Credits the user held right after the last pack grant; the usage bar measures against it */
   packAllotment?: number;
   packGrantedAt?: Date | string;
+  /** Active Claude time entitlement (independent of credit pack fields). */
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: Date | string;
+  timePackGrantedAt?: Date | string;
+  timePackEndpoint?: string;
 };
 
 /* -------------------------------------------------------------------------- */

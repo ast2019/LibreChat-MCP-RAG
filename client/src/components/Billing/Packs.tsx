@@ -24,12 +24,17 @@ const MAX_USD = 1000;
 
 type GrantChoice = 'default' | 'include' | 'exclude';
 
+type PackKind = 'credits' | 'time';
+
 type Row = {
   /** Stable React key; never sent */
   key: string;
   id: string;
   label: string;
+  kind: PackKind;
   usd: string;
+  durationDays: string;
+  endpoint: string;
   description: string;
   grants: TPackGrants;
   /** Browsers one user of the pack may have open at once, as typed; empty means 1 */
@@ -39,7 +44,10 @@ type Row = {
 };
 
 type RowErrors = Partial<
-  Record<'id' | 'label' | 'usd' | 'description' | 'browserSessions', TranslationKeys>
+  Record<
+    'id' | 'label' | 'usd' | 'durationDays' | 'endpoint' | 'description' | 'browserSessions',
+    TranslationKeys
+  >
 >;
 
 /** The browser count typed by the admin; null when empty, NaN when invalid. */
@@ -55,11 +63,15 @@ function toBrowserSessions(value: string): number | null {
 const toUsd = (credits: number) => String(Math.round((credits / CREDITS_PER_USD) * 100) / 100);
 
 function toRow(pack: TAdminBillingPack): Row {
+  const kind: PackKind = pack.kind === 'time' ? 'time' : 'credits';
   return {
     key: pack.id,
     id: pack.id,
     label: pack.label,
-    usd: toUsd(pack.credits),
+    kind,
+    usd: kind === 'credits' && pack.credits != null ? toUsd(pack.credits) : '',
+    durationDays: pack.durationDays != null ? String(pack.durationDays) : '',
+    endpoint: pack.endpoint ?? '',
     description: pack.description ?? '',
     grants: { ...pack.grants },
     browserSessions: pack.browserSessions != null ? String(pack.browserSessions) : '',
@@ -89,14 +101,24 @@ function validate(rows: Row[]): RowErrors[] {
     if (row.label.trim() === '' || row.label.trim().length > 80) {
       errors.label = 'com_admin_packs_error_label';
     }
-    if (toCredits(row.usd) == null) {
-      errors.usd = 'com_admin_packs_error_price';
+    if (row.kind === 'credits') {
+      if (toCredits(row.usd) == null) {
+        errors.usd = 'com_admin_packs_error_price';
+      }
+      if (Number.isNaN(toBrowserSessions(row.browserSessions))) {
+        errors.browserSessions = 'com_admin_packs_error_browser_sessions';
+      }
+    } else {
+      const days = Number.parseInt(row.durationDays.trim(), 10);
+      if (!Number.isInteger(days) || days < 1 || days > 366) {
+        errors.durationDays = 'com_admin_packs_error_duration';
+      }
+      if (row.endpoint.trim() === '') {
+        errors.endpoint = 'com_admin_packs_error_endpoint';
+      }
     }
     if (row.description.trim().length > 200) {
       errors.description = 'com_admin_packs_error_description';
-    }
-    if (Number.isNaN(toBrowserSessions(row.browserSessions))) {
-      errors.browserSessions = 'com_admin_packs_error_browser_sessions';
     }
     return errors;
   });
@@ -104,6 +126,16 @@ function validate(rows: Row[]): RowErrors[] {
 
 function toPack(row: Row): TAdminBillingPack {
   const description = row.description.trim();
+  if (row.kind === 'time') {
+    return {
+      id: row.id.trim(),
+      label: row.label.trim(),
+      kind: 'time',
+      durationDays: Number.parseInt(row.durationDays.trim(), 10),
+      endpoint: row.endpoint.trim(),
+      ...(description !== '' && { description }),
+    };
+  }
   const grants = Object.fromEntries(
     Object.entries(row.grants).filter(([, value]) => typeof value === 'boolean'),
   ) as TPackGrants;
@@ -111,6 +143,7 @@ function toPack(row: Row): TAdminBillingPack {
   return {
     id: row.id.trim(),
     label: row.label.trim(),
+    kind: 'credits',
     credits: toCredits(row.usd) as number,
     ...(description !== '' && { description }),
     ...(Object.keys(grants).length > 0 && { grants }),
@@ -224,27 +257,75 @@ function PackCard({
             />
           )}
         </Field>
-        <Field
-          label={localize('com_admin_packs_price')}
-          error={errors.usd}
-          hint={local != null ? `≈ ${local}` : undefined}
-        >
-          {({ id, describedBy, invalid }) => (
-            <div className="flex items-center gap-2">
-              <Input
-                id={id}
-                dir="ltr"
-                inputMode="decimal"
-                value={row.usd}
-                onChange={(event) => onChange({ ...row, usd: event.target.value })}
-                aria-invalid={invalid}
-                aria-describedby={describedBy}
-                className="max-w-32"
-              />
-              <span className="text-text-secondary text-sm">$</span>
-            </div>
+        <Field label={localize('com_admin_packs_kind')}>
+          {() => (
+            <Dropdown
+              variant="compact"
+              value={row.kind}
+              options={[
+                { label: localize('com_admin_packs_kind_credits'), value: 'credits' },
+                { label: localize('com_admin_packs_kind_time'), value: 'time' },
+              ]}
+              onChange={(value) => onChange({ ...row, kind: value as PackKind })}
+              ariaLabel={localize('com_admin_packs_kind')}
+              testId={`pack-kind-${row.key}`}
+              sizeClasses="z-50"
+            />
           )}
         </Field>
+        {row.kind === 'credits' ? (
+          <Field
+            label={localize('com_admin_packs_price')}
+            error={errors.usd}
+            hint={local != null ? `≈ ${local}` : undefined}
+          >
+            {({ id, describedBy, invalid }) => (
+              <div className="flex items-center gap-2">
+                <Input
+                  id={id}
+                  dir="ltr"
+                  inputMode="decimal"
+                  value={row.usd}
+                  onChange={(event) => onChange({ ...row, usd: event.target.value })}
+                  aria-invalid={invalid}
+                  aria-describedby={describedBy}
+                  className="max-w-32"
+                />
+                <span className="text-text-secondary text-sm">$</span>
+              </div>
+            )}
+          </Field>
+        ) : (
+          <>
+            <Field label={localize('com_admin_packs_duration_days')} error={errors.durationDays}>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  dir="ltr"
+                  inputMode="numeric"
+                  value={row.durationDays}
+                  onChange={(event) => onChange({ ...row, durationDays: event.target.value })}
+                  aria-invalid={invalid}
+                  aria-describedby={describedBy}
+                  className="max-w-32"
+                />
+              )}
+            </Field>
+            <Field label={localize('com_admin_packs_endpoint')} error={errors.endpoint}>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  dir="ltr"
+                  value={row.endpoint}
+                  placeholder="ClaudeTime"
+                  onChange={(event) => onChange({ ...row, endpoint: event.target.value })}
+                  aria-invalid={invalid}
+                  aria-describedby={describedBy}
+                />
+              )}
+            </Field>
+          </>
+        )}
         <Field
           label={localize('com_admin_packs_id')}
           error={errors.id}
@@ -282,54 +363,56 @@ function PackCard({
         </Field>
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className="text-text-primary text-sm font-medium">
-          {localize('com_admin_packs_grants')}
-        </legend>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {ACCESS_CLASSES.filter((field) => field !== 'attachVm' && field !== 'higgsfield').map(
-            (field) => {
-              const label = localize(ACCESS_LABELS[field].full);
-              return (
-                <div key={field} className="flex items-center justify-between gap-3">
-                  <span className="text-text-secondary text-sm">{label}</span>
-                  <Dropdown
-                    variant="compact"
-                    value={toChoice(row.grants[field])}
-                    options={grantOptions}
-                    onChange={(value) => setGrant(field, value as GrantChoice)}
-                    ariaLabel={`${label}: ${title}`}
-                    testId={`pack-grant-${field}-${row.key}`}
-                    sizeClasses="z-50"
-                  />
-                </div>
-              );
-            },
-          )}
-        </div>
-        {row.grants.browser === true && (
-          <Field
-            label={localize('com_admin_packs_browser_sessions')}
-            error={errors.browserSessions}
-            hint={localize('com_admin_packs_browser_sessions_hint')}
-          >
-            {({ id, describedBy, invalid }) => (
-              <Input
-                id={id}
-                dir="ltr"
-                inputMode="numeric"
-                placeholder="1"
-                value={row.browserSessions}
-                onChange={(event) => onChange({ ...row, browserSessions: event.target.value })}
-                aria-invalid={invalid}
-                aria-describedby={describedBy}
-                className="max-w-20"
-                data-testid={`pack-browser-sessions-${row.key}`}
-              />
+      {row.kind === 'credits' && (
+        <fieldset className="space-y-2">
+          <legend className="text-text-primary text-sm font-medium">
+            {localize('com_admin_packs_grants')}
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ACCESS_CLASSES.filter((field) => field !== 'attachVm' && field !== 'higgsfield').map(
+              (field) => {
+                const label = localize(ACCESS_LABELS[field].full);
+                return (
+                  <div key={field} className="flex items-center justify-between gap-3">
+                    <span className="text-text-secondary text-sm">{label}</span>
+                    <Dropdown
+                      variant="compact"
+                      value={toChoice(row.grants[field])}
+                      options={grantOptions}
+                      onChange={(value) => setGrant(field, value as GrantChoice)}
+                      ariaLabel={`${label}: ${title}`}
+                      testId={`pack-grant-${field}-${row.key}`}
+                      sizeClasses="z-50"
+                    />
+                  </div>
+                );
+              },
             )}
-          </Field>
-        )}
-      </fieldset>
+          </div>
+          {row.grants.browser === true && (
+            <Field
+              label={localize('com_admin_packs_browser_sessions')}
+              error={errors.browserSessions}
+              hint={localize('com_admin_packs_browser_sessions_hint')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  dir="ltr"
+                  inputMode="numeric"
+                  placeholder="1"
+                  value={row.browserSessions}
+                  onChange={(event) => onChange({ ...row, browserSessions: event.target.value })}
+                  aria-invalid={invalid}
+                  aria-describedby={describedBy}
+                  className="max-w-20"
+                  data-testid={`pack-browser-sessions-${row.key}`}
+                />
+              )}
+            </Field>
+          )}
+        </fieldset>
+      )}
     </li>
   );
 }
@@ -401,7 +484,10 @@ export default function Packs() {
         key: `new-${newPackCount}`,
         id: `pack-${n}`,
         label: '',
+        kind: 'credits',
         usd: '',
+        durationDays: '30',
+        endpoint: 'ClaudeTime',
         description: '',
         grants: {},
         browserSessions: '',

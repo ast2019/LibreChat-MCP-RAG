@@ -8,8 +8,8 @@ import {
   usePaymentCheckoutMutation,
   usePaymentOptionsQuery,
 } from '~/data-provider';
-import { formatPackPrice, formatPackUsd } from '~/utils/balance';
 import { GATEWAY_LABELS, errorLabel, formatRial, readErrorCode } from './format';
+import { formatPackPrice, formatPackUsd } from '~/utils/balance';
 import useLocalize from '~/hooks/useLocalize';
 import cn from '~/utils/cn';
 
@@ -81,6 +81,9 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
      *  it (the deployment's purchase page, when it has one). */
     const currency = startupConfig?.interface?.currency;
     const configured = (startupConfig?.balance?.packs ?? []).flatMap((pack) => {
+      if (pack.kind === 'time' || pack.credits == null) {
+        return [];
+      }
       const price = formatPackPrice(pack.credits, currency);
       return price == null ? [] : [{ pack, price }];
     });

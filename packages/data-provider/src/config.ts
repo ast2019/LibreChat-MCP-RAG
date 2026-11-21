@@ -5,6 +5,7 @@ import type { TOfficeToolsStartupConfig } from './office';
 import type { TPaymentsStartupConfig } from './payments';
 import type { TReferralStartupConfig } from './referral';
 import type { TBrowserStartupConfig } from './browser';
+import type { TClipToolsStartupConfig } from './clip';
 import {
   MAX_SUBAGENTS,
   MAX_SUBAGENTS_CEILING,
@@ -52,7 +53,6 @@ import { browserConfigSchema } from './browser';
 import { persianToolsSchema } from './persian';
 import { officeToolsSchema } from './office';
 import { clipToolsSchema } from './clip';
-import type { TClipToolsStartupConfig } from './clip';
 
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_DEFAULT = 24 * 1024;
 export const AGENT_BACKGROUND_COMPLETION_RESULT_MAX_CHARS_HARD_MAX = 64 * 1024;
@@ -4093,28 +4093,116 @@ export const documentOcrSchema = z.object({
 
 export type TDocumentOcrConfig = z.infer<typeof documentOcrSchema>;
 
-/** A grantable bundle of credits (1,000,000 credits = $1 of marked-up usage). */
-export const balancePackSchema = z.object({
-  /** Stable identifier used by the admin API and CLI, e.g. `starter` */
-  id: z
-    .string()
+/** Credit packs allot usage; time packs grant a Claude seat window on a dedicated API. */
+export const BALANCE_PACK_KINDS = ['credits', 'time'] as const;
+export type BalancePackKind = (typeof BALANCE_PACK_KINDS)[number];
+
+/** Shared seat pool for time-pack Claude generations. */
+export const DEFAULT_TIME_PACK_MAX_SEATS = 4;
+export const DEFAULT_TIME_PACK_MAX_SEATS_PER_USER = 1;
+export const DEFAULT_TIME_PACK_REST_MINUTES = 60;
+export const DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS = 24;
+/** ~$5 of metered usage in a window before a seat holder can be force-rested for oversale. */
+export const DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS = 5_000_000;
+
+export const timePackRuntimeSchema = z.object({
+  maxSeats: z.number().int().min(1).max(32).optional().default(DEFAULT_TIME_PACK_MAX_SEATS),
+  maxSeatsPerUser: z
+    .number()
+    .int()
     .min(1)
-    .max(64)
-    .regex(/^[a-z0-9][a-z0-9_-]*$/, 'must be lowercase letters, digits, "-" or "_"'),
-  /** Name shown to the user beside their usage bar */
-  label: z.string().min(1).max(80),
-  credits: z.number().int().positive(),
-  /** Admin-facing note such as the sale price; never used for billing */
-  description: z.string().max(200).optional(),
-  /**
-   * Access the pack grants or withholds while it is the user's current pack (local and private
-   * model specs, media generation, the programming API, the agent browser). A user's own
-   * override still wins; an omitted class keeps the rule without packs.
-   */
-  grants: packGrantsSchema.optional(),
-  /** Agent browsers one user of this pack may have open at once (default 1) */
-  browserSessions: z.number().int().min(1).max(MAX_BROWSER_SESSIONS).optional(),
+    .max(4)
+    .optional()
+    .default(DEFAULT_TIME_PACK_MAX_SEATS_PER_USER),
+  restMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60)
+    .optional()
+    .default(DEFAULT_TIME_PACK_REST_MINUTES),
+  usageWindowHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(168)
+    .optional()
+    .default(DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS),
+  oversellMinMeteredCredits: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .default(DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS),
 });
+
+export type TTimePackRuntime = z.infer<typeof timePackRuntimeSchema>;
+
+/** A grantable credit allotment or Claude time entitlement. */
+export const balancePackSchema = z
+  .object({
+    /** Stable identifier used by the admin API and CLI, e.g. `starter` */
+    id: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9_-]*$/, 'must be lowercase letters, digits, "-" or "_"'),
+    /** Name shown to the user beside their usage bar */
+    label: z.string().min(1).max(80),
+    /**
+     * `credits` (default): adds an allotment. `time`: Claude-only access for `durationDays` on
+     * `endpoint`, gated by the shared seat pool — does not change token credits.
+     */
+    /** Omitted packs are treated as credit packs. */
+    kind: z.enum(BALANCE_PACK_KINDS).optional(),
+    /** Credits granted for `kind: credits` (1,000,000 = $1 of marked-up usage). */
+    credits: z.number().int().positive().optional(),
+    /** Calendar days the time entitlement lasts from the grant instant. */
+    durationDays: z.number().int().min(1).max(366).optional(),
+    /** Custom endpoint name for time-pack Claude (e.g. `ClaudeTime`). */
+    endpoint: z.string().min(1).max(64).optional(),
+    /** Optional model id allowlist on the time endpoint; omission means every Claude model there. */
+    models: z.array(z.string().min(1).max(128)).max(32).optional(),
+    /** Admin-facing note such as the sale price; never used for billing */
+    description: z.string().max(200).optional(),
+    /**
+     * Access the pack grants or withholds while it is the user's current credit pack (local and
+     * private model specs, media generation, the programming API, the agent browser). Unused for
+     * `kind: time`. A user's own override still wins; an omitted class keeps the rule without packs.
+     */
+    grants: packGrantsSchema.optional(),
+    /** Agent browsers one user of this pack may have open at once (default 1); credit packs only */
+    browserSessions: z.number().int().min(1).max(MAX_BROWSER_SESSIONS).optional(),
+  })
+  .superRefine((pack, ctx) => {
+    const kind = pack.kind ?? 'credits';
+    if (kind === 'credits') {
+      if (
+        !(typeof pack.credits === 'number' && Number.isInteger(pack.credits) && pack.credits > 0)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['credits'],
+          message: 'Credit packs require a positive credits amount',
+        });
+      }
+      return;
+    }
+    if (!(typeof pack.durationDays === 'number' && pack.durationDays >= 1)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['durationDays'],
+        message: 'Time packs require durationDays',
+      });
+    }
+    if (!(typeof pack.endpoint === 'string' && pack.endpoint.trim() !== '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endpoint'],
+        message: 'Time packs require an endpoint name',
+      });
+    }
+  });
 
 export type TBalancePack = z.infer<typeof balancePackSchema>;
 
@@ -4136,8 +4224,10 @@ export const balanceSchema = z
       .default(DEFAULT_BALANCE_RESERVATION_TTL_MS),
     /** How the UI presents the balance; `credits` keeps the raw figure. */
     display: z.enum(BALANCE_DISPLAY_MODES).optional().default('credits'),
-    /** Credit packs an admin can grant; omission keeps grants to raw credit amounts. */
+    /** Credit and time packs an admin can grant; omission keeps grants to raw credit amounts. */
     packs: z.array(balancePackSchema).optional(),
+    /** Shared seat pool and fairness knobs for `kind: time` packs. */
+    timePack: timePackRuntimeSchema.optional(),
     /** Where the low-balance notice's "Buy a pack" button links; omission shows no button. */
     purchaseUrl: z
       .string()
@@ -5350,6 +5440,18 @@ export enum CacheKeys {
    */
   PENDING_REQ = 'PENDING_REQ',
   /**
+   * Shared seat leases for time-pack Claude generations.
+   */
+  TIME_PACK_SEATS = 'TIME_PACK_SEATS',
+  /**
+   * Rolling metered usage for time-pack fairness / oversale.
+   */
+  TIME_PACK_METER = 'TIME_PACK_METER',
+  /**
+   * Forced rest cooldowns for heavy time-pack users.
+   */
+  TIME_PACK_COOLDOWN = 'TIME_PACK_COOLDOWN',
+  /**
    * Key for s3 check intervals per user
    */
   S3_EXPIRY_INTERVAL = 'S3_EXPIRY_INTERVAL',
@@ -5440,6 +5542,14 @@ export enum ViolationTypes {
    * Concurrent request violations.
    */
   CONCURRENT = 'concurrent',
+  /**
+   * Time-pack Claude seat pool is full and no holder can be force-rested.
+   */
+  TIME_PACK_BUSY = 'time_pack_busy',
+  /**
+   * Time-pack user is in a forced rest cooldown after heavy usage.
+   */
+  TIME_PACK_REST = 'time_pack_rest',
   /**
    * Non-browser access violations.
    */

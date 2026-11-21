@@ -23,6 +23,10 @@ const {
   decrementPendingRequest,
   sanitizeMessageForTransmit,
   checkAndIncrementPendingRequest,
+  shouldUseTimePackSeats,
+  admitTimePackRequest,
+  releaseAdmittedRequestSlot,
+  stopUserGenerations,
   exemptFromConcurrencyLimiter,
   isScheduleFireRequest,
   isUnpersistedPreliminaryParent,
@@ -378,9 +382,7 @@ async function finishResumableRequest(req, userId) {
   try {
     await cleanupMCPRequestContextForReq(req);
   } finally {
-    if (req._scheduleConcurrencyExempt !== true) {
-      await decrementPendingRequest(userId);
-    }
+    await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
   }
 }
 
@@ -1531,21 +1533,67 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
   const scheduleConcurrencyExempt = exemptFromConcurrencyLimiter(req);
   req._scheduleConcurrencyExempt = scheduleConcurrencyExempt;
+  req._timePackSeatHeld = false;
   if (!scheduleConcurrencyExempt) {
-    const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
-    if (!allowed) {
-      if (ownedIdempotencyClaim) {
-        await GenerationJobManager.releaseGeneration(
-          userId,
-          clientRequestId,
-          streamId,
-          ownedIdempotencyClaim,
-        ).catch(() => {});
+    const timePackEndpoint =
+      endpointOption?.endpoint ?? endpointOption?.endpointType ?? req.body?.endpoint ?? null;
+    const timePackModel =
+      endpointOption?.modelOptions?.model ||
+      endpointOption?.model_parameters?.model ||
+      req.body?.model ||
+      null;
+    const useTimePackSeats = shouldUseTimePackSeats({
+      user: req.user,
+      endpoint: timePackEndpoint,
+      model: timePackModel,
+      packs: req.config?.balance?.packs,
+    });
+    if (useTimePackSeats) {
+      const admission = await admitTimePackRequest({
+        userId,
+        balance: req.config?.balance,
+        abortHolder: async (holderId) => {
+          await stopUserGenerations(holderId, req.user?.tenantId, GenerationJobManager);
+        },
+      });
+      if (!admission.ok) {
+        if (ownedIdempotencyClaim) {
+          await GenerationJobManager.releaseGeneration(
+            userId,
+            clientRequestId,
+            streamId,
+            ownedIdempotencyClaim,
+          ).catch(() => {});
+        }
+        const violationInfo = {
+          type: admission.type,
+          limit: admission.limit,
+          pendingRequests: admission.pendingSeats,
+          score: admission.score,
+          reason: admission.reason,
+          ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
+        };
+        await logViolation(req, res, admission.type, violationInfo, admission.score);
+        startupTelemetry?.end('rejected');
+        return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
       }
-      const violationInfo = getViolationInfo(pendingRequests, limit);
-      await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
-      startupTelemetry?.end('rejected');
-      return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
+      req._timePackSeatHeld = true;
+    } else {
+      const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
+      if (!allowed) {
+        if (ownedIdempotencyClaim) {
+          await GenerationJobManager.releaseGeneration(
+            userId,
+            clientRequestId,
+            streamId,
+            ownedIdempotencyClaim,
+          ).catch(() => {});
+        }
+        const violationInfo = getViolationInfo(pendingRequests, limit);
+        await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
+        startupTelemetry?.end('rejected');
+        return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
+      }
     }
   }
   startupTelemetry?.mark('request_admitted');
@@ -2951,8 +2999,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           // (so a fast /resume isn't 429'd); only release here if that didn't happen.
           // Always run the MCP request-context cleanup.
           await cleanupMCPRequestContextForReq(req);
-          if (!client?.pendingRequestReleased && req._scheduleConcurrencyExempt !== true) {
-            await decrementPendingRequest(userId);
+          if (!client?.pendingRequestReleased) {
+            await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
           }
           if (client) {
             disposeClient(client);

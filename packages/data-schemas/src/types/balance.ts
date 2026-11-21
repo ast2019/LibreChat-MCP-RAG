@@ -32,6 +32,11 @@ export interface IBalance extends Document {
   /** Credits held right after the last pack grant */
   packAllotment?: number;
   packGrantedAt?: Date;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: Date;
+  timePackGrantedAt?: Date;
+  timePackEndpoint?: string;
   /** Reservation state is excluded from reads unless explicitly selected */
   reservations?: IBalanceReservation[];
   /** Sum of `reservations` amounts, maintained by the same writes */
@@ -53,6 +58,11 @@ export interface IBalanceUpdate {
   packLabel?: string;
   packAllotment?: number;
   packGrantedAt?: Date;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: Date;
+  timePackGrantedAt?: Date;
+  timePackEndpoint?: string;
 }
 
 /** Holds credits against a user's balance for the lifetime of one in-flight request */

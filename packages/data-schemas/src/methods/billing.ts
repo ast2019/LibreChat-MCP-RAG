@@ -32,12 +32,22 @@ export interface BillingUserRow {
   higgsfieldAccess?: boolean;
   /** `user.packId`: the pack copied onto the user on its last grant, whose `grants` apply */
   packId?: string;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: string;
+  timePackGrantedAt?: string;
+  timePackEndpoint?: string;
   balance: {
     tokenCredits: number;
     packId?: string;
     packLabel?: string;
     packAllotment?: number;
     packGrantedAt?: string;
+    timePackId?: string;
+    timePackLabel?: string;
+    timePackExpiresAt?: string;
+    timePackGrantedAt?: string;
+    timePackEndpoint?: string;
   } | null;
 }
 
@@ -204,7 +214,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       users()
         .find(
           filter,
-          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess browserAccess attachVmAccess higgsfieldAccess packId',
+          '_id name username email phone role createdAt modelAccess apiAccess mediaAccess browserAccess attachVmAccess higgsfieldAccess packId timePackId timePackLabel timePackExpiresAt timePackGrantedAt timePackEndpoint',
         )
         .sort(sortBy)
         .skip(skip)
@@ -217,7 +227,7 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
       ? await balances()
           .find(
             { user: { $in: ids } },
-            'user tokenCredits packId packLabel packAllotment packGrantedAt',
+            'user tokenCredits packId packLabel packAllotment packGrantedAt timePackId timePackLabel timePackExpiresAt timePackGrantedAt timePackEndpoint',
           )
           .lean()
       : [];
@@ -249,6 +259,18 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
             higgsfieldAccess: doc.higgsfieldAccess,
           }),
           ...(typeof doc.packId === 'string' && doc.packId !== '' && { packId: doc.packId }),
+          ...(typeof doc.timePackId === 'string' &&
+            doc.timePackId !== '' && { timePackId: doc.timePackId }),
+          ...(typeof doc.timePackLabel === 'string' &&
+            doc.timePackLabel !== '' && { timePackLabel: doc.timePackLabel }),
+          ...(doc.timePackExpiresAt != null && {
+            timePackExpiresAt: new Date(doc.timePackExpiresAt).toISOString(),
+          }),
+          ...(doc.timePackGrantedAt != null && {
+            timePackGrantedAt: new Date(doc.timePackGrantedAt).toISOString(),
+          }),
+          ...(typeof doc.timePackEndpoint === 'string' &&
+            doc.timePackEndpoint !== '' && { timePackEndpoint: doc.timePackEndpoint }),
           balance: balance
             ? {
                 tokenCredits: balance.tokenCredits ?? 0,
@@ -258,6 +280,15 @@ export function createBillingMethods(mongoose: typeof import('mongoose')): {
                 packGrantedAt: balance.packGrantedAt
                   ? new Date(balance.packGrantedAt).toISOString()
                   : undefined,
+                timePackId: balance.timePackId,
+                timePackLabel: balance.timePackLabel,
+                timePackExpiresAt: balance.timePackExpiresAt
+                  ? new Date(balance.timePackExpiresAt).toISOString()
+                  : undefined,
+                timePackGrantedAt: balance.timePackGrantedAt
+                  ? new Date(balance.timePackGrantedAt).toISOString()
+                  : undefined,
+                timePackEndpoint: balance.timePackEndpoint,
               }
             : null,
         };

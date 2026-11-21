@@ -1,4 +1,4 @@
-import { MAX_GRANT_CREDITS } from 'librechat-data-provider';
+import { MAX_GRANT_CREDITS, isTimePack } from 'librechat-data-provider';
 import type { TBalancePack } from 'librechat-data-provider';
 
 export { MAX_GRANT_CREDITS };
@@ -43,6 +43,21 @@ export function resolveBalanceGrant(
         error: { code: 'pack_not_found', message: 'No configured pack has that id' },
       };
     }
+    if (isTimePack(pack)) {
+      return {
+        ok: false,
+        error: {
+          code: 'grant_amount_invalid',
+          message: 'Time packs are granted on the time-pack path, not as credits',
+        },
+      };
+    }
+    if (!(typeof pack.credits === 'number' && pack.credits > 0)) {
+      return {
+        ok: false,
+        error: { code: 'grant_amount_invalid', message: 'Credit pack is missing credits' },
+      };
+    }
     return { ok: true, value: { credits: pack.credits, pack } };
   }
   if (hasCredits) {
@@ -84,6 +99,11 @@ export interface GrantBalanceDeps {
       packLabel?: string;
       packAllotment?: number;
       packGrantedAt?: Date;
+      timePackId?: string;
+      timePackLabel?: string;
+      timePackExpiresAt?: Date;
+      timePackGrantedAt?: Date;
+      timePackEndpoint?: string;
     },
   ) => Promise<unknown>;
   /**
