@@ -29,7 +29,7 @@ const {
   resolveRunUsageContext,
   isLocalChatSpend,
   toLocalSpendContext,
-  TIME_METER_CONTEXT,
+  resolveTimePackUsageBilling,
   addTimePackMeteredCredits,
   getScheduleMCPExecution,
   createScheduledMCPPolicyRecorder,
@@ -3901,7 +3901,13 @@ class AgentClient extends BaseClient {
         appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
     });
     const spendContext = toLocalSpendContext(context, local);
-    const timePackMetering = req?._timePackSeatHeld === true;
+    const billing = resolveTimePackUsageBilling({
+      timePackSeatHeld: req?._timePackSeatHeld === true,
+      crossEndpoint: overrideTokenConfig,
+      balance,
+      transactions,
+      context: spendContext,
+    });
     const pricing = { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier };
     const result = await recordCollectedUsage(
       {
@@ -3915,10 +3921,10 @@ class AgentClient extends BaseClient {
         conversationId: this.conversationId,
         collectedUsage,
         model: model ?? this.model ?? this.options.agent.model_parameters.model,
-        context: timePackMetering ? TIME_METER_CONTEXT : spendContext,
+        context: billing.context,
         messageId: this.responseMessageId,
-        balance: timePackMetering ? { enabled: false } : balance,
-        transactions: timePackMetering ? { enabled: true } : transactions,
+        balance: billing.balance,
+        transactions: billing.transactions,
         endpointTokenConfig: overrideTokenConfig
           ? endpointTokenConfig
           : this.options.endpointTokenConfig,
@@ -3928,7 +3934,7 @@ class AgentClient extends BaseClient {
       },
     );
 
-    if (timePackMetering && Array.isArray(collectedUsage) && collectedUsage.length > 0) {
+    if (billing.shouldMeter && Array.isArray(collectedUsage) && collectedUsage.length > 0) {
       const userId = this.user ?? req?.user?.id;
       const tokenConfig = overrideTokenConfig
         ? endpointTokenConfig
@@ -6457,19 +6463,26 @@ class AgentClient extends BaseClient {
       context != null
         ? toLocalSpendContext(context, local)
         : resolveRunUsageContext(aborted, local);
+    const billing = resolveTimePackUsageBilling({
+      timePackSeatHeld: req?._timePackSeatHeld === true,
+      crossEndpoint: false,
+      balance,
+      transactions,
+      context: spendContext,
+    });
     await recordFallbackTokenUsage(
       { spendTokens: db.spendTokens },
       {
         usage,
-        context: spendContext,
+        context: billing.context,
         collectedUsage: this.collectedUsage,
         aborted,
         promptTokens,
         completionTokens,
         txMetadata: {
           model,
-          balance,
-          transactions,
+          balance: billing.balance,
+          transactions: billing.transactions,
           messageId: this.responseMessageId,
           conversationId: this.conversationId,
           user: this.user ?? this.options.req.user?.id,
@@ -6477,6 +6490,23 @@ class AgentClient extends BaseClient {
         },
       },
     );
+    if (billing.shouldMeter) {
+      const userId = this.user ?? req?.user?.id;
+      const pricing = {
+        getMultiplier: db.getMultiplier,
+        getCacheMultiplier: db.getCacheMultiplier,
+      };
+      const usageForMeter = {
+        input_tokens: promptTokens ?? 0,
+        output_tokens: completionTokens ?? 0,
+        model,
+      };
+      const meteredCredits =
+        computeUsageCostUSD(usageForMeter, pricing, this.options.endpointTokenConfig) * 1_000_000;
+      if (userId && meteredCredits > 0) {
+        await addTimePackMeteredCredits(userId, meteredCredits, appConfig?.balance?.timePack);
+      }
+    }
   }
 
   /** Anthropic Claude models use a distinct BPE tokenizer; all others default to o200k_base. */

@@ -1,12 +1,8 @@
 import { getActiveTimePackEntitlement, isTimePackClaudeRequest } from 'librechat-data-provider';
 import type { TBalanceConfig, TBalancePack } from 'librechat-data-provider';
-import type { TimeSeatAcquireResult } from './timeSeats';
-import {
-  acquireTimePackSeat,
-  releaseTimePackSeat,
-  tryOversellTimePackSeat,
-  timePackViolationType,
-} from './timeSeats';
+import type { TimeSeatAcquireResult, TimeSeatService } from './timeSeats';
+import { timePackViolationType } from './timeSeats';
+import { appTimeSeatService } from './timeSeats.runtime';
 
 export type TimePackAdmitUser = {
   id?: string;
@@ -66,15 +62,17 @@ export async function admitTimePackRequest({
   userId,
   balance,
   abortHolder,
+  seats = appTimeSeatService,
 }: {
   userId: string;
   balance?: Partial<TBalanceConfig> | null;
   abortHolder: (userId: string) => Promise<void>;
+  seats?: Pick<TimeSeatService, 'acquire' | 'tryOversell'>;
 }): Promise<TimePackAdmitResult> {
   const runtime = balance?.timePack;
-  let result: TimeSeatAcquireResult = await acquireTimePackSeat(userId, runtime);
+  let result: TimeSeatAcquireResult = await seats.acquire(userId, runtime);
   if (!result.allowed && result.reason === 'full') {
-    const oversold = await tryOversellTimePackSeat(userId, runtime, abortHolder);
+    const oversold = await seats.tryOversell(userId, runtime, abortHolder);
     if (oversold != null) {
       result = oversold;
     }
@@ -94,8 +92,6 @@ export async function admitTimePackRequest({
   };
 }
 
-export { releaseTimePackSeat };
-
 /**
  * Releases whichever concurrency slot the agents controller admitted: a time-pack seat or
  * the legacy per-user pending-request counter. No-op when the request was concurrency-exempt.
@@ -104,6 +100,7 @@ export async function releaseAdmittedRequestSlot({
   req,
   userId,
   decrementPendingRequest,
+  seats = appTimeSeatService,
 }: {
   req?: {
     _scheduleConcurrencyExempt?: boolean;
@@ -111,13 +108,14 @@ export async function releaseAdmittedRequestSlot({
   } | null;
   userId?: string | null;
   decrementPendingRequest: (userId: string) => Promise<unknown>;
+  seats?: Pick<TimeSeatService, 'release'>;
 }): Promise<void> {
   if (req?._scheduleConcurrencyExempt === true || !userId) {
     return;
   }
   if (req?._timePackSeatHeld) {
     req._timePackSeatHeld = false;
-    await releaseTimePackSeat(userId);
+    await seats.release(userId);
     return;
   }
   await decrementPendingRequest(userId);

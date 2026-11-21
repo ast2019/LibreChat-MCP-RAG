@@ -4,6 +4,7 @@ const { logger } = require('@librechat/data-schemas');
 const {
   countTokens,
   checkBalance,
+  shouldReserveBalanceForRequest,
   getBalanceConfig,
   buildMessageFiles,
   sanitizeFileForTransmit,
@@ -1017,7 +1018,7 @@ class BaseClient {
     try {
       if (
         balanceConfig?.enabled &&
-        this.options.req?._timePackSeatHeld !== true &&
+        shouldReserveBalanceForRequest(this.options.req) &&
         supportsBalanceCheck[this.options.endpointType ?? this.options.endpoint]
       ) {
         const balanceAdmission = checkBalance(
