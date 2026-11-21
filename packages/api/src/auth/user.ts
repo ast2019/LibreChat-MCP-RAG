@@ -35,6 +35,11 @@ export const PUBLIC_USER_RESPONSE_FIELDS = [
   'attachVmAccess',
   'higgsfieldAccess',
   'packId',
+  'timePackId',
+  'timePackLabel',
+  'timePackExpiresAt',
+  'timePackGrantedAt',
+  'timePackEndpoint',
 ] as const;
 
 type PublicUserField = (typeof PUBLIC_USER_RESPONSE_FIELDS)[number];

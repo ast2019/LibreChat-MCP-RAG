@@ -32,8 +32,25 @@ function useRefillText(summary: BalanceSummary, currency?: CurrencyConfig): stri
   /** Re-render once a minute so "in 5 minutes" counts down while the view stays open */
   useTimeTick();
 
-  const { display, refillAmount, refillMode, nextRefill, packLabel } = summary;
+  const {
+    display,
+    refillAmount,
+    refillMode,
+    nextRefill,
+    packLabel,
+    timePackLabel,
+    timePackExpiresAt,
+  } = summary;
   if (refillAmount == null) {
+    if (timePackLabel != null) {
+      const until =
+        timePackExpiresAt != null
+          ? formatTimeUntil(new Date(timePackExpiresAt), Date.now(), i18n.resolvedLanguage)
+          : null;
+      return until != null
+        ? localize('com_ui_balance_time_pack_expires', { 0: until })
+        : localize('com_ui_balance_time_pack', { 0: timePackLabel });
+    }
     return packLabel != null
       ? localize('com_ui_balance_pack', { 0: packLabel })
       : localize('com_ui_balance_no_refill');

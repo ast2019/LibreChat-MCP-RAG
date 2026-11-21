@@ -258,6 +258,28 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       default: undefined,
     },
+    /** Active Claude time-pack id; independent of credit `packId`. */
+    timePackId: {
+      type: String,
+      default: undefined,
+    },
+    timePackLabel: {
+      type: String,
+      default: undefined,
+    },
+    timePackExpiresAt: {
+      type: Date,
+      default: undefined,
+    },
+    timePackGrantedAt: {
+      type: Date,
+      default: undefined,
+    },
+    /** Dedicated custom endpoint for the active time pack (e.g. ClaudeTime). */
+    timePackEndpoint: {
+      type: String,
+      default: undefined,
+    },
     /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
     modelAccess: {
       type: {

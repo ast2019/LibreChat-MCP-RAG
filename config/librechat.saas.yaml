@@ -146,6 +146,20 @@ balance:
       label: 'بسته حرفه‌ای'
       credits: 30000000
       description: '$30 of usage at marketed prices'
+    # Claude time entitlement: dedicated API (ClaudeTime), shared 4-seat pool, no credit spend.
+    - id: claude-time
+      kind: time
+      label: 'بسته زمانی Claude'
+      durationDays: 30
+      endpoint: 'ClaudeTime'
+      description: '30 days of Claude on the dedicated API (shared seats)'
+  # Shared seat pool for kind: time packs (max 4 concurrent generations globally, 1 per user).
+  timePack:
+    maxSeats: 4
+    maxSeatsPerUser: 1
+    restMinutes: 60
+    usageWindowHours: 24
+    oversellMinMeteredCredits: 5000000
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'
@@ -812,6 +826,34 @@ endpoints:
     # only to Zero-Data-Retention endpoints of providers that do not collect data. Requests fail
     # rather than fall back when no such endpoint is available. Prices are fetched live (the
     # base URL identifies OpenRouter) and marked up like the main endpoint.
+    # Time-pack Claude only. Separate credentials from OpenRouter credit packs. Set
+    # CLAUDE_TIME_KEY and CLAUDE_TIME_BASE_URL to the alternate Claude Messages API.
+    - name: 'ClaudeTime'
+      provider: 'anthropic'
+      apiKey: '${CLAUDE_TIME_KEY}'
+      baseURL: '${CLAUDE_TIME_BASE_URL}'
+      models:
+        default:
+          - 'claude-sonnet-4-5'
+          - 'claude-opus-4-5'
+          - 'claude-haiku-4-5'
+        fetch: false
+      titleConvo: true
+      titleModel: 'claude-haiku-4-5'
+      modelDisplayLabel: 'Claude'
+      # Metering rates for fairness (credits equivalent); time path does not charge tokenCredits.
+      priceMultiplier: 1
+      tokenConfig:
+        'claude-sonnet-4-5':
+          prompt: 3
+          completion: 15
+        'claude-opus-4-5':
+          prompt: 15
+          completion: 75
+        'claude-haiku-4-5':
+          prompt: 1
+          completion: 5
+
     - name: 'OpenRouterPrivate'
       apiKey: '${OPENROUTER_KEY}'
       baseURL: 'https://openrouter.ai/api/v1'
@@ -992,7 +1034,7 @@ modelSpecs:
   # starts with an empty selector and must choose one before sending (their last pick is
   # remembered for later new chats).
   list:
-    # --- Claude ---
+    # --- Claude (credit path via OpenRouter; hidden while a time pack is active) ---
     - name: 'smart'
       label: 'Claude Sonnet'
       description: 'دقیق و متعادل؛ برای نوشتن، تحلیل و کدنویسی'
@@ -1029,6 +1071,38 @@ modelSpecs:
       preset:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-haiku-latest'
+        modelLabel: 'Claude Haiku'
+    # --- Claude time-pack path (dedicated API; only with an active time entitlement) ---
+    - name: 'time-smart'
+      label: 'Claude Sonnet'
+      description: 'بسته زمانی؛ دقیق و متعادل'
+      group: 'Claude'
+      groupIcon: 'anthropic'
+      iconURL: 'anthropic'
+      timePack: true
+      preset:
+        endpoint: 'ClaudeTime'
+        model: 'claude-sonnet-4-5'
+        modelLabel: 'Claude Sonnet'
+    - name: 'time-pro'
+      label: 'Claude Opus'
+      description: 'بسته زمانی؛ قوی‌ترین Claude'
+      group: 'Claude'
+      iconURL: 'anthropic'
+      timePack: true
+      preset:
+        endpoint: 'ClaudeTime'
+        model: 'claude-opus-4-5'
+        modelLabel: 'Claude Opus'
+    - name: 'time-haiku'
+      label: 'Claude Haiku'
+      description: 'بسته زمانی؛ سریع و سبک'
+      group: 'Claude'
+      iconURL: 'anthropic'
+      timePack: true
+      preset:
+        endpoint: 'ClaudeTime'
+        model: 'claude-haiku-4-5'
         modelLabel: 'Claude Haiku'
     # --- ChatGPT ---
     - name: 'gpt'

@@ -146,6 +146,12 @@ export default function LimitError({ json, message }: ErrorRendererProps) {
           ? localize('com_error_concurrent', { count: limit, 0: formatNumber(limit) })
           : localize('com_error_concurrent_one');
       break;
+    case ViolationTypes.TIME_PACK_BUSY:
+      headline = localize('com_error_time_pack_busy');
+      break;
+    case ViolationTypes.TIME_PACK_REST:
+      headline = localize('com_error_time_pack_rest');
+      break;
     case ViolationTypes.FILE_UPLOAD_LIMIT:
       headline =
         max != null && windowLabel != null

@@ -60,6 +60,22 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
   packGrantedAt: {
     type: Date,
   },
+  /** Claude time entitlement; independent of credit pack fields above. */
+  timePackId: {
+    type: String,
+  },
+  timePackLabel: {
+    type: String,
+  },
+  timePackExpiresAt: {
+    type: Date,
+  },
+  timePackGrantedAt: {
+    type: Date,
+  },
+  timePackEndpoint: {
+    type: String,
+  },
   /** Credits held by in-flight requests; released when each request settles, or pruned once expired */
   reservations: {
     type: [

@@ -85,7 +85,10 @@ balance:
 
 ## بسته‌ها
 
-بسته‌ها در `balance.packs` تعریف می‌شوند:
+بسته‌ها در `balance.packs` تعریف می‌شوند. دو نوع دارید:
+
+- **`kind: credits` (پیش‌فرض):** همان بستهٔ اعتباری قبلی؛ اعتبار به موجودی اضافه می‌شود.
+- **`kind: time`:** بستهٔ زمانی Claude روی endpoint جدا (`ClaudeTime`)، بدون کسر اعتبار. ظرفیت مشترک حداکثر ۴ سشن همزمان (هر کاربر حداکثر ۱). مصرف توکن فقط متر می‌شود (`context: time_meter`) برای عدالت و استراحت اجباری.
 
 ```yaml
 balance:
@@ -97,7 +100,20 @@ balance:
       label: 'بسته پایه'       # نامی که کاربر کنار نوار مصرف می‌بیند
       credits: 2000000        # = $2 مصرف با قیمت فروش
       description: 'یادداشت برای ادمین'
+    - id: claude-time
+      kind: time
+      label: 'بسته زمانی Claude'
+      durationDays: 30
+      endpoint: 'ClaudeTime'
+  timePack:
+    maxSeats: 4
+    maxSeatsPerUser: 1
+    restMinutes: 60
+    usageWindowHours: 24
+    oversellMinMeteredCredits: 5000000
 ```
+
+دادن بستهٔ زمانی اعتبار یا `packId` اعتباری را پاک نمی‌کند. تا وقتی entitlement زمانی فعال است، مدل‌های Claude از مسیر زمانی می‌روند؛ بقیهٔ مدل‌ها از اعتبار.
 
 **قیمت بسته به تومان:** هر بسته معادل `credits ÷ 1,000,000` دلار مصرف با قیمت فروش است، که خودش قیمت OpenRouter × ضریب (`priceMultiplier`، الان 1.3) است. قیمت تومانی = همین دلار × نرخ دلار آزاد، گرد شده به بالا تا مضرب `priceStep` (۱٬۰۰۰ تومان). کارمزد اضافه‌ای روی نرخ ارز نیست؛ سود شما همان ضریب 1.3 است.
 

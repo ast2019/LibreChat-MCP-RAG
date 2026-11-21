@@ -44,6 +44,10 @@ export interface BalanceSummary {
   /** `pack` display: no pack granted yet, or the granted one is spent, so the pack prices
    *  are offered beside the reading. */
   showPrices: boolean;
+  /** Active Claude time pack label, when the entitlement has not expired. */
+  timePackLabel: string | null;
+  /** ISO expiry of the active Claude time pack; null when none. */
+  timePackExpiresAt: string | null;
 }
 
 interface SummaryOptions {
@@ -107,6 +111,15 @@ export function summarizeBalance(
       ? balance.packId.trim()
       : null;
   const packGrantedAt = normalizeTimestamp(balance.packGrantedAt);
+  const timePackExpiresAt = normalizeTimestamp(balance.timePackExpiresAt);
+  const timePackActive =
+    timePackExpiresAt != null && new Date(timePackExpiresAt).getTime() > Date.now();
+  const timePackLabel =
+    timePackActive &&
+    typeof balance.timePackLabel === 'string' &&
+    balance.timePackLabel.trim() !== ''
+      ? balance.timePackLabel.trim()
+      : null;
   const usedPercent = getUsedPercent(credits, allotment);
   /** `pack` reads as the share of the current allowance used — the free trial before a pack,
    *  the pack after — never as a money amount; money appears only as the packs' prices when
@@ -134,6 +147,8 @@ export function summarizeBalance(
     refillMode: balance.refillMode ?? 'add',
     nextRefill: balance.autoRefillEnabled ? getNextRefill(balance) : null,
     showPrices: display === 'pack' && (!hasPack || credits <= 0),
+    timePackLabel,
+    timePackExpiresAt: timePackActive ? timePackExpiresAt : null,
   };
 }
 

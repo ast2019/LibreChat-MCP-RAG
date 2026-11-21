@@ -1,4 +1,4 @@
-import { SystemRoles } from 'librechat-data-provider';
+import { SystemRoles, isTimePack } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
 import type {
   IUser,
@@ -13,9 +13,11 @@ import type {
 } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import type { AccessRules, RoleAccess } from '../admin/effectiveAccess';
+import type { GrantTimePackDeps } from './timePack';
 import type { GrantBalanceDeps } from './packs';
 import { computeEffectiveAccess } from '../admin/effectiveAccess';
 import { MAX_BULK_USERS, readBulkUserIds } from '../admin/access';
+import { grantTimePack, resolveTimePackGrant } from './timePack';
 import { grantBalance, resolveBalanceGrant } from './packs';
 
 type BillingRequest = Request & { user?: IUser };
@@ -33,9 +35,16 @@ export interface BillingBalance {
   packLabel?: string;
   packAllotment?: number;
   packGrantedAt?: Date | string;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: Date | string;
+  timePackGrantedAt?: Date | string;
+  timePackEndpoint?: string;
 }
 
 export interface AdminBalanceDeps extends GrantBalanceDeps {
+  /** Copies time-pack fields onto the user document (independent of credit packId). */
+  setUserTimePack?: GrantTimePackDeps['setUserTimePack'];
   /** Balance settings that apply to the requesting admin's deployment/tenant. */
   getBalanceConfig: (req: BillingRequest) => Promise<Partial<TBalanceConfig> | null>;
   findUserByEmail: (email: string) => Promise<BillingUser | null>;
@@ -164,6 +173,11 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
               packLabel: balance.packLabel,
               packAllotment: balance.packAllotment,
               packGrantedAt: balance.packGrantedAt,
+              timePackId: balance.timePackId,
+              timePackLabel: balance.timePackLabel,
+              timePackExpiresAt: balance.timePackExpiresAt,
+              timePackGrantedAt: balance.timePackGrantedAt,
+              timePackEndpoint: balance.timePackEndpoint,
               usedPercent: getAllotmentUsedPercent(balance),
             }
           : null,
@@ -183,14 +197,51 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         });
       }
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const target = await resolveTarget(deps, body);
+      if (!target.ok) {
+        return res.status(target.status).json({ error: target.error });
+      }
+
+      const requestedPack =
+        typeof body.packId === 'string'
+          ? config.packs?.find((pack) => pack.id === body.packId)
+          : undefined;
+      if (requestedPack != null && isTimePack(requestedPack)) {
+        const resolution = resolveTimePackGrant(config.packs, body.packId);
+        if (!resolution.ok) {
+          const status = resolution.error.code === 'pack_not_found' ? 404 : 400;
+          return res.status(status).json({ error: resolution.error });
+        }
+        const result = await grantTimePack(deps, {
+          userId: target.user.id,
+          pack: resolution.value.pack,
+          durationDays: resolution.value.durationDays,
+          endpoint: resolution.value.endpoint,
+        });
+        logger.info(
+          `[adminBalance] ${req.user?.id ?? 'unknown admin'} granted time pack ${result.pack.id}` +
+            ` (until ${result.expiresAt.toISOString()}) to user ${target.user.id}`,
+        );
+        const balance = await deps.findBalanceByUser(target.user.id);
+        return res.status(200).json({
+          user: target.user,
+          balance: balance?.tokenCredits ?? 0,
+          credits: 0,
+          packAllotment: balance?.packAllotment ?? 0,
+          pack: null,
+          timePack: {
+            id: result.pack.id,
+            label: result.pack.label,
+            expiresAt: result.expiresAt.toISOString(),
+            endpoint: result.endpoint,
+          },
+        });
+      }
+
       const resolution = resolveBalanceGrant(config.packs, body);
       if (!resolution.ok) {
         const status = resolution.error.code === 'pack_not_found' ? 404 : 400;
         return res.status(status).json({ error: resolution.error });
-      }
-      const target = await resolveTarget(deps, body);
-      if (!target.ok) {
-        return res.status(target.status).json({ error: target.error });
       }
 
       const result = await grantBalance(deps, {
@@ -202,7 +253,7 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
         `[adminBalance] ${req.user?.id ?? 'unknown admin'} granted ${result.credits} credits` +
           `${result.pack ? ` (pack ${result.pack.id})` : ''} to user ${target.user.id}`,
       );
-      return res.status(200).json({ user: target.user, ...result });
+      return res.status(200).json({ user: target.user, ...result, timePack: null });
     } catch (error) {
       logger.error('[adminBalance] grant error:', error);
       return res.status(500).json({ error: 'Failed to grant credits' });
@@ -228,6 +279,48 @@ export function createAdminBalanceHandlers(deps: AdminBalanceDeps): {
           error: { code: 'invalid_user_ids', message: `Send 1 to ${MAX_BULK_USERS} user IDs` },
         });
       }
+      const requestedPack =
+        typeof body.packId === 'string'
+          ? config.packs?.find((pack) => pack.id === body.packId)
+          : undefined;
+      if (requestedPack != null && isTimePack(requestedPack)) {
+        const resolution = resolveTimePackGrant(config.packs, body.packId);
+        if (!resolution.ok) {
+          const status = resolution.error.code === 'pack_not_found' ? 404 : 400;
+          return res.status(status).json({ error: resolution.error });
+        }
+        const failed: string[] = [];
+        for (const userId of userIds) {
+          try {
+            const user = await deps.findUserById(userId);
+            if (!user) {
+              failed.push(userId);
+              continue;
+            }
+            await grantTimePack(deps, {
+              userId: user.id,
+              pack: resolution.value.pack,
+              durationDays: resolution.value.durationDays,
+              endpoint: resolution.value.endpoint,
+            });
+          } catch (error) {
+            logger.error(`[adminBalance] bulk time grant to ${userId} failed:`, error);
+            failed.push(userId);
+          }
+        }
+        const pack = resolution.value.pack;
+        logger.info(
+          `[adminBalance] ${req.user?.id ?? 'unknown admin'} granted time pack ${pack.id}` +
+            ` to ${userIds.length - failed.length} users`,
+        );
+        return res.status(200).json({
+          granted: userIds.length - failed.length,
+          failed,
+          credits: 0,
+          pack: { id: pack.id, label: pack.label },
+        });
+      }
+
       const resolution = resolveBalanceGrant(config.packs, body);
       if (!resolution.ok) {
         const status = resolution.error.code === 'pack_not_found' ? 404 : 400;

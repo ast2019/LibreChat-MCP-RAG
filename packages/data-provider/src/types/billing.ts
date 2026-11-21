@@ -8,6 +8,11 @@ export type TAdminBillingBalance = {
   packLabel?: string;
   packAllotment?: number;
   packGrantedAt?: string;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: string;
+  timePackGrantedAt?: string;
+  timePackEndpoint?: string;
 };
 
 export type TAdminBillingUser = {
@@ -33,6 +38,11 @@ export type TAdminBillingUser = {
   higgsfieldAccess?: boolean;
   /** The pack copied onto the user on its last grant; its `grants` decide local, private and API */
   packId?: string;
+  timePackId?: string;
+  timePackLabel?: string;
+  timePackExpiresAt?: string;
+  timePackGrantedAt?: string;
+  timePackEndpoint?: string;
   balance: TAdminBillingBalance | null;
   /** Whole percent of the last pack used; null when nothing measures it */
   usedPercent: number | null;
@@ -89,7 +99,12 @@ export type TAdminBillingSummary = {
 export type TAdminBillingPack = {
   id: string;
   label: string;
-  credits: number;
+  /** Defaults to credits when omitted (older admin clients). */
+  kind?: 'credits' | 'time';
+  credits?: number;
+  durationDays?: number;
+  endpoint?: string;
+  models?: string[];
   description?: string;
   /** Access the pack grants or withholds while it is the user's pack */
   grants?: TPackGrants;
@@ -116,6 +131,13 @@ export type TAdminBillingGrantResponse = {
   credits: number;
   packAllotment: number;
   pack: { id: string; label: string } | null;
+  /** Present when a time pack was granted instead of (or in addition to reporting) credits. */
+  timePack?: {
+    id: string;
+    label: string;
+    expiresAt: string;
+    endpoint: string;
+  } | null;
 };
 
 /** `POST /api/admin/balance/grant-bulk`: one pack or credit amount to several users. */

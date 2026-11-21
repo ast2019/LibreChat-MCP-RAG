@@ -4,8 +4,8 @@ import {
   PermissionTypes,
   resolveModelClassAccess,
 } from 'librechat-data-provider';
-import type { AppConfig, RolePermissions } from '@librechat/data-schemas';
 import type { TPackGrants, TUserModelAccess } from 'librechat-data-provider';
+import type { AppConfig, RolePermissions } from '@librechat/data-schemas';
 
 /** Which model privacy classes a principal may use. */
 export type PrivacyAccess = { allowLocal: boolean; allowPrivate: boolean };
@@ -101,6 +101,34 @@ export function applyPrivacyAccessSpecs(config: AppConfig, access: PrivacyAccess
   const allowed = (spec: (typeof list)[number]) =>
     (spec?.privacy !== 'local' || access.allowLocal) &&
     (spec?.privacy !== 'private' || access.allowPrivate);
+  if (list.every(allowed)) {
+    return config;
+  }
+  return {
+    ...config,
+    modelSpecs: { ...config.modelSpecs, list: list.filter(allowed) },
+  } as AppConfig;
+}
+
+/**
+ * Time-pack Claude specs (`timePack: true`) are visible only with an active entitlement. While
+ * that entitlement is active, credit-path Claude specs (`group: 'Claude'` without `timePack`)
+ * are hidden so the selector does not offer two Claude menus.
+ */
+export function applyTimePackSpecs(config: AppConfig, hasActiveTimePack: boolean): AppConfig {
+  const list = config.modelSpecs?.list;
+  if (!Array.isArray(list) || list.length === 0) {
+    return config;
+  }
+  const allowed = (spec: (typeof list)[number]) => {
+    if (spec?.timePack === true) {
+      return hasActiveTimePack;
+    }
+    if (hasActiveTimePack && spec?.group === 'Claude') {
+      return false;
+    }
+    return true;
+  };
   if (list.every(allowed)) {
     return config;
   }

@@ -14,7 +14,7 @@ export const MAX_PACKS = 20;
 export { MAX_PACK_CREDITS };
 
 const packListSchema = z
-  .array(balancePackSchema.extend({ credits: z.number().int().positive().max(MAX_PACK_CREDITS) }))
+  .array(balancePackSchema)
   .max(MAX_PACKS)
   .superRefine((packs, ctx) => {
     const ids = new Set<string>();
@@ -23,6 +23,13 @@ const packListSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, 'id'], message: 'duplicate' });
       }
       ids.add(pack.id);
+      if ((pack.kind ?? 'credits') === 'credits' && (pack.credits ?? 0) > MAX_PACK_CREDITS) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'credits'],
+          message: 'credits_too_large',
+        });
+      }
     }
   });
 

@@ -23,6 +23,15 @@ const CUSTOM = 'custom';
 /** What a pack grants and withholds, in one line under its name; nothing when it says nothing. */
 function PackGrantsLine({ pack }: { pack: TAdminBillingPack }) {
   const localize = useLocalize();
+  if (pack.kind === 'time') {
+    return (
+      <span className="text-text-secondary block text-xs">
+        {localize('com_admin_packs_kind_time')}
+        {pack.durationDays != null ? ` · ${pack.durationDays}d` : ''}
+        {pack.endpoint ? ` · ${pack.endpoint}` : ''}
+      </span>
+    );
+  }
   const { granted, withheld } = describePackGrants(localize, pack);
   if (granted.length === 0 && withheld.length === 0) {
     return null;
@@ -158,7 +167,7 @@ export default function GrantDialog({
                     </span>
                     {pack && <PackGrantsLine pack={pack} />}
                   </span>
-                  {pack && (
+                  {pack && pack.kind !== 'time' && pack.credits != null && (
                     <span className="text-text-secondary text-end text-xs">
                       {(() => {
                         const sale = formatPackPrice(pack.credits, currency);
@@ -179,6 +188,11 @@ export default function GrantDialog({
                         }
                         return sale ?? usd;
                       })()}
+                    </span>
+                  )}
+                  {pack && pack.kind === 'time' && pack.durationDays != null && (
+                    <span className="text-text-secondary text-end text-xs">
+                      {localize('com_admin_packs_duration_days')}: {pack.durationDays}
                     </span>
                   )}
                 </label>

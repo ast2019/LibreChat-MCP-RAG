@@ -37,6 +37,10 @@ const {
   getUserFacingResumeError,
   decrementPendingRequest,
   checkAndIncrementPendingRequest,
+  shouldUseTimePackSeats,
+  admitTimePackRequest,
+  releaseAdmittedRequestSlot,
+  stopUserGenerations,
   isSteerPreemptSupported,
   isStopConfirmed,
   toPendingSteer,
@@ -1208,14 +1212,52 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
   // Count the resume against the concurrency limit. The original turn released its slot
   // when it paused, so resuming must re-acquire one — otherwise pausing several turns
   // and resuming them at once would bypass LIMIT_CONCURRENT_MESSAGES.
-  const { allowed } = await checkAndIncrementPendingRequest(userId);
-  if (!allowed) {
-    return sendGenerationJson(
-      res,
-      429,
-      { error: 'Too many concurrent requests' },
-      generationProtocolVersion,
-    );
+  req._timePackSeatHeld = false;
+  const resumeEndpoint = job.metadata?.endpoint ?? req.body?.endpoint ?? null;
+  const resumeModel =
+    req.body?.endpointOption?.modelOptions?.model ||
+    req.body?.endpointOption?.model_parameters?.model ||
+    req.body?.model ||
+    null;
+  const useTimePackSeats = shouldUseTimePackSeats({
+    user: req.user,
+    endpoint: resumeEndpoint,
+    model: resumeModel,
+    packs: req.config?.balance?.packs,
+  });
+  if (useTimePackSeats) {
+    const admission = await admitTimePackRequest({
+      userId,
+      balance: req.config?.balance,
+      abortHolder: async (holderId) => {
+        await stopUserGenerations(holderId, req.user?.tenantId, GenerationJobManager);
+      },
+    });
+    if (!admission.ok) {
+      return sendGenerationJson(
+        res,
+        429,
+        {
+          type: admission.type,
+          error:
+            admission.reason === 'cooldown' ? 'Time-pack rest required' : 'Time-pack seats full',
+          reason: admission.reason,
+          ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
+        },
+        generationProtocolVersion,
+      );
+    }
+    req._timePackSeatHeld = true;
+  } else {
+    const { allowed } = await checkAndIncrementPendingRequest(userId);
+    if (!allowed) {
+      return sendGenerationJson(
+        res,
+        429,
+        { error: 'Too many concurrent requests' },
+        generationProtocolVersion,
+      );
+    }
   }
 
   // Finish the legacy checkpoint snapshot before claiming scheduled capacity.
@@ -1240,7 +1282,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
     try {
       scheduleClaim = await claimScheduleResume(scheduleId, scheduledFor, scheduleResumeOptions);
     } catch (err) {
-      await decrementPendingRequest(userId);
+      await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
       logger.error('[ResumeAgentController] Failed to claim scheduled resume capacity', err);
       return sendGenerationJson(
         res,
@@ -1250,7 +1292,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
       );
     }
     if ('conflict' in scheduleClaim) {
-      await decrementPendingRequest(userId);
+      await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
       if (scheduleClaim.conflict === 'capacity' || scheduleClaim.conflict === 'overlap') {
         res.set('Retry-After', '1');
         return sendGenerationJson(
@@ -1362,7 +1404,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
         await rollbackUnconsumedScheduleClaim(currentJob);
         await releaseScheduleFence();
-        await decrementPendingRequest(userId);
+        await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         res.set('Retry-After', '1');
         return sendGenerationJson(
           res,
@@ -1381,7 +1423,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
         await rollbackUnconsumedScheduleClaim(currentJob);
         await releaseScheduleFence();
-        await decrementPendingRequest(userId);
+        await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         if (bindingActive) {
           res.set('Retry-After', '1');
         }
@@ -1438,7 +1480,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
         await rollbackUnconsumedScheduleClaim(currentJob);
         await releaseScheduleFence();
-        await decrementPendingRequest(userId);
+        await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         return sendGenerationJson(res, 409, eventActorRejection, generationProtocolVersion);
       }
       /** Missing means this pause was produced by a pre-durable-suspension
@@ -1490,7 +1532,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
             const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
             await rollbackUnconsumedScheduleClaim(currentJob);
             await releaseScheduleFence();
-            await decrementPendingRequest(userId);
+            await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
             return sendGenerationJson(
               res,
               409,
@@ -1505,7 +1547,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
           const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
           await rollbackUnconsumedScheduleClaim(currentJob);
           await releaseScheduleFence();
-          await decrementPendingRequest(userId);
+          await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
           return sendGenerationJson(
             res,
             409,
@@ -1525,7 +1567,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
         await rollbackUnconsumedScheduleClaim(currentJob);
         await releaseScheduleFence();
-        await decrementPendingRequest(userId);
+        await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         res.set('Retry-After', '1');
         return sendGenerationJson(
           res,
@@ -1710,12 +1752,12 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
       const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
       await rollbackUnconsumedScheduleClaim(currentJob);
       await releaseScheduleFence();
-      await decrementPendingRequest(userId);
+      await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
       logger.error('[ResumeAgentController] Failed to claim resume', getSafeErrorMetadata(err));
       return sendGenerationJson(res, 500, { error: 'Failed to resume' }, generationProtocolVersion);
     }
     if (!claimed) {
-      await decrementPendingRequest(userId);
+      await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
       const currentJob = await GenerationJobManager.getJob(streamId).catch(() => null);
       await rollbackUnconsumedScheduleClaim(currentJob);
       await releaseScheduleFence();
@@ -1756,7 +1798,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         }
         if (!scheduleClaimCurrent) {
           resumeSlotReleased = true;
-          await decrementPendingRequest(userId);
+          await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
           let stopped = false;
           try {
             const abortResult = await GenerationJobManager.abortJob(streamId, {
@@ -1834,7 +1876,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         sendGenerationJson(res, 409, PROJECT_CONTEXT_CHANGED_RESPONSE, generationProtocolVersion);
         await rejectPendingEventActorResume(new Error(PROJECT_CONTEXT_CHANGED_REASON));
         resumeSlotReleased = true;
-        await decrementPendingRequest(userId);
+        await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         await releaseScheduleFence();
         if (scheduleId) {
           await recordScheduleOutcome({
@@ -2280,7 +2322,7 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
         // released it on a re-pause (so a fast /resume isn't 429'd). On a normal finish or
         // error it didn't, so release here. A re-pause re-acquires its own slot next resume.
         if (!resumeSlotReleased && !client?.pendingRequestReleased) {
-          await decrementPendingRequest(userId);
+          await releaseAdmittedRequestSlot({ req, userId, decrementPendingRequest });
         }
         if (client) {
           disposeClient(client);

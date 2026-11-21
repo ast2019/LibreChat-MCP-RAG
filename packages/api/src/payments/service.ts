@@ -88,13 +88,15 @@ const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: Paym
 /** `getBalanceConfig()` output; packs merge in unvalidated, so each is checked before use. */
 type BalanceLike = { enabled?: boolean; packs?: Partial<TBalancePack>[] } | null | undefined;
 
-type ValidPack = TBalancePack;
+/** Credit packs only — time packs are granted by admins, not sold through the payment gateways. */
+type ValidPack = TBalancePack & { credits: number };
 
 function validPacks(balance: BalanceLike): ValidPack[] {
   return (balance?.packs ?? []).filter(
     (pack): pack is ValidPack =>
       typeof pack?.id === 'string' &&
       typeof pack.label === 'string' &&
+      (pack.kind == null || pack.kind === 'credits') &&
       typeof pack.credits === 'number' &&
       Number.isInteger(pack.credits) &&
       pack.credits > 0,
@@ -261,7 +263,12 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
           {
             userId: order.userId,
             credits: order.credits,
-            pack: { id: order.packId, label: order.packLabel, credits: order.credits },
+            pack: {
+              id: order.packId,
+              label: order.packLabel,
+              kind: 'credits',
+              credits: order.credits,
+            },
           },
         );
       }

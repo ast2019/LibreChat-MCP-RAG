@@ -2,6 +2,7 @@
 export * from './azure';
 export * from './bedrock';
 export * from './balance';
+export * from './timePack';
 export * from './config';
 export * from './phone';
 export * from './payments';

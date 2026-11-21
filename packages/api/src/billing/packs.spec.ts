@@ -10,6 +10,13 @@ import {
 const packs: TBalancePack[] = [
   { id: 'starter', label: 'Starter', credits: 2_000_000 },
   { id: 'pro', label: 'Pro', credits: 15_000_000 },
+  {
+    id: 'claude-time',
+    label: 'Claude month',
+    kind: 'time',
+    durationDays: 30,
+    endpoint: 'ClaudeTime',
+  },
 ];
 
 describe('resolveBalanceGrant', () => {
@@ -30,6 +37,7 @@ describe('resolveBalanceGrant', () => {
   it.each([
     [{ packId: 'missing' }, 'pack_not_found'],
     [{ packId: 7 }, 'pack_not_found'],
+    [{ packId: 'claude-time' }, 'grant_amount_invalid'],
     [{ packId: 'starter', credits: 10 }, 'grant_amount_ambiguous'],
     [{}, 'grant_amount_required'],
     [{ credits: 0 }, 'grant_amount_invalid'],
