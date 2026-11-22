@@ -3,7 +3,8 @@
 //   node scripts/preview.mjs stills <storyboard.json|fixture:everySceneFa> <outDir>
 //   node scripts/preview.mjs video  <storyboard.json|fixture:name> <outDir> [tts|none] [track]
 //   node scripts/preview.mjs transitions <storyboard.json|fixture:name> <outDir>
-// `transitions` renders a PNG at the midpoint of every scene transition. With FRAMES_DIR set,
+// `transitions` renders PNGs at 25%, 50% and 75% of every scene transition (ALL_TYPES=1 also
+// tries the transition types the storyboard does not use). With FRAMES_DIR set,
 // `video` also writes the midpoint frames of the rendered MP4 there (needs ffmpeg on PATH or
 // Remotion's bundled one).
 import fs from 'node:fs/promises';
@@ -45,6 +46,14 @@ const midpoints = (scenes) =>
       : [],
   );
 const transitionName = (index) => storyboard.scenes[index]?.transition ?? 'fade';
+const TRANSITION_TYPES = ['fade', 'slide', 'wipe', 'flip', 'clock-wipe'];
+/** Frames at 25%, 50% and 75% of each transition. */
+const transitionFrames = (scenes) =>
+  scenes.flatMap((entry, i) =>
+    entry.transitionOut > 0 && scenes[i + 1]
+      ? [25, 50, 75].map((pct) => ({ index: i + 1, pct, frame: scenes[i + 1].from + Math.round((entry.transitionOut * pct) / 100) }))
+      : [],
+  );
 
 function ffmpegBinary() {
   if (spawnSync('ffmpeg', ['-version']).status === 0) {
@@ -66,21 +75,47 @@ try {
     }
     console.log(`stills=${json.stills.length} ms=${Date.now() - t0} warnings=${JSON.stringify(json.warnings)}`);
   } else if (mode === 'transitions') {
-    const points = midpoints(computeTimeline(storyboard.scenes.map((scene) => ({ ...scene, transition: scene.transition ?? 'fade' }))).scenes);
-    const res = await fetch(`${base}/stills`, {
-      method: 'POST',
-      headers: auth,
-      body: JSON.stringify({ ...body, frames: points.map((p) => p.frame), format: 'png', scale: 1 }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      throw new Error(JSON.stringify(json));
+    /**
+     * Every transition of the storyboard at 25%, 50% and 75% of its length. With ALL_TYPES=1,
+     * a type the storyboard does not use is tried in place of one of its fades, so every type
+     * is seen on every storyboard (those files are marked `-sub`).
+     */
+    const boards = [{ board: storyboard, only: null, tag: '' }];
+    if (process.env.ALL_TYPES === '1') {
+      const used = new Set(storyboard.scenes.slice(1).map((s) => s.transition ?? 'fade'));
+      const fades = storyboard.scenes.map((s, i) => (i > 0 && (s.transition ?? 'fade') === 'fade' ? i : -1)).filter((i) => i > 0);
+      const missing = TRANSITION_TYPES.filter((type) => !used.has(type));
+      for (const [k, type] of missing.entries()) {
+        const index = fades[k % fades.length];
+        const board = { ...storyboard, scenes: storyboard.scenes.map((s, i) => (i === index ? { ...s, transition: type } : s)) };
+        boards.push({ board, only: index, tag: '-sub' });
+      }
     }
-    for (const [i, still] of json.stills.entries()) {
-      const { index, frame } = points[i];
-      await fs.writeFile(path.join(outDir, `${slug}-t${String(index).padStart(2, '0')}-${transitionName(index)}-f${frame}.png`), Buffer.from(still.base64, 'base64'));
+    let count = 0;
+    for (const { board, only, tag } of boards) {
+      const scenes = computeTimeline(board.scenes.map((scene) => ({ ...scene, transition: scene.transition ?? 'fade' }))).scenes;
+      const points = transitionFrames(scenes).filter((p) => only === null || p.index === only);
+      for (let at = 0; at < points.length; at += 30) {
+        const batch = points.slice(at, at + 30);
+        const res = await fetch(`${base}/stills`, {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({ ...body, storyboard: board, frames: batch.map((p) => p.frame), format: 'png', scale: 1 }),
+        });
+        const json = await res.json();
+        if (!json.ok) {
+          throw new Error(JSON.stringify(json));
+        }
+        for (const [i, still] of json.stills.entries()) {
+          const { index, frame, pct } = batch[i];
+          const name = board.scenes[index].transition ?? 'fade';
+          const file = `${slug}-t${String(index).padStart(2, '0')}-${name}${tag}-p${pct}-f${frame}.png`;
+          await fs.writeFile(path.join(outDir, file), Buffer.from(still.base64, 'base64'));
+          count += 1;
+        }
+      }
     }
-    console.log(`transition frames=${json.stills.length} ms=${Date.now() - t0}`);
+    console.log(`transition frames=${count} ms=${Date.now() - t0}`);
   } else {
     const created = await (await fetch(`${base}/jobs`, { method: 'POST', headers: auth, body: JSON.stringify(body) })).json();
     if (!created.ok) {

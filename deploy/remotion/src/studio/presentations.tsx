@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill } from 'remotion';
+import { AbsoluteFill, useVideoConfig } from 'remotion';
 import type { TransitionPresentation, TransitionPresentationComponentProps } from '@remotion/transitions';
 import type { SceneTransition } from './transitions';
-import { clockSweep, fadeOpacity, flipFace, slideOffset, wipeInset } from './transitions';
+import { clockMask, clockWipe, fadeOpacity, flipFace, flipPerspective, slideOffset, wipeInset } from './transitions';
 
 type Props = { kind: SceneTransition; sign: 1 | -1 };
 
@@ -13,6 +13,7 @@ const ScenePresentation: React.FC<TransitionPresentationComponentProps<Props>> =
   presentationProgress: progress,
   passedProps: { kind, sign },
 }) => {
+  const { width, height } = useVideoConfig();
   let style: React.CSSProperties;
   let outer: React.CSSProperties | undefined;
   switch (kind) {
@@ -25,18 +26,21 @@ const ScenePresentation: React.FC<TransitionPresentationComponentProps<Props>> =
       break;
     }
     case 'flip': {
-      const { rotation, visible } = flipFace(side, progress, sign);
-      outer = { perspective: 1000 };
-      style = { transform: `rotateY(${rotation}deg)`, backfaceVisibility: 'hidden', opacity: visible ? 1 : 0 };
+      const { rotation, visible, opacity } = flipFace(side, progress, sign);
+      outer = { perspective: flipPerspective(width, height) };
+      style = {
+        transform: `rotateY(${rotation}deg)`,
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        opacity,
+        visibility: visible ? 'visible' : 'hidden',
+      };
       break;
     }
     case 'clock-wipe': {
-      const deg = clockSweep(progress);
-      const mask =
-        side === 'entering'
-          ? `conic-gradient(#000 0deg ${deg}deg, transparent ${deg}deg 360deg)`
-          : `conic-gradient(transparent 0deg ${deg}deg, #000 ${deg}deg 360deg)`;
-      style = { maskImage: mask, WebkitMaskImage: mask };
+      const { opacity, sweep } = clockWipe(side, progress);
+      const mask = sweep === null ? undefined : clockMask(sweep);
+      style = { opacity, visibility: opacity > 0 ? 'visible' : 'hidden', ...(mask ? { maskImage: mask, WebkitMaskImage: mask } : {}) };
       break;
     }
     default:
