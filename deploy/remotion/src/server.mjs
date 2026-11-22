@@ -65,6 +65,11 @@ const MAX_QUEUE = intEnv('REMOTION_MAX_QUEUE', 10, 1, 40);
 /** Finished jobs (and their MP4) are kept this long for the api to fetch, then deleted. */
 const RESULT_TTL_MS = intEnv('REMOTION_RESULT_TTL_MS', 30 * 60_000, 60_000, 6 * 3_600_000);
 const BODY_LIMIT = intEnv('REMOTION_BODY_LIMIT_MB', 80, 5, 200) * 1024 * 1024;
+/** Longest a preview (POST /stills) may take; the api's own `timeoutMs` is capped by this. */
+const STILLS_TIMEOUT_MS = intEnv('REMOTION_STILLS_TIMEOUT_MS', 150_000, 5_000, 600_000);
+/** Work dirs of this worker's jobs under the OS temp dir (removed at startup after a crash). */
+const WORK_DIR_PREFIX = 'hivegpt-clip-';
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{6,80}$/;
 const ENTRY = path.join(__dirname, 'index.ts');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const COMPOSITION = 'HiveGPTStudio';
@@ -162,6 +167,10 @@ const sameToken = (header, token) => {
   return crypto.timingSafeEqual(given, expected);
 };
 
+/**
+ * The JSON body. Past `limit` the rest is read and dropped, so the caller gets a 413 answer
+ * rather than a reset connection (which the api would take for a network blip and retry).
+ */
 const readBody = (req, limit = BODY_LIMIT) =>
   new Promise((resolve, reject) => {
     const chunks = [];
@@ -169,13 +178,15 @@ const readBody = (req, limit = BODY_LIMIT) =>
     req.on('data', (chunk) => {
       size += chunk.length;
       if (size > limit) {
-        reject(Object.assign(new Error('The request body is too large'), { code: 'too_large', status: 413 }));
-        req.destroy();
+        chunks.length = 0;
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
+      if (size > limit) {
+        return reject(Object.assign(new Error('The request body is too large'), { code: 'too_large', status: 413 }));
+      }
       if (chunks.length === 0) {
         return resolve({});
       }
@@ -328,6 +339,8 @@ const effectiveConfig = () => ({
   jobTimeoutMaxMs: JOB_TIMEOUT_MAX_MS,
   maxDurationSec: MAX_DURATION_SEC,
   resultTtlMs: RESULT_TTL_MS,
+  stillsTimeoutMs: STILLS_TIMEOUT_MS,
+  bodyLimitMb: Math.round(BODY_LIMIT / 1024 / 1024),
   crf: CRF,
   gl: process.env.REMOTION_GL || 'angle',
   browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || 'remotion-managed',
@@ -503,10 +516,14 @@ function browserLogHandler(ctx, job) {
   };
 }
 
-/** One render job, start to finish. Throws coded errors; the caller records the outcome. */
-async function runJob(ctx, job, body) {
+/**
+ * One render job, start to finish, from its validated input (`job.input`) and the assets
+ * written to its work dir at accept time (`job.assetRefs`). Throws coded errors; the caller
+ * records the outcome.
+ */
+async function runJob(ctx, job) {
   job.setStage('validate', 0.01);
-  const prepared = prepareInput(body);
+  const prepared = job.input;
   job.warnings.push(...prepared.warnings);
   Object.assign(job.summary, {
     scenes: prepared.storyboard.scenes.length,
@@ -517,7 +534,7 @@ async function runJob(ctx, job, body) {
   ctx.diag.info('job.start', { ...job.summary, ...prepared.size }, job.id);
 
   job.setStage('assets', 0.02);
-  const assetRefs = await writeAssets(ctx, job, body.assets);
+  const assetRefs = job.assetRefs;
   let built;
   try {
     built = await buildAudio(ctx, job, prepared, assetRefs);
@@ -600,8 +617,10 @@ export function createQueue(maxConcurrent, maxQueue) {
         });
     }
   };
+  const full = () => active >= maxConcurrent && waiting.length >= maxQueue;
   return {
     stats: () => ({ active, waiting: waiting.length, maxConcurrent, maxQueue }),
+    full,
     position: (id) => waiting.findIndex((item) => item.id === id),
     remove(id) {
       const at = waiting.findIndex((item) => item.id === id);
@@ -612,7 +631,7 @@ export function createQueue(maxConcurrent, maxQueue) {
       return false;
     },
     enqueue(id, run) {
-      if (active >= maxConcurrent && waiting.length >= maxQueue) {
+      if (full()) {
         throw makeError('busy', `The render queue is full (${maxConcurrent} running, ${maxQueue} waiting).`, 429);
       }
       waiting.push({ id, run });
@@ -688,12 +707,16 @@ export function createServer({
   maxConcurrent = MAX_CONCURRENT,
   maxQueue = MAX_QUEUE,
   renderConcurrency = RENDER_CONCURRENCY,
+  stillsTimeoutMs = STILLS_TIMEOUT_MS,
+  bodyLimit = BODY_LIMIT,
   browserOptions = process.env.REMOTION_BROWSER_EXECUTABLE ? { browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE } : {},
 } = {}) {
   const diag = diagnostics;
   const queue = createQueue(maxConcurrent, maxQueue);
   const bundles = createBundleManager({ bundleImpl, diag });
   const jobs = new Map();
+  /** Idempotency key (the api's MediaJob id) -> worker job id, for as long as the job is kept. */
+  const keys = new Map();
   const startedAt = Date.now();
   let stillBusy = false;
   const ctx = {
@@ -717,6 +740,9 @@ export function createServer({
   };
   const forget = (job) => {
     jobs.delete(job.id);
+    if (job.idempotencyKey && keys.get(job.idempotencyKey) === job.id) {
+      keys.delete(job.idempotencyKey);
+    }
     fs.rm(job.workDir, { recursive: true, force: true }).catch(() => undefined);
   };
   const finish = (job, state, error) => {
@@ -781,7 +807,7 @@ export function createServer({
       cancelSignal,
       cancel,
       abort: new AbortController(),
-      workDir: await fs.mkdtemp(path.join(os.tmpdir(), 'hivegpt-clip-')),
+      workDir: await fs.mkdtemp(path.join(os.tmpdir(), WORK_DIR_PREFIX)),
       setStage(stage, progress) {
         job.stage = stage;
         if (progress != null) {
@@ -792,7 +818,7 @@ export function createServer({
     return job;
   };
 
-  const start = (job, body) => async () => {
+  const start = (job) => async () => {
     if (job.cancelled) {
       return;
     }
@@ -816,7 +842,7 @@ export function createServer({
       }, job.timeoutMs + jobGraceMs);
       job.deadline.unref?.();
     });
-    const work = runJob(ctx, job, body);
+    const work = runJob(ctx, job);
     work.catch(() => undefined);
     try {
       await Promise.race([work, deadline]);
@@ -858,25 +884,45 @@ export function createServer({
     return true;
   };
 
-  /** Key frames as small JPEGs: 60% into each scene, the first `stills` scenes (default 6). */
+  /**
+   * Key frames as small JPEGs: 60% into each scene, the first `stills` scenes (default 6). The
+   * work races a deadline (the api's `timeoutMs`, capped by `stillsTimeoutMs`); at the deadline
+   * the render is cancelled and the preview slot is free again, whatever Chromium does.
+   */
   const renderStills = async (body) => {
     if (stillBusy) {
       throw makeError('busy', 'A preview is already rendering; try again in a moment.', 429);
     }
     stillBusy = true;
-    const job = await createJob({});
-    try {
+    const requested = Number(body.timeoutMs);
+    const timeoutMs = Number.isFinite(requested) && requested > 0 ? Math.min(stillsTimeoutMs, requested) : stillsTimeoutMs;
+    const { cancelSignal, cancel } = makeCancelSignal();
+    let timedOut = false;
+    let timer;
+    let job;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        cancel();
+        reject(makeError('timeout', `The preview exceeded ${timeoutMs}ms`, 504));
+      }, timeoutMs);
+    });
+    const work = (async () => {
+      job = await createJob({});
       const prepared = prepareInput(body);
       const assetRefs = await writeAssets(ctx, job, body.assets);
       const inputProps = buildProps(prepared, { scenes: prepared.storyboard.scenes, narration: [], words: [] }, assetRefs);
       const serveUrl = await bundles.get();
-      const composition = await selectImpl({ serveUrl, id: COMPOSITION, inputProps, ...browserOptions });
+      const composition = await selectImpl({ serveUrl, id: COMPOSITION, inputProps, timeoutInMilliseconds: timeoutMs, ...browserOptions });
       const count = Math.min(30, Math.max(1, Math.round(Number(body.stills) || 6)));
       const frames = inputProps.timeline.scenes
         .slice(0, count)
         .map((entry) => Math.min(inputProps.timeline.totalFrames - 1, entry.from + Math.round(entry.frames * 0.6)));
       const stills = [];
       for (const frame of frames) {
+        if (timedOut) {
+          break;
+        }
         const { buffer } = await stillImpl({
           composition: { ...composition, ...prepared.size, fps: FPS, durationInFrames: inputProps.timeline.totalFrames },
           serveUrl,
@@ -885,16 +931,31 @@ export function createServer({
           imageFormat: body.format === 'png' ? 'png' : 'jpeg',
           ...(body.format === 'png' ? {} : { jpegQuality: 78 }),
           scale: body.scale === 1 ? 1 : 0.5,
+          cancelSignal,
+          timeoutInMilliseconds: timeoutMs,
           ...browserOptions,
           onBrowserLog: browserLogHandler(ctx, job),
         });
         stills.push({ frame, mime: body.format === 'png' ? 'image/png' : 'image/jpeg', base64: Buffer.from(buffer).toString('base64') });
       }
       return { ok: true, stills, warnings: [...prepared.warnings, ...job.warnings] };
+    })();
+    work.catch(() => undefined);
+    try {
+      return await Promise.race([work, deadline]);
     } finally {
+      clearTimeout(timer);
       stillBusy = false;
-      await cleanup(job);
-      forget(job);
+      if (timedOut) {
+        diag.warn('stills.timeout', { timeoutMs });
+      }
+      if (job) {
+        await cleanup(job);
+        forget(job);
+      } else {
+        /** Timed out before its work dir existed: remove it once it does. */
+        work.finally(() => job && (cleanup(job), forget(job))).catch(() => undefined);
+      }
     }
   };
 
@@ -941,21 +1002,42 @@ export function createServer({
         return send(res, 200, { ok: true, entries, lastId: diag.lastId() });
       }
       if (req.method === 'POST' && url.pathname === '/jobs') {
-        const body = await readBody(req);
-        prepareInput(body);
+        const header = req.headers['idempotency-key'];
+        const key = typeof header === 'string' && IDEMPOTENCY_KEY.test(header) ? header : null;
+        const known = key ? jobs.get(keys.get(key)) : undefined;
+        if (known) {
+          /** A resubmit (the api lost our answer): the same job, and the body is not kept. */
+          req.resume();
+          await new Promise((resolve) => req.on('end', resolve).on('error', resolve));
+          diag.info('job.resubmitted', { state: known.state }, known.id);
+          return send(res, 200, jobView(known, queue));
+        }
+        const body = await readBody(req, bodyLimit);
+        const input = prepareInput(body);
+        if (queue.full()) {
+          throw makeError('busy', `The render queue is full (${maxConcurrent} running, ${maxQueue} waiting).`, 429);
+        }
         const job = await createJob(body);
         try {
-          queue.enqueue(job.id, start(job, body));
+          /** The assets go to the work dir now; a queued job holds paths, never base64. */
+          job.assetRefs = await writeAssets(ctx, job, body.assets);
+          job.input = input;
+          job.idempotencyKey = key ?? undefined;
+          queue.enqueue(job.id, start(job));
         } catch (error) {
+          await cleanup(job);
           forget(job);
           throw error;
         }
         jobs.set(job.id, job);
+        if (key) {
+          keys.set(key, job.id);
+        }
         diag.info('job.queued', { position: queue.position(job.id) + 1, timeoutMs: job.timeoutMs }, job.id);
         return send(res, 202, jobView(job, queue));
       }
       if (req.method === 'POST' && url.pathname === '/stills') {
-        const body = await readBody(req);
+        const body = await readBody(req, bodyLimit);
         return send(res, 200, await renderStills(body));
       }
       const match = /^\/jobs\/([a-f0-9-]{6,40})(\/video)?$/.exec(url.pathname);
@@ -1004,6 +1086,22 @@ export function createServer({
   return server;
 }
 
+/**
+ * Removes the work dirs a crashed worker left in `dir` (the container's /tmp). Run at startup
+ * only, before any job of this process exists. Returns how many were removed.
+ */
+export async function sweepTempDirs(dir = os.tmpdir()) {
+  let removed = 0;
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.isDirectory() && entry.name.startsWith(WORK_DIR_PREFIX)) {
+      await fs.rm(path.join(dir, entry.name), { recursive: true, force: true }).catch(() => undefined);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
 /** Startup self-check of the external binaries the worker shells out to. */
 export async function runSelfCheck(diag) {
   const chromium = process.env.REMOTION_BROWSER_EXECUTABLE;
@@ -1035,6 +1133,10 @@ if (isMain) {
     diag.error('process.uncaughtException', { message: error?.message ?? String(error), stack: stackHead(error) });
     process.exit(1);
   });
+  const swept = await sweepTempDirs();
+  if (swept > 0) {
+    diag.warn('startup.swept_temp_dirs', { count: swept });
+  }
   server.listen(PORT, () => {
     diag.info('server.listening', effectiveConfig());
     diag.info('server.memory', memorySnapshot());

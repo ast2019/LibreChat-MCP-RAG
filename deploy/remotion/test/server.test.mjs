@@ -285,3 +285,85 @@ test('a failed bundle is not cached and concurrent callers share one build', asy
   const never = createBundleManager({ diag, bundleImpl: async () => { throw new Error('x'); } });
   assert.equal(await never.warm([1, 1]), false);
 });
+
+test('a hung preview times out, is cancelled and frees the preview slot', async () => {
+  let calls = 0;
+  let cancelled = false;
+  const impls = {
+    ...fakeImpls(),
+    stillImpl: (opts) => {
+      calls += 1;
+      if (calls === 1) {
+        opts.cancelSignal?.(() => {
+          cancelled = true;
+        });
+        return new Promise(() => {});
+      }
+      return Promise.resolve({ buffer: Buffer.from('jpeg') });
+    },
+  };
+  await withServer({ ...impls, stillsTimeoutMs: 60 }, async ({ base }) => {
+    const hung = await post(base, { storyboard: storyboard(), timeoutMs: 120_000 }, '/stills');
+    assert.equal(hung.status, 504);
+    assert.equal((await hung.json()).error, 'timeout');
+    assert.equal(cancelled, true);
+    const next = await post(base, { storyboard: storyboard() }, '/stills');
+    assert.equal(next.status, 200, 'the next preview is not refused as busy');
+  });
+});
+
+test('a repeated idempotency key returns the job the worker already has', async () => {
+  const impls = { ...fakeImpls(), renderImpl: () => new Promise(() => {}) };
+  await withServer({ ...impls, jobTimeoutMs: 60_000 }, async ({ base, server }) => {
+    const headers = { ...json, 'Idempotency-Key': '65c000000000000000000001' };
+    const send = () => fetch(`${base}/jobs`, { method: 'POST', headers, body: JSON.stringify({ storyboard: storyboard() }) });
+    const first = await send();
+    const second = await send();
+    assert.equal(first.status, 202);
+    assert.equal(second.status, 200);
+    assert.equal((await second.json()).jobId, (await first.json()).jobId);
+    assert.equal(server.jobs.size, 1);
+    for (const job of server.jobs.values()) {
+      await fetch(`${base}/jobs/${job.id}`, { method: 'DELETE', headers: auth });
+    }
+  });
+});
+
+test('a queued job keeps its assets on disk, not in memory', async () => {
+  const impls = { ...fakeImpls(), renderImpl: () => new Promise(() => {}) };
+  await withServer({ ...impls, jobTimeoutMs: 60_000 }, async ({ base, server }) => {
+    await post(base, { storyboard: storyboard() });
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001', 'hex');
+    const body = {
+      storyboard: { title: 'p', scenes: [{ type: 'image', durationSec: 2, image: 'pic' }] },
+      assets: { pic: { kind: 'image', mime: 'image/png', base64: png.toString('base64') } },
+    };
+    const queued = await (await post(base, body)).json();
+    assert.equal(queued.state, 'queued');
+    const job = server.jobs.get(queued.jobId);
+    assert.deepEqual(await fs.readFile(path.join(job.workDir, 'pic.png')), png);
+    assert.equal(job.input.assets, undefined, 'the queued input holds no base64');
+    for (const item of server.jobs.values()) {
+      await fetch(`${base}/jobs/${item.id}`, { method: 'DELETE', headers: auth });
+    }
+  });
+});
+
+test('an oversized body answers 413 instead of a reset connection', async () => {
+  await withServer({ ...fakeImpls(), bodyLimit: 1024 }, async ({ base }) => {
+    const res = await post(base, { storyboard: storyboard(), pad: 'x'.repeat(4096) });
+    assert.equal(res.status, 413);
+    assert.equal((await res.json()).error, 'too_large');
+  });
+});
+
+test('stale clip temp dirs are removed at startup, other dirs are kept', async () => {
+  const { sweepTempDirs } = await import('../src/server.mjs');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sweep-test-'));
+  await fs.mkdir(path.join(root, 'hivegpt-clip-abc123'));
+  await fs.writeFile(path.join(root, 'hivegpt-clip-abc123', 'out.mp4'), 'x');
+  await fs.mkdir(path.join(root, 'other-dir'));
+  assert.equal(await sweepTempDirs(root), 1);
+  assert.deepEqual(await fs.readdir(root), ['other-dir']);
+  await fs.rm(root, { recursive: true, force: true });
+});
