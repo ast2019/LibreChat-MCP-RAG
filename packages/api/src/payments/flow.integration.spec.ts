@@ -657,6 +657,48 @@ describe('payment flow against MongoDB', () => {
     expect((await db.findBalanceByUser(userId))?.tokenCredits).toBe(2_000_000);
   });
 
+  it('credits once when a second claim takes over an expired lease mid-grant', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    const waiting: Array<() => void> = [];
+    let hold = true;
+    const createTransaction: typeof db.createTransaction = async (tx) => {
+      if (hold) {
+        await new Promise<void>((resolve) => waiting.push(resolve));
+      }
+      return db.createTransaction(tx);
+    };
+    let clock = Date.now();
+    const { app, handlers } = createApp(gateway, { createTransaction }, () => new Date(clock));
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      body: { data: { code: 100, ref_id: 304 }, errors: [] },
+    });
+    const waitFor = async (count: number) => {
+      for (let i = 0; i < 500 && waiting.length < count; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(waiting).toHaveLength(count);
+    };
+
+    /** The first credit stalls inside the ledger write past its 2-minute lease */
+    const first = request(app)
+      .get(`/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=OK`)
+      .then((res) => res);
+    await waitFor(1);
+    clock += 3 * 60_000;
+    const order = await db.findPaymentOrderById(orderId);
+    const second = handlers.service.ensureCredited(order!);
+    await waitFor(2);
+    hold = false;
+    waiting.forEach((release) => release());
+    await Promise.all([first, second]);
+
+    expect(await ledger(userId)).toHaveLength(1);
+    expect((await db.findBalanceByUser(userId))?.tokenCredits).toBe(2_000_000);
+    expect(await db.findPaymentOrderById(orderId)).toMatchObject({ credited: true });
+  });
+
   it('finishes the pack fields on a retry when the grant failed after the ledger write', async () => {
     const userId = await createUser();
     const gateway = createGateway();

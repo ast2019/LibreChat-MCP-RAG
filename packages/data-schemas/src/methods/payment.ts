@@ -15,6 +15,7 @@ import type { ITransaction } from '~/schema/transaction';
 import { isValidObjectIdString } from '~/utils/objectId';
 import { createIndexesWithRetry } from '~/utils/retry';
 import { buildUserSearchFilter } from '~/utils/search';
+import logger from '~/config/winston';
 
 const MAX_PAGE_SIZE = 100;
 /** Statuses a verified payment may still settle from: an expired order can be paid late. */
@@ -30,6 +31,11 @@ const settleableFilter = {
 
 /** The ledger marker a payment's credit transaction carries, so a retry can detect it. */
 export const paymentLedgerMarker = (orderId: string): string => `payment:${orderId}`;
+
+/** Unique index on the payment markers: two credits of one order cannot both be written. */
+export const PAYMENT_LEDGER_INDEX = 'payment_ledger_marker_unique';
+/** Payment credits are pack grants that carry a marker; no other grant writes a messageId. */
+const PAYMENT_LEDGER_FILTER = { context: 'pack', messageId: { $type: 'string' } };
 
 export interface PaymentMethods {
   createPaymentOrder: (data: PaymentOrderCreateData) => Promise<PaymentOrderRecord>;
@@ -58,7 +64,10 @@ export interface PaymentMethods {
   /** Re-takes the credit lease of a paid, uncredited order whose lease ran out. */
   claimPaymentOrderCredit: (orderId: string, now: Date, leaseUntil: Date) => Promise<boolean>;
   markPaymentOrderCredited: (orderId: string, at: Date) => Promise<void>;
-  /** Whether the ledger already holds this order's credit transaction. */
+  /**
+   * Whether the ledger already holds this order's credit transaction. Resolves once the unique
+   * payment-marker index exists (or could not be built), so a credit written after it is guarded.
+   */
   hasPaymentLedgerEntry: (userId: string, orderId: string) => Promise<boolean>;
   listPaymentOrders: (
     params: PaymentOrderListParams,
@@ -136,13 +145,49 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
   const transactions = () => mongoose.models.Transaction as Model<ITransaction>;
   let indexes: Promise<void> | null = null;
 
+  /**
+   * The ledger's payment markers become unique. Existing data could hold a duplicate from the
+   * race this guards against; then the build fails, the duplicates are named in the log for an
+   * admin to review, and crediting carries on without the guard rather than stopping payments.
+   */
+  async function ensureLedgerIndex(): Promise<void> {
+    try {
+      await transactions().collection.createIndex(
+        { messageId: 1 },
+        {
+          name: PAYMENT_LEDGER_INDEX,
+          unique: true,
+          partialFilterExpression: PAYMENT_LEDGER_FILTER,
+        },
+      );
+    } catch (error) {
+      if (!isDuplicateKey(error)) {
+        throw error;
+      }
+      const duplicates = await transactions()
+        .aggregate<{ _id: string; count: number }>([
+          { $match: PAYMENT_LEDGER_FILTER },
+          { $group: { _id: '$messageId', count: { $sum: 1 } } },
+          { $match: { count: { $gt: 1 } } },
+          { $limit: 50 },
+        ])
+        .exec();
+      logger.error(
+        '[payments] Payment orders credited more than once; the unique ledger guard is not built until they are resolved',
+        { markers: duplicates.map((row) => row._id) },
+      );
+    }
+  }
+
   /** The unique indexes are the double-credit guard, so writes wait until they exist. */
   function ensureIndexes(): Promise<void> {
     if (indexes == null) {
-      indexes = createIndexesWithRetry(orders()).catch((error) => {
-        indexes = null;
-        throw error;
-      });
+      indexes = Promise.all([createIndexesWithRetry(orders()), ensureLedgerIndex()])
+        .then(() => undefined)
+        .catch((error) => {
+          indexes = null;
+          throw error;
+        });
     }
     return indexes;
   }
@@ -254,6 +299,7 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     if (!validId(userId) || !validId(orderId)) {
       return false;
     }
+    await ensureIndexes();
     const found = await transactions().exists({
       user: userId,
       messageId: paymentLedgerMarker(orderId),

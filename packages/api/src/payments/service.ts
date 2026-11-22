@@ -97,6 +97,10 @@ const isReverifiable = (order: PaymentOrderRecord): boolean =>
   order.errorCode != null &&
   PAYMENT_REVERIFIABLE_CODES.includes(order.errorCode);
 
+/** MongoDB's duplicate-key error: the unique payment-marker index refused a second credit. */
+const isDuplicateKey = (error: unknown): boolean =>
+  (error as { code?: unknown } | null)?.code === 11000;
+
 const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: PaymentFailure } => ({
   ok: false,
   error: { code, status },
@@ -275,7 +279,11 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   async function credit(order: PaymentOrderRecord): Promise<boolean> {
     const pack = { id: order.packId, label: order.packLabel };
     try {
-      if (await store.hasPaymentLedgerEntry(order.userId, order.id)) {
+      let granted = false;
+      if (!(await store.hasPaymentLedgerEntry(order.userId, order.id))) {
+        granted = await grantOnce(order);
+      }
+      if (!granted) {
         await repairPackGrant(
           {
             findBalance: deps.grant.findBalance,
@@ -285,26 +293,6 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
           },
           { userId: order.userId, pack, grantedAfter: order.paidAt ?? order.createdAt },
         );
-      } else {
-        await grantBalance(
-          {
-            createTransaction: (tx) =>
-              deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
-            upsertBalanceFields: deps.grant.upsertBalanceFields,
-            setUserPack: deps.grant.setUserPack,
-            now,
-          },
-          {
-            userId: order.userId,
-            credits: order.credits,
-            pack: {
-              id: order.packId,
-              label: order.packLabel,
-              kind: 'credits',
-              credits: order.credits,
-            },
-          },
-        );
       }
       await store.markPaymentOrderCredited(order.id, now());
       logger.info(`[payments] order ${order.id} credited ${order.credits} credits`);
@@ -313,6 +301,42 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       logger.error(`[payments] crediting order ${order.id} failed; reconciliation retries it`, {
         error: error instanceof Error ? error.message : 'unknown',
       });
+      return false;
+    }
+  }
+
+  /**
+   * Writes the order's ledger entry and pack fields. False when the ledger's unique payment
+   * marker refused the entry: a concurrent claim (one whose lease ran out mid-grant) already
+   * wrote it, so this credit counts as done and only the pack fields are finished.
+   */
+  async function grantOnce(order: PaymentOrderRecord): Promise<boolean> {
+    try {
+      await grantBalance(
+        {
+          createTransaction: (tx) =>
+            deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
+          upsertBalanceFields: deps.grant.upsertBalanceFields,
+          setUserPack: deps.grant.setUserPack,
+          now,
+        },
+        {
+          userId: order.userId,
+          credits: order.credits,
+          pack: {
+            id: order.packId,
+            label: order.packLabel,
+            kind: 'credits',
+            credits: order.credits,
+          },
+        },
+      );
+      return true;
+    } catch (error) {
+      if (!isDuplicateKey(error)) {
+        throw error;
+      }
+      logger.info(`[payments] order ${order.id} was already credited by a concurrent claim`);
       return false;
     }
   }
