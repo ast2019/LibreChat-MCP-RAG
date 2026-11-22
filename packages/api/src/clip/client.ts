@@ -78,8 +78,11 @@ export interface RemotionServiceClient {
   logs(
     query?: RemotionLogsQuery,
   ): Promise<{ entries: Array<Record<string, unknown>>; lastId?: number }>;
-  /** Queues a render; answers at once with the job's id and position. */
-  submit(input: WorkerJobRequest): Promise<WorkerJobView>;
+  /**
+   * Queues a render; answers at once with the job's id and position. A repeated
+   * `idempotencyKey` (the MediaJob id) returns the job the worker already has for it.
+   */
+  submit(input: WorkerJobRequest, options?: { idempotencyKey?: string }): Promise<WorkerJobView>;
   job(jobId: string): Promise<WorkerJobView>;
   /** Stops a queued or running render (renderMedia's cancel signal on the worker). */
   cancel(jobId: string): Promise<WorkerJobView>;
@@ -114,6 +117,7 @@ export function createRemotionServiceClient(
     path: string,
     body: unknown,
     timeoutMs: number,
+    extraHeaders: Record<string, string> = {},
   ): Promise<Response> {
     try {
       return await fetchImpl(`${target.url}${path}`, {
@@ -121,6 +125,7 @@ export function createRemotionServiceClient(
         headers: {
           Authorization: `Bearer ${target.token}`,
           ...(body !== undefined && { 'Content-Type': 'application/json' }),
+          ...extraHeaders,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
@@ -147,13 +152,16 @@ export function createRemotionServiceClient(
     path: string,
     body?: unknown,
     timeoutMs = WORKER_CALL_TIMEOUT_MS,
+    headers?: Record<string, string>,
   ): Promise<T & WorkerErrorBody> {
-    const response = await send(method, path, body, timeoutMs);
+    const response = await send(method, path, body, timeoutMs, headers);
     let parsed: T & WorkerErrorBody;
     try {
       parsed = (await response.json()) as T & WorkerErrorBody;
     } catch {
-      throw new RemotionServiceError('unavailable', 'The Remotion service sent no JSON', 502);
+      /** A proxy's HTML error page keeps its status, so a 413 or 401 is still terminal. */
+      const status = response.status >= 400 ? response.status : 502;
+      throw new RemotionServiceError(status === 429 ? 'busy' : 'unavailable', 'The Remotion service sent no JSON', status);
     }
     if (response.status >= 400) {
       const code =
@@ -194,8 +202,9 @@ export function createRemotionServiceClient(
       );
       return { entries: Array.isArray(body.entries) ? body.entries : [], lastId: body.lastId };
     },
-    async submit(input) {
-      return toView(await call<Record<string, unknown>>('POST', '/jobs', input, WORKER_SUBMIT_TIMEOUT_MS));
+    async submit(input, options = {}) {
+      const headers = options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined;
+      return toView(await call<Record<string, unknown>>('POST', '/jobs', input, WORKER_SUBMIT_TIMEOUT_MS, headers));
     },
     async job(jobId) {
       return toView(await call<Record<string, unknown>>('GET', jobPath(jobId)));

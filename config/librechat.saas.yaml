@@ -556,6 +556,12 @@ clipTools:
   renderTimeoutSec: 600
   queueTimeoutSec: 900
   preview: true
+  previewTimeoutSec: 120
+  previewStills: 6
+  # File bytes of one clip's images and audio (the worker's 80 MB body limit counts base64)
+  maxAssetMb: 55
+  # Submit retries after a worker 5xx or network failure; any other 4xx than 429 fails at once
+  submitRetries: 3
   captions: true
   music: true
   aiImages: false

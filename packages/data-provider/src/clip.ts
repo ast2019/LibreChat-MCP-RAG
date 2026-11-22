@@ -38,6 +38,17 @@ export const clipToolsSchema = z.object({
   queueTimeoutSec: z.number().int().min(60).max(3600).default(900),
   /** Key-frame previews (renderStill) the model may ask for before the full render */
   preview: z.boolean().default(true),
+  /** How long the worker may spend on one preview, in seconds (it stops the render after) */
+  previewTimeoutSec: z.number().int().min(10).max(600).default(120),
+  /** Most key frames in one preview (one per scene from the start) */
+  previewStills: z.number().int().min(1).max(30).default(6),
+  /**
+   * Images and audio one clip may send to the worker, in MB of file bytes. The worker's body
+   * limit (REMOTION_BODY_LIMIT_MB, 80) counts base64, a third larger; keep this under 3/4 of it.
+   */
+  maxAssetMb: z.number().int().min(1).max(150).default(55),
+  /** Times a clip submit is retried after a worker 5xx or a network failure before it fails */
+  submitRetries: z.number().int().min(0).max(10).default(3),
   /** Narration with word-synced captions */
   captions: z.boolean().default(true),
   /** Bundled CC0 background music with ducking under narration */

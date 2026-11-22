@@ -6,7 +6,7 @@ import type { StructuredToolInterface } from '@librechat/agents/langchain/tools'
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipRequest, WorkerJobRequest } from './scene';
 import type { ClipJobPayload } from './jobs';
-import type { ClipImageService } from './images';
+import type { ClipImageHold, ClipImageService } from './images';
 import type { ServerRequest } from '~/types';
 import { createRemotionServiceClient, RemotionServiceError } from './client';
 import { getClipConfig, getRemotionServiceTarget } from './config';
@@ -179,7 +179,7 @@ export function createClipTools(
       return reply(`Another clip for this user is being started right now. ${NO_RETRY}`);
     }
     creating.add(userId);
-    let release: (() => Promise<void>) | undefined;
+    let hold: ClipImageHold | undefined;
     try {
       const pending = await deps.countPendingMediaJobs(userId, CLIP_JOB_KIND);
       if (pending >= config.maxJobsPerUser) {
@@ -204,7 +204,7 @@ export function createClipTools(
           recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'ai_images_refused' });
           return reply(`Nothing was built or charged: ${held.message} Offer the user the clip without AI images (icons, their own images).`);
         }
-        release = held.release;
+        hold = held.hold;
       }
       if (request.images.some((img) => img.source === 'stock') && !pexelsKey(config.stockImages, env)) {
         return reply('Nothing was built: stock photos are off on this deployment. Use attached images, icons or AI images (if offered).');
@@ -238,6 +238,9 @@ export function createClipTools(
         payload: payload as unknown as Record<string, unknown>,
         ...(req.user?.tenantId ? { tenantId: String(req.user.tenantId) } : {}),
       });
+      /** The job keeps the AI image hold until its images are made (or it ends). */
+      hold?.keep(job.id, new Date(job.deadline).getTime());
+      hold = undefined;
       turnJob = job;
       logger.info(
         `[clip] job.created job=${job.id} scenes=${request.storyboard.scenes.length} durationSec=${request.durationSec} audio=${request.audio.mode} images=${request.images.length}`,
@@ -260,7 +263,7 @@ export function createClipTools(
       );
     } finally {
       creating.delete(userId);
-      await release?.();
+      await hold?.release();
     }
   }
 

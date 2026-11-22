@@ -70,6 +70,19 @@ describe('createRemotionServiceClient', () => {
     expect((error as RemotionServiceError).code).toBe('timeout');
   });
 
+  it('sends the idempotency key and keeps the status of a non-JSON error page', async () => {
+    const fetchImpl = respond(202, { ok: true, jobId: 'abc123def456', state: 'queued', warnings: [] });
+    await createRemotionServiceClient(target, fetchImpl).submit(body, { idempotencyKey: 'job-1' });
+    expect((fetchImpl as unknown as jest.Mock).mock.calls[0][1].headers['Idempotency-Key']).toBe('job-1');
+    const html = jest.fn(async () => ({
+      status: 413,
+      json: async () => {
+        throw new SyntaxError('<html>');
+      },
+    })) as unknown as typeof fetch;
+    await expect(createRemotionServiceClient(target, html).submit(body)).rejects.toMatchObject({ status: 413 });
+  });
+
   it('downloads the finished video', async () => {
     const fetchImpl = jest.fn(async () => ({ status: 200, arrayBuffer: async () => new TextEncoder().encode('mp4').buffer })) as unknown as typeof fetch;
     const video = await createRemotionServiceClient(target, fetchImpl).video('abc123def456');
