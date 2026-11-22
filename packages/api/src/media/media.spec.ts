@@ -277,6 +277,30 @@ describe('media tools', () => {
       expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 60_000);
     });
 
+    it('charges the estimate, not zero, for tokens of a model with no token price', async () => {
+      const { deps, billing } = makeDeps({
+        imageCatalogue: () => [
+          ...imageCatalogue(),
+          { id: 'per-image/model', imageOutputPrice: 0, acceptsImages: true },
+        ],
+        fetch: jest.fn().mockResolvedValue(
+          json({
+            data: [{ b64_json: Buffer.from('png').toString('base64') }],
+            usage: { output_tokens: 400 },
+          }),
+        ),
+      });
+      await tool(deps).invoke({
+        id: 'm4',
+        name: MediaTools.image,
+        args: { prompt: 'poster', model: 'per-image/model' },
+        type: 'tool_call',
+      });
+      /** No usable price: the hold's estimate ($0.10 x1.5), as the estimate already does */
+      expect(billing.hold).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 150_000);
+      expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 150_000);
+    });
+
     it('uses the composer pick, then the saved choice, and remembers the model used', async () => {
       const saveImageModel = jest.fn().mockResolvedValue(null);
       const run = async (body: unknown, personalization?: { imageModel?: string }) => {
