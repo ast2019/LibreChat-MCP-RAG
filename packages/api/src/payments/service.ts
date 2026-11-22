@@ -107,14 +107,15 @@ const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: Paym
 });
 
 /** `getBalanceConfig()` output; packs merge in unvalidated, so each is checked before use. */
-type BalanceLike = { enabled?: boolean; packs?: Partial<TBalancePack>[] } | null | undefined;
+export type BalanceLike = { enabled?: boolean; packs?: Partial<TBalancePack>[] } | null | undefined;
 
 /** Credit packs only — time packs are granted by admins, not sold through the payment gateways. */
-type ValidPack = TBalancePack & { credits: number };
+export type SellablePack = TBalancePack & { credits: number };
 
-function validPacks(balance: BalanceLike): ValidPack[] {
+/** The packs checkout sells: credit packs with an id, a label and a positive whole credit count. */
+export function sellablePacks(balance: BalanceLike): SellablePack[] {
   return (balance?.packs ?? []).filter(
-    (pack): pack is ValidPack =>
+    (pack): pack is SellablePack =>
       typeof pack?.id === 'string' &&
       typeof pack.label === 'string' &&
       (pack.kind == null || pack.kind === 'credits') &&
@@ -134,7 +135,7 @@ export function getPaymentOptions(
   if (gateways.length === 0 || balance?.enabled !== true) {
     return { enabled: false, gateways: [], packs: [] };
   }
-  const packs = validPacks(balance).flatMap((pack) => {
+  const packs = sellablePacks(balance).flatMap((pack) => {
     const amountRial = packPriceRial(pack.credits, currency);
     return amountRial == null
       ? []
@@ -215,7 +216,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     }
     const pack =
       typeof input.packId === 'string'
-        ? validPacks(balance).find((candidate) => candidate.id === input.packId)
+        ? sellablePacks(balance).find((candidate) => candidate.id === input.packId)
         : undefined;
     if (pack == null) {
       return fail('pack_not_found', 404);

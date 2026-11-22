@@ -27,6 +27,7 @@ const {
   withSafePolicyLinks,
   getSharedCurrencyRates,
   getPaymentsStartupConfig,
+  getPublicPacks,
   getReferralStartupConfig,
   getOfficeStartupConfig,
   getClipStartupConfig,
@@ -393,9 +394,6 @@ router.get('/', async function (req, res) {
   }
 });
 
-/** Pack classes worth naming on the public page (Attached VM and Higgsfield are admin-granted). */
-const PUBLIC_PACK_CLASSES = ['local', 'private', 'media', 'api', 'browser'];
-
 /**
  * `GET /api/config/packs`: the packs a new user can buy, for the public «بسته‌ها» page, with
  * the display currency so the page prices them with the same formula as checkout. No sign-in;
@@ -404,22 +402,7 @@ const PUBLIC_PACK_CLASSES = ['local', 'private', 'media', 'api', 'browser'];
 router.get('/packs', async function (req, res) {
   try {
     const appConfig = await getAppConfig({ role: SystemRoles.USER, tenantId: req.user?.tenantId });
-    const balance = getBalanceConfig(appConfig);
-    const packs =
-      balance?.enabled === true
-        ? (balance.packs ?? []).map((pack) => {
-            const includes = PUBLIC_PACK_CLASSES.filter((key) => pack.grants?.[key] === true);
-            return {
-              id: pack.id,
-              label: pack.label,
-              credits: pack.credits,
-              includes,
-              ...(includes.includes('browser') && pack.browserSessions
-                ? { browserSessions: pack.browserSessions }
-                : {}),
-            };
-          })
-        : [];
+    const packs = getPublicPacks(getBalanceConfig(appConfig));
     const { currency } = await currencyRates.resolve(appConfig?.interfaceConfig?.currency);
     res.set('Cache-Control', 'public, max-age=300');
     return res.status(200).send({
