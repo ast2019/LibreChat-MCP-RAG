@@ -7,6 +7,49 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.2] - 2026-11-23
+
+### Security
+- **A forged "canceled" return can no longer close a paid order.** The payment callback is
+  unauthenticated, and a Zarinpal `Status=NOK` or IDPay status 7 return closed the order as
+  canceled without asking the gateway, for good. Every non-OK return is now verified and closes
+  the order only when the gateway reports it unpaid; an OK return for an order closed as unpaid
+  is verified again; and reconciliation re-verifies such an order once after its expiry while it
+  is younger than `payments.reverifyClosedMinutes` (default 1440, 0 turns it off).
+- **The payment callback is rate-limited per address** (`rateLimits.paymentCallback`, default 60
+  per minute). A refused buyer lands on the pending result page with `rate_limited`.
+- **The browser and site-mcp egress refuse IPv4-translated (`::ffff:0:0:0/96`) and
+  IPv4-compatible (`::/96`) IPv6 addresses**, which reached loopback before
+  (`::ffff:0:7f00:1`, `::7f00:1`). Both services carry one byte-identical `blocklist.mjs`, and
+  `npm run verify:prod` fails when the copies differ.
+- **`CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY` is required.** The compose default was an Ed25519
+  key committed to the repository; a deploy without the variable now fails. Generate a new pair
+  as `docs/saas/DEPLOY_COOLIFY.md` describes and change the matching public key with it.
+- **Compose images are pinned by digest.** `ollama/ollama:latest`,
+  `librechat-rag-api-dev-lite:latest` and the five code-interpreter images
+  (`${CODEAPI_IMAGE_TAG:-main}`) use the digest their tag resolved to on 2026-11-22, so today's
+  images keep running and upstream pushes no longer change the deployment. `CODEAPI_IMAGE_TAG`
+  still overrides the code-interpreter pins; `verify:prod` fails on a `latest`/`main` default
+  without a digest.
+- **An admin-set password retires the old tokens.** It now writes the same credential update as a
+  password reset (`credentialsChangedAt`, staged 2FA cleared), ends the sessions and waits for
+  the cached user to be evicted. When ending the sessions fails, the answer says
+  `sessionsEnded: false` and the dialog shows a warning instead of a plain success.
+
+### Fixed
+- **A payment credit that failed half-way is finished on retry.** When the ledger entry landed
+  but the allotment fields or the user's pack did not, the retry skipped them for good; it now
+  sets them, unless a newer grant already owns them.
+- **A payment is credited once even when two claims race.** The ledger's payment marker is a
+  unique partial index (built before any payment write; existing duplicates are logged and leave
+  crediting unguarded rather than stopping it), and a duplicate-key refusal counts as credited.
+- **The public packs page lists only the packs checkout sells**: no time packs and no pack
+  without whole credits.
+- **A catalogue image model without a token price is never free.** Reported tokens at a zero
+  price fell to a zero charge; they now fall to the estimate.
+- **A finished background video (Higgsfield or OpenRouter) is charged once.** A failed completion
+  write or a re-claimed lease could deliver and charge it again.
+
 ## [0.40.1] - 2026-11-22
 
 ### Added
