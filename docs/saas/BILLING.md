@@ -88,7 +88,7 @@ balance:
 بسته‌ها در `balance.packs` تعریف می‌شوند. دو نوع دارید:
 
 - **`kind: credits` (پیش‌فرض):** همان بستهٔ اعتباری قبلی؛ اعتبار به موجودی اضافه می‌شود.
-- **`kind: time`:** بستهٔ زمانی Claude روی endpoint جدا (`ClaudeTime`)، بدون کسر اعتبار. ظرفیت مشترک حداکثر ۴ سشن همزمان (هر کاربر حداکثر ۱). مصرف توکن فقط متر می‌شود (`context: time_meter`) برای عدالت و استراحت اجباری.
+- **`kind: time`:** پلن نامحدود Claude روی endpoint جدا (`ClaudeTime` → AIPrimeTech)، بدون کسر اعتبار. ظرفیت مشترک حداکثر ۴ سشن همزمان (هر کاربر حداکثر ۱). مصرف توکن فقط متر می‌شود (`context: time_meter`) برای عدالت و استراحت اجباری.
 
 ```yaml
 balance:
@@ -102,7 +102,7 @@ balance:
       description: 'یادداشت برای ادمین'
     - id: claude-time
       kind: time
-      label: 'بسته زمانی Claude'
+      label: 'پلن نامحدود Claude'
       durationDays: 30
       endpoint: 'ClaudeTime'
   timePack:

@@ -57,10 +57,11 @@ services:
       # Model provider: the only required value.
       OPENROUTER_KEY: ${OPENROUTER_KEY:?}
 
-      # Time-pack Claude (endpoints.custom ClaudeTime in librechat.saas.yaml). Optional until
-      # you grant kind:time packs; unset leaves the ${…} placeholder in config (app still boots).
+      # Unlimited Claude plan (endpoints.custom ClaudeTime → AIPrimeTech Messages API).
+      # Optional until you grant kind:time packs; unset key leaves a placeholder (app still boots).
+      # Base URL is the Anthropic SDK host without /v1 (SDK appends /v1/messages).
       CLAUDE_TIME_KEY: ${CLAUDE_TIME_KEY:-}
-      CLAUDE_TIME_BASE_URL: ${CLAUDE_TIME_BASE_URL:-}
+      CLAUDE_TIME_BASE_URL: ${CLAUDE_TIME_BASE_URL:-https://aiprimetech.io}
 
       # Secrets (generated once by Coolify, then kept). Changing CREDS_KEY/IV later makes
       # stored encrypted credentials unreadable; changing JWT secrets logs everyone out.
