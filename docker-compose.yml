@@ -634,7 +634,10 @@ services:
       CODEAPI_BRIDGE_DYNAMIC_WORKERS: 'true'
       CODEAPI_BRIDGE_LANE_GIT: ${CODEAPI_BRIDGE_LANE_GIT:-true}
       EGRESS_GATEWAY_URL: http://code_egress:3190
-      CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY: ${CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY:-MC4CAQAwBQYDK2VwBCIEIBoxzSJjQ5jTVyuohHtlD+uDGqv/tZ6hQS2CmxuOg2Wn}
+      # Ed25519 key the worker signs execution manifests with. Required: a missing value fails
+      # the deploy instead of falling back to a published key. How to make one, and which
+      # public key changes with it: docs/saas/DEPLOY_COOLIFY.md («کلید امضای manifest اجرا»).
+      CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY: ${CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY:?set CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY, see docs/saas/DEPLOY_COOLIFY.md}
       PYTHON_CONCURRENCY: ${CODEAPI_PYTHON_CONCURRENCY:-1}
       OTHER_CONCURRENCY: ${CODEAPI_OTHER_CONCURRENCY:-4}
       WORKER_HEALTH_PORT: 3115

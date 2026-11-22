@@ -155,6 +155,18 @@ Ollama به تعداد vCPUهایی که می‌بیند رشته می‌ساز�
 - `baseURL` بلوک `personal-workers` در `librechat.saas.yaml` همان `https://code.aichat.hivelink.co/v1` است (URL واقعی، نه `${…}`): Zod هنگام بارگذاری config به URL نیاز دارد و اگر Coolify متغیر را به کانتینر ندهد، `api` با Invalid url از کار می‌افتد. `LIBRECHAT_CODE_BRIDGE_BASEURL` هنوز برای دستور pair روی VM است. `CODEAPI_BRIDGE_LOCAL_MODE` پیش‌فرض `false` است (احراز هویت paired).
 - نصب worker: `deploy/code-worker/`. راهنمای کامل: [ATTACHED_VM.md](./ATTACHED_VM.md).
 
+### کلید امضای manifest اجرا
+
+- `code_bridge_queue` هر اجرای کد را با کلید Ed25519 در `CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY` امضا می‌کند. این متغیر اجباری است: اگر در Coolify نباشد، استقرار با خطا متوقف می‌شود. مقدار پیش‌فرض قدیمی compose در تاریخچه مخزن عمومی است و نباید دوباره استفاده شود.
+- جفت کلید تازه را روی هر سیستمی که Node دارد بسازید، نه داخل مخزن:
+
+  ```sh
+  node -e "const {generateKeyPairSync}=require('crypto');const {privateKey,publicKey}=generateKeyPairSync('ed25519');console.log('CODEAPI_EXECUTION_MANIFEST_PRIVATE_KEY='+privateKey.export({type:'pkcs8',format:'der'}).toString('base64'));console.log('PUBLIC_KEY='+publicKey.export({type:'spki',format:'der'}).toString('base64'))"
+  ```
+
+- خط اول را در متغیرهای محیطی Coolify بگذارید و دوباره deploy کنید. کلید خصوصی را در مخزن، چت یا تیکت ننویسید.
+- کلید عمومی (خط دوم) باید همراه کلید خصوصی عوض شود، هر جا که امضا بررسی می‌شود: `SANDBOX_EXECUTION_MANIFEST_PUBLIC_KEY` روی sandbox-runner و `LIBRECHAT_CODE_EXECUTION_MANIFEST_PUBLIC_KEY` روی VMی که `@librechat/code` را با file relay اجرا می‌کند. سرویس codeapi در upstream همین کلید را با نام `CODEAPI_EXECUTION_MANIFEST_PUBLIC_KEY` هم می‌خواند. در این compose هیچ سرویسی کلید عمومی نمی‌گیرد، چون قفس microVM خاموش است؛ اگر این متغیر را روی VMی گذاشته‌اید، آن را هم عوض کنید.
+
 ## وردپرس، cPanel و سامانه ویک سیگنال کاربر
 
 - سرویس `sitemcp` با همین compose بالا می‌آید. توکن آن (`SERVICE_HEX_64_SITEMCP`) را خود Coolify می‌سازد و به `api` هم می‌دهد. به `sitemcp` دامنه ندهید.
