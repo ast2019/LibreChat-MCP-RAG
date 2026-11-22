@@ -114,6 +114,36 @@ export function missingCopySources(
   return missing;
 }
 
+export interface EdgeTtsPin {
+  /** `ARG EDGE_TTS_VERSION=<version>`, or null when the Dockerfile does not pin it */
+  version: string | null;
+  /** pip installs exactly the pinned version */
+  installsPin: boolean;
+  /** The build runs scripts/check_tts_api.py against the installed version */
+  checksApi: boolean;
+}
+
+/**
+ * How the Remotion worker's Dockerfile pins edge-tts. src/tts.py calls
+ * `edge_tts.Communicate(boundary="WordBoundary")`, an argument only some versions take, so the
+ * image must install the pinned version and check the call against it.
+ */
+export function edgeTtsPin(dockerfile: string): EdgeTtsPin {
+  const lines = logicalLines(dockerfile);
+  const version =
+    lines.map((line) => /^ARG\s+EDGE_TTS_VERSION=(\S+)$/i.exec(line)?.[1]).find(Boolean) ?? null;
+  const runs = lines.filter((line) => /^RUN\b/i.test(line));
+  return {
+    version,
+    installsPin: runs.some((line) =>
+      /\bpip3?\s+install\b[^&]*\bedge-tts==\$\{?EDGE_TTS_VERSION\}?(\s|$)/.test(line),
+    ),
+    checksApi: runs.some((line) =>
+      /check_tts_api\.py\s+--version\s+"?\$\{?EDGE_TTS_VERSION\}?"?\s+--require-live/.test(line),
+    ),
+  };
+}
+
 /** Package names passed to `apt-get install` (or `apt install`) in a Dockerfile. */
 export function parseAptPackages(dockerfile: string): string[] {
   const packages = new Set<string>();
@@ -391,6 +421,37 @@ async function staticDockerChecks(): Promise<ComposeService[]> {
   return builds;
 }
 
+const REMOTION_DIR = 'deploy/remotion';
+
+/**
+ * The worker image pins edge-tts and checks tts.py against it at build time; here the same
+ * check runs without Docker or network against the signature recorded for the pinned version
+ * (and the installed package too when REMOTION_TTS_PYTHON or python3 has that version).
+ */
+function checkEdgeTts(): void {
+  const started = Date.now();
+  const title = 'remotion tts.py matches the pinned edge-tts API';
+  const pin = edgeTtsPin(readText(`${REMOTION_DIR}/Dockerfile`));
+  const problems = [
+    ...(pin.version ? [] : ['Dockerfile has no ARG EDGE_TTS_VERSION=<version>']),
+    ...(pin.installsPin ? [] : ['Dockerfile does not pip install edge-tts==${EDGE_TTS_VERSION}']),
+    ...(pin.checksApi ? [] : ['Dockerfile does not RUN scripts/check_tts_api.py --require-live']),
+  ];
+  if (problems.length > 0 || !pin.version) {
+    return record(title, 'fail', problems.join('\n'), started);
+  }
+  const python = process.env.REMOTION_TTS_PYTHON || 'python3';
+  if (run(python, ['--version'], ROOT).status !== 0) {
+    return record(title, 'skipped', `SKIPPED: ${python} is not available`, started);
+  }
+  const { status, output } = run(
+    python,
+    ['scripts/check_tts_api.py', '--version', pin.version],
+    resolve(ROOT, REMOTION_DIR),
+  );
+  record(title, status === 0 ? 'pass' : 'fail', output.trim(), started);
+}
+
 function dockerDaemonUp(): boolean {
   return run('docker', ['info'], ROOT).status === 0;
 }
@@ -441,12 +502,16 @@ async function main(): Promise<number> {
     runBuildStep(
       'remotion worker tests',
       process.execPath,
-      ['--test', ...['diagnostics', 'e2e', 'server', 'storyboard'].map((n) => `test/${n}.test.mjs`)],
+      [
+        '--test',
+        ...['diagnostics', 'e2e', 'server', 'storyboard', 'ttsapi'].map((n) => `test/${n}.test.mjs`),
+      ],
       resolve(ROOT, 'deploy/remotion'),
     );
   }
 
   const builds = await staticDockerChecks();
+  checkEdgeTts();
 
   const started = Date.now();
   if (dockerDaemonUp()) {
