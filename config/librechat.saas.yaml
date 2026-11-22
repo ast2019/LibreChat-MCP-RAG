@@ -182,6 +182,11 @@ rateLimits:
   api:
     userMax: 60
     userWindowInMinutes: 1
+  # Payment gateway returns per source address (unauthenticated route); one per payment is
+  # normal, and mobile carriers put many buyers behind one address.
+  paymentCallback:
+    ipMax: 60
+    ipWindowInMinutes: 1
 
 openapi:
   enabled: true

@@ -1,8 +1,10 @@
 const express = require('express');
 const {
+  limiterCache,
   createPaymentHandlers,
   getSharedGatewayHealth,
   getSharedCurrencyRates,
+  createPaymentCallbackLimiter,
 } = require('@librechat/api');
 const { SystemCapabilities, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
 const paymentCheckoutLimiter = require('~/server/middleware/limiters/paymentCheckoutLimiter');
@@ -35,9 +37,15 @@ const handlers = createPaymentHandlers({
   withTenant: (tenantId, fn) => (tenantId ? tenantStorage.run({ tenantId }, fn) : fn()),
 });
 
+const paymentCallbackLimiter = createPaymentCallbackLimiter({
+  getConfig: () => getAppConfig({ baseOnly: true }),
+  createStore: limiterCache,
+  onLimited: handlers.rateLimited,
+});
+
 /** The buyer's browser returns here from the gateway, without our auth cookies being certain. */
-router.get('/callback/:gateway', handlers.callback);
-router.post('/callback/:gateway', handlers.callback);
+router.get('/callback/:gateway', paymentCallbackLimiter, handlers.callback);
+router.post('/callback/:gateway', paymentCallbackLimiter, handlers.callback);
 
 router.get('/options', requireJwtAuth, handlers.options);
 router.post('/checkout', requireJwtAuth, paymentCheckoutLimiter, handlers.checkout);

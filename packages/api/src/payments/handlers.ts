@@ -134,6 +134,8 @@ export interface PaymentHandlers {
   options: PaymentHandler;
   checkout: PaymentHandler;
   callback: PaymentHandler;
+  /** Answers a callback refused by the rate limiter: the pending result page, nothing settled */
+  rateLimited: PaymentHandler;
   getOrder: PaymentHandler;
   adminList: PaymentHandler;
   adminSummary: PaymentHandler;
@@ -251,6 +253,19 @@ export function createPaymentHandlers(deps: PaymentHandlerDeps): PaymentHandlers
       };
     }
     return res.redirect(303, resultUrl(outcome));
+  }
+
+  async function rateLimited(req: PaymentRequest, res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    const orderId = readParam((req.query ?? {}) as Record<string, unknown>, 'order');
+    return res.redirect(
+      303,
+      resultUrl({
+        status: 'pending',
+        ...(orderId != null && isValidObjectIdString(orderId) && { orderId }),
+        code: 'rate_limited',
+      }),
+    );
   }
 
   async function getOrder(req: PaymentRequest, res: Response) {
@@ -382,6 +397,7 @@ export function createPaymentHandlers(deps: PaymentHandlerDeps): PaymentHandlers
     options,
     checkout,
     callback,
+    rateLimited,
     getOrder,
     adminList,
     adminSummary,
