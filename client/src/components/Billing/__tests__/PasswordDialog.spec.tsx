@@ -42,4 +42,32 @@ describe('admin password dialog', () => {
       expect.any(Object),
     );
   });
+
+  it('warns when the sessions could not be ended, and confirms otherwise', async () => {
+    const fill = async () => {
+      await userEvent.type(screen.getByTestId('admin-new-password'), 'New-pass-123');
+      await userEvent.type(screen.getByTestId('admin-confirm-password'), 'New-pass-123');
+      await userEvent.click(screen.getByText('com_admin_password_save').closest('button')!);
+    };
+    mockMutate.mockImplementation((_vars, { onSuccess }) =>
+      onSuccess({ id: 'u1', updated: true, sessionsEnded: false }),
+    );
+    const { unmount } = render(<PasswordDialog user={user} onClose={jest.fn()} />);
+    await fill();
+    expect(mockShowToast).toHaveBeenLastCalledWith({
+      status: 'warning',
+      message: 'com_admin_password_saved_sessions_kept',
+    });
+    unmount();
+
+    mockMutate.mockImplementation((_vars, { onSuccess }) =>
+      onSuccess({ id: 'u1', updated: true, sessionsEnded: true }),
+    );
+    render(<PasswordDialog user={user} onClose={jest.fn()} />);
+    await fill();
+    expect(mockShowToast).toHaveBeenLastCalledWith({
+      status: 'success',
+      message: 'com_admin_password_saved',
+    });
+  });
 });

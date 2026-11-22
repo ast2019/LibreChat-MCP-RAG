@@ -56,11 +56,15 @@ export default function PasswordDialog({
     setPassword.mutate(
       { userId: user.id, password },
       {
-        onSuccess: () => {
-          showToast({
-            status: 'success',
-            message: localize('com_admin_password_saved', { 0: who }),
-          });
+        onSuccess: (data) => {
+          showToast(
+            data?.sessionsEnded === false
+              ? {
+                  status: 'warning',
+                  message: localize('com_admin_password_saved_sessions_kept', { 0: who }),
+                }
+              : { status: 'success', message: localize('com_admin_password_saved', { 0: who }) },
+          );
           onClose();
         },
         onError: (error) => {

@@ -24,6 +24,7 @@ function setup(over: Record<string, unknown> = {}) {
     hashSecret: jest.fn(async (plain: string) => `hash:${plain}`),
     savePassword: jest.fn().mockResolvedValue({}),
     endSessions: jest.fn().mockResolvedValue({}),
+    awaitAuthUserDocEviction: jest.fn().mockResolvedValue(undefined),
     canManageAdmins: jest.fn().mockResolvedValue(false),
     minPasswordLength: 8,
     ...over,
@@ -38,12 +39,37 @@ const call = async (handler: ReturnType<typeof setup>['handler'], body: unknown,
 };
 
 describe('admin set password', () => {
-  it('stores the hash and ends the user’s sessions', async () => {
+  it('stores the hash, retires old tokens, ends the sessions and evicts the cached user', async () => {
     const { deps, handler } = setup();
+    const before = Date.now();
     const res = await call(handler, { password: 'New-pass-123' });
     expect(res.statusCode).toBe(200);
-    expect(deps.savePassword).toHaveBeenCalledWith(id, 'hash:New-pass-123');
+    expect(res.body).toEqual({ id, updated: true, sessionsEnded: true });
+    const [savedId, update] = deps.savePassword.mock.calls[0];
+    expect(savedId).toBe(id);
+    expect(update).toMatchObject({
+      password: 'hash:New-pass-123',
+      pendingTotpSecret: null,
+      pendingBackupCodes: [],
+    });
+    /** The stamp the JWT and refresh checks compare: tokens issued before it stop working */
+    expect(update.credentialsChangedAt.getTime()).toBeGreaterThanOrEqual(before);
     expect(deps.endSessions).toHaveBeenCalledWith(id);
+    expect(deps.awaitAuthUserDocEviction).toHaveBeenCalledWith(id);
+    expect(deps.endSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.awaitAuthUserDocEviction.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('says so when the sessions could not be ended, and still evicts the cached user', async () => {
+    const { deps, handler } = setup({
+      endSessions: jest.fn().mockRejectedValue(new Error('redis down: secret-host:6379')),
+    });
+    const res = await call(handler, { password: 'New-pass-123' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ id, updated: true, sessionsEnded: false });
+    expect(JSON.stringify(res.body)).not.toContain('redis');
+    expect(deps.awaitAuthUserDocEviction).toHaveBeenCalledWith(id);
   });
 
   it('refuses short or blank passwords and bad ids without touching the user', async () => {
