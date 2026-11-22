@@ -315,11 +315,15 @@ describe('payment flow against MongoDB', () => {
     expect(await ledger(userId)).toHaveLength(1);
   });
 
-  it('marks a Status=NOK return as canceled without verifying or crediting', async () => {
+  it('verifies a Status=NOK return and cancels only when the gateway says not paid', async () => {
     const userId = await createUser();
     const gateway = createGateway();
     const { app } = createApp(gateway);
     const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      status: 400,
+      body: { data: [], errors: { code: -51, message: 'failed' } },
+    });
 
     const res = await request(app).get(
       `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=NOK`,
@@ -327,9 +331,181 @@ describe('payment flow against MongoDB', () => {
 
     expect(res.headers.location).toContain('status=failed');
     expect(res.headers.location).toContain('code=canceled');
-    expect(gateway.calls).toHaveLength(1);
-    expect((await db.findPaymentOrderById(orderId))?.status).toBe('canceled');
+    expect(gateway.calls.map((call) => call.path)).toEqual([
+      '/pg/v4/payment/request.json',
+      '/pg/v4/payment/verify.json',
+    ]);
+    expect(await db.findPaymentOrderById(orderId)).toMatchObject({
+      status: 'canceled',
+      errorCode: 'canceled',
+    });
     expect(await ledger(userId)).toHaveLength(0);
+  });
+
+  it('settles a forged Status=NOK return when the gateway says the order was paid', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      body: { data: { code: 100, ref_id: 211 }, errors: [] },
+    });
+
+    const res = await request(app).get(
+      `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=NOK`,
+    );
+
+    expect(res.headers.location).toContain('status=success');
+    expect(await db.findPaymentOrderById(orderId)).toMatchObject({
+      status: 'paid',
+      credited: true,
+    });
+    expect(await ledger(userId)).toHaveLength(1);
+  });
+
+  it('keeps a Status=NOK order open when the verify is inconclusive', async () => {
+    await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', { status: 502, body: null });
+
+    const res = await request(app).get(
+      `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=NOK`,
+    );
+
+    expect(res.headers.location).toContain('status=pending');
+    expect((await db.findPaymentOrderById(orderId))?.status).toBe('pending');
+  });
+
+  it('settles a genuine OK return that arrives after a forged NOK canceled the order', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply(
+      '/pg/v4/payment/verify.json',
+      { status: 400, body: { data: [], errors: { code: -51, message: 'failed' } } },
+      { body: { data: { code: 100, ref_id: 212 }, errors: [] } },
+    );
+    const base = `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}`;
+    await request(app).get(`${base}&Status=NOK`);
+    expect((await db.findPaymentOrderById(orderId))?.status).toBe('canceled');
+
+    const res = await request(app).get(`${base}&Status=OK`);
+
+    expect(res.headers.location).toContain('status=success');
+    expect(await db.findPaymentOrderById(orderId)).toMatchObject({
+      status: 'paid',
+      credited: true,
+    });
+    expect(await ledger(userId)).toHaveLength(1);
+  });
+
+  it('verifies a forged IDPay cancel (status 7) and settles a paid order', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    gateway.reply('/v1.1/payment', {
+      status: 201,
+      body: { id: IDPAY_ID, link: `https://idpay.ir/p/ws-sandbox/${IDPAY_ID}` },
+    });
+    const checkout = await request(app)
+      .post('/api/payments/checkout')
+      .send({ packId: 'starter', gateway: 'idpay' });
+    const orderId = checkout.body.orderId as string;
+    gateway.reply('/v1.1/payment/verify', {
+      body: { status: 100, track_id: '10013', id: IDPAY_ID, order_id: orderId },
+    });
+
+    const res = await request(app)
+      .post(`/api/payments/callback/idpay?order=${orderId}`)
+      .type('form')
+      .send({ status: '7', id: IDPAY_ID, order_id: orderId });
+
+    expect(res.headers.location).toContain('status=success');
+    expect(gateway.calls.at(-1)?.path).toBe('/v1.1/payment/verify');
+    expect(await ledger(userId)).toHaveLength(1);
+  });
+
+  it('re-verifies a recently canceled order once after expiry and credits a late payment', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      status: 400,
+      body: { data: [], errors: { code: -51, message: 'failed' } },
+    });
+    await request(app).get(
+      `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=NOK`,
+    );
+    expect((await db.findPaymentOrderById(orderId))?.status).toBe('canceled');
+
+    /** Not before the order's own expiry: the buyer may still be on the gateway page */
+    const early = await request(app).post('/api/payments/admin/reconcile');
+    expect(early.body.checked).toBe(0);
+
+    await mongoose.models.PaymentOrder.updateOne(
+      { _id: orderId },
+      { $set: { expiresAt: new Date(Date.now() - 1000) } },
+    );
+    gateway.reply('/pg/v4/payment/verify.json', {
+      body: { data: { code: 100, ref_id: 213 }, errors: [] },
+    });
+    const res = await request(app).post('/api/payments/admin/reconcile');
+
+    expect(res.body).toEqual({ checked: 1, paid: 1, expired: 0, credited: 0, failed: 0 });
+    expect(await db.findPaymentOrderById(orderId)).toMatchObject({
+      status: 'paid',
+      credited: true,
+    });
+    expect(await ledger(userId)).toHaveLength(1);
+  });
+
+  it('re-verifies a canceled order only once, and never one older than the window', async () => {
+    await createUser();
+    const gateway = createGateway();
+    const { app } = createApp(gateway);
+    const recent = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      status: 400,
+      body: { data: [], errors: { code: -51, message: 'failed' } },
+    });
+    await request(app).get(
+      `/api/payments/callback/zarinpal?order=${recent.orderId}&Authority=${AUTHORITY}&Status=NOK`,
+    );
+    const old = await mongoose.models.PaymentOrder.create({
+      user: currentUser?.id,
+      packId: 'starter',
+      packLabel: 'Starter',
+      credits: 2_000_000,
+      amountRial: 5_390_000,
+      gateway: 'zarinpal',
+      status: 'canceled',
+      errorCode: 'canceled',
+      authority: 'A000000000000000000000000000217885160',
+      expiresAt: new Date(Date.now() - 2 * 86_400_000),
+    });
+    await mongoose.models.PaymentOrder.collection.updateOne(
+      { _id: old._id },
+      { $set: { createdAt: new Date(Date.now() - 2 * 86_400_000) } },
+    );
+    await mongoose.models.PaymentOrder.updateOne(
+      { _id: recent.orderId },
+      { $set: { expiresAt: new Date(Date.now() - 1000) } },
+    );
+    gateway.reply('/pg/v4/payment/verify.json', {
+      status: 400,
+      body: { data: [], errors: { code: -51, message: 'failed' } },
+    });
+
+    const first = await request(app).post('/api/payments/admin/reconcile');
+    expect(first.body).toMatchObject({ checked: 1, paid: 0, failed: 0 });
+    expect((await db.findPaymentOrderById(recent.orderId))?.status).toBe('canceled');
+
+    const second = await request(app).post('/api/payments/admin/reconcile');
+    expect(second.body.checked).toBe(0);
   });
 
   it('ignores a return whose authority does not match the order', async () => {

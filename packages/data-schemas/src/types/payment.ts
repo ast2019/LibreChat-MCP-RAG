@@ -25,6 +25,8 @@ export interface IPaymentOrder extends Document {
   creditLeaseUntil?: Date | null;
   creditedAt?: Date | null;
   paidAt?: Date | null;
+  /** When reconciliation last re-verified this closed (canceled/failed) order */
+  reverifiedAt?: Date | null;
   expiresAt: Date;
   tenantId?: string;
   createdAt?: Date;

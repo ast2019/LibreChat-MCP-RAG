@@ -1,3 +1,4 @@
+import { PAYMENT_REVERIFIABLE_CODES } from 'librechat-data-provider';
 import type { TPaymentErrorCode, TPaymentOrderStatus } from 'librechat-data-provider';
 import type { Model } from 'mongoose';
 import type {
@@ -18,6 +19,14 @@ import { buildUserSearchFilter } from '~/utils/search';
 const MAX_PAGE_SIZE = 100;
 /** Statuses a verified payment may still settle from: an expired order can be paid late. */
 const SETTLEABLE: TPaymentOrderStatus[] = ['pending', 'expired'];
+/** Closed orders a later verify may still settle (see `PAYMENT_REVERIFIABLE_CODES`). */
+const REOPENABLE: TPaymentOrderStatus[] = ['canceled', 'failed'];
+const settleableFilter = {
+  $or: [
+    { status: { $in: SETTLEABLE } },
+    { status: { $in: REOPENABLE }, errorCode: { $in: [...PAYMENT_REVERIFIABLE_CODES] } },
+  ],
+};
 
 /** The ledger marker a payment's credit transaction carries, so a retry can detect it. */
 export const paymentLedgerMarker = (orderId: string): string => `payment:${orderId}`;
@@ -31,7 +40,8 @@ export interface PaymentMethods {
   ) => Promise<PaymentOrderRecord | null>;
   findPaymentOrderById: (orderId: string) => Promise<PaymentOrderRecord | null>;
   /**
-   * Atomically moves a pending/expired order to `paid` and takes the credit lease. Resolves the
+   * Atomically moves a pending/expired order — or a canceled/failed one closed only as unpaid
+   * (`PAYMENT_REVERIFIABLE_CODES`) — to `paid` and takes the credit lease. Resolves the
    * updated order for the single caller that won, null for everyone else. A reference id already
    * used by another order also resolves null (and never settles twice).
    */
@@ -53,11 +63,18 @@ export interface PaymentMethods {
   listPaymentOrders: (
     params: PaymentOrderListParams,
   ) => Promise<{ orders: PaymentOrderListRow[]; total: number }>;
-  /** Pending orders past their expiry, and paid orders still waiting for their credits. */
+  /**
+   * Pending orders past their expiry, paid orders still waiting for their credits and, when
+   * `reverifyClosedSince` is set, canceled/failed orders closed only as unpaid, created since
+   * then, past their expiry and not re-verified yet.
+   */
   listPaymentOrdersToReconcile: (params: {
     now: Date;
     limit?: number;
+    reverifyClosedSince?: Date;
   }) => Promise<PaymentOrderRecord[]>;
+  /** Records that a closed order was re-verified, so reconciliation checks it only once. */
+  markPaymentOrderReverified: (orderId: string, at: Date) => Promise<void>;
   getPaymentTotals: (params: { since: Date }) => Promise<PaymentTotalsRow>;
   countPendingPaymentOrders: () => Promise<number>;
   /** Last paid order and last failed order per gateway, for the status panel. */
@@ -169,7 +186,7 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     try {
       const doc = await orders()
         .findOneAndUpdate(
-          { _id: orderId, status: { $in: SETTLEABLE } },
+          { _id: orderId, ...settleableFilter },
           {
             $set: {
               status: 'paid',
@@ -308,7 +325,15 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     };
   }
 
-  async function listPaymentOrdersToReconcile({ now, limit = 50 }: { now: Date; limit?: number }) {
+  async function listPaymentOrdersToReconcile({
+    now,
+    limit = 50,
+    reverifyClosedSince,
+  }: {
+    now: Date;
+    limit?: number;
+    reverifyClosedSince?: Date;
+  }) {
     const docs = await orders()
       .find({
         $or: [
@@ -318,12 +343,34 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
             creditedAt: null,
             $or: [{ creditLeaseUntil: null }, { creditLeaseUntil: { $lte: now } }],
           },
+          ...(reverifyClosedSince != null
+            ? [
+                {
+                  status: { $in: REOPENABLE },
+                  errorCode: { $in: [...PAYMENT_REVERIFIABLE_CODES] },
+                  authority: { $type: 'string' },
+                  reverifiedAt: null,
+                  createdAt: { $gte: reverifyClosedSince },
+                  expiresAt: { $lte: now },
+                },
+              ]
+            : []),
         ],
       })
       .sort({ createdAt: 1 })
       .limit(Math.min(Math.max(Math.trunc(limit) || 50, 1), 200))
       .lean();
     return docs.map((doc) => toRecord(doc as StoredOrder));
+  }
+
+  async function markPaymentOrderReverified(orderId: string, at: Date) {
+    if (!validId(orderId)) {
+      return;
+    }
+    await orders().updateOne(
+      { _id: orderId, status: { $in: REOPENABLE } },
+      { $set: { reverifiedAt: at } },
+    );
   }
 
   async function getPaymentTotals({ since }: { since: Date }): Promise<PaymentTotalsRow> {
@@ -381,6 +428,7 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     hasPaymentLedgerEntry,
     listPaymentOrders,
     listPaymentOrdersToReconcile,
+    markPaymentOrderReverified,
     getPaymentTotals,
     countPendingPaymentOrders,
     getPaymentGatewayActivity,

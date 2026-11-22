@@ -341,6 +341,7 @@ export function createPaymentHandlers(deps: PaymentHandlerDeps): PaymentHandlers
   async function adminReconcile(req: PaymentRequest, res: Response) {
     try {
       const cache = new Map<string, ReturnType<typeof settingsFor>>();
+      const own = resolvePaymentSettings(await deps.getAppConfig(req), env);
       const result = await service.reconcile({
         resolveSettings: (order) => {
           const key = order.tenantId ?? '';
@@ -351,6 +352,7 @@ export function createPaymentHandlers(deps: PaymentHandlerDeps): PaymentHandlers
           }
           return settings;
         },
+        reverifyClosedMinutes: own.reverifyClosedMinutes,
       });
       logger.info(`[payments] ${req.user?.id ?? 'unknown admin'} reconciled payments`, result);
       return res.status(200).json(result);

@@ -736,6 +736,9 @@ referral:
 payments:
   enabled: true
   orderTtlMinutes: 30
+  # Reconciliation re-verifies, once after expiry, an order a return marked canceled or unpaid
+  # within this many minutes of its creation (0 = off).
+  reverifyClosedMinutes: 1440
   requestTimeoutMs: 15000
   description: 'خرید {pack} در HiveGPT'
   gateways:

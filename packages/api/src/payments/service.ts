@@ -1,4 +1,4 @@
-import { isPaymentGateway } from 'librechat-data-provider';
+import { isPaymentGateway, PAYMENT_REVERIFIABLE_CODES } from 'librechat-data-provider';
 import { logger, paymentLedgerMarker } from '@librechat/data-schemas';
 import type {
   TBalancePack,
@@ -46,7 +46,9 @@ export interface PaymentStore {
   listPaymentOrdersToReconcile: (params: {
     now: Date;
     limit?: number;
+    reverifyClosedSince?: Date;
   }) => Promise<PaymentOrderRecord[]>;
+  markPaymentOrderReverified: (orderId: string, at: Date) => Promise<void>;
 }
 
 export interface PaymentServiceDeps {
@@ -79,6 +81,19 @@ export interface PaymentOutcome {
 
 const DEFAULT_CREDIT_LEASE_MS = 2 * 60_000;
 const DEFAULT_DESCRIPTION = 'خرید بستهٔ {pack}';
+
+/** How an unpaid verify closes the order: a callback's own cancel keeps its status and code. */
+type UnpaidClose = { status: 'failed' | 'canceled'; code: TPaymentErrorCode };
+
+const isClosed = (order: PaymentOrderRecord): boolean =>
+  order.status === 'failed' || order.status === 'canceled';
+
+/** A closed order that only says "not paid" and can still be verified against the gateway. */
+const isReverifiable = (order: PaymentOrderRecord): boolean =>
+  isClosed(order) &&
+  order.authority != null &&
+  order.errorCode != null &&
+  PAYMENT_REVERIFIABLE_CODES.includes(order.errorCode);
 
 const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: PaymentFailure } => ({
   ok: false,
@@ -150,6 +165,8 @@ export interface PaymentService {
   reconcile: (input: {
     resolveSettings: (order: PaymentOrderRecord) => Promise<PaymentSettings>;
     limit?: number;
+    /** Re-verify canceled/failed orders created within this many minutes; 0 or unset skips them */
+    reverifyClosedMinutes?: number;
   }) => Promise<TAdminPaymentsReconcileResponse>;
   ensureCredited: (order: PaymentOrderRecord) => Promise<boolean>;
 }
@@ -315,13 +332,16 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
 
   /**
    * Verifies with the gateway (amount from the order) and settles exactly once. `callback`
-   * closes a definitive non-payment as failed; `check` (reconciliation/admin) leaves an
-   * unexpired unpaid order open and expires it once past `expiresAt`.
+   * closes a definitive non-payment as failed (or as `unpaidClose` says); `check`
+   * (reconciliation/admin) leaves an unexpired unpaid order open and expires it once past
+   * `expiresAt`. A closed order that is verified again stays as it is unless the gateway
+   * reports it paid.
    */
   async function verifyAndSettle(
     order: PaymentOrderRecord,
     driver: PaymentDriver,
     mode: 'callback' | 'check',
+    unpaidClose?: UnpaidClose,
   ): Promise<PaymentOutcome> {
     if (order.authority == null) {
       if (mode === 'check' && order.expiresAt.getTime() <= now().getTime()) {
@@ -351,22 +371,42 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       }
       recordSuccess(driver);
       const unpaid = error.code === 'not_paid' || error.code === 'canceled';
-      if (mode === 'check' && unpaid && order.expiresAt.getTime() > now().getTime()) {
-        return { status: 'pending', orderId: order.id };
-      }
-      const status = mode === 'check' && unpaid ? 'expired' : 'failed';
       if (error.code === 'amount_mismatch') {
         logger.error(`[payments] order ${order.id} amount mismatch at ${driver.name}; review it`);
       } else {
         logger.info(`[payments] order ${order.id} not paid: ${error.code}${gatewayStatus}`);
       }
-      const closed = await store.closePaymentOrder(order.id, status, error.code);
+      if (isClosed(order)) {
+        if (mode === 'check') {
+          await store.markPaymentOrderReverified(order.id, now());
+        }
+        return outcomeOf(order);
+      }
+      if (mode === 'check' && unpaid && order.expiresAt.getTime() > now().getTime()) {
+        return { status: 'pending', orderId: order.id };
+      }
+      let close: UnpaidClose | { status: 'expired'; code: TPaymentErrorCode } = {
+        status: 'failed',
+        code: error.code,
+      };
+      if (mode === 'check' && unpaid) {
+        close = { status: 'expired', code: error.code };
+      } else if (unpaid && unpaidClose) {
+        close = unpaidClose;
+      }
+      const closed = await store.closePaymentOrder(order.id, close.status, close.code);
       return closed ? outcomeOf(closed) : refresh(order.id);
     }
     recordSuccess(driver);
 
     if (receipt.amountRial != null && receipt.amountRial !== order.amountRial) {
       logger.error(`[payments] order ${order.id} amount mismatch at ${driver.name}; review it`);
+      if (isClosed(order)) {
+        if (mode === 'check') {
+          await store.markPaymentOrderReverified(order.id, now());
+        }
+        return outcomeOf(order);
+      }
       const closed = await store.closePaymentOrder(order.id, 'failed', 'amount_mismatch');
       return closed ? outcomeOf(closed) : refresh(order.id);
     }
@@ -402,7 +442,10 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   /**
    * Handles the buyer's return. The order must belong to this gateway and the returned
    * transaction id must equal the one stored at checkout — that pair is the callback's state,
-   * so a forged or replayed return can at most trigger a harmless re-verification.
+   * so a forged or replayed return can at most trigger a harmless re-verification. The return's
+   * own status is never trusted: a "canceled" or "failed" return is verified with the gateway
+   * too and closes the order only when the gateway reports it unpaid, and an OK return for an
+   * order closed as unpaid is verified again.
    */
   async function completeCallback(input: {
     settings: PaymentSettings;
@@ -430,23 +473,23 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     if (order.status === 'paid') {
       return outcomeOf(order, await ensureCredited(order));
     }
-    if (order.status === 'failed' || order.status === 'canceled') {
-      return outcomeOf(order);
+    if (isClosed(order)) {
+      return returned.status === 'ok' && isReverifiable(order)
+        ? verifyAndSettle(order, driver, 'callback')
+        : outcomeOf(order);
     }
     if (returned.status !== 'ok') {
-      const canceled = returned.status === 'canceled';
-      const closed = await store.closePaymentOrder(
-        order.id,
-        canceled ? 'canceled' : 'failed',
-        canceled ? 'canceled' : 'not_paid',
-      );
       logger.info(`[payments] order ${order.id} returned ${returned.status} from ${driver.name}`);
-      return closed ? outcomeOf(closed) : refresh(order.id);
+      const canceled = returned.status === 'canceled';
+      return verifyAndSettle(order, driver, 'callback', {
+        status: canceled ? 'canceled' : 'failed',
+        code: canceled ? 'canceled' : 'not_paid',
+      });
     }
     return verifyAndSettle(order, driver, 'callback');
   }
 
-  /** Admin "check again" for one order. */
+  /** Admin "check again" for one order; also re-verifies an order closed only as unpaid. */
   async function checkOrder(
     order: PaymentOrderRecord,
     settings: PaymentSettings,
@@ -454,7 +497,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     if (order.status === 'paid') {
       return outcomeOf(order, await ensureCredited(order));
     }
-    if (order.status !== 'pending' && order.status !== 'expired') {
+    if (order.status !== 'pending' && order.status !== 'expired' && !isReverifiable(order)) {
       return outcomeOf(order);
     }
     const driver = deps.registry.get(order.gateway, settings);
@@ -465,17 +508,28 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   }
 
   /**
-   * Re-verifies pending orders past their expiry and credits paid orders whose credit never
-   * landed. Orders run one after another so a backlog does not burst the gateway.
+   * Re-verifies pending orders past their expiry, credits paid orders whose credit never
+   * landed, and re-verifies once each recent order closed only as unpaid (after its expiry).
+   * Orders run one after another so a backlog does not burst the gateway.
    */
   async function reconcile({
     resolveSettings,
     limit,
+    reverifyClosedMinutes,
   }: {
     resolveSettings: (order: PaymentOrderRecord) => Promise<PaymentSettings>;
     limit?: number;
+    reverifyClosedMinutes?: number;
   }): Promise<TAdminPaymentsReconcileResponse> {
-    const orders = await store.listPaymentOrdersToReconcile({ now: now(), limit });
+    const at = now();
+    const orders = await store.listPaymentOrdersToReconcile({
+      now: at,
+      limit,
+      ...(reverifyClosedMinutes != null &&
+        reverifyClosedMinutes > 0 && {
+          reverifyClosedSince: new Date(at.getTime() - reverifyClosedMinutes * 60_000),
+        }),
+    });
     const summary = { checked: orders.length, paid: 0, expired: 0, credited: 0, failed: 0 };
     for (const order of orders) {
       try {

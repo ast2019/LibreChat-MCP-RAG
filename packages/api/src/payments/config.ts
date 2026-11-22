@@ -21,6 +21,8 @@ export interface PaymentSettings {
   /** Public origin of this server, without a trailing slash; unset means no callback is possible */
   callbackBaseUrl?: string;
   orderTtlMinutes: number;
+  /** Window in which reconciliation re-verifies orders closed as unpaid; 0 is off */
+  reverifyClosedMinutes: number;
   requestTimeoutMs: number;
   description?: string;
   gateways: { [K in TPaymentGateway]: GatewaySettings<K> };
@@ -72,6 +74,7 @@ export function resolvePaymentSettings(
     enabled,
     callbackBaseUrl: normalizeOrigin(raw.callbackBaseUrl ?? env.DOMAIN_SERVER),
     orderTtlMinutes: raw.orderTtlMinutes,
+    reverifyClosedMinutes: raw.reverifyClosedMinutes,
     requestTimeoutMs: raw.requestTimeoutMs,
     ...(raw.description != null && { description: raw.description }),
     gateways: {
