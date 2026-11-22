@@ -33,6 +33,15 @@ LibreChat versions are tracked separately in `package.json`.
 - **Billing inside a plan turn.** Subagents, summarization, memory and titles on other models
   were metered instead of charged; titles finished after the seat was released were charged
   instead of metered. A model allowlist no longer matches a request without a model.
+- **Off-plan calls of a plan turn pass the balance check before they run.** A plan turn skips
+  the up-front credit reservation only for the covered Claude call. With `balance.enabled`,
+  every other model call of the turn reserves its prompt at its own model's rate first, as a
+  normal chat does: the memory agent is skipped when the user cannot pay for it; a subagent is
+  denied with `token_balance` and the parent answer continues; an off-plan handoff or parallel
+  agent fails the turn with `token_balance` before the run starts; an off-plan title is
+  skipped and the fallback title is kept. Before, a user with no credits got these calls for
+  free, because the debit afterwards was clamped at zero. Summarization and activity labels on
+  another model are still only charged afterwards.
 - **Redis errors** admitted without any limit. They now use the process pool
   (`timePack.redisFailure: memory`, default) or refuse (`reject`).
 - `maxSeatsPerUser` is enforced; the meter's increment and expiry are one step; a second tab

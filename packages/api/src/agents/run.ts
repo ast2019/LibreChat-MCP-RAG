@@ -64,6 +64,7 @@ import type { LangfuseTraceContext } from '~/langfuse/identity';
 import type { ResolvedAlwaysApplySkill } from '~/agents/skills';
 import type { CodeExecutionContext } from '~/agents/execution';
 import type { SubagentCodeHostArgSpecs } from '~/code/targets';
+import type { OffPackBalanceGate } from '~/billing/offPack';
 import type { MCPToolAlias } from '~/tools/classification';
 import type { ReviewedToolApprovals } from './hitl/modes';
 import type { SubagentUsageEvent } from '~/agents/usage';
@@ -129,12 +130,14 @@ import { prepareQueuedCodeFileContext } from '~/files/code/queued';
 import { getBuiltInBaseURL } from '~/endpoints/openai/initialize';
 import { getProviderConfig } from '~/endpoints/config/providers';
 import { debugTrace, getDebugRecorder } from '~/debug/recorder';
+import { createSubagentBalanceHook } from '~/billing/offPack';
 import { buildToolApprovalHooks } from '~/agents/hitl/hooks';
 import { getAgentCheckpointer } from '~/agents/checkpointer';
 import { getPluginHookSource } from '~/agents/hooks/source';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
 import { createStepBudgetHook } from '~/agents/stepBudget';
 import { buildHITLRunWiring } from '~/agents/hitl/runtime';
+import { collectAgentEndpoints } from '~/billing/usage';
 import { buildLangfuseConfig } from '~/langfuse/config';
 import { applyTestRunHook } from '~/agents/testHook';
 import { isUserProvided } from '~/utils/common';
@@ -2158,6 +2161,7 @@ export async function createRun({
   appConfig,
   subagentUsageSink,
   subagentTasks,
+  subagentBalanceGate,
   runFiles,
   steering,
   activityLabel,
@@ -2271,6 +2275,12 @@ export async function createRun({
   subagentUsageSink?: (event: SubagentUsageEvent) => void;
   /** Host-owned detached-subagent task store and trusted parent-thread scope. */
   subagentTasks?: SubagentTaskConfig;
+  /**
+   * The turn's off-pack balance gate. When it checks (a time-pack turn with balance on), each
+   * subagent child the time pack does not cover is admitted against the user's balance before
+   * its first model call, and denied with the `token_balance` error when it cannot be paid.
+   */
+  subagentBalanceGate?: OffPackBalanceGate;
   /** Run-scoped file authorization and child context, supplied by the host. */
   runFiles?: RunFileSession;
   /**
@@ -2897,7 +2907,16 @@ export async function createRun({
         recordScheduledMCPDenial,
       )
     : undefined;
+  const subagentBalance =
+    subagentBalanceGate?.checks === true
+      ? createSubagentBalanceHook({
+          gate: subagentBalanceGate,
+          agents,
+          usageAgents: collectAgentEndpoints(agents),
+        })
+      : undefined;
   registerResolvedMCPToolAliases = (resolvedAgent) => {
+    subagentBalance?.addAgent(resolvedAgent);
     agentApprovalSession.addAgent(resolvedAgent);
     scheduledPolicy?.registerAgent(resolvedAgent);
     for (const agentId of collectNativeEditFileAgentIds([resolvedAgent])) {
@@ -2961,6 +2980,10 @@ export async function createRun({
    * this guard is defense in depth).
    */
   let hooks = approvalWiring?.hooks;
+  if (subagentBalance != null) {
+    hooks ??= new HookRegistry();
+    hooks.register('SubagentStart', { hooks: [subagentBalance.hook], internal: true });
+  }
   if (scheduledPolicy) {
     hooks ??= new HookRegistry();
     hooks.register('PreToolUse', { hooks: [scheduledPolicy.hook, scheduledPolicy.receipt] });

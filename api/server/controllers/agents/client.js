@@ -29,6 +29,9 @@ const {
   isLocalChatSpend,
   toLocalSpendContext,
   recordTimePackUsage,
+  admitOffPackAgents,
+  withOffPackBalance,
+  createOffPackMemoryAdmission,
   collectAgentEndpoints,
   toUsageEndpoint,
   addTimePackMeteredCredits,
@@ -3515,6 +3518,8 @@ class AgentClient extends BaseClient {
           crossEndpoint: true,
           updateStreamUsage: false,
         }),
+      /** A time-pack turn pays for the memory model; without the credits memory is skipped. */
+      admit: createOffPackMemoryAdmission(() => this.offPackBalance, agent),
     });
 
     this.processMemory = processMemory;
@@ -3708,6 +3713,12 @@ class AgentClient extends BaseClient {
 
   /** @type {sendCompletion} */
   async sendCompletion(payload, opts = {}) {
+    /** Off-pack handoff and parallel agents of a time-pack run need credits up front; a refusal
+     *  fails the turn like the turn's own balance check. */
+    await admitOffPackAgents(this.offPackBalance, [
+      this.options.agent,
+      ...(this.agentConfigs?.values() ?? []),
+    ]);
     await this.chatCompletion({
       payload,
       onProgress: opts.onProgress,
@@ -5200,6 +5211,7 @@ class AgentClient extends BaseClient {
             this.buildDetachedSubagentUsageRecorder(balanceConfig, transactionsConfig),
           ),
           subagentTasks: this.options.subagentTasks,
+          subagentBalanceGate: this.offPackBalance,
           runFiles: this.options.runFiles,
         }).then((createdRun) => {
           if (!createdRun) {
@@ -6357,28 +6369,35 @@ class AgentClient extends BaseClient {
 
     try {
       await requirePrivateTextAdmission(req, abortController.signal);
-      const titleResult = await this.run.generateTitle({
-        provider,
-        clientOptions,
-        inputText: text,
-        contentParts: immediate ? [] : this.contentParts,
-        titleMethod: titleConfig.titleMethod,
-        titlePrompt: titleConfig.titlePrompt,
-        titlePromptTemplate: titleConfig.titlePromptTemplate,
-        chainOptions: {
-          runName: 'TitleRun',
-          signal: abortController.signal,
-          callbacks: [
-            {
-              handleLLMEnd,
+      const generateTitle = () =>
+        this.run.generateTitle({
+          provider,
+          clientOptions,
+          inputText: text,
+          contentParts: immediate ? [] : this.contentParts,
+          titleMethod: titleConfig.titleMethod,
+          titlePrompt: titleConfig.titlePrompt,
+          titlePromptTemplate: titleConfig.titlePromptTemplate,
+          chainOptions: {
+            runName: 'TitleRun',
+            signal: abortController.signal,
+            callbacks: [
+              {
+                handleLLMEnd,
+              },
+            ],
+            configurable: {
+              thread_id: this.conversationId,
+              user_id: this.user ?? this.options.req.user?.id,
             },
-          ],
-          configurable: {
-            thread_id: this.conversationId,
-            user_id: this.user ?? this.options.req.user?.id,
           },
-        },
-      });
+        });
+      /** An off-pack title of a time-pack turn is paid for; without the credits it is skipped. */
+      const titleResult = await withOffPackBalance(
+        this.offPackBalance,
+        { endpoint, model: clientOptions.model, promptText: text ?? '' },
+        generateTitle,
+      );
 
       const collectedUsage = collectedMetadata.map((item) => {
         let input_tokens, output_tokens;

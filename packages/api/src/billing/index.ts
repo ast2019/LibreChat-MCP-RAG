@@ -5,6 +5,7 @@ export * from './timeSeats';
 export * from './route';
 export * from './admitTimePack';
 export * from './usage';
+export * from './offPack';
 export * from './handlers';
 export * from './currency';
 export * from './createUser';
