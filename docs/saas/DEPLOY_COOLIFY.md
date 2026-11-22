@@ -16,6 +16,7 @@
    - `OPENROUTER_KEY` را وارد کنید. این تنها متغیر اجباری است و تا وارد نشود deploy انجام نمی‌شود.
    - همه `SERVICE_*`ها (رمزها، کلیدهای JWT، `CREDS_KEY`، رمز MongoDB و Meilisearch) را خود Coolify یک بار می‌سازد و نگه می‌دارد.
    - **هشدار:** `SERVICE_HEX_64_CREDSKEY` و `SERVICE_HEX_32_CREDSIV` را بعد از اولین اجرا تغییر ندهید، وگرنه اطلاعات رمزشده قابل خواندن نمی‌ماند.
+   - برای بستهٔ زمانی Claude (اختیاری): `CLAUDE_TIME_KEY` و `CLAUDE_TIME_BASE_URL` (مثلاً `https://api.anthropic.com`). بدون این‌ها اپ بالا می‌آید، ولی مسیر `ClaudeTime` کار نمی‌کند.
    - متغیرهای اختیاری مثل `APP_TITLE`، `ALLOW_REGISTRATION` و SMTP در `.env.coolify.example` توضیح داده شده‌اند.
 5. **Deploy:** اولین بیلد ۱۰ تا ۲۰ دقیقه طول می‌کشد. وقتی healthcheck سرویس `api` (`/health`) سبز شد، سایت آماده است.
 6. **حساب ادمین:** در کولیفای وارد **Terminal** سرویس `api` شوید و این را اجرا کنید:
@@ -212,6 +213,7 @@ docker compose up -d --build
 | امکان | متغیرها | از کجا |
 |---|---|---|
 | صدای فارسی (گفتار ↔ متن) | هیچ؛ همان `OPENROUTER_KEY` | — |
+| بستهٔ زمانی Claude | `CLAUDE_TIME_KEY`، `CLAUDE_TIME_BASE_URL` | کلید Anthropic (یا gateway سازگار با Messages API)؛ base مثلاً `https://api.anthropic.com` |
 | ورود با موبایل | `KAVENEGAR_API_KEY`، `KAVENEGAR_TEMPLATE` | پنل کاوه‌نگار ← تنظیمات ← کلید API؛ و «سرویس تأیید» ← ساخت الگو با یک پارامتر `%token%` (مثلاً «کد ورود HiveGPT: %token%») |
 | پرداخت زرین‌پال | `ZARINPAL_MERCHANT_ID` | پنل زرین‌پال ← درگاه ← کد مرچنت ۳۶ کاراکتری |
 | پرداخت آیدی‌پی | `IDPAY_API_KEY` | پنل آیدی‌پی ← وب‌سرویس ← کلید API |
