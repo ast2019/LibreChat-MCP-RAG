@@ -441,7 +441,7 @@ async function main(): Promise<number> {
     runBuildStep(
       'remotion worker tests',
       process.execPath,
-      ['--test', ...['diagnostics', 'e2e', 'queue', 'server'].map((n) => `test/${n}.test.mjs`)],
+      ['--test', ...['diagnostics', 'e2e', 'server', 'storyboard'].map((n) => `test/${n}.test.mjs`)],
       resolve(ROOT, 'deploy/remotion'),
     );
   }

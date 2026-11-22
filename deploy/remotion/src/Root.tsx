@@ -1,75 +1,43 @@
 import React from 'react';
 import { Composition } from 'remotion';
-import { HiveGPTClip, type ClipProps } from './Composition';
-import { HiveGPTStyledFilm, STYLED_FILM_META, type StyledFilmProps } from './StyledFilm';
-import { STYLES } from './animation-styles/catalog';
+import type { StudioProps } from './studio/types';
+import { HiveGPTStudio } from './studio/Studio';
 
-const DEFAULT_CLIP: ClipProps = {
-  title: 'HiveGPT',
-  theme: 'brand-dark',
-  brandName: 'HiveGPT',
-  brandColor: '#2ea884',
-  scenes: [{ type: 'title', durationSec: 5, heading: 'HiveGPT', body: 'Clip' }],
+const DEFAULT_PROPS: StudioProps = {
+  storyboard: {
+    version: 2,
+    title: 'HiveGPT',
+    lang: 'en',
+    aspectRatio: '9:16',
+    theme: 'midnight',
+    brandName: 'HiveGPT',
+    captions: false,
+    scenes: [
+      { id: 's0', type: 'hook', durationSec: 3, transition: 'fade', headline: 'HiveGPT motion studio' },
+    ],
+  },
+  timeline: { scenes: [{ from: 0, frames: 90, seqFrames: 90, transitionOut: 0 }], totalFrames: 90 },
+  icons: {},
+  assets: {},
+  narration: [],
+  words: [],
+  size: { width: 720, height: 1280 },
 };
 
-const DEFAULT_STYLED: StyledFilmProps = {
-  theme: 'chalkboard',
-  title: 'HiveGPT',
-  brandName: 'HiveGPT',
-  brandColor: '#2ea884',
-  scenes: [{ type: 'title', durationSec: 5, heading: 'Chalkboard', body: 'Style film' }],
-};
-
-export const RemotionRoot: React.FC = () => {
-  return (
-    <>
-      <Composition
-        id="HiveGPTClip"
-        component={HiveGPTClip}
-        durationInFrames={150}
-        fps={30}
-        width={405}
-        height={720}
-        defaultProps={DEFAULT_CLIP}
-        calculateMetadata={async ({ props }) => {
-          const fps = 30;
-          const scenes = Array.isArray(props.scenes) ? props.scenes : DEFAULT_CLIP.scenes;
-          const durationSec = scenes.reduce(
-            (sum, scene) => sum + Math.max(0.5, Number(scene.durationSec) || 1),
-            0,
-          );
-          return {
-            durationInFrames: Math.max(1, Math.round(Math.min(30, durationSec) * fps)),
-            fps,
-          };
-        }}
-      />
-      <Composition
-        id="HiveGPTStyledFilm"
-        component={HiveGPTStyledFilm}
-        durationInFrames={STYLED_FILM_META.durationInFrames}
-        fps={STYLED_FILM_META.fps}
-        width={STYLED_FILM_META.width}
-        height={STYLED_FILM_META.height}
-        defaultProps={DEFAULT_STYLED}
-        calculateMetadata={async ({ props }) => {
-          const sec = Number(props.durationSec);
-          const durationSec = Number.isFinite(sec) ? Math.min(30, Math.max(1, sec)) : 5;
-          return { durationInFrames: Math.max(15, Math.round(durationSec * STYLED_FILM_META.fps)) };
-        }}
-      />
-      {/* Upstream style compositions (direct render by id for debugging / future tools). */}
-      {STYLES.map((style) => (
-        <Composition
-          key={style.id}
-          id={style.id}
-          component={style.component}
-          durationInFrames={STYLED_FILM_META.durationInFrames}
-          fps={STYLED_FILM_META.fps}
-          width={STYLED_FILM_META.width}
-          height={STYLED_FILM_META.height}
-        />
-      ))}
-    </>
-  );
-};
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="HiveGPTStudio"
+    component={HiveGPTStudio}
+    durationInFrames={90}
+    fps={30}
+    width={720}
+    height={1280}
+    defaultProps={DEFAULT_PROPS}
+    calculateMetadata={async ({ props }) => ({
+      durationInFrames: Math.max(30, Math.round(Number(props.timeline?.totalFrames) || 90)),
+      width: props.size?.width ?? 720,
+      height: props.size?.height ?? 1280,
+      fps: 30,
+    })}
+  />
+);

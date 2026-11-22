@@ -1,3 +1,6 @@
+// HiveGPT motion studio worker. Renders storyboard clips (src/storyboard.mjs) as background
+// jobs: POST /jobs answers at once with a job id; GET /jobs/:id reports stage and progress;
+// GET /jobs/:id/video streams the MP4; DELETE /jobs/:id cancels (renderMedia's cancel signal).
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
@@ -7,8 +10,20 @@ import { fileURLToPath } from 'node:url';
 import { createReadStream, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { bundle } from '@remotion/bundler';
-import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
+import { makeCancelSignal, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { cleanString, createDiagnostics } from './diagnostics.mjs';
+import {
+  FPS,
+  HARD_MAX_DURATION_SEC,
+  NARRATION_LEAD_FRAMES,
+  NARRATION_TAIL_SEC,
+  SCENE_MAX_SEC,
+  computeTimeline,
+  dimensionsFor,
+  validateStoryboard,
+} from './storyboard.mjs';
+import { iconNodes } from './icons.mjs';
+import { pickVoice, probeAudioSec, synthesizeScenes } from './tts.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3200);
@@ -17,60 +32,44 @@ const intEnv = (name, fallback, min, max) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 };
-/** One render at a time by default: a 2 CPU / 4 GB container cannot hold two Chromium renders. */
+
+/** CPUs this container may use: cgroup v2 `cpu.max` quota, else the visible cores. */
+export function availableCpus() {
+  try {
+    const [quota, period] = readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/);
+    if (quota !== 'max' && Number(quota) > 0 && Number(period) > 0) {
+      return Math.max(1, Math.floor(Number(quota) / Number(period)));
+    }
+  } catch {
+    // no cgroup v2 limit
+  }
+  return Math.max(1, typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length);
+}
+
+/** One job at a time by default; each job's Chromium frame threads come from the CPU budget. */
 const MAX_CONCURRENT = intEnv('REMOTION_MAX_CONCURRENT', 1, 1, 4);
-/** Chromium frame threads per render (os.cpus() inside a container reports host cores). */
-const RENDER_CONCURRENCY = intEnv('REMOTION_RENDER_CONCURRENCY', 1, 1, 8);
-const JOB_TIMEOUT_MS = intEnv('REMOTION_JOB_TIMEOUT_MS', 420_000, 10_000, 3_600_000);
-/** Style films loop their 5s animation; this caps the output length (measured 0.06-0.28 s/frame, so 30 s of the heaviest theme is too close to the job timeout). */
-const STYLE_FILM_MAX_SEC = intEnv('REMOTION_STYLE_FILM_MAX_SEC', 15, 5, 30);
-/** 3D themes are a CPU software rasterizer (~1.2 s/frame at 1 thread), so they get a lower cap. */
-const STYLE_FILM_3D_MAX_SEC = intEnv('REMOTION_STYLE_FILM_3D_MAX_SEC', 6, 3, 30);
-const THEMES_3D = new Set(['brick-toy', 'claymation']);
-/** x264 constant rate factor; higher = smaller files (noisy themes made 13 MB for 3 s at the default 18). */
-const CRF = intEnv('REMOTION_CRF', 26, 18, 35);
-const MIN_FRAMES = 15;
-const FPS = 30;
-const MAX_QUEUE = Math.min(40, Math.max(1, Number(process.env.REMOTION_MAX_QUEUE || 20)));
-const MAX_DURATION_SEC = 30;
-const BODY_LIMIT = 25 * 1024 * 1024;
+const CPUS = availableCpus();
+/** Leave one CPU for ffmpeg and node; split the rest between concurrent jobs. */
+const RENDER_CONCURRENCY = intEnv(
+  'REMOTION_RENDER_CONCURRENCY',
+  Math.max(1, Math.min(8, Math.floor((CPUS - 1) / MAX_CONCURRENT) || 1)),
+  1,
+  16,
+);
+/** Default render budget per job (the api sends its own `timeoutMs`, capped by the max). */
+const JOB_TIMEOUT_MS = intEnv('REMOTION_JOB_TIMEOUT_MS', 600_000, 30_000, 3_600_000);
+const JOB_TIMEOUT_MAX_MS = intEnv('REMOTION_JOB_TIMEOUT_MAX_MS', 1_800_000, 60_000, 3_600_000);
+const MAX_DURATION_SEC = intEnv('REMOTION_MAX_DURATION_SEC', HARD_MAX_DURATION_SEC, 5, HARD_MAX_DURATION_SEC);
+const CRF = intEnv('REMOTION_CRF', 23, 18, 35);
+const MAX_QUEUE = intEnv('REMOTION_MAX_QUEUE', 10, 1, 40);
+/** Finished jobs (and their MP4) are kept this long for the api to fetch, then deleted. */
+const RESULT_TTL_MS = intEnv('REMOTION_RESULT_TTL_MS', 30 * 60_000, 60_000, 6 * 3_600_000);
+const BODY_LIMIT = intEnv('REMOTION_BODY_LIMIT_MB', 80, 5, 200) * 1024 * 1024;
 const ENTRY = path.join(__dirname, 'index.ts');
-
-const HEX = /^#([0-9a-fA-F]{6})$/;
-const THEMES = new Set([
-  'brand-dark',
-  'brand-light',
-  'ugc',
-  'chalkboard',
-  'pixel-art',
-  'flat-vector',
-  'woodblock-print',
-  'cartoon-1930s',
-  'brick-toy',
-  'paper-cut',
-  'maths-diagram',
-  'cartoon-explainer',
-  'blueprint',
-  'watercolor',
-  'claymation',
-]);
-
-/** Themes that use full style films (see src/themeMap.ts). Brand shells stay on HiveGPTClip. */
-const STYLE_FILM_THEMES = new Set([
-  'chalkboard',
-  'pixel-art',
-  'flat-vector',
-  'woodblock-print',
-  'cartoon-1930s',
-  'brick-toy',
-  'paper-cut',
-  'maths-diagram',
-  'cartoon-explainer',
-  'blueprint',
-  'watercolor',
-  'claymation',
-]);
-
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const COMPOSITION = 'HiveGPTStudio';
+/** Icons the scenes use themselves (markers, arrows, the fallback). */
+const BUILTIN_ICONS = ['sparkles', 'check', 'arrow-left', 'arrow-right', 'point', 'map-pin'];
 
 const BUNDLE_RETRY_DELAYS_MS = [5000, 15000];
 
@@ -79,13 +78,7 @@ const BUNDLE_RETRY_DELAYS_MS = [5000, 15000];
  * in-flight build; a failed build is never cached, the next call retries.
  */
 export function createBundleManager({ bundleImpl, diag, entry = ENTRY }) {
-  const state = {
-    state: 'idle',
-    attempts: 0,
-    startedAt: null,
-    readyMs: null,
-    error: null,
-  };
+  const state = { state: 'idle', attempts: 0, startedAt: null, readyMs: null, error: null };
   let location = null;
   let inflight = null;
 
@@ -96,7 +89,11 @@ export function createBundleManager({ bundleImpl, diag, entry = ENTRY }) {
     diag.info('bundle.start', { attempt: state.attempts });
     inflight = (async () => {
       try {
-        const result = await bundleImpl({ entryPoint: entry, webpackOverride: (config) => config });
+        const result = await bundleImpl({
+          entryPoint: entry,
+          publicDir: PUBLIC_DIR,
+          webpackOverride: (config) => config,
+        });
         location = result;
         state.state = 'ready';
         state.readyMs = Date.now() - state.startedAt;
@@ -165,14 +162,14 @@ const sameToken = (header, token) => {
   return crypto.timingSafeEqual(given, expected);
 };
 
-const readBody = (req) =>
+const readBody = (req, limit = BODY_LIMIT) =>
   new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > BODY_LIMIT) {
-        reject(Object.assign(new Error('too_large'), { code: 'too_large', status: 413 }));
+      if (size > limit) {
+        reject(Object.assign(new Error('The request body is too large'), { code: 'too_large', status: 413 }));
         req.destroy();
         return;
       }
@@ -186,101 +183,55 @@ const readBody = (req) =>
         const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         resolve(value && typeof value === 'object' && !Array.isArray(value) ? value : {});
       } catch {
-        reject(Object.assign(new Error('invalid_json'), { code: 'invalid_json', status: 400 }));
+        reject(Object.assign(new Error('The request body is not JSON'), { code: 'invalid_json', status: 400 }));
       }
     });
     req.on('error', reject);
   });
 
-const clampDuration = (value) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) {
-    return null;
-  }
-  return Math.min(MAX_DURATION_SEC, Math.max(0.5, Math.round(n * 10) / 10));
-};
-
-const parseScenes = (raw) => {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 12) {
-    return null;
-  }
-  const scenes = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') {
-      return null;
-    }
-    const type = item.type;
-    if (type !== 'title' && type !== 'bullets' && type !== 'closing') {
-      return null;
-    }
-    const durationSec = clampDuration(item.durationSec ?? item.duration_sec);
-    if (durationSec == null) {
-      return null;
-    }
-    const bullets = Array.isArray(item.bullets)
-      ? item.bullets.map((b) => String(b).trim()).filter(Boolean).slice(0, 6)
-      : undefined;
-    scenes.push({
-      type,
-      durationSec,
-      ...(item.heading ? { heading: String(item.heading).slice(0, 160) } : {}),
-      ...(item.body ? { body: String(item.body).slice(0, 400) } : {}),
-      ...(bullets?.length ? { bullets } : {}),
-    });
-  }
-  return scenes;
-};
-
-/** Free Edge TTS when the request asks for narration and did not upload audio. */
-const synthesizeTts = async (text, voice, workDir, { signal } = {}) => {
-  const out = path.join(workDir, 'tts.mp3');
-  const chosen =
-    typeof voice === 'string' && voice.trim()
-      ? voice.trim()
-      : /[\u0600-\u06FF]/.test(text)
-        ? 'fa-IR-DilaraNeural'
-        : 'en-US-JennyNeural';
-  await new Promise((resolve, reject) => {
-    const child = spawn(
-      'edge-tts',
-      ['--voice', chosen, '--text', text.slice(0, 4000), '--write-media', out],
-      { stdio: ['ignore', 'pipe', 'pipe'], signal },
-    );
-    let err = '';
-    child.stderr.on('data', (chunk) => {
-      err += chunk.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        const lastLine = err.trim().split('\n').pop();
-        reject(new Error(lastLine || `edge-tts exited ${code}`));
-      }
-    });
-  });
-  return out;
-};
-
-const AUDIO_EXT = { wav: 'wav', m4a: 'm4a', mp4: 'm4a', ogg: 'ogg', webm: 'webm' };
+const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' };
+const AUDIO_EXT = { 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/ogg': 'ogg', 'audio/webm': 'webm' };
 const MEDIA_TYPES = {
   '.wav': 'audio/wav',
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
   '.ogg': 'audio/ogg',
   '.webm': 'audio/webm',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
 };
+const ASSET_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-const writeAudioFile = async (workDir, base64, mime) => {
-  const key = Object.keys(AUDIO_EXT).find((k) => typeof mime === 'string' && mime.includes(k));
-  const file = path.join(workDir, `audio.${key ? AUDIO_EXT[key] : 'mp3'}`);
-  await fs.writeFile(file, Buffer.from(base64, 'base64'));
-  return file;
-};
+/** Check the job's asset map shape; returns { kinds } for validation or an error string. */
+function inspectAssets(raw) {
+  if (raw == null) {
+    return { kinds: {} };
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return 'assets: must be an object';
+  }
+  const kinds = {};
+  for (const [id, asset] of Object.entries(raw)) {
+    if (!ASSET_ID.test(id) || !asset || typeof asset !== 'object') {
+      return `assets.${id.slice(0, 40)}: invalid`;
+    }
+    const table = asset.kind === 'image' ? IMAGE_EXT : asset.kind === 'audio' ? AUDIO_EXT : null;
+    if (!table || !table[asset.mime]) {
+      return `assets.${id}: kind must be image or audio with a supported mime type`;
+    }
+    if (typeof asset.base64 !== 'string' || asset.base64.length < 16) {
+      return `assets.${id}.base64: missing`;
+    }
+    kinds[id] = { kind: asset.kind };
+  }
+  return { kinds };
+}
 
 /** Run a short command and capture the first output line. Never throws. */
-const runCheck = (command, args, timeoutMs = 5000) =>
+const runCheck = (command, args, timeoutMs = 5000, env = process.env) =>
   new Promise((resolve) => {
     let out = '';
     let settled = false;
@@ -292,7 +243,7 @@ const runCheck = (command, args, timeoutMs = 5000) =>
     };
     let child;
     try {
-      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], env });
     } catch (error) {
       return done({ found: false, error: cleanString(error?.message ?? error) });
     }
@@ -313,62 +264,7 @@ const runCheck = (command, args, timeoutMs = 5000) =>
     child.on('close', (code) => {
       clearTimeout(timer);
       const first = out.trim().split('\n')[0] ?? '';
-      done(
-        code === 0
-          ? { found: true, version: cleanString(first) }
-          : { found: false, error: cleanString(first || `exit ${code}`) },
-      );
-    });
-  });
-
-/** PCM wav length from its header (fallback when ffprobe is missing). */
-const wavSeconds = async (file) => {
-  try {
-    const buf = await fs.readFile(file);
-    if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF') {
-      return null;
-    }
-    const byteRate = buf.readUInt32LE(28);
-    return byteRate > 0 ? (buf.length - 44) / byteRate : null;
-  } catch {
-    return null;
-  }
-};
-
-/** Length of an audio file in seconds via ffprobe, or null. */
-const probeAudioSec = async (file) => {
-  const viaFfprobe = await runProbe(file);
-  return viaFfprobe ?? (file.endsWith('.wav') ? wavSeconds(file) : null);
-};
-
-const runProbe = (file) =>
-  new Promise((resolve) => {
-    let out = '';
-    let child;
-    try {
-      child = spawn(
-        'ffprobe',
-        ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file],
-        { stdio: ['ignore', 'pipe', 'ignore'] },
-      );
-    } catch {
-      return resolve(null);
-    }
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      resolve(null);
-    }, 10_000);
-    child.stdout.on('data', (chunk) => {
-      out += chunk.toString();
-    });
-    child.on('error', () => {
-      clearTimeout(timer);
-      resolve(null);
-    });
-    child.on('close', () => {
-      clearTimeout(timer);
-      const n = Number.parseFloat(out.trim());
-      resolve(Number.isFinite(n) && n > 0 ? n : null);
+      done(code === 0 ? { found: true, version: cleanString(first) } : { found: false, error: cleanString(first || `exit ${code}`) });
     });
   });
 
@@ -426,10 +322,12 @@ const effectiveConfig = () => ({
   port: PORT,
   maxConcurrent: MAX_CONCURRENT,
   maxQueue: MAX_QUEUE,
+  cpus: CPUS,
   renderConcurrency: RENDER_CONCURRENCY,
   jobTimeoutMs: JOB_TIMEOUT_MS,
-  styleFilmMaxSec: STYLE_FILM_MAX_SEC,
-  styleFilm3dMaxSec: STYLE_FILM_3D_MAX_SEC,
+  jobTimeoutMaxMs: JOB_TIMEOUT_MAX_MS,
+  maxDurationSec: MAX_DURATION_SEC,
+  resultTtlMs: RESULT_TTL_MS,
   crf: CRF,
   gl: process.env.REMOTION_GL || 'angle',
   browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || 'remotion-managed',
@@ -437,348 +335,288 @@ const effectiveConfig = () => ({
   remotion: remotionVersion(),
 });
 
-const makeError = (code, message, status) =>
-  Object.assign(new Error(message), { code, ...(status ? { status } : {}) });
+const makeError = (code, message, status) => Object.assign(new Error(message), { code, ...(status ? { status } : {}) });
 
 const stackHead = (error) => String(error?.stack ?? '').split('\n').slice(0, 6).join(' | ');
 
-/**
- * One render. `ctx` carries the per-server pieces: diag, bundles, media registry, port and the
- * injectable bundle/select/render functions.
- */
-async function renderJobInner(ctx, input, queuedMs, guard) {
-  const { diag } = ctx;
-  const started = Date.now();
-  const jobId = crypto.randomUUID().slice(0, 8);
-  const timings = { bundleMs: 0, ttsMs: 0, selectMs: 0, renderMs: 0 };
-  const warnings = [];
-  const summary = { jobId, stage: 'init', audio: 'none', queuedMs };
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hivegpt-clip-'));
-  let mediaId = null;
-  let peakRss = 0;
-  const sampler = setInterval(() => {
-    peakRss = Math.max(peakRss, process.memoryUsage().rss);
-  }, 500);
-  sampler.unref?.();
-  const setStage = (name) => {
-    summary.stage = name;
+/** Validation shared by /jobs and /stills: storyboard, assets, size and audio. */
+function prepareInput(body) {
+  const inspected = inspectAssets(body.assets);
+  if (typeof inspected === 'string') {
+    throw makeError('invalid_input', inspected, 400);
+  }
+  const maxDurationSec = Math.min(MAX_DURATION_SEC, Number(body.maxDurationSec) || MAX_DURATION_SEC);
+  const result = validateStoryboard(body.storyboard, { assets: inspected.kinds, maxDurationSec });
+  if (!result.ok) {
+    throw Object.assign(makeError('invalid_storyboard', result.errors.join('; '), 400), { errors: result.errors });
+  }
+  const audioRaw = body.audio && typeof body.audio === 'object' ? body.audio : { mode: 'none' };
+  const mode = ['none', 'tts', 'upload'].includes(audioRaw.mode) ? audioRaw.mode : 'none';
+  if (mode === 'upload' && inspected.kinds[audioRaw.asset]?.kind !== 'audio') {
+    throw makeError('invalid_input', 'audio.asset: must name an audio asset', 400);
+  }
+  const shortSide = Math.min(1080, Math.max(360, Number(body.shortSide) || 720));
+  const size = dimensionsFor(result.storyboard.aspectRatio, shortSide);
+  return {
+    storyboard: result.storyboard,
+    iconNames: result.icons,
+    warnings: [...result.warnings],
+    audio: { mode, voice: audioRaw.voice, asset: audioRaw.asset },
+    size,
+    maxDurationSec,
   };
-  const timeout = { hit: false };
-  const { cancelSignal, cancel } = makeCancelSignal();
-  Object.assign(guard, { jobId, summary, cancel });
-  const timer = setTimeout(() => {
-    timeout.hit = true;
-    cancel();
-  }, ctx.jobTimeoutMs);
+}
 
-  try {
-    setStage('input');
-    const scenes = parseScenes(input.scenes);
-    if (!scenes) {
-      throw makeError('invalid_input', 'invalid_scenes', 400);
-    }
-    const sceneSum = scenes.reduce((sum, scene) => sum + scene.durationSec, 0);
-    const requestedSec = Math.min(MAX_DURATION_SEC, clampDuration(input.durationSec) ?? sceneSum);
-    const width = Math.min(1920, Math.max(360, Math.round(Number(input.width) || 405)));
-    const height = Math.min(1920, Math.max(360, Math.round(Number(input.height) || 720)));
-    const theme = THEMES.has(input.theme) ? input.theme : 'brand-dark';
-    const brandName = String(input.brandName || 'HiveGPT').slice(0, 40);
-    const brandColor =
-      typeof input.brandColor === 'string' && HEX.test(input.brandColor.trim())
-        ? input.brandColor.trim()
-        : '#2ea884';
-    const title = String(input.title || 'clip').slice(0, 120);
-    const styleFilm = STYLE_FILM_THEMES.has(theme);
-    const wantsUpload = typeof input.audioBase64 === 'string' && input.audioBase64.length > 0;
-    const wantsTts = !wantsUpload && typeof input.ttsText === 'string' && input.ttsText.trim();
-    Object.assign(summary, { theme, scenes: scenes.length, styleFilm });
-    diag.info(
-      'job.start',
-      {
-        theme,
-        scenes: scenes.length,
-        width,
-        height,
-        requestedSec,
-        audio: wantsUpload ? 'upload' : wantsTts ? 'tts' : 'none',
-        queuedMs,
-      },
-      jobId,
-    );
+/** Write the job's assets to its work dir and register them on the /media route. */
+async function writeAssets(ctx, job, assets) {
+  const refs = {};
+  for (const [id, asset] of Object.entries(assets ?? {})) {
+    const table = asset.kind === 'image' ? IMAGE_EXT : AUDIO_EXT;
+    const name = `${id}.${table[asset.mime]}`;
+    const file = path.join(job.workDir, name);
+    await fs.writeFile(file, Buffer.from(asset.base64, 'base64'));
+    const mediaId = crypto.randomUUID();
+    ctx.media.set(mediaId, { file, name });
+    job.mediaIds.push(mediaId);
+    refs[id] = {
+      src: `http://127.0.0.1:${ctx.getPort()}/media/${mediaId}/${name}`,
+      file,
+      ...(typeof asset.credit === 'string' && asset.credit ? { credit: asset.credit.slice(0, 80) } : {}),
+    };
+  }
+  return refs;
+}
 
-    setStage('audio');
-    let audioFile;
-    if (wantsUpload) {
-      try {
-        audioFile = await writeAudioFile(workDir, input.audioBase64, input.audioMime);
-        summary.audio = 'upload';
-        diag.info('audio.written', { bytes: (await fs.stat(audioFile)).size }, jobId);
-      } catch (error) {
-        audioFile = undefined;
-        warnings.push(`audio_failed: ${cleanString(error?.message ?? error).slice(0, 120)}`);
-        diag.warn('audio.fail', { message: error?.message ?? String(error) }, jobId);
+function registerFile(ctx, job, file) {
+  const mediaId = crypto.randomUUID();
+  const name = path.basename(file);
+  ctx.media.set(mediaId, { file, name });
+  job.mediaIds.push(mediaId);
+  return `http://127.0.0.1:${ctx.getPort()}/media/${mediaId}/${name}`;
+}
+
+/** Narration, captions and final scene lengths. Narration lengthens a scene; never shortens it. */
+async function buildAudio(ctx, job, prepared, assetRefs) {
+  const { storyboard } = prepared;
+  const scenes = storyboard.scenes.map((scene) => ({ ...scene }));
+  const narration = [];
+  const words = [];
+  let uploadAudio;
+  if (prepared.audio.mode === 'tts' && scenes.some((scene) => scene.narration)) {
+    job.setStage('tts', 0.03);
+    const voice = pickVoice(prepared.audio.voice, storyboard.lang);
+    const started = Date.now();
+    const lines = await ctx.ttsImpl(scenes, voice, job.workDir, { signal: job.abort.signal });
+    job.timings.ttsMs = Date.now() - started;
+    for (const line of lines) {
+      const sec = (await ctx.probeImpl(line.file)) ?? (line.words.at(-1)?.endMs ?? 0) / 1000 + 0.3;
+      const need = sec + NARRATION_LEAD_FRAMES / FPS + NARRATION_TAIL_SEC;
+      const scene = scenes[line.index];
+      if (need > scene.durationSec) {
+        scene.durationSec = Math.min(SCENE_MAX_SEC * 1.5, Math.round(need * 10) / 10);
       }
-    } else if (wantsTts) {
-      const ttsStart = Date.now();
-      diag.info('tts.start', { chars: String(input.ttsText).length, voice: input.ttsVoice }, jobId);
-      try {
-        audioFile = await ctx.ttsImpl(input.ttsText.trim(), input.ttsVoice, workDir, {
-          signal: guard.abort.signal,
+      line.sec = sec;
+    }
+    const timeline = computeTimeline(scenes);
+    for (const line of lines) {
+      const from = timeline.scenes[line.index].from + NARRATION_LEAD_FRAMES;
+      narration.push({ src: registerFile(ctx, job, line.file), from, frames: Math.ceil(line.sec * FPS) + 2 });
+      for (const word of line.words) {
+        words.push({
+          text: String(word.text),
+          start: from + Math.round((word.startMs / 1000) * FPS),
+          end: from + Math.round((word.endMs / 1000) * FPS),
         });
-        summary.audio = 'tts';
-        timings.ttsMs = Date.now() - ttsStart;
-        diag.info('tts.ok', { ms: timings.ttsMs, bytes: (await fs.stat(audioFile)).size }, jobId);
-      } catch (error) {
-        audioFile = undefined;
-        timings.ttsMs = Date.now() - ttsStart;
-        warnings.push(`tts_failed: ${cleanString(error?.message ?? error).slice(0, 120)}`);
-        diag.warn('tts.fail', { ms: timings.ttsMs, message: error?.message ?? String(error) }, jobId);
       }
     }
-
-    let audioSec = null;
-    if (audioFile) {
-      audioSec = await ctx.probeImpl(audioFile);
-      diag.info('audio.probe', { audioSec }, jobId);
-      mediaId = crypto.randomUUID();
-      ctx.media.set(mediaId, { file: audioFile, name: path.basename(audioFile) });
+    ctx.diag.info('tts.ok', { ms: job.timings.ttsMs, lines: lines.length, words: words.length, voice }, job.id);
+  } else if (prepared.audio.mode === 'upload') {
+    const ref = assetRefs[prepared.audio.asset];
+    uploadAudio = ref.src;
+    const sec = await ctx.probeImpl(ref.file);
+    const total = scenes.reduce((s, scene) => s + scene.durationSec, 0);
+    if (sec && sec > total) {
+      const last = scenes[scenes.length - 1];
+      const extra = Math.min(sec - total, prepared.maxDurationSec - total);
+      if (extra > 0) {
+        last.durationSec = Math.round((last.durationSec + extra) * 10) / 10;
+      }
+      if (sec - total > extra + 0.5) {
+        job.warnings.push(`audio_trimmed: the uploaded audio is ${Math.round(sec)}s; the clip stops at ${prepared.maxDurationSec}s`);
+      }
     }
-    const audioSrc = mediaId
-      ? `http://127.0.0.1:${ctx.getPort()}/media/${mediaId}/${path.basename(audioFile)}`
-      : undefined;
+  }
+  const total = scenes.reduce((s, scene) => s + scene.durationSec, 0);
+  if (total > prepared.maxDurationSec + 0.05) {
+    throw makeError(
+      'narration_too_long',
+      `The narration needs ${Math.round(total)}s but the limit is ${prepared.maxDurationSec}s; shorten the narration`,
+      422,
+    );
+  }
+  return { scenes, narration, words, uploadAudio };
+}
 
-    const outWidth = styleFilm ? 1080 : width;
-    const outHeight = styleFilm ? 1350 : height;
-    const outSec = styleFilm
-      ? Math.min(
-          THEMES_3D.has(theme) ? STYLE_FILM_3D_MAX_SEC : STYLE_FILM_MAX_SEC,
-          Math.max(1, requestedSec, audioSec ?? 0),
-        )
-      : requestedSec;
-    const outDurationFrames = Math.max(MIN_FRAMES, Math.round(outSec * FPS));
-    const inputProps = {
-      title,
-      theme,
-      brandName,
-      brandColor,
-      scenes,
-      ...(styleFilm ? { durationSec: outDurationFrames / FPS } : {}),
-      ...(audioSrc ? { audioSrc } : {}),
-    };
-    Object.assign(summary, { frames: outDurationFrames, width: outWidth, height: outHeight });
+function buildProps(prepared, built, assetRefs) {
+  const nodes = iconNodes();
+  const icons = {};
+  for (const name of new Set([...prepared.iconNames, ...BUILTIN_ICONS])) {
+    if (nodes[name]) {
+      icons[name] = nodes[name];
+    }
+  }
+  const assets = {};
+  for (const [id, ref] of Object.entries(assetRefs)) {
+    assets[id] = { src: ref.src, ...(ref.credit ? { credit: ref.credit } : {}) };
+  }
+  const storyboard = { ...prepared.storyboard, scenes: built.scenes };
+  return {
+    storyboard,
+    timeline: computeTimeline(built.scenes),
+    icons,
+    assets,
+    narration: built.narration,
+    words: built.words,
+    ...(built.uploadAudio ? { uploadAudio: built.uploadAudio } : {}),
+    size: prepared.size,
+  };
+}
 
-    setStage('bundle');
-    diag.info('bundle.wait', { state: ctx.bundles.snapshot().state }, jobId);
-    const bundleStart = Date.now();
-    const serveUrl = await ctx.bundles.get();
-    timings.bundleMs = Date.now() - bundleStart;
+/** Browser console: quality signals by tag only; other text is counted, never logged. */
+function browserLogHandler(ctx, job) {
+  let logged = 0;
+  return (entry) => {
+    const text = String(entry?.text ?? '');
+    const overflow = /^\[hivegpt:overflow\] ([A-Za-z0-9_.[\]-]{1,80})$/.exec(text);
+    if (overflow) {
+      const warning = `text_overflow: ${overflow[1]}`;
+      if (!job.warnings.includes(warning)) {
+        job.warnings.push(warning);
+      }
+      return;
+    }
+    if (logged >= 20 || (entry?.type !== 'error' && entry?.type !== 'warning')) {
+      return;
+    }
+    logged += 1;
+    ctx.diag.warn('browser.log', { type: entry.type, chars: text.length }, job.id);
+  };
+}
 
-    setStage('select');
-    const selectStart = Date.now();
-    const composition = await ctx.selectImpl({
-      serveUrl,
-      id: styleFilm ? 'HiveGPTStyledFilm' : 'HiveGPTClip',
-      inputProps,
-      ...ctx.browserOptions,
-    });
-    timings.selectMs = Date.now() - selectStart;
-    diag.info('select.ok', { ms: timings.selectMs, frames: composition?.durationInFrames }, jobId);
+/** One render job, start to finish. Throws coded errors; the caller records the outcome. */
+async function runJob(ctx, job, body) {
+  job.setStage('validate', 0.01);
+  const prepared = prepareInput(body);
+  job.warnings.push(...prepared.warnings);
+  Object.assign(job.summary, {
+    scenes: prepared.storyboard.scenes.length,
+    theme: prepared.storyboard.theme,
+    aspect: prepared.storyboard.aspectRatio,
+    audio: prepared.audio.mode,
+  });
+  ctx.diag.info('job.start', { ...job.summary, ...prepared.size }, job.id);
 
-    setStage('render');
-    const outputPath = path.join(workDir, 'out.mp4');
-    const renderStart = Date.now();
-    let nextMark = 25;
-    let browserLogs = 0;
-    await ctx.renderImpl({
-      composition: {
-        ...composition,
-        width: outWidth,
-        height: outHeight,
-        fps: FPS,
-        durationInFrames: outDurationFrames,
-      },
-      serveUrl,
-      codec: 'h264',
-      imageFormat: 'jpeg',
-      crf: CRF,
-      outputLocation: outputPath,
-      inputProps,
-      concurrency: RENDER_CONCURRENCY,
-      cancelSignal,
-      ...ctx.browserOptions,
-      chromiumOptions: {
-        disableWebSecurity: false,
-        gl: process.env.REMOTION_GL || 'angle',
-      },
-      timeoutInMilliseconds: 240_000,
-      onProgress: ({ progress, renderedFrames, encodedFrames }) => {
-        const pct = Math.floor((progress ?? 0) * 100);
-        while (pct >= nextMark && nextMark <= 100) {
-          diag.info(
-            'render.progress',
-            { pct: nextMark, renderedFrames, encodedFrames, ms: Date.now() - renderStart },
-            jobId,
-          );
-          nextMark += 25;
-        }
-      },
-      onBrowserLog: (entry) => {
-        if (browserLogs >= 20 || (entry?.type !== 'error' && entry?.type !== 'warning')) {
-          return;
-        }
-        browserLogs += 1;
-        diag.warn('browser.log', { type: entry.type, chars: String(entry.text ?? '').length }, jobId);
-      },
-    });
-    timings.renderMs = Date.now() - renderStart;
-
-    setStage('read');
-    const buffer = await fs.readFile(outputPath);
-    const totalMs = Date.now() - started;
-    peakRss = Math.max(peakRss, process.memoryUsage().rss);
-    diag.info('render.ok', { ms: timings.renderMs, bytes: buffer.length, totalMs }, jobId);
-    diag.recordJob({
-      ...summary,
-      stage: 'done',
-      ok: true,
-      bytes: buffer.length,
-      ...timings,
-      totalMs,
-      peakRssMb: toMb(peakRss),
-      warnings: warnings.length ? warnings : undefined,
-    });
-    return {
-      ok: true,
-      jobId,
-      videoBase64: buffer.toString('base64'),
-      mime: 'video/mp4',
-      width: outWidth,
-      height: outHeight,
-      /** The rendered length (style films loop up to the cap). */
-      durationSec: outDurationFrames / FPS,
-      renderMs: totalMs,
-      timings,
-      ...(warnings.length ? { warnings } : {}),
-    };
-  } catch (raw) {
-    const error = raw instanceof Error ? raw : new Error(String(raw));
-    if (guard.abandoned) {
-      // The deadline already answered and recorded this job; only clean up.
+  job.setStage('assets', 0.02);
+  const assetRefs = await writeAssets(ctx, job, body.assets);
+  let built;
+  try {
+    built = await buildAudio(ctx, job, prepared, assetRefs);
+  } catch (error) {
+    if (error?.code === 'narration_too_long' || job.cancelled || job.abort.signal.aborted) {
       throw error;
     }
-    if (timeout.hit) {
-      error.code = 'timeout';
-      error.message = `Job exceeded ${ctx.jobTimeoutMs}ms at stage ${summary.stage}`;
-    }
-    error.code ||= 'render_failed';
-    error.stage = summary.stage;
-    error.detail = cleanString(String(error.message).split('\n')[0]);
-    error.jobId = jobId;
-    peakRss = Math.max(peakRss, process.memoryUsage().rss);
-    diag.error(
-      'job.fail',
-      { stage: error.stage, code: error.code, message: error.message, stack: stackHead(error) },
-      jobId,
-    );
-    diag.recordJob({
-      ...summary,
-      ok: false,
-      error: error.code,
-      message: error.message,
-      ...timings,
-      totalMs: Date.now() - started,
-      peakRssMb: toMb(peakRss),
-    });
-    throw error;
-  } finally {
-    clearTimeout(timer);
-    clearInterval(sampler);
-    if (mediaId) {
-      ctx.media.delete(mediaId);
-    }
-    await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    job.warnings.push(`tts_failed: ${cleanString(error?.message ?? error).slice(0, 120)}`);
+    ctx.diag.warn('tts.fail', { message: error?.message ?? String(error) }, job.id);
+    built = { scenes: prepared.storyboard.scenes, narration: [], words: [] };
   }
-}
+  const inputProps = buildProps(prepared, built, assetRefs);
+  const frames = inputProps.timeline.totalFrames;
+  Object.assign(job.summary, { frames, ...prepared.size });
+  job.result.durationSec = frames / FPS;
+  job.result.width = prepared.size.width;
+  job.result.height = prepared.size.height;
 
-/**
- * Runs one render and enforces the job deadline as a hard limit. The cooperative cancel only
- * reaches `renderMedia`; a hang in bundle, select or TTS would otherwise hold the queue slot
- * forever, so the deadline (timeout + grace) rejects regardless of the stage and aborts the TTS child.
- */
-async function renderJob(ctx, input, queuedMs) {
-  const guard = { abandoned: false, abort: new AbortController() };
-  const inner = renderJobInner(ctx, input, queuedMs, guard);
-  let timer;
-  const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      guard.abandoned = true;
-      guard.cancel?.();
-      guard.abort.abort();
-      const stage = guard.summary?.stage ?? 'init';
-      const error = makeError('timeout', `Job exceeded ${ctx.jobTimeoutMs}ms at stage ${stage}`);
-      Object.assign(error, {
-        stage,
-        detail: cleanString(error.message),
-        ...(guard.jobId ? { jobId: guard.jobId } : {}),
-      });
-      ctx.diag.error(
-        'job.fail',
-        { stage, code: 'timeout', message: error.message, abandoned: true },
-        guard.jobId,
-      );
-      ctx.diag.recordJob({
-        ...(guard.summary ?? {}),
-        ok: false,
-        error: 'timeout',
-        message: error.message,
-      });
-      reject(error);
-    }, ctx.jobTimeoutMs + (ctx.jobGraceMs ?? 5000));
-    timer.unref?.();
+  job.setStage('bundle', 0.13);
+  const bundleStart = Date.now();
+  const serveUrl = await ctx.bundles.get();
+  job.timings.bundleMs = Date.now() - bundleStart;
+
+  job.setStage('select', 0.15);
+  const selectStart = Date.now();
+  const composition = await ctx.selectImpl({ serveUrl, id: COMPOSITION, inputProps, ...ctx.browserOptions });
+  job.timings.selectMs = Date.now() - selectStart;
+
+  job.setStage('render', 0.16);
+  const outputPath = path.join(job.workDir, 'out.mp4');
+  const renderStart = Date.now();
+  let nextMark = 25;
+  await ctx.renderImpl({
+    composition: { ...composition, ...prepared.size, fps: FPS, durationInFrames: frames },
+    serveUrl,
+    codec: 'h264',
+    imageFormat: 'jpeg',
+    jpegQuality: 88,
+    crf: CRF,
+    audioCodec: 'aac',
+    outputLocation: outputPath,
+    inputProps,
+    concurrency: ctx.renderConcurrency,
+    cancelSignal: job.cancelSignal,
+    ...ctx.browserOptions,
+    chromiumOptions: { disableWebSecurity: false, gl: process.env.REMOTION_GL || 'angle' },
+    timeoutInMilliseconds: 60_000,
+    onProgress: ({ progress, renderedFrames, encodedFrames, stitchStage }) => {
+      const p = Math.max(0, Math.min(1, progress ?? 0));
+      job.setStage(stitchStage === 'muxing' ? 'encode' : 'render', 0.16 + 0.82 * p);
+      job.frames = { rendered: renderedFrames, encoded: encodedFrames, total: frames };
+      const pct = Math.floor(p * 100);
+      while (pct >= nextMark && nextMark <= 100) {
+        ctx.diag.info('render.progress', { pct: nextMark, renderedFrames, encodedFrames, ms: Date.now() - renderStart }, job.id);
+        nextMark += 25;
+      }
+    },
+    onBrowserLog: browserLogHandler(ctx, job),
   });
-  inner.catch(() => undefined);
-  try {
-    return await Promise.race([inner, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
+  job.timings.renderMs = Date.now() - renderStart;
+  const stat = await fs.stat(outputPath);
+  job.result.file = outputPath;
+  job.result.bytes = stat.size;
 }
 
-/** FIFO queue: at most maxConcurrent renders; extras wait; overflow is rejected. */
+/** FIFO queue of job records: at most `maxConcurrent` run; overflow is rejected (busy). */
 export function createQueue(maxConcurrent, maxQueue) {
   let active = 0;
   const waiting = [];
-
   const pump = () => {
     while (active < maxConcurrent && waiting.length > 0) {
       const next = waiting.shift();
       active += 1;
-      const queuedMs = Date.now() - next.enqueuedAt;
-      next
-        .run(queuedMs)
-        .then((result) => next.resolve({ ...result, queuedMs }))
-        .catch(next.reject)
+      Promise.resolve()
+        .then(() => next.run())
+        .catch(() => undefined)
         .finally(() => {
           active -= 1;
           pump();
         });
     }
   };
-
   return {
     stats: () => ({ active, waiting: waiting.length, maxConcurrent, maxQueue }),
-    enqueue(run) {
-      if (active >= maxConcurrent && waiting.length >= maxQueue) {
-        const error = new Error('queue_full');
-        error.code = 'busy';
-        error.status = 429;
-        error.message = `The Remotion queue is full (${maxConcurrent} running, ${maxQueue} waiting).`;
-        return Promise.reject(error);
+    position: (id) => waiting.findIndex((item) => item.id === id),
+    remove(id) {
+      const at = waiting.findIndex((item) => item.id === id);
+      if (at >= 0) {
+        waiting.splice(at, 1);
+        return true;
       }
-      return new Promise((resolve, reject) => {
-        waiting.push({ run, resolve, reject, enqueuedAt: Date.now() });
-        pump();
-      });
+      return false;
+    },
+    enqueue(id, run) {
+      if (active >= maxConcurrent && waiting.length >= maxQueue) {
+        throw makeError('busy', `The render queue is full (${maxConcurrent} running, ${maxQueue} waiting).`, 429);
+      }
+      waiting.push({ id, run });
+      pump();
     },
   };
 }
@@ -808,9 +646,32 @@ const serveMedia = (ctx, url, res) => {
     .catch(() => send(res, 404, { error: 'not_found', message: 'Not found' }));
 };
 
+/** What GET /jobs/:id answers (never the storyboard or assets). */
+function jobView(job, queue) {
+  const position = job.state === 'queued' ? queue.position(job.id) : -1;
+  return {
+    ok: true,
+    jobId: job.id,
+    state: job.state,
+    stage: job.stage,
+    progress: Math.round(job.progress * 1000) / 1000,
+    ...(position >= 0 ? { position: position + 1 } : {}),
+    createdAt: new Date(job.createdAt).toISOString(),
+    ...(job.startedAt ? { startedAt: new Date(job.startedAt).toISOString() } : {}),
+    ...(job.finishedAt ? { finishedAt: new Date(job.finishedAt).toISOString() } : {}),
+    timeoutMs: job.timeoutMs,
+    timings: job.timings,
+    ...(job.frames ? { frames: job.frames } : {}),
+    ...(job.result.durationSec ? { durationSec: job.result.durationSec, width: job.result.width, height: job.result.height } : {}),
+    ...(job.result.bytes ? { bytes: job.result.bytes } : {}),
+    warnings: job.warnings,
+    ...(job.error ? { error: job.error.code, message: job.error.message, ...(job.error.errors ? { errors: job.error.errors } : {}) } : {}),
+  };
+}
+
 /**
- * `bundleImpl`, `selectImpl`, `renderImpl`, `ttsImpl` and `probeImpl` are injectable so tests
- * run without Chromium. `server.media` lets tests register files for /media.
+ * `bundleImpl`, `selectImpl`, `renderImpl`, `stillImpl`, `ttsImpl` and `probeImpl` are
+ * injectable so tests run without Chromium. `server.media` lets tests register /media files.
  */
 export function createServer({
   token = TOKEN,
@@ -818,18 +679,23 @@ export function createServer({
   bundleImpl = bundle,
   selectImpl = selectComposition,
   renderImpl = renderMedia,
-  ttsImpl = synthesizeTts,
+  stillImpl = renderStill,
+  ttsImpl = synthesizeScenes,
   probeImpl = probeAudioSec,
   jobTimeoutMs = JOB_TIMEOUT_MS,
   jobGraceMs = 5000,
-  browserOptions = process.env.REMOTION_BROWSER_EXECUTABLE
-    ? { browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE }
-    : {},
+  resultTtlMs = RESULT_TTL_MS,
+  maxConcurrent = MAX_CONCURRENT,
+  maxQueue = MAX_QUEUE,
+  renderConcurrency = RENDER_CONCURRENCY,
+  browserOptions = process.env.REMOTION_BROWSER_EXECUTABLE ? { browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE } : {},
 } = {}) {
   const diag = diagnostics;
-  const queue = createQueue(MAX_CONCURRENT, MAX_QUEUE);
+  const queue = createQueue(maxConcurrent, maxQueue);
   const bundles = createBundleManager({ bundleImpl, diag });
+  const jobs = new Map();
   const startedAt = Date.now();
+  let stillBusy = false;
   const ctx = {
     diag,
     bundles,
@@ -838,14 +704,204 @@ export function createServer({
     renderImpl,
     ttsImpl,
     probeImpl,
-    jobTimeoutMs,
-    jobGraceMs,
     browserOptions,
+    renderConcurrency,
     getPort: () => server.address()?.port ?? PORT,
   };
+
+  const cleanup = async (job) => {
+    for (const id of job.mediaIds) {
+      ctx.media.delete(id);
+    }
+    job.mediaIds = [];
+  };
+  const forget = (job) => {
+    jobs.delete(job.id);
+    fs.rm(job.workDir, { recursive: true, force: true }).catch(() => undefined);
+  };
+  const finish = (job, state, error) => {
+    if (job.finishedAt) {
+      return;
+    }
+    job.state = state;
+    job.finishedAt = Date.now();
+    if (state === 'done') {
+      job.progress = 1;
+      job.stage = 'done';
+    }
+    if (error) {
+      job.error = error;
+    }
+    clearTimeout(job.timer);
+    clearTimeout(job.deadline);
+    cleanup(job);
+    const totalMs = job.finishedAt - (job.startedAt ?? job.createdAt);
+    diag.recordJob({
+      jobId: job.id,
+      ...job.summary,
+      stage: job.stage,
+      ok: state === 'done',
+      state,
+      ...(error ? { error: error.code, message: error.message } : {}),
+      ...job.timings,
+      totalMs,
+      bytes: job.result.bytes,
+      peakRssMb: toMb(job.peakRss),
+      warnings: job.warnings.length ? job.warnings : undefined,
+    });
+    if (state === 'done') {
+      diag.info('render.ok', { ms: job.timings.renderMs, bytes: job.result.bytes, totalMs }, job.id);
+    } else {
+      diag[state === 'cancelled' ? 'info' : 'error']('job.fail', { state, stage: job.stage, code: error?.code, message: error?.message }, job.id);
+    }
+    const ttl = setTimeout(() => forget(job), resultTtlMs);
+    ttl.unref?.();
+  };
+
+  const createJob = async (body) => {
+    const id = crypto.randomUUID().slice(0, 12);
+    const { cancelSignal, cancel } = makeCancelSignal();
+    const requested = Number(body.timeoutMs);
+    const job = {
+      id,
+      state: 'queued',
+      stage: 'queued',
+      progress: 0,
+      createdAt: Date.now(),
+      startedAt: null,
+      finishedAt: null,
+      timeoutMs: Number.isFinite(requested) && requested > 0 ? Math.min(JOB_TIMEOUT_MAX_MS, Math.max(30_000, requested)) : jobTimeoutMs,
+      timings: { ttsMs: 0, bundleMs: 0, selectMs: 0, renderMs: 0 },
+      warnings: [],
+      summary: {},
+      result: {},
+      mediaIds: [],
+      peakRss: 0,
+      cancelled: false,
+      cancelSignal,
+      cancel,
+      abort: new AbortController(),
+      workDir: await fs.mkdtemp(path.join(os.tmpdir(), 'hivegpt-clip-')),
+      setStage(stage, progress) {
+        job.stage = stage;
+        if (progress != null) {
+          job.progress = Math.max(job.progress, progress);
+        }
+      },
+    };
+    return job;
+  };
+
+  const start = (job, body) => async () => {
+    if (job.cancelled) {
+      return;
+    }
+    job.state = 'running';
+    job.startedAt = Date.now();
+    const sampler = setInterval(() => {
+      job.peakRss = Math.max(job.peakRss, process.memoryUsage().rss);
+    }, 500);
+    sampler.unref?.();
+    let timedOut = false;
+    /** Cooperative stop for renderMedia and TTS... */
+    job.timer = setTimeout(() => {
+      timedOut = true;
+      job.cancel();
+      job.abort.abort();
+    }, job.timeoutMs);
+    /** ...and a hard deadline for a hang in any other stage, so the slot is always freed. */
+    const deadline = new Promise((_, reject) => {
+      job.deadline = setTimeout(() => {
+        reject(makeError('timeout', `Job exceeded ${job.timeoutMs}ms at stage ${job.stage}`));
+      }, job.timeoutMs + jobGraceMs);
+      job.deadline.unref?.();
+    });
+    const work = runJob(ctx, job, body);
+    work.catch(() => undefined);
+    try {
+      await Promise.race([work, deadline]);
+      finish(job, 'done');
+    } catch (raw) {
+      const error = raw instanceof Error ? raw : new Error(String(raw));
+      if (job.cancelled) {
+        finish(job, 'cancelled', { code: 'cancelled', message: 'The job was cancelled' });
+      } else if (timedOut || error.code === 'timeout') {
+        finish(job, 'failed', { code: 'timeout', message: `Job exceeded ${job.timeoutMs}ms at stage ${job.stage}` });
+      } else {
+        finish(job, 'failed', {
+          code: error.code || 'render_failed',
+          message: cleanString(String(error.message).split('\n')[0]).slice(0, 300),
+          ...(error.errors ? { errors: error.errors } : {}),
+        });
+        if (!error.code) {
+          diag.error('job.exception', { stage: job.stage, stack: stackHead(error) }, job.id);
+        }
+      }
+    } finally {
+      clearInterval(sampler);
+      clearTimeout(job.timer);
+      clearTimeout(job.deadline);
+    }
+  };
+
+  const cancelJob = (job) => {
+    if (job.finishedAt) {
+      return false;
+    }
+    job.cancelled = true;
+    if (queue.remove(job.id)) {
+      finish(job, 'cancelled', { code: 'cancelled', message: 'The job was cancelled' });
+      return true;
+    }
+    job.cancel();
+    job.abort.abort();
+    return true;
+  };
+
+  /** Key frames as small JPEGs: 60% into each scene, the first `stills` scenes (default 6). */
+  const renderStills = async (body) => {
+    if (stillBusy) {
+      throw makeError('busy', 'A preview is already rendering; try again in a moment.', 429);
+    }
+    stillBusy = true;
+    const job = await createJob({});
+    try {
+      const prepared = prepareInput(body);
+      const assetRefs = await writeAssets(ctx, job, body.assets);
+      const inputProps = buildProps(prepared, { scenes: prepared.storyboard.scenes, narration: [], words: [] }, assetRefs);
+      const serveUrl = await bundles.get();
+      const composition = await selectImpl({ serveUrl, id: COMPOSITION, inputProps, ...browserOptions });
+      const count = Math.min(30, Math.max(1, Math.round(Number(body.stills) || 6)));
+      const frames = inputProps.timeline.scenes
+        .slice(0, count)
+        .map((entry) => Math.min(inputProps.timeline.totalFrames - 1, entry.from + Math.round(entry.frames * 0.6)));
+      const stills = [];
+      for (const frame of frames) {
+        const { buffer } = await stillImpl({
+          composition: { ...composition, ...prepared.size, fps: FPS, durationInFrames: inputProps.timeline.totalFrames },
+          serveUrl,
+          frame,
+          inputProps,
+          imageFormat: body.format === 'png' ? 'png' : 'jpeg',
+          ...(body.format === 'png' ? {} : { jpegQuality: 78 }),
+          scale: body.scale === 1 ? 1 : 0.5,
+          ...browserOptions,
+          onBrowserLog: browserLogHandler(ctx, job),
+        });
+        stills.push({ frame, mime: body.format === 'png' ? 'image/png' : 'image/jpeg', base64: Buffer.from(buffer).toString('base64') });
+      }
+      return { ok: true, stills, warnings: [...prepared.warnings, ...job.warnings] };
+    } finally {
+      stillBusy = false;
+      await cleanup(job);
+      forget(job);
+    }
+  };
+
   const health = () => ({
     ok: true,
     ...queue.stats(),
+    jobs: jobs.size,
     ready: bundles.isReady(),
     bundle: bundles.snapshot().state,
     uptimeSec: Math.round((Date.now() - startedAt) / 1000),
@@ -868,9 +924,10 @@ export function createServer({
           ...health(),
           bundleDetail: bundles.snapshot(),
           checks: server.checks ?? null,
-          config: effectiveConfig(),
+          config: { ...effectiveConfig(), maxConcurrent, maxQueue, renderConcurrency },
           memory: memorySnapshot(),
           counters: diag.counters(),
+          activeJobs: [...jobs.values()].filter((job) => !job.finishedAt).map((job) => jobView(job, queue)),
           lastJobs: diag.lastJobs(),
           lastLogId: diag.lastId(),
         });
@@ -883,54 +940,87 @@ export function createServer({
         });
         return send(res, 200, { ok: true, entries, lastId: diag.lastId() });
       }
-      if (req.method === 'POST' && url.pathname === '/render') {
+      if (req.method === 'POST' && url.pathname === '/jobs') {
         const body = await readBody(req);
-        const result = await queue.enqueue((queuedMs) => renderJob(ctx, body, queuedMs));
-        return send(res, 200, result);
+        prepareInput(body);
+        const job = await createJob(body);
+        try {
+          queue.enqueue(job.id, start(job, body));
+        } catch (error) {
+          forget(job);
+          throw error;
+        }
+        jobs.set(job.id, job);
+        diag.info('job.queued', { position: queue.position(job.id) + 1, timeoutMs: job.timeoutMs }, job.id);
+        return send(res, 202, jobView(job, queue));
+      }
+      if (req.method === 'POST' && url.pathname === '/stills') {
+        const body = await readBody(req);
+        return send(res, 200, await renderStills(body));
+      }
+      const match = /^\/jobs\/([a-f0-9-]{6,40})(\/video)?$/.exec(url.pathname);
+      if (match) {
+        const job = jobs.get(match[1]);
+        if (!job) {
+          return send(res, 404, { error: 'not_found', message: 'Unknown or expired job' });
+        }
+        if (req.method === 'GET' && !match[2]) {
+          return send(res, 200, jobView(job, queue));
+        }
+        if (req.method === 'DELETE' && !match[2]) {
+          const cancelled = cancelJob(job);
+          diag.info('job.cancel', { cancelled, state: job.state }, job.id);
+          return send(res, 200, { ...jobView(job, queue), cancelled });
+        }
+        if (req.method === 'GET' && match[2]) {
+          if (job.state !== 'done' || !job.result.file) {
+            return send(res, 409, { error: 'not_ready', message: `The job is ${job.state}` });
+          }
+          res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': job.result.bytes, 'Cache-Control': 'no-store' });
+          const stream = createReadStream(job.result.file);
+          stream.on('error', () => res.destroy());
+          res.on('close', () => stream.destroy());
+          stream.pipe(res);
+          return undefined;
+        }
       }
       return send(res, 404, { error: 'not_found', message: 'Not found' });
     } catch (error) {
       const code = error?.code || 'render_failed';
-      const status = error?.status || (code === 'busy' ? 429 : code === 'timeout' ? 504 : 500);
-      if (!error?.jobId) {
-        diag.warn('request.fail', { code, status, message: error?.message ?? String(error) });
-      }
+      const status = error?.status || (code === 'busy' ? 429 : 500);
+      diag.warn('request.fail', { code, status, message: error?.message ?? String(error) });
       return send(res, status, {
         ok: false,
         error: code,
-        message: error?.message || 'Render failed',
-        ...(error?.stage ? { stage: error.stage } : {}),
-        ...(error?.detail ? { detail: error.detail } : {}),
-        ...(error?.jobId ? { jobId: error.jobId } : {}),
+        message: cleanString(String(error?.message || 'Request failed')).slice(0, 600),
+        ...(error?.errors ? { errors: error.errors } : {}),
       });
     }
   });
   server.diagnostics = diag;
   server.bundles = bundles;
   server.media = ctx.media;
+  server.jobs = jobs;
   return server;
 }
 
 /** Startup self-check of the external binaries the worker shells out to. */
 export async function runSelfCheck(diag) {
   const chromium = process.env.REMOTION_BROWSER_EXECUTABLE;
-  const [chrome, ffmpeg, ffprobe, edgeTts] = await Promise.all([
-    chromium
-      ? runCheck(chromium, ['--version'])
-      : Promise.resolve({ found: true, version: 'remotion-managed browser' }),
-    runCheck('ffmpeg', ['-version']),
+  const python = process.env.REMOTION_TTS_PYTHON || 'python3';
+  const [chrome, ffprobe, edgeTts] = await Promise.all([
+    chromium ? runCheck(chromium, ['--version']) : Promise.resolve({ found: true, version: 'remotion-managed browser' }),
     runCheck('ffprobe', ['-version']),
-    runCheck('edge-tts', ['--version']),
+    runCheck(python, ['-c', 'import edge_tts; print("edge-tts", edge_tts.__version__)']),
   ]);
-  const checks = { chromium: chrome, ffmpeg, ffprobe, edgeTts };
+  const checks = { chromium: chrome, ffprobe, edgeTts };
   for (const [name, result] of Object.entries(checks)) {
     diag.log(result.found ? 'info' : 'warn', 'selfcheck', { name, ...result });
   }
   return checks;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   if (!TOKEN || TOKEN.length < 32) {
     console.error('[remotion] REMOTION_SERVICE_TOKEN must be at least 32 characters');
@@ -939,16 +1029,10 @@ if (isMain) {
   const server = createServer();
   const diag = server.diagnostics;
   process.on('unhandledRejection', (reason) => {
-    diag.error('process.unhandledRejection', {
-      message: reason?.message ?? String(reason),
-      stack: stackHead(reason),
-    });
+    diag.error('process.unhandledRejection', { message: reason?.message ?? String(reason), stack: stackHead(reason) });
   });
   process.on('uncaughtException', (error) => {
-    diag.error('process.uncaughtException', {
-      message: error?.message ?? String(error),
-      stack: stackHead(error),
-    });
+    diag.error('process.uncaughtException', { message: error?.message ?? String(error), stack: stackHead(error) });
     process.exit(1);
   });
   server.listen(PORT, () => {
