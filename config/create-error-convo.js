@@ -321,6 +321,25 @@ const ERROR_CASES = [
     pendingRequests: 2,
     score: 1,
   }),
+  payloadCase('Unlimited Claude plan seats full', {
+    type: ViolationTypes.TIME_PACK_BUSY,
+    reason: 'full',
+    limit: 4,
+    pendingRequests: 4,
+    score: 1,
+  }),
+  payloadCase('Unlimited Claude plan rest after heavy use', {
+    type: ViolationTypes.TIME_PACK_REST,
+    reason: 'cooldown',
+    limit: 4,
+    pendingRequests: 0,
+    cooldownMs: 3_600_000,
+    score: 1,
+  }),
+  payloadCase('Unlimited Claude plan required for this model', {
+    type: ErrorTypes.TIME_PACK_REQUIRED,
+    code: ErrorTypes.TIME_PACK_REQUIRED,
+  }),
   payloadCase('Message rate limit counting down within the hour', {
     type: ViolationTypes.MESSAGE_LIMIT,
     max: 40,

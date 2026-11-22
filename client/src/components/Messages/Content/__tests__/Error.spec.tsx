@@ -1355,3 +1355,35 @@ describe('Error — model spec refusals', () => {
     expect(faCatalog[key]).not.toBe(catalog[key]);
   });
 });
+
+describe('Error — unlimited Claude plan', () => {
+  const faCatalog = jest.requireActual('~/locales/fa/translation.json') as Record<string, string>;
+  const keys = [
+    'com_error_time_pack_busy',
+    'com_error_time_pack_rest',
+    'com_error_time_pack_required',
+    'com_ui_balance_time_pack',
+    'com_ui_balance_time_pack_expires',
+    'com_admin_packs_kind',
+    'com_admin_packs_kind_credits',
+    'com_admin_packs_kind_time',
+    'com_admin_packs_duration_days',
+    'com_admin_packs_endpoint',
+    'com_admin_packs_error_duration',
+    'com_admin_packs_error_endpoint',
+    'com_admin_grant_time_ok',
+  ];
+
+  it('renders a time-pack refusal as its localized copy', () => {
+    renderError({ type: ErrorTypes.TIME_PACK_REQUIRED }, providerMessage);
+
+    expect(screen.getByText(catalog.com_error_time_pack_required)).toBeInTheDocument();
+    expectReadable();
+  });
+
+  it.each(keys)('has Persian copy without vowel marks for %s', (key) => {
+    expect(faCatalog[key]).toEqual(expect.any(String));
+    expect(faCatalog[key]).not.toBe(catalog[key]);
+    expect(faCatalog[key]).not.toMatch(/[\u064E\u064F\u0650\u0652]/);
+  });
+});

@@ -39,6 +39,7 @@ export const errorCopy: Record<string, TranslationKeys> = {
   [ErrorTypes.MODEL_SPEC_MISMATCH]: 'com_error_model_spec_mismatch',
   [ErrorTypes.MODEL_SPEC_UNAVAILABLE]: 'com_error_model_spec_unavailable',
   [ErrorTypes.MODEL_SPEC_CHECK_FAILED]: 'com_error_model_spec_check_failed',
+  [ErrorTypes.TIME_PACK_REQUIRED]: 'com_error_time_pack_required',
   [ErrorTypes.COMPACTION_FAILED]: 'com_error_compaction_failed',
   [ErrorTypes.AUTH_FAILED]: 'com_error_auth_failed',
   [ErrorTypes.AUTH_RATE_LIMITED]: 'com_error_auth_rate_limited',
