@@ -10,7 +10,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { computeTimeline } from '../src/storyboard.mjs';
+import { FPS, computeTimeline } from '../src/storyboard.mjs';
 import { createDiagnostics } from '../src/diagnostics.mjs';
 import { createServer } from '../src/server.mjs';
 import * as fixtures from '../test/fixtures.mjs';
@@ -104,7 +104,7 @@ try {
       const { bin, env } = ffmpegBinary();
       for (const { index, frame } of midpoints(job.scenes)) {
         const png = path.join(process.env.FRAMES_DIR, `${slug}-t${String(index).padStart(2, '0')}-${transitionName(index)}-f${frame}.png`);
-        const out = spawnSync(bin, ['-y', '-loglevel', 'error', '-i', file, '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', png], { env });
+        const out = spawnSync(bin, ['-y', '-loglevel', 'error', '-ss', ((frame + 0.25) / FPS).toFixed(4), '-i', file, '-frames:v', '1', png], { env });
         if (out.status !== 0) {
           throw new Error(`ffmpeg failed for frame ${frame}: ${out.stderr}`);
         }
