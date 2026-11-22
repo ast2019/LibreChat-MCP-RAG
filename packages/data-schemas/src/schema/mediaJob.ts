@@ -1,12 +1,15 @@
 import { Schema } from 'mongoose';
 import type { IMediaJob } from '~/types';
 
-/** A long generation (video) running at a provider; a worker polls it and delivers the file. */
+/**
+ * A long generation running in the background (a provider video, or a storyboard clip on the
+ * Remotion worker); a worker polls it and delivers the file.
+ */
 const mediaJobSchema: Schema<IMediaJob> = new Schema<IMediaJob>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    kind: { type: String, enum: ['video'], required: true },
-    provider: { type: String, enum: ['openrouter', 'higgsfield'], required: true },
+    kind: { type: String, enum: ['video', 'clip'], required: true },
+    provider: { type: String, enum: ['openrouter', 'higgsfield', 'remotion'], required: true },
     providerJobId: { type: String, required: true },
     providerModel: { type: String, required: true },
     label: { type: String },
@@ -31,10 +34,17 @@ const mediaJobSchema: Schema<IMediaJob> = new Schema<IMediaJob>(
     leaseUntil: { type: Date, default: null },
     deadline: { type: Date, required: true },
     tenantId: { type: String, index: true },
+    progress: { type: Number, min: 0, max: 1 },
+    stage: { type: String },
+    payload: { type: Schema.Types.Mixed },
+    workerJobId: { type: String },
+    cancelRequested: { type: Boolean },
+    warnings: { type: [String], default: undefined },
   },
   { timestamps: true },
 );
 
 mediaJobSchema.index({ status: 1, nextPollAt: 1 });
+mediaJobSchema.index({ user: 1, kind: 1, status: 1 });
 
 export default mediaJobSchema;

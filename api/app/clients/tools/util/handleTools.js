@@ -230,7 +230,7 @@ const loadTools = async ({
           const audioFiles = contextFiles.filter((file) => file?.type?.startsWith?.('audio/'));
           Object.assign(
             dynamicToolContextMap,
-            buildClipToolContext([name], imageFiles, audioFiles),
+            buildClipToolContext([name], imageFiles, audioFiles, options.req?.config),
           );
           return require('~/server/services/Clip').loadClipTools(options.req, [name]);
         },

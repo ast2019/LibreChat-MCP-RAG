@@ -55,11 +55,34 @@ const IPV4 = /\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b/g;
 const IPV6 = /\b([0-9a-f]{1,4})(?::[0-9a-f]{0,4}){3,7}\b/gi;
 
 /**
+ * A stack frame's location: `(file:///app/node_modules/@remotion/renderer/x.js:10:5)`, a bare
+ * `at /app/x.js:1:2`, or a Windows path. Scoped packages put an `@` in the path, which the email
+ * redaction would otherwise read as `local@domain.js` and mask the whole frame.
+ */
+const STACK_LOCATION =
+  /(?<=\(|\bat )(?:file:\/\/\/?|\/|[A-Za-z]:\\)[^()\s]*?:\d+(?::\d+)?(?=\)|\s|$)/g;
+/** The `@` of a scoped package directory (`/@scope/`), the only `@` a frame keeps. */
+const SCOPE_AT = /([/\\])@(?=[\w.-]+[/\\])/g;
+const SCOPE_SLOT = '\u0000scope\u0000';
+const FRAME_SLOT = (i: number): string => `\u0000frame${i}\u0000`;
+
+/** A frame through the full redaction (tokens, keys, emails), its scoped package names intact. */
+function maskFrame(location: string): string {
+  return redactMessage(location.replace(SCOPE_AT, `$1${SCOPE_SLOT}`)).replaceAll(SCOPE_SLOT, '@');
+}
+
+/**
  * A log text made safe for a link anyone holding the code can open: the logger's redaction
  * again (tokens, keys, cookies, emails), IP addresses cut to their network, and a length cap.
  */
 export function maskShareLogText(text: string): string {
-  return redactMessage(text)
+  const frames: string[] = [];
+  const shielded = text.replace(STACK_LOCATION, (location) => {
+    frames.push(maskFrame(location));
+    return FRAME_SLOT(frames.length - 1);
+  });
+  return redactMessage(shielded)
+    .replace(/\u0000frame(\d+)\u0000/g, (_, i: string) => frames[Number(i)] ?? '')
     .replace(IPV4, '$1.$2.x.x')
     .replace(IPV6, '$1:…')
     .slice(0, SHARE_LINE_CHARS);

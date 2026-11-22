@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   composeBuilds,
+  edgeTtsPin,
   extractTsCodes,
   lastBaseImage,
   missingAptPackages,
@@ -106,4 +107,20 @@ test('compose builds resolve string and object forms', () => {
       ['short', './x', 'Dockerfile'],
     ],
   );
+});
+
+test('edgeTtsPin reads the pin, its install and the API check', () => {
+  const good = [
+    'FROM node:20-bookworm-slim',
+    'ARG EDGE_TTS_VERSION=7.3.1',
+    'RUN apt-get update \\',
+    '  && pip3 install --no-cache-dir --break-system-packages edge-tts==${EDGE_TTS_VERSION} \\',
+    '  && rm -rf /var/lib/apt/lists/*',
+    'COPY src ./src',
+    'RUN python3 scripts/check_tts_api.py --version "${EDGE_TTS_VERSION}" --require-live',
+  ].join('\n');
+  assert.deepEqual(edgeTtsPin(good), { version: '7.3.1', installsPin: true, checksApi: true });
+  const drifted = good.replace('edge-tts==${EDGE_TTS_VERSION}', 'edge-tts==7.2.0').replace(/^RUN python3 .*$/m, '');
+  assert.deepEqual(edgeTtsPin(drifted), { version: '7.3.1', installsPin: false, checksApi: false });
+  assert.equal(edgeTtsPin('FROM x\nRUN pip install edge-tts').version, null);
 });

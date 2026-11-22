@@ -543,16 +543,32 @@ officeTools:
   maxImages: 20
   embedFonts: true
 
-# Short Remotion clips from the «کلیپ‌ساز» row (rendered on the remotion worker). Tools attach
-# only when that row is used (`ephemeralAgent.clip`). Free for now (conversation tokens only).
-# Max 30s at 720p; the worker runs at most 2 renders at once.
-# Themes: brand shells plus catalog-backed style films (chalkboard, claymation, brick-toy,
-# pixel-art, … — see skill/clip-builder and packages/api/src/clip/themes.ts).
+# Clip builder («کلیپ‌ساز», create_remotion_clip): storyboard motion graphics rendered in the
+# background on the `remotion` service. Scene types, themes and limits: skill/clip-builder and
+# docs/saas/clip-builder-fa.md. AI images are opt-in and charged like the image tool; stock
+# photos need PEXELS_API_KEY on the api.
 clipTools:
   clip: true
-  maxDurationSec: 30
+  maxDurationSec: 90
   height: 720
-  maxConcurrent: 2
+  maxScenes: 20
+  maxJobsPerUser: 1
+  renderTimeoutSec: 600
+  queueTimeoutSec: 900
+  preview: true
+  previewTimeoutSec: 120
+  previewStills: 6
+  # File bytes of one clip's images and audio (the worker's 80 MB body limit counts base64)
+  maxAssetMb: 55
+  # Submit retries after a worker 5xx or network failure; any other 4xx than 429 fails at once
+  submitRetries: 3
+  captions: true
+  music: true
+  aiImages: false
+  maxAiImages: 3
+  stockImages: true
+  maxStockImages: 6
+  maxConcurrent: 1
 
 # Agent browser (experimental): the `browser` service in docker-compose.yml. Who may open one is
 # set per pack and per user in the admin panel (admins always may); these are the server limits.

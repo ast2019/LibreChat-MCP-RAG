@@ -1643,7 +1643,7 @@ async function loadToolDefinitionsWrapper({
   Object.assign(dynamicToolContextMap, buildOfficeToolContext(filteredTools, imageFiles));
   Object.assign(
     dynamicToolContextMap,
-    buildClipToolContext(filteredTools, imageFiles, audioFiles),
+    buildClipToolContext(filteredTools, imageFiles, audioFiles, req.config),
   );
   Object.assign(dynamicToolContextMap, buildBrowserToolContext(filteredTools));
   if (imageFiles.length > 0) {

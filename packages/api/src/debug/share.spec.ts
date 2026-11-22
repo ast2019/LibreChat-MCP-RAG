@@ -124,3 +124,34 @@ describe('debug share live read', () => {
     expect(read.body).toMatchObject({ notes: ['v2'], expiresAt });
   });
 });
+
+describe('maskShareLogText stack frames', () => {
+  it('keeps stack frames readable, including scoped package paths', () => {
+    const frames = [
+      'at foo (file:///x.js:1:2)',
+      'at Object.<anonymous> (file:///app/node_modules/@remotion/renderer/dist/a.js:10:5)',
+      '    at async renderJob (file:///app/src/server.mjs:42:7)',
+      'at x (/app/node_modules/@librechat/api/dist/index.js:1:2)',
+      'at /app/node_modules/@scope/pkg/index.js:3:4',
+      'at y (C:\\app\\node_modules\\@scope\\pkg\\a.js:5:6)',
+    ];
+    for (const frame of frames) {
+      expect(maskShareLogText(frame)).toBe(frame);
+    }
+  });
+
+  it('still masks real emails, also next to a frame or inside a path', () => {
+    expect(maskShareLogText('login failed for a.b@example.com at foo (file:///x.js:1:2)')).toBe(
+      'login failed for [REDACTED_EMAIL] at foo (file:///x.js:1:2)',
+    );
+    expect(maskShareLogText('at z (/home/john@example.com/app.js:1:2)')).not.toContain('john@example.com');
+    expect(maskShareLogText('contact jöhn@example.com')).toBe('contact [REDACTED_EMAIL]');
+  });
+
+  it('still redacts a token inside a path-like frame', () => {
+    const key = `sk-${'a1B2c3D4e5'.repeat(4)}`;
+    for (const line of [`at /v1/keys/${key}:443`, `at fetch (/v1/keys/${key}:443)`]) {
+      expect(maskShareLogText(line)).not.toContain(key);
+    }
+  });
+});

@@ -95,3 +95,11 @@ file, the repository or a chat.
   - Each has one entry point, its «ساختن» row in the `+` menu. `isFeatureSkill` (data-provider
     `office.ts`) keeps their skills out of the skill lists; add a feature skill to
     `FEATURE_SKILL_NAMES` and `client/src/hooks/Input/featureSkills.ts` the same way.
+- **Clip builder (0.40.0):** «کلیپ‌ساز» is a storyboard motion studio (`skill/clip-builder`,
+  `packages/api/src/clip`, worker `deploy/remotion`, doc `docs/saas/clip-builder-fa.md`).
+  - Clips render as background `MediaJob`s of kind `clip` (own runner in `clip/jobs.ts`);
+    the card is `client/.../Content/MediaJob.tsx`. One clip per turn and per user.
+  - The worker's storyboard contract (`deploy/remotion/src/storyboard.mjs`) and the api's
+    (`clip/scene.ts`) must stay in sync; `themeDrift.spec.ts` checks the shared lists.
+  - Worker tests: `node --test test/*.test.mjs` in `deploy/remotion`; real Chromium gates with
+    `REMOTION_E2E=1` (and `REMOTION_E2E_TTS=1` for Edge TTS, which needs network).

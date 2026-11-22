@@ -5,8 +5,18 @@ export type ClipEventName =
   | 'worker.call'
   | 'worker.error'
   | 'worker.warning'
+  | 'worker.cancel_failed'
   | 'tool.saved'
-  | 'tool.exception';
+  | 'tool.exception'
+  | 'tool.busy'
+  | 'preview.ok'
+  | 'job.created'
+  | 'job.submitted'
+  | 'job.retry'
+  | 'job.progress'
+  | 'job.done'
+  | 'job.failed'
+  | 'job.cancelled';
 
 export type ClipEventLevel = 'info' | 'warn' | 'error';
 
@@ -22,7 +32,8 @@ export interface ClipEvent {
 export const CLIP_EVENT_LIMIT = 200;
 const MAX_VALUE_CHARS = 240;
 /** Keys that could carry user content or media: never recorded. */
-const FORBIDDEN_KEY = /text|base64|body|heading|bullets|token|secret|authorization|password/i;
+const FORBIDDEN_KEY =
+  /text|base64|body|heading|headline|narration|prompt|query|bullets|token|secret|authorization|password/i;
 
 const events: ClipEvent[] = [];
 

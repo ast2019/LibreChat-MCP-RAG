@@ -2,23 +2,31 @@
   "name": "hivegpt-remotion",
   "version": "0.1.0",
   "private": true,
-  "description": "Remotion clip renderer for HiveGPT (1 render at a time, 30s)",
+  "description": "HiveGPT motion studio: storyboard clips rendered as background jobs",
   "type": "module",
   "main": "src/server.mjs",
   "scripts": {
     "start": "node src/server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "music": "node scripts/music.mjs",
+    "test:e2e": "REMOTION_E2E=1 node --test test/e2e.test.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.544",
+    "@remotion/google-fonts": "4.0.544",
+    "@remotion/layout-utils": "4.0.544",
+    "@remotion/media-utils": "4.0.544",
+    "@remotion/noise": "4.0.544",
+    "@remotion/paths": "4.0.544",
     "@remotion/renderer": "4.0.544",
+    "@remotion/shapes": "4.0.544",
+    "@remotion/transitions": "4.0.544",
+    "@tabler/icons": "3.35.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "remotion": "4.0.544",
-    "@remotion/paths": "4.0.544",
-    "@remotion/google-fonts": "4.0.544"
+    "remotion": "4.0.544"
   }
 }

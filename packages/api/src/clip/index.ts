@@ -17,24 +17,28 @@ export {
   resolveClipTheme,
 } from './themes';
 export type { ClipTheme } from './themes';
-export {
-  STYLE_FILM_THEMES,
-  STYLE_FILM_SIZE,
-  STYLE_FILM_MAX_SEC,
-  STYLE_FILM_3D_MAX_SEC,
-  STYLE_FILM_3D_THEMES,
-  styleFilmMaxSec,
-  usesStyleFilm,
-} from './styleFilms';
 export { recordClipEvent, getClipEvents, clearClipEvents, CLIP_EVENT_LIMIT } from './diagnostics';
 export type { ClipEvent, ClipEventName } from './diagnostics';
 export { getRemotionDiagnostics } from './probe';
 export type { RemotionDiagnostics, RemotionWorkerLogLine } from './probe';
-export { createClipTools } from './tools';
+export { createClipTools, clipFilename } from './tools';
 export { getClipAttachments } from './attachments';
 export { clipToolDefinitions } from './definitions';
 export { createRemotionServiceClient, RemotionServiceError } from './client';
+export type { RemotionServiceClient, WorkerJobView, WorkerJobState } from './client';
+export { createClipJobRunner, CLIP_JOB_KIND, CLIP_POLL_MS } from './jobs';
+export type { ClipJobRunnerDeps, ClipJobPayload, ClipJobErrorCode } from './jobs';
+export { createClipImageService, searchPexelsPhoto, pexelsKey } from './images';
+export type { ClipImageService, ClipImageServiceDeps } from './images';
 export type { ClipFile, ClipToolDeps } from './tools';
 export type { ClipAttachment } from './attachments';
-export type { ClipSpec, ClipScene, WorkerRenderRequest } from './scene';
-export { parseClipInput, dimensionsFor, narrationTextFromSpec } from './scene';
+export type {
+  ClipRequest,
+  ClipScene,
+  ClipStoryboard,
+  ClipImageRef,
+  ClipSceneType,
+  ClipAspectRatio,
+  WorkerJobRequest,
+} from './scene';
+export { parseClipInput, dimensionsFor, CLIP_SCENE_TYPES } from './scene';

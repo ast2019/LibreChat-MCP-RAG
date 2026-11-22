@@ -164,13 +164,18 @@ export interface TMediaAvailability {
 /** `GET /api/media/jobs/:id`: a background generation shown as a card in the chat. */
 export interface TMediaJobView {
   id: string;
-  kind: 'video';
+  kind: 'video' | 'clip';
   status: 'pending' | 'completed' | 'failed';
   label?: string;
   errorCode?: string;
   filepath?: string;
   type?: string;
   createdAt?: string;
+  /** Clip jobs: 0..1 and the worker stage (queued, assets, tts, render, encode, ...) */
+  progress?: number;
+  stage?: string;
+  /** Clip jobs: a cancel was asked for and is being applied */
+  cancelRequested?: boolean;
 }
 
 /** The chat link of a background generation; the client renders it as a live card. */

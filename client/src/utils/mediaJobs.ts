@@ -1,10 +1,10 @@
-import { ContentTypes, MediaTools } from 'librechat-data-provider';
+import { ClipTools, ContentTypes, MediaTools } from 'librechat-data-provider';
 import type { Agents, TMessageContentParts } from 'librechat-data-provider';
 
 /** A job link anywhere in a tool's text result, e.g. `[🎬 video](/api/media/jobs/<id>)`. */
 const JOB_IN_TEXT = /\/api\/media\/jobs\/([a-f0-9]{24})(?![a-f0-9])/i;
 
-/** The background job a `generate_video` result started, or null when it started none. */
+/** The background job a `generate_video` or clip result started, or null when it started none. */
 export function findMediaJobId(output: string | null | undefined): string | null {
   if (typeof output !== 'string' || output === '') {
     return null;
@@ -25,7 +25,7 @@ export function collectToolMediaJobIds(
       continue;
     }
     const call = part[ContentTypes.TOOL_CALL] as Agents.ToolCall | undefined;
-    if (call?.name !== MediaTools.video) {
+    if (call?.name !== MediaTools.video && call?.name !== ClipTools.clip) {
       continue;
     }
     const id = findMediaJobId(typeof call.output === 'string' ? call.output : null);

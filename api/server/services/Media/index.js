@@ -98,4 +98,4 @@ const startMediaJobWorker = () => {
   return worker;
 };
 
-module.exports = { loadMediaTools, loadImage, startMediaJobWorker };
+module.exports = { billing, loadMediaTools, loadImage, startMediaJobWorker };

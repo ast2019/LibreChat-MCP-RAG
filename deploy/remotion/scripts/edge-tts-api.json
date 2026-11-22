@@ -1,0 +1,15 @@
+{
+  "7.3.1": {
+    "positional": ["text", "voice"],
+    "keywords": {
+      "rate": null,
+      "volume": null,
+      "pitch": null,
+      "boundary": ["WordBoundary", "SentenceBoundary"],
+      "connector": null,
+      "proxy": null,
+      "connect_timeout": null,
+      "receive_timeout": null
+    }
+  }
+}

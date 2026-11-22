@@ -1,5 +1,11 @@
 import type { Model } from 'mongoose';
-import type { IMediaJob, MediaJobRecord, MediaJobUpdate, MediaJobCreateData } from '~/types';
+import type {
+  IMediaJob,
+  MediaJobKind,
+  MediaJobRecord,
+  MediaJobUpdate,
+  MediaJobCreateData,
+} from '~/types';
 import { isValidObjectIdString } from '~/utils/objectId';
 
 export interface MediaJobMethods {
@@ -14,9 +20,19 @@ export interface MediaJobMethods {
     now: Date;
     leaseMs: number;
     limit: number;
+    /** Only these kinds (all kinds when omitted) */
+    kinds?: MediaJobKind[];
   }) => Promise<MediaJobRecord[]>;
-  /** Applies the update and releases the lease. */
+  /** Applies the update and releases the lease; `payload: null` removes the stored payload. */
   updateMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
+  /** How many of the user's jobs of `kind` are still pending. */
+  countPendingMediaJobs: (userId: string, kind: MediaJobKind) => Promise<number>;
+  /**
+   * Marks the user's pending clip job for cancellation; the clip runner applies it on its next
+   * step. Null when the job is not theirs or is not a clip (provider videos cannot be stopped);
+   * the record unchanged when it already finished.
+   */
+  requestMediaJobCancel: (jobId: string, userId: string) => Promise<MediaJobRecord | null>;
 }
 
 function toRecord(doc: IMediaJob | (Record<string, unknown> & { _id: unknown })): MediaJobRecord {
@@ -56,10 +72,12 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     now,
     leaseMs,
     limit,
+    kinds,
   }: {
     now: Date;
     leaseMs: number;
     limit: number;
+    kinds?: MediaJobKind[];
   }): Promise<MediaJobRecord[]> {
     const claimed: MediaJobRecord[] = [];
     for (let i = 0; i < limit; i++) {
@@ -69,6 +87,7 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
             status: 'pending',
             nextPollAt: { $lte: now },
             $or: [{ leaseUntil: null }, { leaseUntil: { $lte: now } }],
+            ...(kinds?.length ? { kind: { $in: kinds } } : {}),
           },
           { $set: { leaseUntil: new Date(now.getTime() + leaseMs) } },
           { new: true, sort: { nextPollAt: 1 } },
@@ -86,11 +105,54 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     jobId: string,
     update: MediaJobUpdate,
   ): Promise<MediaJobRecord | null> {
+    const { payload, ...rest } = update;
     const doc = await jobs()
-      .findOneAndUpdate({ _id: jobId }, { $set: { ...update, leaseUntil: null } }, { new: true })
+      .findOneAndUpdate(
+        { _id: jobId },
+        {
+          $set: { ...rest, ...(payload ? { payload } : {}), leaseUntil: null },
+          ...(payload === null ? { $unset: { payload: 1 } } : {}),
+        },
+        { new: true },
+      )
       .lean();
     return doc ? toRecord(doc as never) : null;
   }
 
-  return { createMediaJob, findMediaJobForUser, claimDueMediaJobs, updateMediaJob };
+  async function countPendingMediaJobs(userId: string, kind: MediaJobKind): Promise<number> {
+    if (!isValidObjectIdString(userId)) {
+      return 0;
+    }
+    return jobs().countDocuments({ user: userId, kind, status: 'pending' });
+  }
+
+  async function requestMediaJobCancel(
+    jobId: string,
+    userId: string,
+  ): Promise<MediaJobRecord | null> {
+    if (!isValidObjectIdString(jobId) || !isValidObjectIdString(userId)) {
+      return null;
+    }
+    const updated = await jobs()
+      .findOneAndUpdate(
+        { _id: jobId, user: userId, kind: 'clip', status: 'pending' },
+        { $set: { cancelRequested: true, nextPollAt: new Date() } },
+        { new: true },
+      )
+      .lean();
+    if (updated) {
+      return toRecord(updated as never);
+    }
+    const existing = await findMediaJobForUser(jobId, userId);
+    return existing?.kind === 'clip' ? existing : null;
+  }
+
+  return {
+    createMediaJob,
+    findMediaJobForUser,
+    claimDueMediaJobs,
+    updateMediaJob,
+    countPendingMediaJobs,
+    requestMediaJobCancel,
+  };
 }

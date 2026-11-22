@@ -1,8 +1,15 @@
-import type { WorkerRenderRequest } from './scene';
 import type { RemotionServiceTarget } from './config';
+import type { WorkerJobRequest } from './scene';
 
-/** Above the worker's own job timeout (7 minutes) so the worker's answer wins the race. */
-const RENDER_TIMEOUT_MS = 8 * 60_000;
+/**
+ * Every call to the worker is short: jobs run in the background, so no request waits for a
+ * render (the 0.39 synchronous `/render` hit undici's 300 s header timeout while the worker
+ * allowed 420 s). Submits carry the assets, so they get a longer budget.
+ */
+export const WORKER_CALL_TIMEOUT_MS = 20_000;
+export const WORKER_SUBMIT_TIMEOUT_MS = 90_000;
+export const WORKER_DOWNLOAD_TIMEOUT_MS = 180_000;
+export const WORKER_STILLS_TIMEOUT_MS = 150_000;
 
 export class RemotionServiceError extends Error {
   constructor(
@@ -10,28 +17,40 @@ export class RemotionServiceError extends Error {
     message: string,
     readonly status = 503,
     readonly detail?: string,
-    /** Worker stage (bundle, select, tts, render, ...) and job id when the worker sent them. */
     readonly stage?: string,
     readonly jobId?: string,
+    /** Field-level validation errors from the worker */
+    readonly errors?: string[],
   ) {
     super(message);
     this.name = 'RemotionServiceError';
   }
 }
 
-export interface RemotionRenderResult {
-  buffer: Buffer;
-  type: string;
-  width: number;
-  height: number;
-  durationSec: number;
-  queuedMs?: number;
-  renderMs?: number;
-  jobId?: string;
-  /** Worker timings in ms (bundleMs, ttsMs, selectMs, renderMs) */
+export type WorkerJobState = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
+
+/** `GET /jobs/:id` on the worker. */
+export interface WorkerJobView {
+  jobId: string;
+  state: WorkerJobState;
+  stage: string;
+  progress: number;
+  position?: number;
+  timeoutMs?: number;
+  durationSec?: number;
+  width?: number;
+  height?: number;
+  bytes?: number;
   timings?: Record<string, number>;
-  /** Non-fatal worker notes, e.g. `tts_failed: ...` (the clip has no voice) */
   warnings: string[];
+  error?: string;
+  message?: string;
+}
+
+export interface WorkerStill {
+  frame: number;
+  mime: string;
+  base64: string;
 }
 
 export interface RemotionHealth {
@@ -53,41 +72,60 @@ export interface RemotionLogsQuery {
 
 export interface RemotionServiceClient {
   health(): Promise<RemotionHealth>;
-  /** Worker `/status` (authenticated): bundle, self-checks, config, memory, counters, last jobs. */
+  /** Worker `/status` (authenticated): bundle, self-checks, config, memory, counters, jobs. */
   status(): Promise<Record<string, unknown>>;
   /** Worker `/logs` (authenticated): the worker container's own log ring. */
   logs(
     query?: RemotionLogsQuery,
   ): Promise<{ entries: Array<Record<string, unknown>>; lastId?: number }>;
-  render(input: WorkerRenderRequest): Promise<RemotionRenderResult>;
+  /**
+   * Queues a render; answers at once with the job's id and position. A repeated
+   * `idempotencyKey` (the MediaJob id) returns the job the worker already has for it.
+   */
+  submit(input: WorkerJobRequest, options?: { idempotencyKey?: string }): Promise<WorkerJobView>;
+  job(jobId: string): Promise<WorkerJobView>;
+  /** Stops a queued or running render (renderMedia's cancel signal on the worker). */
+  cancel(jobId: string): Promise<WorkerJobView>;
+  video(jobId: string): Promise<Buffer>;
+  stills(input: WorkerJobRequest): Promise<{ stills: WorkerStill[]; warnings: string[] }>;
 }
 
 interface WorkerErrorBody {
+  ok?: boolean;
   error?: string;
   message?: string;
   detail?: string;
   stage?: string;
   jobId?: string;
+  errors?: string[];
 }
+
+const toView = (body: Record<string, unknown>): WorkerJobView => ({
+  ...(body as unknown as WorkerJobView),
+  warnings: Array.isArray(body.warnings)
+    ? body.warnings.filter((w): w is string => typeof w === 'string')
+    : [],
+});
 
 /** Calls the Remotion worker; every failure becomes a {@link RemotionServiceError}. */
 export function createRemotionServiceClient(
   target: RemotionServiceTarget,
   fetchImpl: typeof fetch = fetch,
 ): RemotionServiceClient {
-  async function call<T>(
+  async function send(
     method: string,
     path: string,
-    body?: unknown,
-    timeoutMs = 15_000,
-  ): Promise<{ status: number; body: T & WorkerErrorBody }> {
-    let response: Response;
+    body: unknown,
+    timeoutMs: number,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<Response> {
     try {
-      response = await fetchImpl(`${target.url}${path}`, {
+      return await fetchImpl(`${target.url}${path}`, {
         method,
         headers: {
           Authorization: `Bearer ${target.token}`,
           ...(body !== undefined && { 'Content-Type': 'application/json' }),
+          ...extraHeaders,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
@@ -97,7 +135,7 @@ export function createRemotionServiceClient(
       if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
         throw new RemotionServiceError(
           'timeout',
-          `The Remotion service timed out after ${Math.round(timeoutMs / 1000)}s`,
+          `The Remotion service did not answer within ${Math.round(timeoutMs / 1000)}s`,
           504,
         );
       }
@@ -107,102 +145,90 @@ export function createRemotionServiceClient(
         `The Remotion service connection failed: ${reason}`,
       );
     }
+  }
+
+  async function call<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs = WORKER_CALL_TIMEOUT_MS,
+    headers?: Record<string, string>,
+  ): Promise<T & WorkerErrorBody> {
+    const response = await send(method, path, body, timeoutMs, headers);
     let parsed: T & WorkerErrorBody;
     try {
-      parsed = (await response.json()) as typeof parsed;
+      parsed = (await response.json()) as T & WorkerErrorBody;
     } catch {
-      throw new RemotionServiceError('unavailable', 'The Remotion service sent no JSON');
+      /** A proxy's HTML error page keeps its status, so a 413 or 401 is still terminal. */
+      const status = response.status >= 400 ? response.status : 502;
+      throw new RemotionServiceError(status === 429 ? 'busy' : 'unavailable', 'The Remotion service sent no JSON', status);
     }
-    return { status: response.status, body: parsed };
+    if (response.status >= 400) {
+      const code =
+        parsed.error ??
+        (response.status === 401 ? 'unauthorized' : response.status === 429 ? 'busy' : 'failed');
+      throw new RemotionServiceError(
+        code,
+        parsed.message ?? `The Remotion service answered ${response.status}`,
+        response.status,
+        parsed.detail,
+        parsed.stage,
+        parsed.jobId,
+        Array.isArray(parsed.errors) ? parsed.errors : undefined,
+      );
+    }
+    return parsed;
   }
+
+  const jobPath = (jobId: string): string => `/jobs/${encodeURIComponent(jobId)}`;
 
   return {
     async health() {
-      const { status, body } = await call<RemotionHealth>('GET', '/health');
-      if (status !== 200 || body.ok !== true) {
-        throw new RemotionServiceError(
-          'unavailable',
-          body.message ?? 'Remotion health failed',
-          status,
-        );
+      const body = await call<RemotionHealth>('GET', '/health');
+      if (body.ok !== true) {
+        throw new RemotionServiceError('unavailable', body.message ?? 'Remotion health failed');
       }
       return body;
     },
-    async status() {
-      const { status, body } = await call<Record<string, unknown>>('GET', '/status');
-      if (status !== 200) {
-        throw new RemotionServiceError(
-          status === 401 ? 'unauthorized' : 'unavailable',
-          body.message ?? `The Remotion service answered ${status}`,
-          status,
-        );
-      }
-      return body;
-    },
+    status: () => call<Record<string, unknown>>('GET', '/status'),
     async logs({ limit = 150, level = 'info', after }: RemotionLogsQuery = {}) {
       const query = new URLSearchParams({ limit: String(limit), level });
       if (after != null) {
         query.set('after', String(after));
       }
-      const { status, body } = await call<{
-        entries?: Array<Record<string, unknown>>;
-        lastId?: number;
-      }>('GET', `/logs?${query.toString()}`);
-      if (status !== 200) {
-        throw new RemotionServiceError(
-          status === 401 ? 'unauthorized' : 'unavailable',
-          body.message ?? `The Remotion service answered ${status}`,
-          status,
-        );
-      }
+      const body = await call<{ entries?: Array<Record<string, unknown>>; lastId?: number }>(
+        'GET',
+        `/logs?${query.toString()}`,
+      );
       return { entries: Array.isArray(body.entries) ? body.entries : [], lastId: body.lastId };
     },
-    async render(input) {
-      const { status, body } = await call<{
-        ok?: boolean;
-        videoBase64?: string;
-        mime?: string;
-        width?: number;
-        height?: number;
-        durationSec?: number;
-        queuedMs?: number;
-        renderMs?: number;
-        timings?: Record<string, number>;
-        warnings?: unknown;
-      }>('POST', '/render', input, RENDER_TIMEOUT_MS);
-      if (status === 429) {
-        throw new RemotionServiceError(
-          'busy',
-          body.message ?? 'The Remotion worker is busy; try again shortly.',
-          429,
-          body.detail,
-          body.stage,
-          body.jobId,
-        );
+    async submit(input, options = {}) {
+      const headers = options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined;
+      return toView(await call<Record<string, unknown>>('POST', '/jobs', input, WORKER_SUBMIT_TIMEOUT_MS, headers));
+    },
+    async job(jobId) {
+      return toView(await call<Record<string, unknown>>('GET', jobPath(jobId)));
+    },
+    async cancel(jobId) {
+      return toView(await call<Record<string, unknown>>('DELETE', jobPath(jobId)));
+    },
+    async video(jobId) {
+      const response = await send('GET', `${jobPath(jobId)}/video`, undefined, WORKER_DOWNLOAD_TIMEOUT_MS);
+      if (response.status !== 200) {
+        throw new RemotionServiceError('not_ready', `The video is not ready (${response.status})`, response.status);
       }
-      if (status !== 200 || body.ok !== true || !body.videoBase64) {
-        throw new RemotionServiceError(
-          body.error ?? (status === 401 ? 'unauthorized' : 'render_failed'),
-          body.message ?? `The Remotion service answered ${status}`,
-          status,
-          body.detail,
-          body.stage,
-          body.jobId,
-        );
-      }
+      return Buffer.from(await response.arrayBuffer());
+    },
+    async stills(input) {
+      const body = await call<{ stills?: WorkerStill[]; warnings?: string[] }>(
+        'POST',
+        '/stills',
+        input,
+        WORKER_STILLS_TIMEOUT_MS,
+      );
       return {
-        buffer: Buffer.from(body.videoBase64, 'base64'),
-        type: body.mime ?? 'video/mp4',
-        width: body.width ?? input.width,
-        height: body.height ?? input.height,
-        durationSec: body.durationSec ?? input.durationSec,
-        queuedMs: body.queuedMs,
-        renderMs: body.renderMs,
-        jobId: body.jobId,
-        timings: body.timings,
-        warnings: Array.isArray(body.warnings)
-          ? body.warnings.filter((w): w is string => typeof w === 'string')
-          : [],
+        stills: Array.isArray(body.stills) ? body.stills : [],
+        warnings: Array.isArray(body.warnings) ? body.warnings : [],
       };
     },
   };

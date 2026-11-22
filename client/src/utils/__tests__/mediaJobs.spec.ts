@@ -35,3 +35,11 @@ describe('collectToolMediaJobIds', () => {
     expect([...collectToolMediaJobIds(content)]).toEqual([JOB]);
   });
 });
+
+describe('collectToolMediaJobIds for clips', () => {
+  it('also collects the job a create_remotion_clip call started', () => {
+    const clipJob = '6720f1c2a9b3c4d5e6f70aaa';
+    const content = [call('create_remotion_clip', `[🎬 clip](/api/media/jobs/${clipJob})`)];
+    expect([...collectToolMediaJobIds(content)]).toEqual([clipJob]);
+  });
+});
