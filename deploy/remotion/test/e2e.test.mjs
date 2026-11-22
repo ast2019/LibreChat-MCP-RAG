@@ -105,3 +105,31 @@ test('a full MP4 of every scene type with music', { skip: !E2E, timeout: 1_500_0
     }
   });
 });
+
+// Needs network (Microsoft Edge TTS) and edge-tts 7.3.1 (REMOTION_TTS_PYTHON may point at a venv).
+test('Persian narration with word-synced captions and ducked music', { skip: !E2E || process.env.REMOTION_E2E_TTS !== '1', timeout: 900_000 }, async () => {
+  await withWorker(async (base) => {
+    const storyboard = {
+      title: 'tts',
+      lang: 'fa',
+      aspectRatio: '9:16',
+      captions: true,
+      music: { track: 'ambient', volume: 0.25 },
+      scenes: [
+        { type: 'hook', durationSec: 1, headline: 'انرژی خورشیدی', narration: 'انرژی خورشیدی ارزان‌ترین برق دنیاست.' },
+        { type: 'stat', durationSec: 1, value: 30, suffix: '٪', label: 'تجدیدپذیر', narration: 'سی درصد برق جهان پاک است.' },
+      ],
+    };
+    const created = await (await fetch(`${base}/jobs`, { method: 'POST', headers: json, body: JSON.stringify({ storyboard, audio: { mode: 'tts' }, shortSide: 360 }) })).json();
+    let job = created;
+    while (job.state === 'queued' || job.state === 'running') {
+      await new Promise((r) => setTimeout(r, 1000));
+      job = await (await fetch(`${base}/jobs/${created.jobId}`, { headers: json })).json();
+    }
+    assert.equal(job.state, 'done', JSON.stringify(job));
+    assert.deepEqual(job.warnings.filter((w) => w.startsWith('tts_failed')), []);
+    assert.ok(job.timings.ttsMs > 0);
+    /** Both 1 s scenes were stretched to fit their narration. */
+    assert.ok(job.durationSec > 3, `durationSec ${job.durationSec}`);
+  });
+});

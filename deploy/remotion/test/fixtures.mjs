@@ -62,3 +62,62 @@ export const everySceneFa = {
     { type: 'cta', durationSec: 2, headline: 'برای نکته‌های بیشتر دنبال کنید', action: 'دنبال کنید', handle: '@hivegpt', transition: 'fade' },
   ],
 };
+
+/** About 60 s, Persian, 9:16: charts, icons, narration (TTS) with captions and music. */
+export const energyFa = {
+  title: 'انرژی پاک در یک دقیقه',
+  lang: 'fa',
+  aspectRatio: '9:16',
+  theme: 'midnight',
+  brandName: 'هایوجی‌پی‌تی',
+  captions: true,
+  music: { track: 'ambient', volume: 0.2 },
+  scenes: [
+    { type: 'hook', durationSec: 5, kicker: 'انرژی ۲۰۳۰', headline: 'برق پاک حالا ارزان‌ترین برق دنیاست', emphasis: ['ارزان‌ترین'], icon: 'bolt', narration: 'برق پاک حالا ارزان‌ترین برق دنیاست. بیایید ببینیم چطور به اینجا رسیدیم.', transition: 'fade' },
+    { type: 'stat', durationSec: 5, value: 30, suffix: '٪', label: 'از برق جهان از منابع تجدیدپذیر است', caption: 'سال ۲۰۲۳', narration: 'امروز حدود سی درصد برق جهان از منابع تجدیدپذیر تولید می‌شود.', transition: 'slide' },
+    { type: 'chart', durationSec: 6, chart: 'bar', title: 'ظرفیت تازه در ۲۰۲۳', unit: 'گیگاوات', data: [{ label: 'خورشیدی', value: 420 }, { label: 'بادی', value: 117 }, { label: 'آبی', value: 13 }, { label: 'سایر', value: 9 }], highlight: 0, narration: 'در سال ۲۰۲۳ بیشتر ظرفیت تازه از خورشید آمد؛ چهار برابر باد.', transition: 'wipe' },
+    { type: 'chart', durationSec: 6, chart: 'line', title: 'قیمت پنل خورشیدی (دلار بر وات)', data: [{ label: '۲۰۱۰', value: 2 }, { label: '۲۰۱۵', value: 0.6 }, { label: '۲۰۲۰', value: 0.25 }, { label: '۲۰۲۴', value: 0.11 }], narration: 'قیمت پنل خورشیدی در چهارده سال بیش از نود درصد کم شد.', transition: 'fade' },
+    { type: 'icons', durationSec: 6, title: 'چهار منبع اصلی', layout: 'grid', items: [{ icon: 'solar-panel', label: 'خورشیدی', detail: 'ارزان و سریع' }, { icon: 'windmill', label: 'بادی', detail: 'قوی در شب' }, { icon: 'droplet', label: 'آبی', detail: 'پایدار' }, { icon: 'atom', label: 'هسته‌ای', detail: 'بدون کربن' }], narration: 'چهار منبع اصلی برق پاک: خورشید، باد، آب و انرژی هسته‌ای.', transition: 'slide' },
+    { type: 'chart', durationSec: 6, chart: 'donut', title: 'سبد برق جهان', data: [{ label: 'فسیلی', value: 61 }, { label: 'تجدیدپذیر', value: 30 }, { label: 'هسته‌ای', value: 9 }], highlight: 1, narration: 'هنوز شصت و یک درصد برق از سوخت فسیلی است، اما سهم پاک هر سال بیشتر می‌شود.', transition: 'clock-wipe' },
+    { type: 'steps', durationSec: 6, title: 'از نور تا پریز', steps: [{ title: 'نور خورشید', icon: 'sun' }, { title: 'پنل', icon: 'solar-panel' }, { title: 'اینورتر', icon: 'bolt' }, { title: 'شبکه برق', icon: 'plug' }], narration: 'نور به پنل می‌رسد، اینورتر آن را به برق شبکه تبدیل می‌کند و به خانه‌ها می‌رسد.', transition: 'fade' },
+    { type: 'compare', durationSec: 6, title: 'زغال‌سنگ یا خورشید', left: { label: 'زغال‌سنگ', icon: 'flame', points: ['هزینه سوخت', 'آلودگی هوا'] }, right: { label: 'خورشید', icon: 'sun', points: ['سوخت رایگان', 'بدون دود'] }, verdict: 'خورشید از نظر هزینه برنده است', narration: 'زغال‌سنگ هزینه سوخت و آلودگی دارد؛ خورشید سوختش رایگان است.', transition: 'flip' },
+    { type: 'list', durationSec: 5, title: 'سه نکته برای یادآوری', icon: 'check', bullets: ['قیمت‌ها نود درصد کم شد', 'ساخت نیروگاه سریع است', 'ذخیره‌سازی در حال رشد است'], narration: 'پس یادتان باشد: قیمت‌ها پایین آمده، ساخت سریع است و باتری‌ها رشد می‌کنند.', transition: 'fade' },
+    { type: 'cta', durationSec: 5, headline: 'برای نکته‌های بیشتر دنبال کنید', action: 'دنبال کنید', handle: '@hivegpt', narration: 'برای نکته‌های بیشتر ما را دنبال کنید.', transition: 'fade' },
+  ],
+};
+
+/** About 30 s, English, 16:9. */
+export const solarEn = {
+  title: 'Why solar won',
+  lang: 'en',
+  aspectRatio: '16:9',
+  theme: 'daylight',
+  brandName: 'HiveGPT',
+  captions: true,
+  music: { track: 'pulse', volume: 0.18 },
+  scenes: [
+    { type: 'hook', durationSec: 4, kicker: 'Energy explained', headline: 'Solar is now the cheapest electricity in history', emphasis: ['cheapest'], narration: 'Solar is now the cheapest electricity in history.', transition: 'fade' },
+    { type: 'chart', durationSec: 6, chart: 'line', title: 'Module price ($/W)', data: [{ label: '2010', value: 2 }, { label: '2015', value: 0.6 }, { label: '2020', value: 0.25 }, { label: '2024', value: 0.11 }], narration: 'Panel prices fell more than ninety percent since 2010.', transition: 'slide' },
+    { type: 'timeline', durationSec: 6, title: 'Milestones', events: [{ date: '1954', title: 'First silicon cell' }, { date: '2010', title: '40 GW installed' }, { date: '2024', title: '2 TW installed' }], narration: 'From the first silicon cell in 1954 to two terawatts today.', transition: 'wipe' },
+    { type: 'image', durationSec: 5, image: 'photo', headline: 'Fields of panels', caption: 'Utility-scale solar', motion: 'zoom-in', narration: 'Utility-scale farms now cover whole valleys.', transition: 'fade' },
+    { type: 'quote', durationSec: 5, quote: 'The stone age did not end for lack of stone.', author: 'Sheikh Yamani', narration: 'As Sheikh Yamani said, the stone age did not end for lack of stone.', transition: 'fade' },
+    { type: 'cta', durationSec: 4, headline: 'Follow for more energy facts', action: 'Follow', handle: '@hivegpt', narration: 'Follow for more.', transition: 'fade' },
+  ],
+};
+
+/** About 15 s, English, 1:1, no narration (music only). */
+export const squareEn = {
+  title: 'Wind in numbers',
+  lang: 'en',
+  aspectRatio: '1:1',
+  theme: 'neon',
+  brandName: 'HiveGPT',
+  captions: false,
+  music: { track: 'cinematic', volume: 0.3 },
+  scenes: [
+    { type: 'stat', durationSec: 4, value: 1017, suffix: ' GW', label: 'of wind power installed worldwide', icon: 'windmill', transition: 'fade' },
+    { type: 'location', durationSec: 4, place: 'Gansu Wind Farm', region: 'China', detail: 'The largest wind farm on Earth', label: 'Record holder', transition: 'slide' },
+    { type: 'split', durationSec: 4, headline: 'Offshore is next', body: 'Stronger, steadier winds at sea.', bullets: ['Taller turbines', 'Higher output'], icon: 'ripple', transition: 'clock-wipe' },
+    { type: 'logo', durationSec: 3, text: 'HiveGPT', tagline: 'Motion studio', transition: 'fade' },
+  ],
+};
