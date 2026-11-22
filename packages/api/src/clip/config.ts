@@ -8,7 +8,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { SkillScopeParams } from '~/skills/scoped';
 import { getSkillScopedTools } from '~/skills/scoped';
 import { readConfigSection } from '~/app/config';
-import { STYLE_FILM_3D_MAX_SEC, STYLE_FILM_MAX_SEC } from './styleFilms';
+import { pexelsKey } from './images';
 
 export function getClipConfig(appConfig: AppConfig | null | undefined): TClipToolsConfig {
   const parsed = clipToolsSchema.safeParse(readConfigSection(appConfig, 'clipTools') ?? {});
@@ -77,24 +77,32 @@ export function buildClipToolContext(
   toolNames: readonly string[],
   imageFiles: ReadonlyArray<{ file_id?: string; filename?: string }> | null | undefined,
   audioFiles: ReadonlyArray<{ file_id?: string; filename?: string }> | null | undefined,
+  appConfig?: AppConfig | null,
+  env: Record<string, string | undefined> = process.env,
 ): Record<string, string> {
   if (!toolNames.includes(ClipTools.clip)) {
     return {};
   }
+  const config = getClipConfig(appConfig);
   const images = (imageFiles ?? []).filter((file): file is { file_id: string; filename?: string } =>
     Boolean(file?.file_id),
   );
   const audios = (audioFiles ?? []).filter((file): file is { file_id: string; filename?: string } =>
     Boolean(file?.file_id),
   );
+  const sources = [
+    'file (attached, or generated_image_id from this chat)',
+    ...(config.aiImages ? [`ai (at most ${config.maxAiImages}, charged like the image tool)`] : []),
+    ...(pexelsKey(config.stockImages, env) ? [`stock (Pexels, at most ${config.maxStockImages})`] : []),
+  ];
   const parts = [
-    `Build short MP4s with create_remotion_clip. brand-dark/light/ugc = text slides (≤30s). Other themes = catalog style films (1080×1350, the 5s animation loops to the requested length, up to ${STYLE_FILM_MAX_SEC}s; brick-toy and claymation up to ${STYLE_FILM_3D_MAX_SEC}s) from the vendored animation-styles pack (only looks that have a real film). Ask before rendering.`,
+    `create_remotion_clip renders storyboard motion graphics in the background (up to ${config.maxDurationSec}s, at most ${config.maxScenes} scenes, one clip job per user at a time). Image sources here: ${sources.join(', ')}. Music: ${config.music ? 'ambient, pulse, cinematic' : 'off'}. Brief the user and get the outline approved before rendering.`,
   ];
   if (images.length > 0) {
     parts.push(
       `Images attached to this request:\n${images
         .map((file) => `- ${file.file_id}${file.filename ? ` (${file.filename})` : ''}`)
-        .join('\n')}\nUse an id as logo_file_id.`,
+        .join('\n')}\nUse an id as an image {source:"file",file_id} or as logo_file_id.`,
     );
   }
   if (audios.length > 0) {

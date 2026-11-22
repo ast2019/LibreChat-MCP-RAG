@@ -1,6 +1,13 @@
 import { ClipTools } from 'librechat-data-provider';
-import { CLIP_THEMES, CLIP_THEME_LABELS } from './themes';
-import { STYLE_FILM_3D_MAX_SEC, STYLE_FILM_MAX_SEC } from './styleFilms';
+import {
+  CLIP_CHARTS,
+  CLIP_SCENE_TYPES,
+  CLIP_TRANSITIONS,
+  CLIP_MUSIC_TRACKS,
+  CLIP_ASPECT_RATIOS,
+  CLIP_IMAGE_MOTIONS,
+} from './scene';
+import { CLIP_THEMES } from './themes';
 
 export interface ClipToolDefinition {
   name: ClipTools;
@@ -9,84 +16,141 @@ export interface ClipToolDefinition {
   responseFormat: 'content_and_artifact';
 }
 
-const themeList = CLIP_THEMES.map((id) => `${id} (${CLIP_THEME_LABELS[id]})`).join(', ');
+/** Per-type fields, compact: it rides every call. `?` marks optional fields. */
+const SCENE_FIELDS = [
+  'hook{headline,subline?,kicker?,emphasis?[words],icon?}',
+  'stat{value:number,label,prefix?,suffix?,decimals?,caption?,icon?}',
+  'chart{chart:bar|line|pie|donut,data[2-8]{label,value},title?,unit?,highlight?:index,caption?}',
+  'icons{items[2-6]{icon,label,detail?},layout?:grid|list,title?}',
+  'steps{steps[2-5]{title,detail?,icon?},title?}',
+  'timeline{events[2-6]{date,title,detail?},title?}',
+  'compare{left{label,points[1-4],icon?},right{...},title?,verdict?}',
+  'quote{quote,author?,role?}',
+  'image{image,headline?,caption?,motion?}',
+  'split{headline,body?,bullets?[0-4],image?|icon?,side?:start|end}',
+  'list{title,bullets[1-6],icon?}',
+  'location{place,region?,detail?,label?,icon?}',
+  'cta{headline,action?,url?,handle?}',
+  'logo{image?,text?,tagline?}',
+].join('; ');
 
-const shared = `The chat shows the file as a video card; do not invent a download link. Rendering uses the HiveGPT Remotion worker (not the user's computer). Clips are at most 30 seconds at 720p. Building the clip does not add a separate fee beyond this conversation's token use. To change a clip, call the tool again with the full updated scene and the next version.`;
+const IMAGE_REF = {
+  type: 'object',
+  description:
+    '{source:"file",file_id} (attached or generated in this chat) | {source:"ai",prompt} (if offered) | {source:"stock",query} (if offered)',
+  properties: {
+    source: { type: 'string', enum: ['file', 'ai', 'stock'] },
+    file_id: { type: 'string' },
+    prompt: { type: 'string' },
+    query: { type: 'string' },
+  },
+  required: ['source'],
+};
+
+const LABELLED = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      label: { type: 'string' },
+      value: { type: 'number' },
+      icon: { type: 'string' },
+      detail: { type: 'string' },
+      title: { type: 'string' },
+      date: { type: 'string' },
+    },
+  },
+};
+
+const SIDE = {
+  type: 'object',
+  properties: {
+    label: { type: 'string' },
+    points: { type: 'array', items: { type: 'string' } },
+    icon: { type: 'string' },
+  },
+};
 
 export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
   [ClipTools.clip]: {
     name: ClipTools.clip,
-    description: `Renders a short MP4 on the HiveGPT Remotion worker. Brand shells (brand-dark/light/ugc) stay text-slide clips. Other themes are full style films from the vendored deenukhan/animation-styles Remotion pack (real SVG/canvas motion with caption overlay) — only catalog-backed looks are offered. Use after the «clip-builder» skill brief. Themes: ${themeList}. Style films render at 1080×1350; the 5s animation loops to the requested length (up to ${STYLE_FILM_MAX_SEC}s, brick-toy and claymation up to ${STYLE_FILM_3D_MAX_SEC}s). Audio: mode "tts", "upload", or "none". ${shared}`,
+    description: `Renders a motion-graphics MP4 from a storyboard on the HiveGPT worker, in the background: the call returns at once with a progress card, the video replaces it when done. Plan with the «clip-builder» skill and get the user's OK on the outline first; call once per clip and never retry on your own. Every scene's visuals come from its own fields. Scene types and fields: ${SCENE_FIELDS}. Icons are Tabler names (kebab-case, e.g. bolt, solar-panel, chart-bar). Each scene: duration_sec 1-30, transition, narration (spoken line when audio.mode=tts; scenes stretch to fit it). preview:true returns key frames instead of rendering.`,
     schema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: 'Clip title for the filename and brand line.' },
-        duration_sec: {
-          type: 'number',
-          description: `Total length in seconds, 1–30 for brand slides. Style-film themes are clamped to ${STYLE_FILM_MAX_SEC}s (${STYLE_FILM_3D_MAX_SEC}s for brick-toy and claymation); defaults to the sum of scene durations.`,
-        },
-        aspect_ratio: {
-          type: 'string',
-          enum: ['9:16', '16:9'],
-          description: '9:16 for Reels/TikTok (default), 16:9 for landscape.',
-        },
-        theme: {
-          type: 'string',
-          enum: [...CLIP_THEMES],
-          description:
-            'Visual shell or catalog style film. Default brand-dark. Style films: chalkboard, pixel-art, flat-vector, woodblock-print, cartoon-1930s, brick-toy, paper-cut, maths-diagram, cartoon-explainer, blueprint, watercolor, claymation.',
-        },
-        brand_name: { type: 'string', description: 'Brand line, default HiveGPT.' },
-        brand_color: {
-          type: 'string',
-          description: 'Accent hex, e.g. #2ea884. Some animation styles ignore it for their look.',
-        },
-        logo_file_id: {
-          type: 'string',
-          description: 'Optional logo image id from this request.',
-        },
-        scenes: {
-          type: 'array',
-          description: 'Ordered scenes. Durations should sum to about duration_sec.',
-          items: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['title', 'bullets', 'closing'],
-              },
-              duration_sec: { type: 'number' },
-              heading: { type: 'string' },
-              body: { type: 'string' },
-              bullets: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['type', 'duration_sec'],
-          },
-        },
+        title: { type: 'string', description: 'Clip title (filename)' },
+        lang: { type: 'string', enum: ['fa', 'en'], description: 'Default: detected from the text' },
+        aspect_ratio: { type: 'string', enum: [...CLIP_ASPECT_RATIOS] },
+        theme: { type: 'string', enum: [...CLIP_THEMES] },
+        brand_name: { type: 'string' },
+        brand_color: { type: 'string', description: 'Accent hex, e.g. #2ea884' },
+        logo_file_id: { type: 'string' },
+        captions: { type: 'boolean', description: 'Word-synced captions with TTS (default true)' },
+        music: { type: 'string', enum: [...CLIP_MUSIC_TRACKS, 'none'] },
+        music_volume: { type: 'number', description: '0-1, default 0.22; ducked under narration' },
         audio: {
           type: 'object',
           properties: {
             mode: { type: 'string', enum: ['none', 'tts', 'upload'] },
-            file_id: {
-              type: 'string',
-              description: 'Required when mode is upload: an audio file the user attached.',
-            },
-            tts_text: {
-              type: 'string',
-              description:
-                'Narration for TTS when mode is tts. If omitted, headings and bodies are joined.',
-            },
-            voice: {
-              type: 'string',
-              description: 'Optional TTS voice id when the worker supports it.',
-            },
+            voice: { type: 'string', description: 'Edge voice, e.g. fa-IR-DilaraNeural, fa-IR-FaridNeural, en-US-JennyNeural' },
+            file_id: { type: 'string', description: 'upload: an attached audio file id' },
           },
           required: ['mode'],
         },
-        version: {
-          type: 'number',
-          description: '1 for the first clip in this chat, then increment.',
+        scenes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: [...CLIP_SCENE_TYPES] },
+              duration_sec: { type: 'number' },
+              transition: { type: 'string', enum: [...CLIP_TRANSITIONS] },
+              narration: { type: 'string' },
+              headline: { type: 'string' },
+              subline: { type: 'string' },
+              kicker: { type: 'string' },
+              emphasis: { type: 'array', items: { type: 'string' } },
+              icon: { type: 'string' },
+              value: { type: 'number' },
+              prefix: { type: 'string' },
+              suffix: { type: 'string' },
+              decimals: { type: 'number' },
+              label: { type: 'string' },
+              caption: { type: 'string' },
+              chart: { type: 'string', enum: [...CLIP_CHARTS] },
+              title: { type: 'string' },
+              unit: { type: 'string' },
+              highlight: { type: 'number' },
+              data: LABELLED,
+              layout: { type: 'string', enum: ['grid', 'list'] },
+              items: LABELLED,
+              steps: LABELLED,
+              events: LABELLED,
+              left: SIDE,
+              right: SIDE,
+              verdict: { type: 'string' },
+              quote: { type: 'string' },
+              author: { type: 'string' },
+              role: { type: 'string' },
+              image: IMAGE_REF,
+              motion: { type: 'string', enum: [...CLIP_IMAGE_MOTIONS] },
+              body: { type: 'string' },
+              bullets: { type: 'array', items: { type: 'string' } },
+              side: { type: 'string', enum: ['start', 'end'] },
+              place: { type: 'string' },
+              region: { type: 'string' },
+              detail: { type: 'string' },
+              action: { type: 'string' },
+              url: { type: 'string' },
+              handle: { type: 'string' },
+              text: { type: 'string' },
+              tagline: { type: 'string' },
+            },
+            required: ['type', 'duration_sec'],
+          },
         },
+        preview: { type: 'boolean' },
+        version: { type: 'number', description: '1 for the first clip in this chat, then +1' },
       },
       required: ['title', 'scenes'],
     },

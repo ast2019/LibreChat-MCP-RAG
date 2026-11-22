@@ -41,4 +41,18 @@ router.get('/jobs/:id', async (req, res) => {
   }
 });
 
+/** Asks the user's background clip to stop; the clip job worker cancels the render. */
+router.post('/jobs/:id/cancel', async (req, res) => {
+  try {
+    const job = await db.requestMediaJobCancel(req.params.id, req.user.id);
+    if (!job) {
+      return res.status(404).json({ error: { code: 'not_found' } });
+    }
+    res.json(toMediaJobView(job));
+  } catch (error) {
+    logger.error('[media] job cancel failed', error);
+    res.status(500).json({ error: { code: 'media_job_failed' } });
+  }
+});
+
 module.exports = router;

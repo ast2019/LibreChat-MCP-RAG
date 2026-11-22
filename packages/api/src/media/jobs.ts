@@ -1,5 +1,5 @@
 import { logger } from '@librechat/data-schemas';
-import type { MediaJobRecord, MediaJobUpdate } from '@librechat/data-schemas';
+import type { MediaJobKind, MediaJobRecord, MediaJobUpdate } from '@librechat/data-schemas';
 import type { AppConfig } from '@librechat/data-schemas';
 import type { MediaFetch, SavedMedia } from './types';
 import type { MediaBilling } from './billing';
@@ -18,13 +18,17 @@ import { mediaCredits } from './billing';
 /** What the chat shows for a job; never carries provider text. */
 export interface MediaJobView {
   id: string;
-  kind: 'video';
+  kind: MediaJobKind;
   status: MediaJobRecord['status'];
   label?: string;
   errorCode?: string;
   filepath?: string;
   type?: string;
   createdAt?: string;
+  /** Clip jobs: 0..1 and the worker stage */
+  progress?: number;
+  stage?: string;
+  cancelRequested?: boolean;
 }
 
 export function toMediaJobView(job: MediaJobRecord): MediaJobView {
@@ -38,6 +42,13 @@ export function toMediaJobView(job: MediaJobRecord): MediaJobView {
       ? { filepath: job.filepath, type: job.type }
       : {}),
     ...(job.createdAt ? { createdAt: new Date(job.createdAt).toISOString() } : {}),
+    ...(job.kind === 'clip'
+      ? {
+          progress: job.status === 'completed' ? 1 : Math.round((job.progress ?? 0) * 100) / 100,
+          ...(job.stage ? { stage: job.stage } : {}),
+          ...(job.cancelRequested && job.status === 'pending' ? { cancelRequested: true } : {}),
+        }
+      : {}),
   };
 }
 
@@ -49,6 +60,7 @@ export interface MediaJobRunnerDeps {
     now: Date;
     leaseMs: number;
     limit: number;
+    kinds?: MediaJobKind[];
   }) => Promise<MediaJobRecord[]>;
   updateMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
   /** The job owner as a request: their user, tenant and resolved config. Null when gone. */
@@ -177,7 +189,13 @@ export function createMediaJobRunner(deps: MediaJobRunnerDeps): {
   }
 
   async function tick(): Promise<number> {
-    const due = await deps.claimDueMediaJobs({ now: now(), leaseMs: LEASE_MS, limit: BATCH });
+    /** Clip jobs have their own runner (`~/clip/jobs`), so a render never delays video polls. */
+    const due = await deps.claimDueMediaJobs({
+      now: now(),
+      leaseMs: LEASE_MS,
+      limit: BATCH,
+      kinds: ['video'],
+    });
     await Promise.all(due.map((job) => step(job)));
     return due.length;
   }

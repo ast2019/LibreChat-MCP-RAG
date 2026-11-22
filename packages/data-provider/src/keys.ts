@@ -152,6 +152,7 @@ export const DynamicQueryKeys = {
 } as const;
 
 export enum MutationKeys {
+  cancelMediaJob = 'cancelMediaJob',
   refreshAdminServiceStatus = 'refreshAdminServiceStatus',
   updateAdminHiggsfield = 'updateAdminHiggsfield',
   paymentCheckout = 'paymentCheckout',

@@ -58,8 +58,25 @@ const IPV6 = /\b([0-9a-f]{1,4})(?::[0-9a-f]{0,4}){3,7}\b/gi;
  * A log text made safe for a link anyone holding the code can open: the logger's redaction
  * again (tokens, keys, cookies, emails), IP addresses cut to their network, and a length cap.
  */
+/**
+ * A stack frame's location: `(file:///app/node_modules/@remotion/renderer/x.js:10:5)`, a bare
+ * `at /app/x.js:1:2`, or a Windows path. Scoped packages put an `@` in the path, which the email
+ * redaction would otherwise read as `local@domain.js` and mask the whole frame.
+ */
+const STACK_LOCATION =
+  /(?<=\(|\bat )(?:file:\/\/\/?|\/|[A-Za-z]:\\)[^()\s]*?:\d+(?::\d+)?(?=\)|\s|$)/g;
+/** A real address inside a protected location: no slash on either side of the `@`. */
+const PATH_EMAIL = /[^\s/\\()@:]+@[^\s/\\()@:]+\.[A-Za-z]{2,}/g;
+const FRAME_SLOT = (i: number): string => `\u0000frame${i}\u0000`;
+
 export function maskShareLogText(text: string): string {
-  return redactMessage(text)
+  const frames: string[] = [];
+  const shielded = text.replace(STACK_LOCATION, (location) => {
+    frames.push(location.replace(PATH_EMAIL, '[REDACTED_EMAIL]'));
+    return FRAME_SLOT(frames.length - 1);
+  });
+  return redactMessage(shielded)
+    .replace(/\u0000frame(\d+)\u0000/g, (_, i: string) => frames[Number(i)] ?? '')
     .replace(IPV4, '$1.$2.x.x')
     .replace(IPV6, '$1:…')
     .slice(0, SHARE_LINE_CHARS);

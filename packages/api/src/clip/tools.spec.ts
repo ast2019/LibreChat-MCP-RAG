@@ -1,31 +1,36 @@
 import { ClipTools } from 'librechat-data-provider';
-import { createClipTools } from './tools';
-import { clearClipEvents, getClipEvents } from './diagnostics';
+import type { MediaJobCreateData, MediaJobRecord } from '@librechat/data-schemas';
 import type { ClipToolDeps } from './tools';
+import { clearClipEvents, getClipEvents } from './diagnostics';
+import { createClipTools } from './tools';
 
-const OLD_ENV = process.env;
+const ENV = { REMOTION_SERVICE_URL: 'http://remotion:3200', REMOTION_SERVICE_TOKEN: 't'.repeat(40) };
 const input = {
-  title: 'Demo',
-  scenes: [{ type: 'title', duration_sec: 3, heading: 'SECRET-HEADING' }],
+  title: 'Energy',
+  scenes: [
+    { type: 'hook', duration_sec: 3, headline: 'SECRET-HEADLINE' },
+    { type: 'stat', duration_sec: 3, value: 30, suffix: '%', label: 'renewable' },
+  ],
   audio: { mode: 'none' },
 };
 
-function build(fetchImpl: typeof fetch) {
-  const deps = {
-    saveMedia: jest.fn(async (_req, file) => ({
-      file_id: 'f123456',
-      filename: file.filename,
-      filepath: '/p/f.mp4',
-      type: file.type,
-      bytes: file.buffer.length,
-    })),
-    loadImage: jest.fn(),
-    loadAudio: jest.fn(),
-    fetch: fetchImpl,
-  } as unknown as ClipToolDeps;
-  const req = { user: { id: 'u1' }, config: undefined } as never;
+function build(overrides: Partial<ClipToolDeps> = {}, userId = '64b000000000000000000001') {
+  let n = 0;
+  const createMediaJob = jest.fn(
+    async (data: MediaJobCreateData) =>
+      ({ ...data, id: `65c00000000000000000000${n++}`, status: 'pending', nextPollAt: new Date() }) as MediaJobRecord,
+  );
+  const deps: ClipToolDeps = {
+    createMediaJob,
+    countPendingMediaJobs: jest.fn(async () => 0),
+    loadImage: jest.fn(async () => ({ buffer: Buffer.from('png'), type: 'image/png' })),
+    loadAudio: jest.fn(async () => null),
+    env: ENV,
+    ...overrides,
+  };
+  const req = { user: { id: userId }, config: undefined } as never;
   const [clip] = createClipTools({ req, toolNames: [ClipTools.clip] }, deps);
-  return { clip, deps };
+  return { clip, deps, createMediaJob };
 }
 
 const run = async (clip: unknown, payload: unknown = input): Promise<string> => {
@@ -33,65 +38,90 @@ const run = async (clip: unknown, payload: unknown = input): Promise<string> => 
   return typeof out === 'string' ? out : JSON.stringify(out);
 };
 
-describe('clip tool diagnostics', () => {
-  beforeEach(() => {
-    clearClipEvents();
-    process.env = {
-      ...OLD_ENV,
-      REMOTION_SERVICE_URL: 'http://remotion:3200',
-      REMOTION_SERVICE_TOKEN: 't'.repeat(40),
-    };
-  });
-  afterAll(() => {
-    process.env = OLD_ENV;
-  });
+describe('create_remotion_clip (background job)', () => {
+  beforeEach(() => clearClipEvents());
 
-  it('records invoked, worker.call and saved events without scene text', async () => {
-    const fetchImpl = jest.fn(async () => ({
-      status: 200,
-      json: async () => ({
-        ok: true,
-        videoBase64: Buffer.from('mp4').toString('base64'),
-        jobId: 'j9',
-        durationSec: 3,
-        warnings: ['tts_failed: edge-tts missing'],
-      }),
-    })) as unknown as typeof fetch;
-    const { clip } = build(fetchImpl);
-    await run(clip);
-    const names = getClipEvents().map((e) => e.event);
-    expect(names).toEqual(['tool.invoked', 'worker.call', 'worker.warning', 'tool.saved']);
-    expect(JSON.stringify(getClipEvents())).not.toContain('SECRET-HEADING');
-  });
-
-  it('records a worker error with its code, stage and jobId, and tells the model the code', async () => {
-    const fetchImpl = jest.fn(async () => ({
-      status: 504,
-      json: async () => ({
-        ok: false,
-        error: 'timeout',
-        message: 'slow',
-        stage: 'render',
-        jobId: 'j8',
-      }),
-    })) as unknown as typeof fetch;
-    const { clip, deps } = build(fetchImpl);
+  it('records a clip job and answers at once with the job card link', async () => {
+    const { clip, createMediaJob } = build();
     const out = await run(clip);
-    expect(out).toContain('code timeout');
-    expect(out).toContain('stage render');
-    const error = getClipEvents().find((e) => e.event === 'worker.error');
-    expect(error?.data).toMatchObject({
-      code: 'timeout',
-      stage: 'render',
-      jobId: 'j8',
-      status: 504,
-    });
-    expect(deps.saveMedia).not.toHaveBeenCalled();
+    expect(createMediaJob).toHaveBeenCalledTimes(1);
+    const data = createMediaJob.mock.calls[0][0];
+    expect(data).toMatchObject({ kind: 'clip', provider: 'remotion', stage: 'queued', progress: 0, label: '6s' });
+    const payload = data.payload as { request: { storyboard: { scenes: unknown[] } }; renderTimeoutMs: number; maxDurationSec: number };
+    expect(payload.request.storyboard.scenes).toHaveLength(2);
+    expect(payload.renderTimeoutMs).toBe(600_000);
+    expect(payload.maxDurationSec).toBe(90);
+    /** The deadline covers the queue wait and the render budget, so api and worker agree. */
+    expect(new Date(data.deadline).getTime() - Date.now()).toBeGreaterThan((900 + 600) * 1000);
+    expect(out).toContain('/api/media/jobs/65c000000000000000000000');
+    expect(out).toContain('do not retry');
+    expect(JSON.stringify(getClipEvents())).not.toContain('SECRET-HEADLINE');
   });
 
-  it('records tool.rejected for invalid input', async () => {
-    const { clip } = build(jest.fn() as never);
-    await run(clip, { title: 'x', scenes: [] });
+  it('starts one clip per turn: a second call in the same request is refused', async () => {
+    const { clip, createMediaJob } = build();
+    await run(clip);
+    const second = await run(clip);
+    expect(createMediaJob).toHaveBeenCalledTimes(1);
+    expect(second).toContain('Only one clip is built per turn');
+  });
+
+  it('two parallel calls for one user start a single job', async () => {
+    let releaseCount: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseCount = resolve;
+    });
+    const userId = '64b000000000000000000002';
+    const a = build({ countPendingMediaJobs: jest.fn(async () => (await gate, 0)) }, userId);
+    const b = build({}, userId);
+    const first = run(a.clip);
+    const second = await run(b.clip);
+    releaseCount();
+    await first;
+    expect(second).toContain('being started right now');
+    expect(second).toContain('Do not call create_remotion_clip again');
+    expect(a.createMediaJob).toHaveBeenCalledTimes(1);
+    expect(b.createMediaJob).not.toHaveBeenCalled();
+  });
+
+  it('refuses while the user already has a clip rendering', async () => {
+    const { clip, createMediaJob } = build({ countPendingMediaJobs: jest.fn(async () => 1) });
+    const out = await run(clip);
+    expect(createMediaJob).not.toHaveBeenCalled();
+    expect(out).toContain('already has 1 clip being built');
+    expect(out).toContain('ask whether to try again');
+  });
+
+  it('returns every invalid field to the model and starts nothing', async () => {
+    const { clip, createMediaJob } = build();
+    const out = await run(clip, { title: 'x', scenes: [{ type: 'chart', duration_sec: 3, data: [{ label: 'a' }] }] });
+    expect(out).toContain('the storyboard is invalid');
+    expect(out).toContain('scenes[0].data: must have 2-8 items');
+    expect(createMediaJob).not.toHaveBeenCalled();
     expect(getClipEvents()[0]).toMatchObject({ event: 'tool.rejected' });
+  });
+
+  it('checks that file images exist before starting', async () => {
+    const { clip, createMediaJob } = build({ loadImage: jest.fn(async () => null) });
+    const out = await run(clip, {
+      title: 'x',
+      scenes: [{ type: 'image', duration_sec: 3, image: { source: 'file', file_id: 'missing-123' } }],
+    });
+    expect(out).toContain('missing-123 was not found');
+    expect(createMediaJob).not.toHaveBeenCalled();
+  });
+
+  it('refuses stock photos without a Pexels key', async () => {
+    const { clip } = build();
+    const out = await run(clip, {
+      title: 'x',
+      scenes: [{ type: 'image', duration_sec: 3, image: { source: 'stock', query: 'solar farm' } }],
+    });
+    expect(out).toContain('stock photos are off');
+  });
+
+  it('is unavailable without the worker env', async () => {
+    const { clip } = build({ env: {} });
+    expect(await run(clip)).toContain('not available');
   });
 });

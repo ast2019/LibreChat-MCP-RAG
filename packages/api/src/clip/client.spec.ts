@@ -1,77 +1,79 @@
 import { createRemotionServiceClient, RemotionServiceError } from './client';
-import type { WorkerRenderRequest } from './scene';
+import type { WorkerJobRequest } from './scene';
 
 const target = { url: 'http://remotion:3200', token: 't'.repeat(40) };
-const input = { width: 1, height: 2, durationSec: 5 } as unknown as WorkerRenderRequest;
-const reply = (status: number, body: unknown) =>
-  jest.fn(async () => ({ status, json: async () => body })) as unknown as typeof fetch;
+const body: WorkerJobRequest = {
+  storyboard: {
+    title: 'x',
+    aspectRatio: '9:16',
+    theme: 'midnight',
+    brandName: 'HiveGPT',
+    captions: true,
+    scenes: [{ type: 'hook', durationSec: 2, headline: 'a' }],
+  },
+  assets: {},
+  audio: { mode: 'none' },
+  shortSide: 720,
+  maxDurationSec: 90,
+  timeoutMs: 600_000,
+};
 
-describe('remotion client', () => {
-  it('parses stage, jobId, warnings and timings from a render', async () => {
-    const client = createRemotionServiceClient(
-      target,
-      reply(200, {
-        ok: true,
-        videoBase64: Buffer.from('mp4').toString('base64'),
-        jobId: 'j1',
-        timings: { renderMs: 5 },
-        warnings: ['tts_failed: x', 7],
-        durationSec: 9,
-      }),
-    );
-    const out = await client.render(input);
-    expect(out).toMatchObject({ jobId: 'j1', durationSec: 9, warnings: ['tts_failed: x'] });
-    expect(out.timings).toEqual({ renderMs: 5 });
+const respond = (status: number, json: unknown) =>
+  jest.fn(async () => ({ status, json: async () => json })) as unknown as typeof fetch;
+
+describe('createRemotionServiceClient', () => {
+  it('submits a job with the bearer token and a short budget', async () => {
+    const fetchImpl = respond(202, { ok: true, jobId: 'abc123def456', state: 'queued', stage: 'queued', progress: 0, warnings: [] });
+    const client = createRemotionServiceClient(target, fetchImpl);
+    const view = await client.submit(body);
+    expect(view).toMatchObject({ jobId: 'abc123def456', state: 'queued' });
+    const [url, init] = (fetchImpl as unknown as jest.Mock).mock.calls[0];
+    expect(url).toBe('http://remotion:3200/jobs');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe(`Bearer ${target.token}`);
+    expect(init.signal).toBeDefined();
   });
 
-  it('keeps stage, detail and jobId on worker errors', async () => {
+  it('turns a validation answer into a coded error with the field list', async () => {
     const client = createRemotionServiceClient(
       target,
-      reply(500, {
-        ok: false,
-        error: 'render_failed',
-        message: 'm',
-        stage: 'render',
-        detail: 'd',
-        jobId: 'j2',
-      }),
+      respond(400, { ok: false, error: 'invalid_storyboard', message: 'bad', errors: ['scenes[0].headline: is required'] }),
     );
-    await expect(client.render(input)).rejects.toMatchObject({
-      code: 'render_failed',
-      status: 500,
-      stage: 'render',
-      detail: 'd',
-      jobId: 'j2',
+    await expect(client.submit(body)).rejects.toMatchObject({
+      code: 'invalid_storyboard',
+      status: 400,
+      errors: ['scenes[0].headline: is required'],
     });
   });
 
-  it('separates a timeout from a connection failure', async () => {
-    const timeout = jest.fn(async () => {
-      throw Object.assign(new Error('t'), { name: 'TimeoutError' });
-    }) as unknown as typeof fetch;
+  it('maps 429 to busy and 404 to a not-found error', async () => {
+    await expect(createRemotionServiceClient(target, respond(429, { message: 'full' })).submit(body)).rejects.toMatchObject({ code: 'busy' });
+    await expect(createRemotionServiceClient(target, respond(404, { error: 'not_found' })).job('abc123def456')).rejects.toMatchObject({
+      code: 'not_found',
+      status: 404,
+    });
+  });
+
+  it('reports connection failures and timeouts as coded errors', async () => {
     const refused = jest.fn(async () => {
       throw Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
     }) as unknown as typeof fetch;
-    const a = (await createRemotionServiceClient(target, timeout)
-      .render(input)
-      .catch((e) => e)) as RemotionServiceError;
-    expect(a).toMatchObject({ code: 'timeout', status: 504 });
-    expect(a.message).toContain('timed out after 480s');
-    const b = (await createRemotionServiceClient(target, refused)
-      .render(input)
-      .catch((e) => e)) as RemotionServiceError;
-    expect(b).toMatchObject({ code: 'unavailable' });
-    expect(b.message).toContain('connection failed: ECONNREFUSED');
+    await expect(createRemotionServiceClient(target, refused).job('abc123def456')).rejects.toMatchObject({
+      code: 'unavailable',
+      message: expect.stringContaining('ECONNREFUSED'),
+    });
+    const slow = jest.fn(async () => {
+      throw Object.assign(new Error('t'), { name: 'TimeoutError' });
+    }) as unknown as typeof fetch;
+    const error = await createRemotionServiceClient(target, slow).cancel('abc123def456').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RemotionServiceError);
+    expect((error as RemotionServiceError).code).toBe('timeout');
   });
 
-  it('calls /status and /logs with the bearer token and query', async () => {
-    const fetchImpl = reply(200, { ok: true, entries: [{ id: 1 }], lastId: 1 });
-    const client = createRemotionServiceClient(target, fetchImpl);
-    expect((await client.logs({ limit: 5, level: 'warn', after: 3 })).entries).toHaveLength(1);
-    await client.status();
-    const calls = (fetchImpl as unknown as jest.Mock).mock.calls;
-    expect(calls[0][0]).toBe('http://remotion:3200/logs?limit=5&level=warn&after=3');
-    expect(calls[0][1].headers.Authorization).toBe(`Bearer ${target.token}`);
-    expect(calls[1][0]).toBe('http://remotion:3200/status');
+  it('downloads the finished video', async () => {
+    const fetchImpl = jest.fn(async () => ({ status: 200, arrayBuffer: async () => new TextEncoder().encode('mp4').buffer })) as unknown as typeof fetch;
+    const video = await createRemotionServiceClient(target, fetchImpl).video('abc123def456');
+    expect(video.toString()).toBe('mp4');
+    expect((fetchImpl as unknown as jest.Mock).mock.calls[0][0]).toBe('http://remotion:3200/jobs/abc123def456/video');
   });
 });

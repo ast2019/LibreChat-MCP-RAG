@@ -91,6 +91,8 @@ services:
       # Remotion clip builder («کلیپ‌ساز»): short MP4s on the `remotion` service below.
       REMOTION_SERVICE_URL: http://remotion:3200
       REMOTION_SERVICE_TOKEN: ${SERVICE_HEX_64_REMOTION}
+      # Optional stock photos for clips (Pexels); empty = off
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
 
       # Users' own sites over MCP (cPanel, WordPress, NewsWatch): the `sitemcp` service below.
       # Only this token may call it; each user's site credentials travel per request.
@@ -283,8 +285,10 @@ services:
       SEARXNG_SECRET: ${SERVICE_HEX_64_SEARXNG}
       SEARXNG_BASE_URL: http://searxng:8080/
 
-  # Remotion clip worker: short branded MP4s (max 30s, 720p). Only the api calls it; leave
-  # its domain empty. At most two renders at once; further requests wait in a small queue.
+  # Remotion motion studio worker: storyboard clips (up to 90 s by default, 180 s at most)
+  # rendered as background jobs. Only the api calls it; leave its domain empty. One job at a
+  # time by default; each job's frame concurrency follows the CPUs given here. Optional: set
+  # PEXELS_API_KEY on the api for stock photos.
   remotion:
     build:
       context: ./deploy/remotion
@@ -292,7 +296,9 @@ services:
     environment:
       REMOTION_SERVICE_TOKEN: ${SERVICE_HEX_64_REMOTION}
       REMOTION_MAX_CONCURRENT: ${REMOTION_MAX_CONCURRENT:-1}
-      REMOTION_RENDER_CONCURRENCY: ${REMOTION_RENDER_CONCURRENCY:-1}
+      # Empty = derived from the CPU limit below (CPUs - 1 per job)
+      REMOTION_RENDER_CONCURRENCY: ${REMOTION_RENDER_CONCURRENCY:-}
+      REMOTION_JOB_TIMEOUT_MAX_MS: ${REMOTION_JOB_TIMEOUT_MAX_MS:-1800000}
     healthcheck:
       test:
         - CMD
@@ -306,8 +312,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: ${REMOTION_CPUS:-2}
-          memory: ${REMOTION_MEMORY:-4g}
+          cpus: ${REMOTION_CPUS:-6}
+          memory: ${REMOTION_MEMORY:-8g}
 
   # Agent browser (experimental): one headless Chromium per session, each behind its own
   # filtering proxy, so pages reach only public addresses on ports 80 and 443 (never this

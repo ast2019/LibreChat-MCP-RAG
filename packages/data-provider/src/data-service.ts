@@ -171,6 +171,11 @@ export function getMediaJob(jobId: string): Promise<TMediaJobView> {
   return request.get(endpoints.mediaJob(jobId));
 }
 
+/** Asks a background clip job to stop; the card shows it as cancelled. */
+export function cancelMediaJob(jobId: string): Promise<TMediaJobView> {
+  return request.post(endpoints.mediaJobCancel(jobId));
+}
+
 export function createAdminUser(
   payload: TAdminCreateUserRequest,
 ): Promise<TAdminCreateUserResponse> {

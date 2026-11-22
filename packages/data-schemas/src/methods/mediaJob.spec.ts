@@ -75,3 +75,48 @@ describe('media job methods', () => {
     );
   });
 });
+
+describe('clip jobs', () => {
+  const clip = () => ({
+    ...base(),
+    kind: 'clip' as const,
+    provider: 'remotion' as const,
+    providerJobId: 'pending',
+    providerModel: 'remotion',
+    endpoint: 'remotion',
+    context: 'clip_generation',
+    fallbackUsd: 0,
+    priceMultiplier: 1,
+    pollIntervalMs: 3_000,
+    nextPollAt: new Date(Date.now() - 1000),
+    progress: 0,
+    stage: 'queued',
+    payload: { request: { storyboard: { title: 'x' } } },
+  });
+
+  it('stores progress, stage and payload, and claims by kind', async () => {
+    const created = await methods.createMediaJob(clip());
+    expect(created).toMatchObject({ kind: 'clip', stage: 'queued', progress: 0 });
+    expect(created.payload).toEqual({ request: { storyboard: { title: 'x' } } });
+    const videosOnly = await methods.claimDueMediaJobs({ now: new Date(), leaseMs: 60_000, limit: 10, kinds: ['video'] });
+    expect(videosOnly.some((job) => job.id === created.id)).toBe(false);
+    const clips = await methods.claimDueMediaJobs({ now: new Date(), leaseMs: 60_000, limit: 10, kinds: ['clip'] });
+    expect(clips.map((job) => job.id)).toContain(created.id);
+    const updated = await methods.updateMediaJob(created.id, { stage: 'render', progress: 0.5, workerJobId: 'w1' });
+    expect(updated).toMatchObject({ stage: 'render', progress: 0.5, workerJobId: 'w1' });
+  });
+
+  it('counts pending clips per user and lets only the owner request a cancel', async () => {
+    const user = new mongoose.Types.ObjectId().toString();
+    const job = await methods.createMediaJob({ ...clip(), user });
+    expect(await methods.countPendingMediaJobs(user, 'clip')).toBe(1);
+    expect(await methods.countPendingMediaJobs(user, 'video')).toBe(0);
+    expect(await methods.requestMediaJobCancel(job.id, owner)).toBeNull();
+    const asked = await methods.requestMediaJobCancel(job.id, user);
+    expect(asked?.cancelRequested).toBe(true);
+    await methods.updateMediaJob(job.id, { status: 'failed', errorCode: 'cancelled' });
+    expect(await methods.countPendingMediaJobs(user, 'clip')).toBe(0);
+    const again = await methods.requestMediaJobCancel(job.id, user);
+    expect(again?.status).toBe('failed');
+  });
+});

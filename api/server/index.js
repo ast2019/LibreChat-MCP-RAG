@@ -96,6 +96,7 @@ const { startServiceStatusRefresh } = require('./services/ServiceStatus');
 const { startBrowserLogSync } = require('./services/Browser');
 const { getDebugCapture } = require('./services/Debug');
 const { startMediaJobWorker } = require('./services/Media');
+const { startClipJobWorker } = require('./services/Clip');
 const { checkMigrations } = require('./services/start/migration');
 const optionalJwtAuth = require('./middleware/optionalJwtAuth');
 const initializeMCPs = require('./services/initializeMCPs');
@@ -281,6 +282,7 @@ const startServer = async () => {
   startBrowserLogSync();
   getDebugCapture();
   startMediaJobWorker();
+  startClipJobWorker();
   // Register any programmatic tool-approval policy hooks declared in
   // `endpoints.agents.toolApproval.hooks`. Honor the `enabled` kill switch: when tool
   // approval is off we pass no hooks, so a disabled endpoint imports/runs nothing (and any

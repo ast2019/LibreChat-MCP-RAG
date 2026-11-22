@@ -30,10 +30,18 @@ describe('getClipConfig / getChatClipTools', () => {
   it('falls back to defaults when the yaml section is invalid', () => {
     expect(getClipConfig(withConfig({ maxDurationSec: 'many' }))).toMatchObject({
       clip: true,
-      maxDurationSec: 30,
+      maxDurationSec: 90,
       height: 720,
-      maxConcurrent: 2,
+      maxConcurrent: 1,
+      maxJobsPerUser: 1,
+      aiImages: false,
+      renderTimeoutSec: 600,
     });
+  });
+
+  it('caps the clip length at 180 seconds', () => {
+    expect(getClipConfig(withConfig({ maxDurationSec: 180 })).maxDurationSec).toBe(180);
+    expect(getClipConfig(withConfig({ maxDurationSec: 181 })).maxDurationSec).toBe(90);
   });
 });
 
@@ -77,6 +85,6 @@ describe('buildClipToolContext', () => {
   it('still describes the tool when nothing is attached', () => {
     const context = buildClipToolContext([ClipTools.clip], [], []);
     expect(context[ClipTools.clip]).toContain('create_remotion_clip');
-    expect(context[ClipTools.clip]).toContain('catalog style films');
+    expect(context[ClipTools.clip]).toContain('storyboard motion graphics');
   });
 });
