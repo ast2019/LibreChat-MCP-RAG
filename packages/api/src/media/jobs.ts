@@ -63,6 +63,8 @@ export interface MediaJobRunnerDeps {
     kinds?: MediaJobKind[];
   }) => Promise<MediaJobRecord[]>;
   updateMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
+  /** Completes a job only while it is still pending; null when another step delivered it */
+  completeMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
   /** The job owner as a request: their user, tenant and resolved config. Null when gone. */
   loadOwnerRequest: (job: MediaJobRecord) => Promise<ServerRequest | null>;
   saveMedia: (
@@ -158,6 +160,20 @@ export function createMediaJobRunner(deps: MediaJobRunnerDeps): {
         context: job.context,
       });
       const credits = mediaCredits(result.costUsd ?? job.fallbackUsd, job.priceMultiplier);
+      /** Completed before it is charged, and only by the step that moves it out of pending: a
+       *  completion write that fails retries without a charge, and a second step that also
+       *  reached this point (a lease that ran out mid-download) finds it delivered. */
+      const completed = await deps.completeMediaJob(job.id, {
+        status: 'completed',
+        file_id: saved.file_id,
+        filepath: saved.filepath,
+        type: saved.type,
+        chargedCredits: credits,
+      });
+      if (completed == null) {
+        logger.info(`[media] job ${job.id} was already delivered; not charging it again`);
+        return;
+      }
       await deps.billing.record(
         req,
         {
@@ -168,13 +184,6 @@ export function createMediaJobRunner(deps: MediaJobRunnerDeps): {
         },
         credits,
       );
-      await deps.updateMediaJob(job.id, {
-        status: 'completed',
-        file_id: saved.file_id,
-        filepath: saved.filepath,
-        type: saved.type,
-        chargedCredits: credits,
-      });
     } catch (error) {
       if (error instanceof MediaError && error.code !== 'provider_error') {
         await deps.updateMediaJob(job.id, { status: 'failed', errorCode: error.code });

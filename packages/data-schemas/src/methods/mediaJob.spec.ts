@@ -68,6 +68,17 @@ describe('media job methods', () => {
     ).toHaveLength(0);
   });
 
+  it('completes a job only once, so only one step charges it', async () => {
+    const job = await methods.createMediaJob(base());
+    const update = { status: 'completed' as const, chargedCredits: 1_300_000 };
+    expect(await methods.completeMediaJob(job.id, update)).toMatchObject({
+      status: 'completed',
+      chargedCredits: 1_300_000,
+    });
+    expect(await methods.completeMediaJob(job.id, update)).toBeNull();
+    expect(await methods.completeMediaJob('not-an-id', update)).toBeNull();
+  });
+
   it('does not claim a job before its next poll', async () => {
     await methods.createMediaJob(base());
     expect(await methods.claimDueMediaJobs({ now: new Date(), leaseMs: 1, limit: 5 })).toHaveLength(
@@ -98,11 +109,25 @@ describe('clip jobs', () => {
     const created = await methods.createMediaJob(clip());
     expect(created).toMatchObject({ kind: 'clip', stage: 'queued', progress: 0 });
     expect(created.payload).toEqual({ request: { storyboard: { title: 'x' } } });
-    const videosOnly = await methods.claimDueMediaJobs({ now: new Date(), leaseMs: 60_000, limit: 10, kinds: ['video'] });
+    const videosOnly = await methods.claimDueMediaJobs({
+      now: new Date(),
+      leaseMs: 60_000,
+      limit: 10,
+      kinds: ['video'],
+    });
     expect(videosOnly.some((job) => job.id === created.id)).toBe(false);
-    const clips = await methods.claimDueMediaJobs({ now: new Date(), leaseMs: 60_000, limit: 10, kinds: ['clip'] });
+    const clips = await methods.claimDueMediaJobs({
+      now: new Date(),
+      leaseMs: 60_000,
+      limit: 10,
+      kinds: ['clip'],
+    });
     expect(clips.map((job) => job.id)).toContain(created.id);
-    const updated = await methods.updateMediaJob(created.id, { stage: 'render', progress: 0.5, workerJobId: 'w1' });
+    const updated = await methods.updateMediaJob(created.id, {
+      stage: 'render',
+      progress: 0.5,
+      workerJobId: 'w1',
+    });
     expect(updated).toMatchObject({ stage: 'render', progress: 0.5, workerJobId: 'w1' });
   });
 

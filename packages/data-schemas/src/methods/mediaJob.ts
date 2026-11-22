@@ -25,6 +25,11 @@ export interface MediaJobMethods {
   }) => Promise<MediaJobRecord[]>;
   /** Applies the update and releases the lease; `payload: null` removes the stored payload. */
   updateMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
+  /**
+   * Applies `update` and releases the lease only while the job is still pending, so exactly one
+   * caller delivers (and charges) a finished job. Null when it was no longer pending.
+   */
+  completeMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
   /** How many of the user's jobs of `kind` are still pending. */
   countPendingMediaJobs: (userId: string, kind: MediaJobKind) => Promise<number>;
   /**
@@ -119,6 +124,27 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     return doc ? toRecord(doc as never) : null;
   }
 
+  async function completeMediaJob(
+    jobId: string,
+    update: MediaJobUpdate,
+  ): Promise<MediaJobRecord | null> {
+    if (!isValidObjectIdString(jobId)) {
+      return null;
+    }
+    const { payload, ...rest } = update;
+    const doc = await jobs()
+      .findOneAndUpdate(
+        { _id: jobId, status: 'pending' },
+        {
+          $set: { ...rest, ...(payload ? { payload } : {}), leaseUntil: null },
+          ...(payload === null ? { $unset: { payload: 1 } } : {}),
+        },
+        { new: true },
+      )
+      .lean();
+    return doc ? toRecord(doc as never) : null;
+  }
+
   async function countPendingMediaJobs(userId: string, kind: MediaJobKind): Promise<number> {
     if (!isValidObjectIdString(userId)) {
       return 0;
@@ -152,6 +178,7 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     findMediaJobForUser,
     claimDueMediaJobs,
     updateMediaJob,
+    completeMediaJob,
     countPendingMediaJobs,
     requestMediaJobCancel,
   };

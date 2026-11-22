@@ -448,6 +448,7 @@ describe('background video jobs', () => {
     const deps = {
       claimDueMediaJobs: jest.fn().mockResolvedValue([job]),
       updateMediaJob: jest.fn().mockResolvedValue(null),
+      completeMediaJob: jest.fn(async (id: string) => ({ ...job, id, status: 'completed' })),
       loadOwnerRequest: jest.fn().mockResolvedValue(req),
       saveMedia: jest.fn().mockResolvedValue({
         file_id: 'f1',
@@ -478,10 +479,46 @@ describe('background video jobs', () => {
       expect.objectContaining({ context: 'video_generation' }),
       1_500_000,
     );
-    expect(deps.updateMediaJob).toHaveBeenCalledWith(
+    expect(deps.completeMediaJob).toHaveBeenCalledWith(
       'job7',
       expect.objectContaining({ status: 'completed', filepath: '/images/u1/f1-video.mp4' }),
     );
+  });
+
+  const finished = () =>
+    jest
+      .fn()
+      .mockResolvedValueOnce(json({ status: 'completed', usage: { cost: 1 } }))
+      .mockResolvedValueOnce(
+        new Response(Buffer.from('mp4'), { headers: { 'content-type': 'video/mp4' } }),
+      )
+      .mockResolvedValueOnce(json({ status: 'completed', usage: { cost: 1 } }))
+      .mockResolvedValueOnce(
+        new Response(Buffer.from('mp4'), { headers: { 'content-type': 'video/mp4' } }),
+      );
+
+  it('charges a finished video once when its completion write fails and it is polled again', async () => {
+    const { runner, deps } = runnerWith(finished());
+    const blip = new Error('database blip');
+    deps.updateMediaJob.mockImplementation(async (_id: string, update: { status?: string }) => {
+      if (update.status === 'completed' && deps.updateMediaJob.mock.calls.length === 1) {
+        throw blip;
+      }
+      return null;
+    });
+    deps.completeMediaJob.mockRejectedValueOnce(blip);
+
+    await runner.tick();
+    await runner.tick();
+
+    expect(deps.billing.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('never charges a video another worker already delivered', async () => {
+    const { runner, deps } = runnerWith(finished());
+    deps.completeMediaJob.mockResolvedValueOnce(null as never);
+    await runner.tick();
+    expect(deps.billing.record).not.toHaveBeenCalled();
   });
 
   it('waits on a running job, and never charges a failed or overdue one', async () => {
