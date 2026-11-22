@@ -17,7 +17,9 @@ function appWith(getConfig: () => Promise<AppConfig | undefined>) {
   const onLimited = jest.fn((_req: express.Request, res: express.Response) =>
     res.redirect(303, '/payment/result?status=pending&code=rate_limited'),
   );
-  const callback = jest.fn((_req: express.Request, res: express.Response) => res.sendStatus(204));
+  const callback = jest.fn((_req: express.Request, res: express.Response) => {
+    res.sendStatus(204);
+  });
   app.get('/callback/:gateway', createPaymentCallbackLimiter({ getConfig, onLimited }), callback);
   return { app, onLimited, callback };
 }

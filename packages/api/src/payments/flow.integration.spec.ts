@@ -427,7 +427,7 @@ describe('payment flow against MongoDB', () => {
       .send({ status: '7', id: IDPAY_ID, order_id: orderId });
 
     expect(res.headers.location).toContain('status=success');
-    expect(gateway.calls.at(-1)?.path).toBe('/v1.1/payment/verify');
+    expect(gateway.calls[gateway.calls.length - 1]?.path).toBe('/v1.1/payment/verify');
     expect(await ledger(userId)).toHaveLength(1);
   });
 

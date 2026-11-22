@@ -70,7 +70,7 @@ export function createPaymentCallbackLimiter(deps: PaymentCallbackLimiterDeps): 
         max,
         standardHeaders: true,
         legacyHeaders: false,
-        keyGenerator: removePorts,
+        keyGenerator: (req) => removePorts(req) ?? 'unknown',
         handler: (req, res) => {
           const { retryAfterSeconds } = getRateLimitReset(
             (req as Request & { rateLimit?: RateLimitInfo }).rateLimit,

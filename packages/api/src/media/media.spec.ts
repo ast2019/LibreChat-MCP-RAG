@@ -448,7 +448,9 @@ describe('background video jobs', () => {
     const deps = {
       claimDueMediaJobs: jest.fn().mockResolvedValue([job]),
       updateMediaJob: jest.fn().mockResolvedValue(null),
-      completeMediaJob: jest.fn(async (id: string) => ({ ...job, id, status: 'completed' })),
+      completeMediaJob: jest
+        .fn()
+        .mockImplementation(async (id: string) => ({ ...job, id, status: 'completed' })),
       loadOwnerRequest: jest.fn().mockResolvedValue(req),
       saveMedia: jest.fn().mockResolvedValue({
         file_id: 'f1',
