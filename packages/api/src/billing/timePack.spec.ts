@@ -60,4 +60,44 @@ describe('grantTimePack', () => {
     expect(setUserTimePack).toHaveBeenCalled();
     expect(result.pack).toEqual({ id: 'claude-time', label: 'Claude month' });
   });
+
+  it('keeps the remaining days when re-granted before expiry (F8)', async () => {
+    const now = new Date('2026-01-10T00:00:00.000Z');
+    const upsertBalanceFields = jest.fn().mockResolvedValue({});
+    const findBalanceByUser = jest.fn().mockResolvedValue({
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: new Date('2026-01-31T00:00:00.000Z'),
+    });
+
+    const result = await grantTimePack(
+      { upsertBalanceFields, findBalanceByUser, now: () => now },
+      { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+    );
+
+    expect(result.expiresAt.toISOString()).toBe('2026-03-02T00:00:00.000Z');
+    expect(result.grantedAt).toBe(now);
+    expect(upsertBalanceFields).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ timePackExpiresAt: new Date('2026-03-02T00:00:00.000Z') }),
+    );
+  });
+
+  it('starts from now when the current pack expired or is on another endpoint', async () => {
+    const now = new Date('2026-01-10T00:00:00.000Z');
+    for (const current of [
+      { timePackEndpoint: 'ClaudeTime', timePackExpiresAt: '2026-01-01T00:00:00.000Z' },
+      { timePackEndpoint: 'OtherTime', timePackExpiresAt: '2026-05-01T00:00:00.000Z' },
+      null,
+    ]) {
+      const result = await grantTimePack(
+        {
+          upsertBalanceFields: jest.fn().mockResolvedValue({}),
+          findBalanceByUser: jest.fn().mockResolvedValue(current),
+          now: () => now,
+        },
+        { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+      );
+      expect(result.expiresAt.toISOString()).toBe('2026-02-09T00:00:00.000Z');
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { isTimePack, timePackExpiresAt, TIME_METER_CONTEXT } from 'librechat-data-provider';
+import { isTimePack, extendTimePackExpiry, TIME_METER_CONTEXT } from 'librechat-data-provider';
 import type { TBalancePack } from 'librechat-data-provider';
 
 export { TIME_METER_CONTEXT };
@@ -72,8 +72,18 @@ export interface GrantTimePackDeps {
   /** Same balance writer as credit grants; only time fields are set for this path. */
   upsertBalanceFields: GrantBalanceUpsert;
   setUserTimePack?: (user: string, fields: TimePackFields) => Promise<unknown>;
+  /**
+   * The user's current time-pack fields. With it, a re-grant on the same endpoint extends from
+   * the current expiry instead of replacing the remaining days.
+   */
+  findBalanceByUser?: (user: string) => Promise<CurrentTimePack | null>;
   now?: () => Date;
 }
+
+export type CurrentTimePack = {
+  timePackEndpoint?: string | null;
+  timePackExpiresAt?: Date | string | null;
+};
 
 type GrantBalanceUpsert = (
   user: string,
@@ -93,7 +103,8 @@ export interface GrantTimePackResult {
 }
 
 /**
- * Records a Claude time entitlement without touching token credits or the credit pack id.
+ * Records a Claude time entitlement without touching token credits or the credit pack id. A
+ * re-grant before expiry on the same endpoint adds `durationDays` to the current expiry.
  */
 export async function grantTimePack(
   deps: GrantTimePackDeps,
@@ -110,7 +121,12 @@ export async function grantTimePack(
   },
 ): Promise<GrantTimePackResult> {
   const grantedAt = (deps.now ?? (() => new Date()))();
-  const expiresAt = timePackExpiresAt(grantedAt, durationDays);
+  const current = await deps.findBalanceByUser?.(userId);
+  const expiresAt = extendTimePackExpiry({
+    currentExpiresAt: current?.timePackEndpoint === endpoint ? current.timePackExpiresAt : null,
+    now: grantedAt,
+    durationDays,
+  });
   const fields: TimePackFields = {
     timePackId: pack.id,
     timePackLabel: pack.label,
