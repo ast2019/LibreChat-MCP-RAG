@@ -84,6 +84,7 @@ export type MediaJobCreateData = Omit<
   'id' | 'status' | 'nextPollAt' | 'createdAt' | 'file_id' | 'filepath' | 'type' | 'chargedCredits'
 > & { nextPollAt?: Date };
 
+/** `payload: null` removes the stored payload (a finished clip keeps no storyboard). */
 export type MediaJobUpdate = Partial<
   Pick<
     MediaJobRecord,
@@ -99,4 +100,4 @@ export type MediaJobUpdate = Partial<
     | 'workerJobId'
     | 'warnings'
   >
->;
+> & { payload?: Record<string, unknown> | null };

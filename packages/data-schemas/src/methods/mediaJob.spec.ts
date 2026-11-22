@@ -119,4 +119,24 @@ describe('clip jobs', () => {
     const again = await methods.requestMediaJobCancel(job.id, user);
     expect(again?.status).toBe('failed');
   });
+
+  it('a cancel request on a video job is refused and does not move its next poll', async () => {
+    const user = new mongoose.Types.ObjectId().toString();
+    const nextPollAt = new Date(Date.now() + 120_000);
+    const video = await methods.createMediaJob({ ...base(), user, nextPollAt });
+    expect(await methods.requestMediaJobCancel(video.id, user)).toBeNull();
+    const stored = await methods.findMediaJobForUser(video.id, user);
+    expect(stored?.cancelRequested).toBeUndefined();
+    expect(new Date(stored!.nextPollAt).getTime()).toBe(nextPollAt.getTime());
+  });
+
+  it('updates the payload and removes it when the update sets it to null', async () => {
+    const job = await methods.createMediaJob(clip());
+    const next = { request: { storyboard: { title: 'y' } }, aiCredits: 5 };
+    expect((await methods.updateMediaJob(job.id, { payload: next }))?.payload).toEqual(next);
+    const done = await methods.updateMediaJob(job.id, { status: 'completed', payload: null });
+    expect(done?.payload).toBeUndefined();
+    const raw = await mongoose.models.MediaJob.findById(job.id).lean<Record<string, unknown>>();
+    expect(raw && 'payload' in raw).toBe(false);
+  });
 });

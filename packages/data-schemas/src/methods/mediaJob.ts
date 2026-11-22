@@ -23,13 +23,14 @@ export interface MediaJobMethods {
     /** Only these kinds (all kinds when omitted) */
     kinds?: MediaJobKind[];
   }) => Promise<MediaJobRecord[]>;
-  /** Applies the update and releases the lease. */
+  /** Applies the update and releases the lease; `payload: null` removes the stored payload. */
   updateMediaJob: (jobId: string, update: MediaJobUpdate) => Promise<MediaJobRecord | null>;
   /** How many of the user's jobs of `kind` are still pending. */
   countPendingMediaJobs: (userId: string, kind: MediaJobKind) => Promise<number>;
   /**
-   * Marks the user's pending job for cancellation; the worker applies it on its next step.
-   * Null when the job is not theirs; the record unchanged when it already finished.
+   * Marks the user's pending clip job for cancellation; the clip runner applies it on its next
+   * step. Null when the job is not theirs or is not a clip (provider videos cannot be stopped);
+   * the record unchanged when it already finished.
    */
   requestMediaJobCancel: (jobId: string, userId: string) => Promise<MediaJobRecord | null>;
 }
@@ -104,8 +105,16 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     jobId: string,
     update: MediaJobUpdate,
   ): Promise<MediaJobRecord | null> {
+    const { payload, ...rest } = update;
     const doc = await jobs()
-      .findOneAndUpdate({ _id: jobId }, { $set: { ...update, leaseUntil: null } }, { new: true })
+      .findOneAndUpdate(
+        { _id: jobId },
+        {
+          $set: { ...rest, ...(payload ? { payload } : {}), leaseUntil: null },
+          ...(payload === null ? { $unset: { payload: 1 } } : {}),
+        },
+        { new: true },
+      )
       .lean();
     return doc ? toRecord(doc as never) : null;
   }
@@ -126,7 +135,7 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     }
     const updated = await jobs()
       .findOneAndUpdate(
-        { _id: jobId, user: userId, status: 'pending' },
+        { _id: jobId, user: userId, kind: 'clip', status: 'pending' },
         { $set: { cancelRequested: true, nextPollAt: new Date() } },
         { new: true },
       )
@@ -134,7 +143,8 @@ export function createMediaJobMethods(mongoose: typeof import('mongoose')): Medi
     if (updated) {
       return toRecord(updated as never);
     }
-    return findMediaJobForUser(jobId, userId);
+    const existing = await findMediaJobForUser(jobId, userId);
+    return existing?.kind === 'clip' ? existing : null;
   }
 
   return {
