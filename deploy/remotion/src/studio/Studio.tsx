@@ -1,9 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fade } from '@remotion/transitions/fade';
-import { flip } from '@remotion/transitions/flip';
-import { wipe } from '@remotion/transitions/wipe';
-import { slide } from '@remotion/transitions/slide';
-import { clockWipe } from '@remotion/transitions/clock-wipe';
 import { linearTiming, TransitionSeries } from '@remotion/transitions';
 import {
   AbsoluteFill,
@@ -18,8 +13,7 @@ import {
   staticFile,
   useVideoConfig,
 } from 'remotion';
-import type { TransitionPresentation } from '@remotion/transitions';
-import type { Scene, StudioProps, TransitionId } from './types';
+import type { Scene, StudioProps } from './types';
 import type { Studio } from './layout';
 import { EN_FONTS, FA_FONTS, StudioContext, safeArea, useStudio } from './layout';
 import { Chart, Stat } from './scenes/data';
@@ -27,6 +21,7 @@ import { Compare, Icons, Steps, Timeline } from './scenes/structure';
 import { Cta, Hook, List, Logo, Quote } from './scenes/text';
 import { Location, Photo, Split } from './scenes/media';
 import { Background } from './background';
+import { scenePresentation } from './presentations';
 import { Captions } from './captions';
 import { loadFonts } from './fonts';
 import { themeFor } from './themes';
@@ -65,27 +60,6 @@ const SceneView: React.FC<{ scene: Scene; frames: number }> = ({ scene, frames }
       return null;
   }
 };
-
-function presentation(
-  id: TransitionId,
-  rtl: boolean,
-  width: number,
-  height: number,
-): TransitionPresentation<Record<string, unknown>> {
-  const forward = rtl ? 'from-left' : 'from-right';
-  switch (id) {
-    case 'slide':
-      return slide({ direction: forward }) as TransitionPresentation<Record<string, unknown>>;
-    case 'wipe':
-      return wipe({ direction: forward }) as TransitionPresentation<Record<string, unknown>>;
-    case 'flip':
-      return flip({ direction: forward }) as TransitionPresentation<Record<string, unknown>>;
-    case 'clock-wipe':
-      return clockWipe({ width, height }) as unknown as TransitionPresentation<Record<string, unknown>>;
-    default:
-      return fade() as TransitionPresentation<Record<string, unknown>>;
-  }
-}
 
 /** Music level under narration: full between lines, ducked while a voice speaks. */
 export function duckedVolume(
@@ -189,7 +163,7 @@ export const HiveGPTStudio: React.FC<StudioProps> = (props) => {
                 </TransitionSeries.Sequence>
                 {next && entry.transitionOut > 0 ? (
                   <TransitionSeries.Transition
-                    presentation={presentation(next.transition, studio.rtl, width, height)}
+                    presentation={scenePresentation(next.transition === 'none' ? 'fade' : next.transition, studio.rtl)}
                     timing={linearTiming({ durationInFrames: entry.transitionOut, easing: Easing.inOut(Easing.cubic) })}
                   />
                 ) : null}

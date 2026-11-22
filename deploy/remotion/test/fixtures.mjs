@@ -39,7 +39,7 @@ export const everySceneFa = {
   lang: 'fa',
   aspectRatio: '9:16',
   theme: 'aurora',
-  brandName: 'هایوجی‌پی‌تی',
+  brandName: 'HiveGPT',
   captions: false,
   scenes: [
     { type: 'hook', durationSec: 2, kicker: 'انرژی ۲۰۳۰', headline: 'برق پاک حالا ارزان‌ترین برق دنیاست', emphasis: ['ارزان‌ترین'], subline: 'در ده سال چه چیزی تغییر کرد', transition: 'fade' },
@@ -58,7 +58,7 @@ export const everySceneFa = {
     { type: 'split', durationSec: 2, headline: 'باتری فاصله را پر می‌کند', body: 'باتری‌ها برق ظهر را به شب می‌برند.', bullets: ['چهار ساعت ذخیره'], icon: 'battery-charging', transition: 'slide' },
     { type: 'list', durationSec: 2, title: 'سه نکته اصلی', bullets: ['قیمت ۹۰ درصد کم شد', 'ساخت سریع است', 'ذخیره‌سازی رو به رشد است'], transition: 'fade' },
     { type: 'location', durationSec: 2, place: 'نور ابوظبی', region: 'امارات متحده عربی', detail: 'یکی از بزرگ‌ترین نیروگاه‌های خورشیدی تک‌سایت', label: 'نگاه نزدیک', transition: 'fade' },
-    { type: 'logo', durationSec: 2, text: 'هایوجی‌پی‌تی', tagline: 'ساخته‌شده با کلیپ‌ساز', transition: 'fade' },
+    { type: 'logo', durationSec: 2, text: 'HiveGPT', tagline: 'ساخته‌شده با کلیپ‌ساز', transition: 'fade' },
     { type: 'cta', durationSec: 2, headline: 'برای نکته‌های بیشتر دنبال کنید', action: 'دنبال کنید', handle: '@hivegpt', transition: 'fade' },
   ],
 };
@@ -69,7 +69,7 @@ export const energyFa = {
   lang: 'fa',
   aspectRatio: '9:16',
   theme: 'midnight',
-  brandName: 'هایوجی‌پی‌تی',
+  brandName: 'HiveGPT',
   captions: true,
   music: { track: 'ambient', volume: 0.2 },
   scenes: [

@@ -220,6 +220,8 @@ test('stills return one key frame per scene', async () => {
     assert.equal(res.ok, true);
     assert.equal(res.stills.length, 2);
     assert.deepEqual(res.stills.map((s) => s.frame), [36, 96]);
+    const exact = await (await post(base, { storyboard: storyboard(), frames: [67, 5000, -1, 3] }, '/stills')).json();
+    assert.deepEqual(exact.stills.map((s) => s.frame), [67, 3], 'exact frames inside the clip only');
   });
 });
 

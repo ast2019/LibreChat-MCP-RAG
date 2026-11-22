@@ -504,7 +504,7 @@ async function main(): Promise<number> {
       process.execPath,
       [
         '--test',
-        ...['diagnostics', 'e2e', 'server', 'storyboard', 'ttsapi'].map((n) => `test/${n}.test.mjs`),
+        ...['diagnostics', 'e2e', 'server', 'storyboard', 'transitions', 'ttsapi'].map((n) => `test/${n}.test.mjs`),
       ],
       resolve(ROOT, 'deploy/remotion'),
     );

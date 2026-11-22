@@ -550,6 +550,8 @@ async function runJob(ctx, job) {
   const frames = inputProps.timeline.totalFrames;
   Object.assign(job.summary, { frames, ...prepared.size });
   job.result.durationSec = frames / FPS;
+  /** Final scene starts and lengths (after narration stretched them), for frame checks. */
+  job.result.scenes = inputProps.timeline.scenes.map(({ from, frames: length, transitionOut }) => ({ from, frames: length, transitionOut }));
   job.result.width = prepared.size.width;
   job.result.height = prepared.size.height;
 
@@ -683,6 +685,7 @@ function jobView(job, queue) {
     ...(job.frames ? { frames: job.frames } : {}),
     ...(job.result.durationSec ? { durationSec: job.result.durationSec, width: job.result.width, height: job.result.height } : {}),
     ...(job.result.bytes ? { bytes: job.result.bytes } : {}),
+    ...(job.result.scenes ? { scenes: job.result.scenes } : {}),
     warnings: job.warnings,
     ...(job.error ? { error: job.error.code, message: job.error.message, ...(job.error.errors ? { errors: job.error.errors } : {}) } : {}),
   };
@@ -915,9 +918,11 @@ export function createServer({
       const serveUrl = await bundles.get();
       const composition = await selectImpl({ serveUrl, id: COMPOSITION, inputProps, timeoutInMilliseconds: timeoutMs, ...browserOptions });
       const count = Math.min(30, Math.max(1, Math.round(Number(body.stills) || 6)));
-      const frames = inputProps.timeline.scenes
-        .slice(0, count)
-        .map((entry) => Math.min(inputProps.timeline.totalFrames - 1, entry.from + Math.round(entry.frames * 0.6)));
+      const last = inputProps.timeline.totalFrames - 1;
+      /** `frames`: exact frames to render (transition checks); else 60% into each scene. */
+      const frames = Array.isArray(body.frames)
+        ? body.frames.filter((f) => Number.isInteger(f) && f >= 0 && f <= last).slice(0, 30)
+        : inputProps.timeline.scenes.slice(0, count).map((entry) => Math.min(last, entry.from + Math.round(entry.frames * 0.6)));
       const stills = [];
       for (const frame of frames) {
         if (timedOut) {
