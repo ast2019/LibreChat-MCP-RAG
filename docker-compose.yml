@@ -57,11 +57,11 @@ services:
       # Model provider: the only required value.
       OPENROUTER_KEY: ${OPENROUTER_KEY:?}
 
-      # Unlimited Claude plan (endpoints.custom ClaudeTime → AIPrimeTech Messages API).
-      # Optional until you grant kind:time packs; unset key leaves a placeholder (app still boots).
-      # Base URL is the Anthropic SDK host without /v1 (SDK appends /v1/messages).
+      # Unlimited Claude plan (endpoints.custom ClaudeTime). Set both in Coolify; leave unset
+      # until you grant kind:time packs (app still boots). Base URL = Anthropic SDK host
+      # without /v1 (client appends /v1/messages). Keep the host out of user-facing copy.
       CLAUDE_TIME_KEY: ${CLAUDE_TIME_KEY:-}
-      CLAUDE_TIME_BASE_URL: ${CLAUDE_TIME_BASE_URL:-https://aiprimetech.io}
+      CLAUDE_TIME_BASE_URL: ${CLAUDE_TIME_BASE_URL:-}
 
       # Secrets (generated once by Coolify, then kept). Changing CREDS_KEY/IV later makes
       # stored encrypted credentials unreadable; changing JWT secrets logs everyone out.

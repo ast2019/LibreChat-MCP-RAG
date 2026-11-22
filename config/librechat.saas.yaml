@@ -146,13 +146,13 @@ balance:
       label: 'بسته حرفه‌ای'
       credits: 30000000
       description: '$30 of usage at marketed prices'
-    # Unlimited Claude plan: dedicated AIPrimeTech API (ClaudeTime), shared 4-seat pool, no credit spend.
+    # Unlimited Claude plan: dedicated Messages API (ClaudeTime), shared 4-seat pool, no credit spend.
     - id: claude-time
       kind: time
       label: 'پلن نامحدود Claude'
       durationDays: 30
       endpoint: 'ClaudeTime'
-      description: '۳۰ روز Claude روی API اختصاصی (پلن نامحدود؛ ظرفیت مشترک)'
+      description: '۳۰ روز دسترسی نامحدود به Claude (ظرفیت مشترک)'
   # Shared seat pool for kind: time packs (max 4 concurrent generations globally, 1 per user).
   timePack:
     maxSeats: 4
@@ -826,9 +826,9 @@ endpoints:
     # only to Zero-Data-Retention endpoints of providers that do not collect data. Requests fail
     # rather than fall back when no such endpoint is available. Prices are fetched live (the
     # base URL identifies OpenRouter) and marked up like the main endpoint.
-    # Unlimited Claude plan only. AIPrimeTech Anthropic Messages gateway.
-    # Set CLAUDE_TIME_KEY in Coolify. Base URL must be the host without /v1
-    # (Anthropic SDK appends /v1/messages). Compose defaults to https://aiprimetech.io.
+    # Unlimited Claude plan only. Dedicated Anthropic Messages gateway (host in CLAUDE_TIME_*).
+    # Set CLAUDE_TIME_KEY and CLAUDE_TIME_BASE_URL in Coolify. Base URL is the SDK host
+    # without /v1 (the Anthropic client appends /v1/messages). Never expose the host to users.
     - name: 'ClaudeTime'
       provider: 'anthropic'
       apiKey: '${CLAUDE_TIME_KEY}'
@@ -845,7 +845,6 @@ endpoints:
       modelDisplayLabel: 'Claude'
       # Metering rates for fairness (credits equivalent); time path does not charge tokenCredits.
       # `context` is required by configSchema — missing it exits the api process (Coolify restart loop).
-      # Context windows follow the AIPrimeTech catalog (1M).
       priceMultiplier: 1
       tokenConfig:
         'claude-sonnet-5-5':
@@ -1083,7 +1082,7 @@ modelSpecs:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-haiku-latest'
         modelLabel: 'Claude Haiku'
-    # --- Unlimited Claude plan (AIPrimeTech; only with an active time entitlement) ---
+    # --- Unlimited Claude plan (dedicated API; only with an active time entitlement) ---
     - name: 'time-smart'
       label: 'Claude Sonnet 5.5'
       description: 'پلن نامحدود؛ دقیق و متعادل'
