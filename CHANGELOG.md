@@ -7,6 +7,39 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-11-22
+
+### Added
+- **Unlimited Claude plan (time packs, shipped in #116–#119 without an entry).** A `kind: time`
+  pack grants Claude on its own endpoint (`ClaudeTime`, `time-*` model specs) for
+  `durationDays` without spending credits; a re-grant before the end adds to the remaining days.
+  Generations share a pool of `balance.timePack.maxSeats` (4) with `maxSeatsPerUser` (1) each.
+  When the pool is full, the heaviest user over `oversellMinMeteredCredits` in the fixed
+  `usageWindowHours` window loses the seat of that one generation and rests `restMinutes`.
+  Covered usage is written to the ledger as `time_meter` and metered for fairness; other models
+  in the same turn are charged as usual. Without an active plan the endpoint answers
+  `time_pack_required`.
+
+### Fixed
+- **A crashed generation no longer keeps its seat.** Each generation holds a lease that a
+  heartbeat renews every `leaseSeconds / 3` (`leaseSeconds`, default 120); expired leases are
+  dropped before every admission, in Redis and in memory. Before, a process that died
+  mid-generation left the user «held» and the pool a seat short.
+- **Oversale is one atomic step** and stops only the generation that held the seat, not the
+  holder's other chats; a request arriving meanwhile can no longer take the freed seat.
+- **No server-side bypass of the plan.** Ordinary chats were held back only by
+  `modelSpecs.enforce`; saved agents, scheduled runs and subagents on `ClaudeTime` were not
+  checked. They now get `time_pack_required` before any work.
+- **Billing inside a plan turn.** Subagents, summarization, memory and titles on other models
+  were metered instead of charged; titles finished after the seat was released were charged
+  instead of metered. A model allowlist no longer matches a request without a model.
+- **Redis errors** admitted without any limit. They now use the process pool
+  (`timePack.redisFailure: memory`, default) or refuse (`reject`).
+- `maxSeatsPerUser` is enforced; the meter's increment and expiry are one step; a second tab
+  is answered «held» without logging a violation toward a ban.
+- `config/librechat.saas.yaml` is parsed through the boot config loader in
+  `npm run verify:prod`, so a bad value fails before deploy (0.38.13, #117).
+
 ## [0.40.0] - 2026-11-22
 
 ### Changed
