@@ -4104,6 +4104,19 @@ export const DEFAULT_TIME_PACK_REST_MINUTES = 60;
 export const DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS = 24;
 /** ~$5 of metered usage in a window before a seat holder can be force-rested for oversale. */
 export const DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS = 5_000_000;
+/**
+ * Seconds a seat lease lives without a heartbeat. A running generation renews its lease about
+ * every third of this, so a process that dies mid-generation frees its seat within this time.
+ */
+export const DEFAULT_TIME_PACK_LEASE_SECONDS = 120;
+/**
+ * What seat admission does when Redis errors: `memory` admits against this process's own pool
+ * (exact for a single api instance, at most `maxSeats` per instance otherwise); `reject` refuses
+ * the request with reason `unavailable`.
+ */
+export const TIME_PACK_REDIS_FAILURE_MODES = ['memory', 'reject'] as const;
+export type TimePackRedisFailureMode = (typeof TIME_PACK_REDIS_FAILURE_MODES)[number];
+export const DEFAULT_TIME_PACK_REDIS_FAILURE: TimePackRedisFailureMode = 'memory';
 
 export const timePackRuntimeSchema = z.object({
   maxSeats: z.number().int().min(1).max(32).optional().default(DEFAULT_TIME_PACK_MAX_SEATS),
@@ -4134,6 +4147,17 @@ export const timePackRuntimeSchema = z.object({
     .min(0)
     .optional()
     .default(DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS),
+  leaseSeconds: z
+    .number()
+    .int()
+    .min(30)
+    .max(60 * 60)
+    .optional()
+    .default(DEFAULT_TIME_PACK_LEASE_SECONDS),
+  redisFailure: z
+    .enum(TIME_PACK_REDIS_FAILURE_MODES)
+    .optional()
+    .default(DEFAULT_TIME_PACK_REDIS_FAILURE),
 });
 
 export type TTimePackRuntime = z.infer<typeof timePackRuntimeSchema>;
@@ -5640,6 +5664,10 @@ export enum ErrorTypes {
    * Invalid Agent Provider (excluded by Admin)
    */
   INVALID_AGENT_PROVIDER = 'invalid_agent_provider',
+  /**
+   * The request targets a time-pack endpoint (e.g. `ClaudeTime`) without an active time pack.
+   */
+  TIME_PACK_REQUIRED = 'time_pack_required',
   /**
    * Missing model selection
    */
