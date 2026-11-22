@@ -158,8 +158,15 @@ balance:
     maxSeats: 4
     maxSeatsPerUser: 1
     restMinutes: 60
+    # Fixed fairness window, opened by the user's first metered usage.
     usageWindowHours: 24
     oversellMinMeteredCredits: 5000000
+    # A running generation renews its seat lease every leaseSeconds/3; a crashed process
+    # frees its seats after leaseSeconds.
+    leaseSeconds: 120
+    # On a Redis error: memory = admit against this process's pool (exact with one api
+    # container); reject = refuse with reason "unavailable".
+    redisFailure: memory
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'
