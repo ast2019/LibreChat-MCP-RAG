@@ -340,6 +340,10 @@ jest.mock('@librechat/api', () => ({
   decrementPendingRequest: (...args) => mockDecrementPendingRequest(...args),
   sanitizeMessageForTransmit: jest.fn((message) => message),
   checkAndIncrementPendingRequest: (...args) => mockCheckAndIncrementPendingRequest(...args),
+  admitAgentTimePack: (...args) => jest.requireActual('@librechat/api').admitAgentTimePack(...args),
+  abortTimePackLease: () => jest.fn(),
+  releaseAdmittedRequestSlot: (...args) =>
+    jest.requireActual('@librechat/api').releaseAdmittedRequestSlot(...args),
   getAgentStartupTelemetry: (...args) => mockGetAgentStartupTelemetry(...args),
   acceptAgentStartupTelemetry: (...args) => mockAcceptAgentStartupTelemetry(...args),
   isUnpersistedPreliminaryParent: async ({
@@ -580,6 +584,81 @@ describe('ResumableAgentController resume metadata', () => {
     mockGetAgentEventActorDetachedAction.mockResolvedValue(null);
     mockClaimAgentEventActorSuspension.mockResolvedValue({ status: 'claimed' });
     mockSettleAgentEventActorSuspension.mockResolvedValue({ status: 'settled' });
+  });
+
+  describe('unlimited Claude plan admission', () => {
+    const timePackConfig = {
+      balance: {
+        enabled: true,
+        packs: [
+          {
+            id: 'claude-time',
+            label: 'Claude',
+            kind: 'time',
+            durationDays: 30,
+            endpoint: 'ClaudeTime',
+          },
+        ],
+        timePack: { maxSeats: 4, maxSeatsPerUser: 1, leaseSeconds: 60 },
+      },
+    };
+    const timePackRequest = (user, conversationId = 'conversation-123') => ({
+      user,
+      body: {
+        text: 'Hello Claude',
+        messageId: 'user-message',
+        conversationId,
+        endpointOption: {
+          endpoint: 'agents',
+          agent: Promise.resolve({ provider: 'ClaudeTime', model: 'claude-opus-5-5' }),
+          model_parameters: {},
+        },
+      },
+      config: timePackConfig,
+    });
+    const entitledUser = {
+      id: 'user-time',
+      timePackId: 'claude-time',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+    };
+
+    afterEach(() => {
+      jest.requireActual('@librechat/api').__resetTimePackSeatsForTests();
+    });
+
+    it('refuses a saved ClaudeTime agent for a user without a time pack before any work (F2)', async () => {
+      const req = timePackRequest({ id: 'user-free' });
+      const res = { json: jest.fn(), status: jest.fn(() => res), set: jest.fn() };
+
+      await AgentController(req, res, jest.fn(), jest.fn(), null);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'time_pack_required', code: 'time_pack_required' }),
+      );
+      expect(mockGenerationJobManager.createJob).not.toHaveBeenCalled();
+      expect(mockCheckAndIncrementPendingRequest).not.toHaveBeenCalled();
+    });
+
+    it('answers a second tab with held and logs no violation (F9)', async () => {
+      const { logViolation } = require('~/cache');
+      await jest
+        .requireActual('@librechat/api')
+        .getTimeSeatPool()
+        .acquire({ userId: 'user-time', leaseId: 'first-tab' }, timePackConfig.balance.timePack);
+      const req = timePackRequest(entitledUser);
+      const res = { json: jest.fn(), status: jest.fn(() => res), set: jest.fn() };
+
+      await AgentController(req, res, jest.fn(), jest.fn(), null);
+
+      expect(res.status).toHaveBeenCalledWith(429);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'time_pack_busy', reason: 'held', score: 0 }),
+      );
+      expect(logViolation).not.toHaveBeenCalled();
+      expect(mockGenerationJobManager.createJob).not.toHaveBeenCalled();
+    });
   });
 
   it.each([

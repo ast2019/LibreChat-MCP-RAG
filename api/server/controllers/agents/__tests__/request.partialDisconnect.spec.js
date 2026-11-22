@@ -111,6 +111,10 @@ jest.mock('@librechat/api', () => ({
   decrementPendingRequest: (...args) => mockDecrementPendingRequest(...args),
   sanitizeMessageForTransmit: jest.fn((message) => message),
   checkAndIncrementPendingRequest: (...args) => mockCheckAndIncrementPendingRequest(...args),
+  admitAgentTimePack: (...args) => jest.requireActual('@librechat/api').admitAgentTimePack(...args),
+  abortTimePackLease: () => jest.fn(),
+  releaseAdmittedRequestSlot: (...args) =>
+    jest.requireActual('@librechat/api').releaseAdmittedRequestSlot(...args),
   getAgentStartupTelemetry: jest.fn(() => undefined),
   acceptAgentStartupTelemetry: jest.fn(),
   isUnpersistedPreliminaryParent: jest.fn(async () => false),

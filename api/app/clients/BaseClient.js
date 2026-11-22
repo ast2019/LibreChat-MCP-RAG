@@ -1017,7 +1017,7 @@ class BaseClient {
     try {
       if (
         balanceConfig?.enabled &&
-        this.options.req?._timePackSeatHeld !== true &&
+        this.options.req?._timePackEntitlement == null &&
         supportsBalanceCheck[this.options.endpointType ?? this.options.endpoint]
       ) {
         const balanceAdmission = checkBalance(

@@ -2,6 +2,7 @@ export * from './markup';
 export * from './packs';
 export * from './timePack';
 export * from './timeSeats';
+export * from './route';
 export * from './admitTimePack';
 export * from './handlers';
 export * from './currency';

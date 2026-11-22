@@ -527,6 +527,51 @@ describe('initializeAgent: allowed providers', () => {
   });
 });
 
+describe('initializeAgent: time-pack endpoint', () => {
+  const packs = [
+    { id: 'claude-time', label: 'Claude', kind: 'time', durationDays: 30, endpoint: 'ClaudeTime' },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const initialize = (user: Record<string, unknown>) => {
+    const { agent, req, res, loadTools, db } = createMocks({
+      provider: 'ClaudeTime',
+      overrideProvider: Providers.ANTHROPIC,
+    });
+    Object.assign(req, { user, config: { balance: { enabled: true, packs } } });
+    return initializeAgent(
+      {
+        req,
+        res,
+        agent,
+        loadTools,
+        endpointOption: { endpoint: EModelEndpoint.agents },
+        allowedProviders: new Set(),
+        isInitialAgent: true,
+      },
+      db,
+    );
+  };
+
+  it('rejects a saved agent on the time-pack endpoint without an active time pack (F2)', async () => {
+    await expect(initialize({ id: 'user-1' })).rejects.toThrow(ErrorTypes.TIME_PACK_REQUIRED);
+  });
+
+  it('initializes it for a user with an active time pack', async () => {
+    await expect(
+      initialize({
+        id: 'user-1',
+        timePackId: 'claude-time',
+        timePackEndpoint: 'ClaudeTime',
+        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+      }),
+    ).resolves.toBeDefined();
+  });
+});
+
 describe('initializeAgent: ChatProject context', () => {
   const filterMock = jest.requireMock('~/files') as {
     filterFilesByEndpointRuntimeConfig: jest.Mock;
