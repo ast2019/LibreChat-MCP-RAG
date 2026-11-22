@@ -18,6 +18,8 @@ const CLIP_ERRORS: Record<string, TranslationKeys> = {
   invalid_storyboard: 'com_clip_job_error_storyboard',
   narration_too_long: 'com_clip_job_error_narration',
   image_failed: 'com_clip_job_error_image',
+  insufficient_credit: 'com_clip_job_error_credit',
+  assets_too_large: 'com_clip_job_error_assets',
   audio_missing: 'com_clip_job_error_audio',
   worker_lost: 'com_clip_job_error_lost',
   unavailable: 'com_clip_job_error_unavailable',

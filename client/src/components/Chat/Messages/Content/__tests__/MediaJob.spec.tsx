@@ -62,6 +62,16 @@ describe('MediaJob', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error');
   });
 
+  it('names oversized assets and missing credit for AI images', () => {
+    mockJob = { data: { id: 'c', kind: 'clip', status: 'failed', errorCode: 'assets_too_large' } };
+    const { unmount } = render(<MediaJob jobId="c" />);
+    expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error_assets');
+    unmount();
+    mockJob = { data: { id: 'c', kind: 'clip', status: 'failed', errorCode: 'insufficient_credit' } };
+    render(<MediaJob jobId="c" />);
+    expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error_credit');
+  });
+
   it('plays a finished clip in place of the card', () => {
     mockJob = { data: { id: 'c', kind: 'clip', status: 'completed', filepath: '/images/u/clip.mp4', progress: 1 } };
     render(<MediaJob jobId="c" />);

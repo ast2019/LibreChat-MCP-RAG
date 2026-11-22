@@ -4688,5 +4688,7 @@
   "com_clip_job_error_image": "An image for the clip could not be loaded or made.",
   "com_clip_job_error_audio": "The audio file for the clip was not found.",
   "com_clip_job_error_lost": "The clip renderer restarted and the clip was lost. Ask again to retry.",
-  "com_clip_job_error_unavailable": "The clip builder is not available right now."
+  "com_clip_job_error_unavailable": "The clip builder is not available right now.",
+  "com_clip_job_error_credit": "Your credit did not cover the clip's AI images. Add credit or ask for the clip without AI images.",
+  "com_clip_job_error_assets": "The clip's images and audio are too large. Ask again with fewer or smaller files."
 }
