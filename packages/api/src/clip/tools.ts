@@ -1,4 +1,5 @@
 import { logger } from '@librechat/data-schemas';
+import { TOOL_APPROVAL_EXECUTION_SCOPE_CONFIG_KEY } from '@librechat/agents';
 import { tool } from '@librechat/agents/langchain/tools';
 import { ClipTools, CLIP_FILE_CONTEXT } from 'librechat-data-provider';
 import type { MediaJobCreateData, MediaJobKind, MediaJobRecord } from '@librechat/data-schemas';
@@ -19,6 +20,25 @@ import { parseClipInput } from './scene';
 import { pexelsKey } from './images';
 
 const FILE_ID = /^[A-Za-z0-9_-]{6,100}$/;
+/** Audio the worker can decode (its AUDIO_EXT table in deploy/remotion/src/server.mjs). */
+export const CLIP_AUDIO_TYPES: ReadonlySet<string> = new Set([
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/ogg',
+  'audio/webm',
+]);
+/**
+ * Sizes assumed for images the job makes or downloads later, for the tool-time size check:
+ * a generated image at the configured resolution, and a Pexels `large2x` photo.
+ */
+const AI_IMAGE_BYTES = 3 * 1024 * 1024;
+const STOCK_IMAGE_BYTES = 2 * 1024 * 1024;
+/** How long a turn's clip is remembered for the one-per-turn guard. */
+const TURN_TTL_MS = 30 * 60_000;
 /** A 1×1 grey PNG standing in for AI and stock images in a preview (nothing is generated). */
 const PLACEHOLDER_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
@@ -60,8 +80,9 @@ type TextPart = { type: 'text'; text: string };
 type ImagePart = { type: 'image_url'; image_url: { url: string } };
 type ToolResult = [TextPart[], { content?: ImagePart[] }];
 
-interface RunnableConfig {
-  configurable?: { thread_id?: string };
+/** The part of the tool run config the clip tool reads. */
+export interface RunnableConfig {
+  configurable?: { thread_id?: string; run_id?: unknown } & Record<string, unknown>;
 }
 
 const reply = (message: string): ToolResult => [[{ type: 'text', text: message }], {}];
@@ -74,6 +95,50 @@ const NO_RETRY =
  * past the database count; this set closes that window.
  */
 const creating = new Set<string>();
+
+/**
+ * Clip jobs started per turn. The agents handler builds the tools again for every tool batch,
+ * so the guard lives here, keyed by the turn's response message id (from the run config), and
+ * otherwise by conversation and parent message.
+ */
+const turnJobs = new Map<string, { jobId: string; expires: number }>();
+
+/** The key of the turn a tool call belongs to; null when the run config names none. */
+export function clipTurnKey(
+  userId: string,
+  run: RunnableConfig | undefined,
+  req: ServerRequest,
+): string | null {
+  const c = run?.configurable ?? {};
+  const scope = c[TOOL_APPROVAL_EXECUTION_SCOPE_CONFIG_KEY];
+  if (typeof scope === 'string') {
+    try {
+      const [responseMessageId] = JSON.parse(scope) as unknown[];
+      if (typeof responseMessageId === 'string' && responseMessageId) {
+        return `${userId}:response:${responseMessageId}`;
+      }
+    } catch {
+      // not the agents' JSON pair; try the other keys
+    }
+  }
+  if (typeof c.run_id === 'string' && c.run_id) {
+    return `${userId}:run:${c.run_id}`;
+  }
+  const parent = (req.body as { parentMessageId?: unknown } | undefined)?.parentMessageId;
+  if (typeof c.thread_id === 'string' && typeof parent === 'string' && parent) {
+    return `${userId}:parent:${c.thread_id}:${parent}`;
+  }
+  return null;
+}
+
+function turnJobFor(key: string | null, now = Date.now()): string | null {
+  for (const [k, entry] of turnJobs) {
+    if (entry.expires <= now) {
+      turnJobs.delete(k);
+    }
+  }
+  return key ? (turnJobs.get(key)?.jobId ?? null) : null;
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
@@ -105,19 +170,41 @@ export function createClipTools(
   deps: ClipToolDeps,
 ): StructuredToolInterface[] {
   const env = deps.env ?? process.env;
-  /** One clip job per turn: the tools are built once per request. */
-  let turnJob: MediaJobRecord | null = null;
+  /** Fallback for a run config without a turn key: this instance's own job. */
+  let instanceJob: string | null = null;
 
-  async function checkFiles(request: ClipRequest): Promise<string | null> {
+  /** Files exist, audio is a format the worker reads, and the assets fit the worker's limit. */
+  async function checkFiles(request: ClipRequest, config: TClipToolsConfig): Promise<string | null> {
+    let bytes = 0;
     for (const ref of request.images) {
-      if (ref.source === 'file' && !(await deps.loadImage(req, ref.fileId))) {
+      if (ref.source === 'ai') {
+        bytes += AI_IMAGE_BYTES;
+        continue;
+      }
+      if (ref.source === 'stock') {
+        bytes += STOCK_IMAGE_BYTES;
+        continue;
+      }
+      const file = await deps.loadImage(req, ref.fileId);
+      if (!file) {
         return `the image ${ref.fileId} was not found among the user's files. Use an id from the attached or generated images listed in the context.`;
       }
+      bytes += file.buffer.length;
     }
     if (request.audio.mode === 'upload' && request.audio.fileId) {
-      if (!FILE_ID.test(request.audio.fileId) || !(await deps.loadAudio(req, request.audio.fileId))) {
+      const audio = FILE_ID.test(request.audio.fileId) ? await deps.loadAudio(req, request.audio.fileId) : null;
+      if (!audio) {
         return 'the uploaded audio was not found. Ask the user to attach an audio file to this message and use its id.';
       }
+      if (!CLIP_AUDIO_TYPES.has(audio.type)) {
+        return `the uploaded audio is ${audio.type.slice(0, 40)}, which the clip builder cannot read. Ask the user for MP3, WAV, M4A, OGG or WebM audio, or use audio mode "tts" or "none".`;
+      }
+      bytes += audio.buffer.length;
+    }
+    const limit = config.maxAssetMb * 1024 * 1024;
+    if (bytes > limit) {
+      const mb = (n: number) => Math.ceil(n / 1024 / 1024);
+      return `the images and audio come to about ${mb(bytes)} MB, over the ${config.maxAssetMb} MB a clip may carry. Use fewer or smaller images (or a shorter audio file) and call again.`;
     }
     return null;
   }
@@ -141,8 +228,8 @@ export function createClipTools(
       audio: { mode: 'none' },
       shortSide: config.height,
       maxDurationSec: config.maxDurationSec,
-      timeoutMs: 120_000,
-      stills: 6,
+      timeoutMs: config.previewTimeoutSec * 1000,
+      stills: config.previewStills,
     });
     recordClipEvent({ event: 'preview.ok', stills: stills.length, warnings: warnings.length });
     const note = warnings.length ? ` Worker notes: ${warnings.join('; ')}.` : '';
@@ -168,10 +255,12 @@ export function createClipTools(
     run: RunnableConfig | undefined,
   ): Promise<ToolResult> {
     const userId = req.user!.id;
-    if (turnJob) {
+    const turnKey = clipTurnKey(userId, run, req);
+    if (turnJobFor(turnKey) ?? instanceJob) {
       recordClipEvent({ event: 'tool.busy', level: 'warn', reason: 'one_per_turn' });
+      /** No job link here: the card from the first call is the only one. */
       return reply(
-        `A clip job was already started in this turn (${mediaJobLink(turnJob.id)}). Only one clip is built per turn. Do not call create_remotion_clip again; tell the user the clip is being built and the card will show it.`,
+        'A clip job was already started in this turn. Only one clip is built per turn. Do not call create_remotion_clip again; tell the user the clip is being built and the card already in the chat will show it.',
       );
     }
     if (creating.has(userId)) {
@@ -188,7 +277,7 @@ export function createClipTools(
           `This user already has ${pending} clip being built; a new one can start when it finishes. Nothing new was started. Tell the user to wait for the card in the chat to finish. ${NO_RETRY}`,
         );
       }
-      const missing = await checkFiles(request);
+      const missing = await checkFiles(request, config);
       if (missing) {
         recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'file_missing' });
         return reply(`Nothing was built: ${missing}`);
@@ -241,7 +330,10 @@ export function createClipTools(
       /** The job keeps the AI image hold until its images are made (or it ends). */
       hold?.keep(job.id, new Date(job.deadline).getTime());
       hold = undefined;
-      turnJob = job;
+      instanceJob = job.id;
+      if (turnKey) {
+        turnJobs.set(turnKey, { jobId: job.id, expires: Date.now() + TURN_TTL_MS });
+      }
       logger.info(
         `[clip] job.created job=${job.id} scenes=${request.storyboard.scenes.length} durationSec=${request.durationSec} audio=${request.audio.mode} images=${request.images.length}`,
       );

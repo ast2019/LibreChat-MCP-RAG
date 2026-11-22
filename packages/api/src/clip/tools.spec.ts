@@ -14,7 +14,16 @@ const input = {
   audio: { mode: 'none' },
 };
 
-function build(overrides: Partial<ClipToolDeps> = {}, userId = '64b000000000000000000001') {
+const SCOPE = '__librechat_tool_approval_execution_scope';
+const turn = (responseMessageId: string) => ({
+  configurable: { thread_id: 'convo-1', [SCOPE]: JSON.stringify([responseMessageId, 1]) },
+});
+
+function build(
+  overrides: Partial<ClipToolDeps> = {},
+  userId = '64b000000000000000000001',
+  clipTools: Record<string, unknown> = {},
+) {
   let n = 0;
   const createMediaJob = jest.fn(
     async (data: MediaJobCreateData) =>
@@ -28,13 +37,13 @@ function build(overrides: Partial<ClipToolDeps> = {}, userId = '64b0000000000000
     env: ENV,
     ...overrides,
   };
-  const req = { user: { id: userId }, config: undefined } as never;
+  const req = { user: { id: userId }, config: { config: { clipTools } }, body: {} } as never;
   const [clip] = createClipTools({ req, toolNames: [ClipTools.clip] }, deps);
   return { clip, deps, createMediaJob };
 }
 
-const run = async (clip: unknown, payload: unknown = input): Promise<string> => {
-  const out = await (clip as { invoke: (i: unknown) => Promise<unknown> }).invoke(payload);
+const run = async (clip: unknown, payload: unknown = input, config?: unknown): Promise<string> => {
+  const out = await (clip as { invoke: (i: unknown, c?: unknown) => Promise<unknown> }).invoke(payload, config);
   return typeof out === 'string' ? out : JSON.stringify(out);
 };
 
@@ -64,6 +73,52 @@ describe('create_remotion_clip (background job)', () => {
     const second = await run(clip);
     expect(createMediaJob).toHaveBeenCalledTimes(1);
     expect(second).toContain('Only one clip is built per turn');
+    /** The refusal names no job link, so the chat draws no second card. */
+    expect(second).not.toContain('/api/media/jobs/');
+  });
+
+  it('one clip per turn holds when the tools are built again for a later tool batch', async () => {
+    const userId = '64b000000000000000000011';
+    const firstBatch = build({}, userId);
+    const secondBatch = build({ countPendingMediaJobs: jest.fn(async () => 0) }, userId, { maxJobsPerUser: 3 });
+    await run(firstBatch.clip, input, turn('response-a'));
+    const again = await run(secondBatch.clip, input, turn('response-a'));
+    expect(again).toContain('Only one clip is built per turn');
+    expect(secondBatch.createMediaJob).not.toHaveBeenCalled();
+    /** The next turn may start a clip. */
+    const next = build({}, userId, { maxJobsPerUser: 3 });
+    await run(next.clip, input, turn('response-b'));
+    expect(next.createMediaJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses audio the worker cannot read at call time', async () => {
+    const { clip, createMediaJob } = build({ loadAudio: jest.fn(async () => ({ buffer: Buffer.from('fLaC'), type: 'audio/flac' })) });
+    const out = await run(clip, { ...input, audio: { mode: 'upload', file_id: 'audio-123456' } });
+    expect(out).toContain('cannot read');
+    expect(createMediaJob).not.toHaveBeenCalled();
+  });
+
+  it('refuses images and audio over the asset limit with a size the model can act on', async () => {
+    const { clip, createMediaJob } = build(
+      { loadImage: jest.fn(async () => ({ buffer: Buffer.alloc(3 * 1024 * 1024), type: 'image/png' })) },
+      '64b000000000000000000012',
+      { maxAssetMb: 2 },
+    );
+    const out = await run(clip, {
+      title: 'x',
+      scenes: [{ type: 'image', duration_sec: 3, image: { source: 'file', file_id: 'big-123456' } }],
+    });
+    expect(out).toContain('over the 2 MB');
+    expect(out).toContain('fewer or smaller images');
+    expect(createMediaJob).not.toHaveBeenCalled();
+  });
+
+  it('a preview uses the configured timeout and still count', async () => {
+    const fetchImpl = jest.fn(async () => new Response(JSON.stringify({ ok: true, stills: [], warnings: [] }), { status: 200 }));
+    const { clip } = build({ fetch: fetchImpl as never }, '64b000000000000000000013', { previewTimeoutSec: 45, previewStills: 3 });
+    await run(clip, { ...input, preview: true });
+    const sent = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, { body: string }])[1].body) as { timeoutMs: number; stills: number };
+    expect(sent).toMatchObject({ timeoutMs: 45_000, stills: 3 });
   });
 
   it('two parallel calls for one user start a single job', async () => {
