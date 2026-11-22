@@ -28,6 +28,7 @@ const handlers = createPaymentHandlers({
     upsertBalanceFields: db.upsertBalanceFields,
     setUserPack: (userId, packId) =>
       db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
+    findBalance: (userId) => db.findBalanceByUser(userId, { applyReset: false }),
   },
   health: getSharedGatewayHealth(),
   asSystem: runAsSystem,

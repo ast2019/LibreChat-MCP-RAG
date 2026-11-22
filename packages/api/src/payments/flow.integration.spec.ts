@@ -100,7 +100,10 @@ function createApp(
     store: db,
     grant: {
       createTransaction: grantOverride?.createTransaction ?? db.createTransaction,
-      upsertBalanceFields: db.upsertBalanceFields,
+      upsertBalanceFields: grantOverride?.upsertBalanceFields ?? db.upsertBalanceFields,
+      setUserPack: (userId, packId) =>
+        db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
+      findBalance: (userId) => db.findBalanceByUser(userId, { applyReset: false }),
     },
     fetch: gateway.fetchImpl,
     env: {
@@ -652,6 +655,80 @@ describe('payment flow against MongoDB', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].messageId).toBe(`payment:${orderId}`);
     expect((await db.findBalanceByUser(userId))?.tokenCredits).toBe(2_000_000);
+  });
+
+  it('finishes the pack fields on a retry when the grant failed after the ledger write', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    let failFields = true;
+    const upsertBalanceFields: typeof db.upsertBalanceFields = async (user, fields, insert) => {
+      if (failFields) {
+        throw new Error('database blip');
+      }
+      return db.upsertBalanceFields(user, fields, insert);
+    };
+    let clock = Date.now();
+    const { app } = createApp(gateway, { upsertBalanceFields }, () => new Date(clock));
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      body: { data: { code: 100, ref_id: 302 }, errors: [] },
+    });
+    const res = await request(app).get(
+      `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=OK`,
+    );
+    expect(res.headers.location).toContain('code=credit_failed');
+    expect(await ledger(userId)).toHaveLength(1);
+    expect((await db.findBalanceByUser(userId))?.packId).toBeUndefined();
+
+    failFields = false;
+    clock += 3 * 60_000;
+    const retried = await request(app).post('/api/payments/admin/reconcile');
+
+    expect(retried.body).toMatchObject({ checked: 1, credited: 1 });
+    expect(await ledger(userId)).toHaveLength(1);
+    expect(await db.findBalanceByUser(userId)).toMatchObject({
+      tokenCredits: 2_000_000,
+      packId: 'starter',
+      packLabel: 'Starter',
+      packAllotment: 2_000_000,
+    });
+    expect((await mongoose.models.User.findById(userId).lean<{ packId?: string }>())?.packId).toBe(
+      'starter',
+    );
+  });
+
+  it('does not roll back a newer pack when a late retry finds the ledger entry', async () => {
+    const userId = await createUser();
+    const gateway = createGateway();
+    let clock = Date.now();
+    const { app } = createApp(gateway, undefined, () => new Date(clock));
+    const { orderId } = await startZarinpal(app, gateway);
+    gateway.reply('/pg/v4/payment/verify.json', {
+      body: { data: { code: 100, ref_id: 303 }, errors: [] },
+    });
+    await request(app).get(
+      `/api/payments/callback/zarinpal?order=${orderId}&Authority=${AUTHORITY}&Status=OK`,
+    );
+    clock += 60_000;
+    await db.upsertBalanceFields(userId, {
+      packId: 'pro',
+      packLabel: 'Pro',
+      packAllotment: 15_000_000,
+      packGrantedAt: new Date(clock),
+    });
+    await db.updateUser(userId, { packId: 'pro' }, {}, { preserveExpiresAt: true });
+    await mongoose.models.PaymentOrder.updateOne(
+      { _id: orderId },
+      { $set: { creditedAt: null, creditLeaseUntil: null } },
+    );
+
+    const again = await request(app).post('/api/payments/admin/reconcile');
+
+    expect(again.body).toMatchObject({ checked: 1, credited: 1 });
+    expect(await db.findBalanceByUser(userId)).toMatchObject({ packId: 'pro' });
+    expect((await mongoose.models.User.findById(userId).lean<{ packId?: string }>())?.packId).toBe(
+      'pro',
+    );
   });
 
   it('reconciles a stale pending order that was paid but never returned', async () => {

@@ -150,13 +150,7 @@ export async function grantBalance(
   }
 
   const packAllotment = result.balance;
-  await deps.upsertBalanceFields(userId, {
-    packId: pack?.id ?? 'custom',
-    packLabel: pack?.label ?? '',
-    packAllotment,
-    packGrantedAt: (deps.now ?? (() => new Date()))(),
-  });
-  await deps.setUserPack?.(userId, pack?.id ?? 'custom');
+  await applyPackFields(deps, userId, pack, packAllotment);
 
   return {
     balance: result.balance,
@@ -164,4 +158,67 @@ export async function grantBalance(
     packAllotment,
     pack: pack ? { id: pack.id, label: pack.label } : null,
   };
+}
+
+/** Records the grant as the user's current allotment and copies the pack onto the user. */
+async function applyPackFields(
+  deps: Pick<GrantBalanceDeps, 'upsertBalanceFields' | 'setUserPack' | 'now'>,
+  userId: string,
+  pack: Pick<TBalancePack, 'id' | 'label'> | undefined,
+  packAllotment: number,
+): Promise<void> {
+  await deps.upsertBalanceFields(userId, {
+    packId: pack?.id ?? 'custom',
+    packLabel: pack?.label ?? '',
+    packAllotment,
+    packGrantedAt: (deps.now ?? (() => new Date()))(),
+  });
+  await deps.setUserPack?.(userId, pack?.id ?? 'custom');
+}
+
+/** The balance fields {@link repairPackGrant} reads. */
+export interface PackGrantBalance {
+  tokenCredits?: number;
+  packId?: string;
+  packGrantedAt?: Date | string | null;
+}
+
+export interface RepairPackGrantDeps
+  extends Pick<GrantBalanceDeps, 'upsertBalanceFields' | 'setUserPack' | 'now'> {
+  findBalance: (user: string) => Promise<PackGrantBalance | null>;
+}
+
+/** What {@link repairPackGrant} found: it wrote the pack fields, they were already this
+ *  grant's, or a later grant owns them. */
+export type PackGrantRepair = 'applied' | 'current' | 'superseded';
+
+/**
+ * Finishes a pack grant whose ledger entry landed while the steps after it (the allotment
+ * fields, the user's pack) may not have — the retry path of a credit that failed half-way.
+ * Idempotent: fields stamped at or after `grantedAfter` belong to this grant or a later one and
+ * are kept; only the user's pack is re-copied when it is still this pack. A late retry never
+ * rolls a newer grant back.
+ */
+export async function repairPackGrant(
+  deps: RepairPackGrantDeps,
+  {
+    userId,
+    pack,
+    grantedAfter,
+  }: { userId: string; pack: Pick<TBalancePack, 'id' | 'label'>; grantedAfter: Date },
+): Promise<PackGrantRepair> {
+  const balance = await deps.findBalance(userId);
+  if (balance == null || typeof balance.tokenCredits !== 'number') {
+    throw new Error('Pack grant has a ledger entry but no balance to repair');
+  }
+  const stampedAt = balance.packGrantedAt != null ? new Date(balance.packGrantedAt) : null;
+  if (stampedAt == null || !(stampedAt.getTime() >= grantedAfter.getTime())) {
+    await applyPackFields(deps, userId, pack, balance.tokenCredits);
+    return 'applied';
+  }
+  if (balance.packId !== pack.id) {
+    return 'superseded';
+  }
+  await deps.setUserPack?.(userId, pack.id);
+  return 'current';
 }

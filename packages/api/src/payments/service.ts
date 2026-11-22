@@ -14,12 +14,12 @@ import type {
 } from '@librechat/data-schemas';
 import type { ResolvedCurrency } from '~/billing/currency';
 import type { PaymentDriverRegistry } from './registry';
-import type { GrantBalanceDeps } from '~/billing/packs';
+import type { GrantBalanceDeps, RepairPackGrantDeps } from '~/billing/packs';
 import type { PaymentSettings } from './config';
 import type { GatewayHealth } from './health';
 import type { PaymentDriver } from './types';
 import { FINAL_DRIVER_CODES, isPaymentDriverError } from './errors';
-import { grantBalance } from '~/billing/packs';
+import { grantBalance, repairPackGrant } from '~/billing/packs';
 import { getUsableGateways } from './config';
 import { packPriceRial } from './pricing';
 
@@ -61,6 +61,8 @@ export interface PaymentServiceDeps {
     ) => ReturnType<GrantBalanceDeps['createTransaction']>;
     upsertBalanceFields: GrantBalanceDeps['upsertBalanceFields'];
     setUserPack?: GrantBalanceDeps['setUserPack'];
+    /** The user's balance, read on a retry to finish the pack fields of a half-done grant */
+    findBalance: RepairPackGrantDeps['findBalance'];
   };
   registry: PaymentDriverRegistry;
   health?: GatewayHealth;
@@ -265,10 +267,25 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     };
   }
 
-  /** Grants a paid order's credits once. The caller holds the order's credit lease. */
+  /**
+   * Grants a paid order's credits once. The caller holds the order's credit lease. When the
+   * ledger entry already exists (a retry after a failure part-way through the grant), the pack
+   * fields and the user's pack are finished instead, without a second credit.
+   */
   async function credit(order: PaymentOrderRecord): Promise<boolean> {
+    const pack = { id: order.packId, label: order.packLabel };
     try {
-      if (!(await store.hasPaymentLedgerEntry(order.userId, order.id))) {
+      if (await store.hasPaymentLedgerEntry(order.userId, order.id)) {
+        await repairPackGrant(
+          {
+            findBalance: deps.grant.findBalance,
+            upsertBalanceFields: deps.grant.upsertBalanceFields,
+            setUserPack: deps.grant.setUserPack,
+            now,
+          },
+          { userId: order.userId, pack, grantedAfter: order.paidAt ?? order.createdAt },
+        );
+      } else {
         await grantBalance(
           {
             createTransaction: (tx) =>
