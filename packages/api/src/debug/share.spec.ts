@@ -147,4 +147,11 @@ describe('maskShareLogText stack frames', () => {
     expect(maskShareLogText('at z (/home/john@example.com/app.js:1:2)')).not.toContain('john@example.com');
     expect(maskShareLogText('contact jöhn@example.com')).toBe('contact [REDACTED_EMAIL]');
   });
+
+  it('still redacts a token inside a path-like frame', () => {
+    const key = `sk-${'a1B2c3D4e5'.repeat(4)}`;
+    for (const line of [`at /v1/keys/${key}:443`, `at fetch (/v1/keys/${key}:443)`]) {
+      expect(maskShareLogText(line)).not.toContain(key);
+    }
+  });
 });
