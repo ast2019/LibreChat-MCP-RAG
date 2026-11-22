@@ -247,7 +247,8 @@ services:
 
   # Embeds uploaded files for file search (RAG). Embeddings go through OpenRouter too.
   rag_api:
-    image: registry.librechat.ai/librechat-ai/librechat-rag-api-dev-lite:latest
+    # Pinned: the digest :latest resolved to on 2026-11-22 (registry.librechat.ai serves ghcr.io).
+    image: registry.librechat.ai/librechat-ai/librechat-rag-api-dev-lite:latest@sha256:31944d50e1e4dc5ad8ff38efcfadc022bac8e3dbd108c802db646a534f5236e9
     restart: unless-stopped
     depends_on:
       vectordb:
@@ -387,7 +388,8 @@ services:
   # context sizes that librechat.saas.yaml's tokenConfig expects.
   # Keep LOCAL_MODEL_THREADS <= LOCAL_MODEL_CPUS, ideally the number of physical cores.
   ollama:
-    image: ollama/ollama:latest
+    # Pinned: the digest :latest resolved to on 2026-11-22 (Docker Hub). Update the digest on purpose.
+    image: ollama/ollama:latest@sha256:ccc42bcd3d5fcf7ab0d532b300382154e1a4da56fc666bdb313b78ebdd912754
     restart: unless-stopped
     entrypoint: ['/bin/sh', '-c']
     command:
@@ -465,7 +467,9 @@ services:
       start_period: 10s
 
   code_file:
-    image: ghcr.io/librechat-ai/code-interpreter-file-server:${CODEAPI_IMAGE_TAG:-main}
+    # Pinned: the digest :main resolved to on 2026-11-22 (ghcr.io, revision c7bf37d). CODEAPI_IMAGE_TAG
+    # still overrides it, and then the image follows that tag.
+    image: ghcr.io/librechat-ai/code-interpreter-file-server:${CODEAPI_IMAGE_TAG:-main@sha256:214d90cee1357c66f6825f2546bd0e3eaabf4f20fe9d6e17c5e36d59eaad2b37}
     restart: unless-stopped
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
@@ -488,7 +492,9 @@ services:
         condition: service_started
 
   code_tools:
-    image: ghcr.io/librechat-ai/code-interpreter-tool-call-server:${CODEAPI_IMAGE_TAG:-main}
+    # Pinned: the digest :main resolved to on 2026-11-22 (ghcr.io, revision c7bf37d). CODEAPI_IMAGE_TAG
+    # still overrides it, and then the image follows that tag.
+    image: ghcr.io/librechat-ai/code-interpreter-tool-call-server:${CODEAPI_IMAGE_TAG:-main@sha256:4432178aae04aee0f610b3700bc42d020b3cf40a4c364acd43044d20b7828a2f}
     restart: unless-stopped
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
@@ -504,7 +510,9 @@ services:
         condition: service_started
 
   code_egress:
-    image: ghcr.io/librechat-ai/code-interpreter-egress-gateway:${CODEAPI_IMAGE_TAG:-main}
+    # Pinned: the digest :main resolved to on 2026-11-22 (ghcr.io, revision c7bf37d). CODEAPI_IMAGE_TAG
+    # still overrides it, and then the image follows that tag.
+    image: ghcr.io/librechat-ai/code-interpreter-egress-gateway:${CODEAPI_IMAGE_TAG:-main@sha256:35f45ca7ef33c0c5e04c79a20f27d80575791a94115e734369a1fce2a1b18163}
     restart: unless-stopped
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
@@ -563,7 +571,9 @@ services:
         chmodSync(publicPath, 0o644);
 
   codeapi_bridge:
-    image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main}
+    # Pinned: the digest :main resolved to on 2026-11-22 (ghcr.io, revision c7bf37d). CODEAPI_IMAGE_TAG
+    # still overrides it, and then the image follows that tag.
+    image: ghcr.io/librechat-ai/code-interpreter-api:${CODEAPI_IMAGE_TAG:-main@sha256:9ffd9957c6ce31bdb136c986c916fbeca020866a3c89d70778279206f51f70cd}
     restart: unless-stopped
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:
@@ -616,7 +626,9 @@ services:
       start_period: 40s
 
   code_bridge_queue:
-    image: ghcr.io/librechat-ai/code-interpreter-worker:${CODEAPI_IMAGE_TAG:-main}
+    # Pinned: the digest :main resolved to on 2026-11-22 (ghcr.io, revision c7bf37d). CODEAPI_IMAGE_TAG
+    # still overrides it, and then the image follows that tag.
+    image: ghcr.io/librechat-ai/code-interpreter-worker:${CODEAPI_IMAGE_TAG:-main@sha256:95311750804a9a984158cc2f05cb77f8013a0639b014f8c54e5b52627d7e2fd5}
     restart: unless-stopped
     pull_policy: ${CODEAPI_PULL_POLICY:-missing}
     environment:

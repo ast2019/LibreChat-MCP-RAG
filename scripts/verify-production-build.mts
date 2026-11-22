@@ -252,6 +252,39 @@ export function composeBuilds(compose: unknown): ComposeService[] {
 }
 
 /**
+ * The image reference a compose `image:` names when no variable is set: `${VAR:-x}` and
+ * `${VAR-x}` give their default, `${VAR}` and `${VAR:?message}` give nothing.
+ */
+export function defaultImageReference(image: string): string {
+  return image.replace(
+    /\$\{[A-Za-z_][A-Za-z0-9_]*(?:(:?[-?])([^}]*))?\}/g,
+    (_match, operator: string | undefined, value: string | undefined) =>
+      operator != null && operator.endsWith('-') ? (value ?? '') : '',
+  );
+}
+
+/** Tags that move: an image on one of them changes under the deployment without a commit. */
+const FLOATING_TAGS = new Set(['latest', 'main']);
+
+/**
+ * Services whose default image floats: no `@sha256:` digest and a `latest`/`main` tag or no tag
+ * at all. Pins keep the tag for readers (`name:tag@sha256:…`); an env override may still float.
+ */
+export function unpinnedImageDefaults(compose: unknown): string[] {
+  const services = (compose as { services?: Record<string, { image?: unknown }> })?.services ?? {};
+  const floating: string[] = [];
+  for (const [name, service] of Object.entries(services)) {
+    if (typeof service?.image !== 'string') continue;
+    const reference = defaultImageReference(service.image);
+    if (reference.includes('@sha256:')) continue;
+    const lastSegment = reference.slice(reference.lastIndexOf('/') + 1);
+    const tag = lastSegment.includes(':') ? lastSegment.slice(lastSegment.lastIndexOf(':') + 1) : '';
+    if (tag === '' || FLOATING_TAGS.has(tag)) floating.push(`${name}: ${reference}`);
+  }
+  return floating;
+}
+
+/**
  * Files that services building from their own directories each carry a copy of; every pair
  * must stay byte-identical (the SSRF address blocklist of the browser and site-mcp egress).
  */
@@ -405,6 +438,18 @@ async function staticDockerChecks(): Promise<ComposeService[]> {
       problems.push(`${build.name}: ${dockerfile} does not exist`);
     }
   }
+  const compose = problems.length === 0 ? await loadYaml(composeText) : null;
+  const floating = compose == null ? [] : unpinnedImageDefaults(compose);
+  record(
+    'compose image defaults are pinned by digest (no floating latest/main)',
+    floating.length > 0 ? 'fail' : 'pass',
+    floating.length > 0
+      ? `pin these to the digest their tag resolves to today:\n${floating.join('\n')}`
+      : '',
+    started,
+  );
+  started = Date.now();
+
   record(
     'compose parses and every build has a Dockerfile',
     problems.length > 0 ? 'fail' : 'pass',

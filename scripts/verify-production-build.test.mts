@@ -3,6 +3,8 @@ import { strict as assert } from 'node:assert';
 import {
   SHARED_COPIES,
   composeBuilds,
+  defaultImageReference,
+  unpinnedImageDefaults,
   differingCopies,
   edgeTtsPin,
   extractTsCodes,
@@ -134,4 +136,36 @@ test('differingCopies reports a drifted or missing copy', () => {
   assert.deepEqual(differingCopies([['a', 'c']], read), ['a and c differ']);
   assert.deepEqual(differingCopies([['a', 'z']], read), ['z is missing']);
   assert.ok(SHARED_COPIES.some(([left]) => left.endsWith('blocklist.mjs')));
+});
+
+test('defaultImageReference resolves compose defaults with no variables set', () => {
+  assert.equal(defaultImageReference('ghcr.io/a/b:${TAG:-main}'), 'ghcr.io/a/b:main');
+  assert.equal(defaultImageReference('a/b:${TAG-1.2}'), 'a/b:1.2');
+  assert.equal(defaultImageReference('${IMAGE:?set it}'), '');
+  assert.equal(defaultImageReference('${IMAGE}'), '');
+  assert.equal(
+    defaultImageReference('ghcr.io/a/b:${TAG:-main@sha256:abc}'),
+    'ghcr.io/a/b:main@sha256:abc',
+  );
+});
+
+test('unpinnedImageDefaults flags floating latest/main defaults and untagged images', () => {
+  const compose = {
+    services: {
+      ok: { image: 'redis:7-alpine' },
+      pinned: { image: 'ollama/ollama:latest@sha256:abc' },
+      pinnedVar: { image: 'ghcr.io/x/y:${TAG:-main@sha256:def}' },
+      built: { build: { context: '.' } },
+      latest: { image: 'ollama/ollama:latest' },
+      main: { image: 'ghcr.io/x/y:${TAG:-main}' },
+      bare: { image: 'nginx' },
+      registryPort: { image: 'localhost:5000/team/app' },
+    },
+  };
+  assert.deepEqual(unpinnedImageDefaults(compose), [
+    'latest: ollama/ollama:latest',
+    'main: ghcr.io/x/y:main',
+    'bare: nginx',
+    'registryPort: localhost:5000/team/app',
+  ]);
 });
