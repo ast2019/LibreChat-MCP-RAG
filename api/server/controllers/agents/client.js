@@ -25,11 +25,12 @@ const {
   isMemoryAgentEnabled,
   isMemoryExcludedForEndpoint,
   isMemoryReadExcludedForEndpoint,
-  recordCollectedUsage,
   resolveRunUsageContext,
   isLocalChatSpend,
   toLocalSpendContext,
-  TIME_METER_CONTEXT,
+  recordTimePackUsage,
+  collectAgentEndpoints,
+  toUsageEndpoint,
   addTimePackMeteredCredits,
   getScheduleMCPExecution,
   createScheduledMCPPolicyRecorder,
@@ -3880,6 +3881,10 @@ class AgentClient extends BaseClient {
      * fallback and leaving the real generation unbilled.
      */
     updateStreamUsage = true,
+    /** Endpoint the usage ran on when it names no agent (titles); defaults to the agent's. */
+    usageEndpoint,
+    /** Time-pack entitlement of the turn; titles pass the one captured with their request. */
+    timePackEntitlement = this.options.req?._timePackEntitlement,
   }) {
     /** Per-agent resolution keys off the AGENT's config map, which cannot
      *  describe a label running on a different endpoint — so an explicit
@@ -3901,9 +3906,15 @@ class AgentClient extends BaseClient {
         appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
     });
     const spendContext = toLocalSpendContext(context, local);
-    const timePackMetering = req?._timePackSeatHeld === true;
     const pricing = { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier };
-    const result = await recordCollectedUsage(
+    const userId = this.user ?? this.options.req.user?.id;
+    /** Where usage naming no agent ran: the caller's endpoint, or the agent's own endpoint
+     *  unless the usage ran elsewhere (`crossEndpoint`). */
+    let defaultUsageEndpoint = crossEndpoint ? null : toUsageEndpoint(this.options.agent);
+    if (usageEndpoint != null) {
+      defaultUsageEndpoint = { endpoint: usageEndpoint };
+    }
+    const result = await recordTimePackUsage(
       {
         spendTokens: db.spendTokens,
         spendStructuredTokens: db.spendStructuredTokens,
@@ -3911,14 +3922,14 @@ class AgentClient extends BaseClient {
         bulkWriteOps: { insertMany: db.bulkInsertTransactions, updateBalance: db.updateBalance },
       },
       {
-        user: this.user ?? this.options.req.user?.id,
+        user: userId,
         conversationId: this.conversationId,
         collectedUsage,
         model: model ?? this.model ?? this.options.agent.model_parameters.model,
-        context: timePackMetering ? TIME_METER_CONTEXT : spendContext,
+        context: spendContext,
         messageId: this.responseMessageId,
-        balance: timePackMetering ? { enabled: false } : balance,
-        transactions: timePackMetering ? { enabled: true } : transactions,
+        balance,
+        transactions,
         endpointTokenConfig: overrideTokenConfig
           ? endpointTokenConfig
           : this.options.endpointTokenConfig,
@@ -3926,24 +3937,19 @@ class AgentClient extends BaseClient {
           ? {}
           : { resolveEndpointTokenConfig: (usage) => this.resolveAgentEndpointTokenConfig(usage) }),
       },
+      {
+        scope: {
+          entitlement: timePackEntitlement,
+          defaultEndpoint: defaultUsageEndpoint,
+          agentEndpoints: collectAgentEndpoints([
+            this.options.agent,
+            ...(this.agentConfigs?.values() ?? []),
+          ]),
+        },
+        meter: (credits) =>
+          addTimePackMeteredCredits(userId, credits, appConfig?.balance?.timePack),
+      },
     );
-
-    if (timePackMetering && Array.isArray(collectedUsage) && collectedUsage.length > 0) {
-      const userId = this.user ?? req?.user?.id;
-      const tokenConfig = overrideTokenConfig
-        ? endpointTokenConfig
-        : this.options.endpointTokenConfig;
-      let meteredCredits = 0;
-      for (const usage of collectedUsage) {
-        if (usage == null) {
-          continue;
-        }
-        meteredCredits += computeUsageCostUSD(usage, pricing, tokenConfig) * 1_000_000;
-      }
-      if (userId && meteredCredits > 0) {
-        await addTimePackMeteredCredits(userId, meteredCredits, appConfig?.balance?.timePack);
-      }
-    }
 
     if (result && updateStreamUsage) {
       this.usage = result;
@@ -6402,6 +6408,8 @@ class AgentClient extends BaseClient {
         collectedUsage,
         context: 'title',
         model: clientOptions.model,
+        usageEndpoint: endpoint,
+        timePackEntitlement: req?._timePackEntitlement,
         balance: balanceConfig,
         transactions: transactionsConfig,
         messageId: this.responseMessageId,
