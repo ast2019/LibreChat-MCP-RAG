@@ -251,6 +251,27 @@ export function composeBuilds(compose: unknown): ComposeService[] {
   return builds;
 }
 
+/**
+ * Files that services building from their own directories each carry a copy of; every pair
+ * must stay byte-identical (the SSRF address blocklist of the browser and site-mcp egress).
+ */
+export const SHARED_COPIES: ReadonlyArray<readonly [string, string]> = [
+  ['deploy/browser/src/blocklist.mjs', 'deploy/site-mcp/src/blocklist.mjs'],
+];
+
+/** The pairs whose two copies differ or are missing. */
+export function differingCopies(
+  pairs: ReadonlyArray<readonly [string, string]>,
+  read: (path: string) => string | null,
+): string[] {
+  return pairs.flatMap(([a, b]) => {
+    const left = read(a);
+    const right = read(b);
+    if (left == null || right == null) return [`${left == null ? a : b} is missing`];
+    return left === right ? [] : [`${a} and ${b} differ`];
+  });
+}
+
 // ---------------------------------------------------------------- runner
 
 type Status = 'pass' | 'fail' | 'skipped';
@@ -421,6 +442,19 @@ async function staticDockerChecks(): Promise<ComposeService[]> {
   return builds;
 }
 
+function checkSharedCopies(): void {
+  const started = Date.now();
+  const problems = differingCopies(SHARED_COPIES, (path) =>
+    existsSync(resolve(ROOT, path)) ? readText(path) : null,
+  );
+  record(
+    'shared file copies are identical',
+    problems.length > 0 ? 'fail' : 'pass',
+    problems.join('\n') || `${SHARED_COPIES.length} pair(s)`,
+    started,
+  );
+}
+
 const REMOTION_DIR = 'deploy/remotion';
 
 /**
@@ -518,6 +552,7 @@ async function main(): Promise<number> {
   }
 
   const builds = await staticDockerChecks();
+  checkSharedCopies();
   checkEdgeTts();
 
   const started = Date.now();

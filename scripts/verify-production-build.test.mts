@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
+  SHARED_COPIES,
   composeBuilds,
+  differingCopies,
   edgeTtsPin,
   extractTsCodes,
   lastBaseImage,
@@ -123,4 +125,13 @@ test('edgeTtsPin reads the pin, its install and the API check', () => {
   const drifted = good.replace('edge-tts==${EDGE_TTS_VERSION}', 'edge-tts==7.2.0').replace(/^RUN python3 .*$/m, '');
   assert.deepEqual(edgeTtsPin(drifted), { version: '7.3.1', installsPin: false, checksApi: false });
   assert.equal(edgeTtsPin('FROM x\nRUN pip install edge-tts').version, null);
+});
+
+test('differingCopies reports a drifted or missing copy', () => {
+  const files: Record<string, string> = { a: 'x', b: 'x', c: 'y' };
+  const read = (path: string) => files[path] ?? null;
+  assert.deepEqual(differingCopies([['a', 'b']], read), []);
+  assert.deepEqual(differingCopies([['a', 'c']], read), ['a and c differ']);
+  assert.deepEqual(differingCopies([['a', 'z']], read), ['z is missing']);
+  assert.ok(SHARED_COPIES.some(([left]) => left.endsWith('blocklist.mjs')));
 });
