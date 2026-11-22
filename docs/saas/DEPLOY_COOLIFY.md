@@ -196,6 +196,7 @@ docker compose up -d --build
 | مشکل | علت محتمل |
 |---|---|
 | بیلد با `JavaScript heap out of memory` شکست می‌خورد | RAM کم است. `NODE_MAX_OLD_SPACE_SIZE` را کم کنید یا RAM اضافه کنید |
+| Deploy با `Error response from daemon: No such container: <id>` وسط `Starting` (مثلاً روی `rag_api`) شکست می‌خورد | وضعیت قدیمی compose بعد از «Removing old containers»: کانتینر Create شده، قبل از Start حذف/از دست رفته. `api` اصلاً Start نمی‌شود و پروکسی ۴۰۴ می‌دهد. این با خطای اعتبارسنجی yaml فرق دارد. در Terminal میزبان (یا Terminal سرویس) این را بزنید و دوباره **Redeploy** کنید: `docker ps -a --filter name=bxihuayoph7qxf25kho5845v`; سپس `docker compose -p bxihuayoph7qxf25kho5845v --project-directory /data/coolify/applications/bxihuayoph7qxf25kho5845v down --remove-orphans` (اگر مسیر artifacts فرق داشت، همان project-name را از لاگ Coolify بردارید). یک Redeploy دوباره اغلب کافی است |
 | `No Available Server` | `api` هنوز healthy نشده (اولین بیلد طول می‌کشد)، یا دامنه روی سرویس اشتباهی گذاشته شده است |
 | جستجوی وب نتیجه ندارد | لاگ `searxng` را ببینید. بعضی موتورها از IP دیتاسنتر CAPTCHA می‌گیرند؛ لیست موتورها در `deploy/searxng/settings.yml` و `webSearch.searxngSearchOptions.engines` است |
 | آپلود فایل برای پرسش کار نمی‌کند | لاگ `rag_api` را ببینید. اعتبار OpenRouter و مدل embedding را بررسی کنید |
