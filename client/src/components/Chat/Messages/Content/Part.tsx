@@ -3,6 +3,7 @@ import { Part as ChatPart } from '@librechat/chat/components';
 import {
   Tools,
   Constants,
+  ClipTools,
   MediaTools,
   ContentTypes,
   ToolCallTypes,
@@ -248,6 +249,8 @@ const tools: Record<string, ToolRenderer> = {
   gemini_image_gen: renderImageGen,
   [MediaTools.image]: renderMediaImage,
   [MediaTools.video]: renderMediaVideo,
+  /** A storyboard clip renders in the background like a video: its card shows the progress. */
+  [ClipTools.clip]: renderMediaVideo,
   /** Dedicated Q&A record: the generic tool card would label the
    *  interrupt-resolved call "cancelled" and dump raw JSON args. */
   ask_user_question: ({ toolCall, isSubmitting, showCursor, onToolExpand }) => (
