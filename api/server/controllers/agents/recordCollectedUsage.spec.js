@@ -48,13 +48,32 @@ jest.mock('@librechat/agents', () => ({
   }),
 }));
 
+/**
+ * The client records through `recordTimePackUsage`, which calls `recordCollectedUsage` with the
+ * same deps and params when no row is covered by a time pack (see `billing/usage.spec.ts`).
+ * The stand-in splits the rows with the real `partitionTimePackUsage` and the scope the client
+ * passed, fails on any metered row, and hands the rest to the mocked `recordCollectedUsage`.
+ */
+const mockRecordTimePackUsage = jest.fn();
+
 jest.mock('@librechat/api', () => {
   const actual = jest.requireActual('@librechat/api');
   return {
     ...actual,
     recordCollectedUsage: (...args) => mockRecordCollectedUsage(...args),
+    recordTimePackUsage: (...args) => mockRecordTimePackUsage(...args),
   };
 });
+
+const { partitionTimePackUsage } = jest.requireActual('@librechat/api');
+
+function recordAsNormalUser(deps, params, { scope }) {
+  const { metered } = partitionTimePackUsage(params.collectedUsage ?? [], scope, params.model);
+  if (metered.length > 0) {
+    throw new Error('a normal user turn metered usage as time-pack');
+  }
+  return mockRecordCollectedUsage(deps, params);
+}
 
 const AgentClient = require('./client');
 
@@ -65,6 +84,7 @@ describe('AgentClient - recordCollectedUsage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRecordTimePackUsage.mockImplementation(recordAsNormalUser);
 
     mockAgent = {
       id: 'agent-123',
@@ -170,6 +190,11 @@ describe('AgentClient - recordCollectedUsage', () => {
         balance: { enabled: true },
         transactions: { enabled: true },
       });
+
+      expect(mockRecordTimePackUsage).toHaveBeenCalledTimes(1);
+      const [, , recording] = mockRecordTimePackUsage.mock.calls[0];
+      expect(recording.scope.entitlement).toBeUndefined();
+      expect(recording.meter).toEqual(expect.any(Function));
 
       expect(mockRecordCollectedUsage).toHaveBeenCalledTimes(1);
       const [deps, params] = mockRecordCollectedUsage.mock.calls[0];

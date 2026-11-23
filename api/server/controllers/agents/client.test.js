@@ -4490,6 +4490,7 @@ describe('AgentClient - titleConvo', () => {
 
       await client.titleConvo({ text, abortController });
 
+      expect(client.recordCollectedUsage).toHaveBeenCalledTimes(1);
       expect(client.recordCollectedUsage).toHaveBeenCalledWith({
         model: 'gpt-3.5-turbo',
         context: 'title',
@@ -4501,7 +4502,31 @@ describe('AgentClient - titleConvo', () => {
           enabled: true,
         },
         messageId: 'response-123',
+        usageEndpoint: EModelEndpoint.openAI,
+        timePackEntitlement: undefined,
       });
+    });
+
+    it('records title usage with the time-pack entitlement captured on the request', async () => {
+      const entitlement = {
+        timePackId: 'pack-1',
+        timePackExpiresAt: new Date('2030-01-01T00:00:00Z'),
+        timePackEndpoint: EModelEndpoint.anthropic,
+        models: ['claude-sonnet-4'],
+      };
+      mockReq._timePackEntitlement = entitlement;
+      const abortController = new AbortController();
+
+      await client.titleConvo({ text: 'Test conversation text', abortController });
+
+      expect(client.recordCollectedUsage).toHaveBeenCalledTimes(1);
+      expect(client.recordCollectedUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: 'title',
+          usageEndpoint: EModelEndpoint.openAI,
+          timePackEntitlement: entitlement,
+        }),
+      );
     });
 
     it('should return the generated title', async () => {
