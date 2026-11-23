@@ -57,6 +57,7 @@ import type { TerminalSteerHook, SteerPreemption } from '~/agents/steering/runti
 import type { ModelBoundChatModelCallback } from '~/middleware/modelBoundContent';
 import type { ScheduledMCPPolicyError } from '~/schedules/authorization/policy';
 import type { ScheduleMCPExecution } from '~/schedules/authorization/execution';
+import type { OffPackBalanceGate, OffPackModelGuard } from '~/billing/offPack';
 import type { ModelErrorTrackerCallback } from '~/agents/failures/tracker';
 import type { ToolInputValidationError } from '~/agents/toolValidation';
 import type { ResolvedToolApprovalHook } from '~/agents/hitl/hooks';
@@ -64,7 +65,6 @@ import type { LangfuseTraceContext } from '~/langfuse/identity';
 import type { ResolvedAlwaysApplySkill } from '~/agents/skills';
 import type { CodeExecutionContext } from '~/agents/execution';
 import type { SubagentCodeHostArgSpecs } from '~/code/targets';
-import type { OffPackBalanceGate } from '~/billing/offPack';
 import type { MCPToolAlias } from '~/tools/classification';
 import type { ReviewedToolApprovals } from './hitl/modes';
 import type { SubagentUsageEvent } from '~/agents/usage';
@@ -114,6 +114,7 @@ import {
 } from './files/runtime';
 import { resolveToolApprovalPolicy, exemptAskUserQuestionFromApproval } from '~/agents/hitl/policy';
 import { applyCustomHandoffPromptKeyCompatibility } from '~/agents/handoffPromptKeyCompatibility';
+import { createSubagentBalanceHook, createOffPackSummarizationGuard } from '~/billing/offPack';
 import { stripIntentFromToolRegistry, stripIntentFromToolDefinitions } from '~/agents/intent';
 import { createAgentToolApprovalSession, bindRunToolApprovalSession } from './hitl/modes';
 import { resolveConfigHeaders, resolveModelHeaders, mergeHeaders } from '~/utils/headers';
@@ -130,7 +131,6 @@ import { prepareQueuedCodeFileContext } from '~/files/code/queued';
 import { getBuiltInBaseURL } from '~/endpoints/openai/initialize';
 import { getProviderConfig } from '~/endpoints/config/providers';
 import { debugTrace, getDebugRecorder } from '~/debug/recorder';
-import { createSubagentBalanceHook } from '~/billing/offPack';
 import { buildToolApprovalHooks } from '~/agents/hitl/hooks';
 import { getAgentCheckpointer } from '~/agents/checkpointer';
 import { getPluginHookSource } from '~/agents/hooks/source';
@@ -1546,7 +1546,7 @@ type CallbackClientOptions = {
   fallbacks?: FallbackConfig[];
 };
 
-type RunModelCallback = ModelBoundChatModelCallback | ModelErrorTrackerCallback;
+type RunModelCallback = ModelBoundChatModelCallback | ModelErrorTrackerCallback | OffPackModelGuard;
 
 /**
  * Installs run-stable callbacks on the model client itself. Subagent child
@@ -2161,7 +2161,7 @@ export async function createRun({
   appConfig,
   subagentUsageSink,
   subagentTasks,
-  subagentBalanceGate,
+  offPackBalanceGate,
   runFiles,
   steering,
   activityLabel,
@@ -2277,10 +2277,11 @@ export async function createRun({
   subagentTasks?: SubagentTaskConfig;
   /**
    * The turn's off-pack balance gate. When it checks (a time-pack turn with balance on), each
-   * subagent child the time pack does not cover is admitted against the user's balance before
-   * its first model call, and denied with the `token_balance` error when it cannot be paid.
+   * subagent child and each summarization call the time pack does not cover is admitted against
+   * the user's balance before its model is invoked: a subagent is denied with the
+   * `token_balance` error, a summarization fails the run with it.
    */
-  subagentBalanceGate?: OffPackBalanceGate;
+  offPackBalanceGate?: OffPackBalanceGate;
   /** Run-scoped file authorization and child context, supplied by the host. */
   runFiles?: RunFileSession;
   /**
@@ -2475,14 +2476,24 @@ export async function createRun({
       { user, tenantId, requestBody },
       agent,
     );
-    const summarization = modelCallbacks?.length
+    /** A time-pack turn admits an off-pack summarizer before each summarization call. */
+    const summaryGuard = createOffPackSummarizationGuard({
+      gate: offPackBalanceGate,
+      agent,
+      agentProvider: provider as string,
+      provider: shapedSummarization.config.provider,
+      model: shapedSummarization.config.model,
+    });
+    const summaryCallbacks =
+      summaryGuard != null ? [...(modelCallbacks ?? []), summaryGuard] : modelCallbacks;
+    const summarization = summaryCallbacks?.length
       ? {
           ...shapedSummarization,
           config: {
             ...shapedSummarization.config,
             parameters: withModelCallbacks(
               { ...(shapedSummarization.config.parameters ?? {}) },
-              modelCallbacks,
+              summaryCallbacks,
             ),
           },
         }
@@ -2908,9 +2919,9 @@ export async function createRun({
       )
     : undefined;
   const subagentBalance =
-    subagentBalanceGate?.checks === true
+    offPackBalanceGate?.checks === true
       ? createSubagentBalanceHook({
-          gate: subagentBalanceGate,
+          gate: offPackBalanceGate,
           agents,
           usageAgents: collectAgentEndpoints(agents),
         })

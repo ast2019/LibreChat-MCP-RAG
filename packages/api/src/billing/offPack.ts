@@ -1,4 +1,5 @@
 import { logger } from '@librechat/data-schemas';
+import { StreamLimitExceededError } from '@librechat/agents';
 import { ViolationTypes, isTimePackClaudeRequest } from 'librechat-data-provider';
 import type { BaseMessage } from '@librechat/agents/langchain/messages';
 import type { TimePackEntitlement } from 'librechat-data-provider';
@@ -18,8 +19,9 @@ import { toUsageEndpoint } from './usage';
 /**
  * A time-pack turn skips the turn's up-front balance reservation because its primary call is
  * covered by the pack. Every other model call of such a turn (memory, subagents, handoff and
- * parallel agents, a title off the pack) is charged afterwards by `recordTimePackUsage`, so it
- * passes the same credit check before its provider is invoked. This module is that check.
+ * parallel agents, titles, activity/phase/reasoning labels, summarization, the Gemini image
+ * tool) is charged afterwards, so it passes the same credit check before its provider is
+ * invoked. This module is that check.
  */
 
 /** One model call a turn is about to make. */
@@ -233,6 +235,209 @@ export async function withOffPackBalance<T>(
   } finally {
     await admission.release();
   }
+}
+
+/**
+ * Admits one call that has no turn-level owner (a tool's own model call). Outside a checking
+ * gate it is admitted unchecked. Refuses with `token_balance`; throws only when the balance
+ * store fails.
+ */
+export async function admitOffPack(
+  gate: OffPackBalanceGate | null | undefined,
+  target: OffPackTarget,
+): Promise<OffPackAdmission> {
+  if (gate?.checks !== true) {
+    return admitted;
+  }
+  return gate.admit(target);
+}
+
+/** The model a label call resolved to (the shape of `ActivityLabelLLM`). */
+export type OffPackLabelModel = {
+  provider?: string | null;
+  clientOptions?: { model?: unknown } | null;
+  /** Endpoint the label runs on; the agent's when unset. */
+  endpoint?: string | null;
+  endpointTokenConfig?: unknown;
+  /** False when the label runs on another endpoint than the agent (`activityEndpoint`). */
+  sameEndpoint?: boolean;
+};
+
+export type OffPackLabelAdmission =
+  | { ok: true; release: () => Promise<void> }
+  | { ok: false; error: { code: string } };
+
+/** Admits one label call given its resolved model and the prompt it is about to send. */
+export type OffPackLabelAdmit = (
+  llm: OffPackLabelModel,
+  promptText: string,
+) => Promise<OffPackLabelAdmission>;
+
+const labelAdmitted: OffPackLabelAdmission = { ok: true, release: noRelease };
+
+/**
+ * The label target as `recordActivityLabelUsage` records it: usage that names no agent, on the
+ * agent's endpoint unless the label runs elsewhere or on another provider, where it is charged.
+ */
+function labelTarget(agent: BalanceAgent, llm: OffPackLabelModel): OffPackTarget {
+  const agentUsage = toUsageEndpoint(agent);
+  const sameEndpoint = llm.sameEndpoint !== false;
+  const sameProvider =
+    llm.provider == null || agent.provider == null || llm.provider === agent.provider;
+  const model = llm.clientOptions?.model;
+  return {
+    endpoint: llm.endpoint ?? agentUsage.endpoint,
+    model: typeof model === 'string' ? model : agentModel(agent),
+    usageEndpoint: sameEndpoint && sameProvider ? agentUsage.endpoint : null,
+    endpointTokenConfig:
+      llm.endpointTokenConfig ?? (sameEndpoint ? agent.endpointTokenConfig : undefined),
+  };
+}
+
+/**
+ * Admits an activity, phase or reasoning label before its model is invoked. Labels are optional
+ * side work: without the credits, or when the balance store fails, the label is skipped (logged)
+ * and the turn continues with the deterministic placeholder. The caller releases the credits once
+ * the call settles.
+ */
+export async function admitOffPackLabel(
+  gate: OffPackBalanceGate | null | undefined,
+  agent: BalanceAgent,
+  kind: string,
+  llm: OffPackLabelModel,
+  promptText: string,
+): Promise<OffPackLabelAdmission> {
+  if (gate?.checks !== true) {
+    return labelAdmitted;
+  }
+  const target = labelTarget(agent, llm);
+  try {
+    const admission = await gate.admit({ ...target, promptText });
+    if (admission.ok) {
+      return { ok: true, release: admission.release };
+    }
+    logger.info(`[billing/offPack] Skipped the ${kind}: its model was not admitted`, {
+      model: target.model,
+      code: admission.error.code,
+    });
+    return { ok: false, error: { code: admission.error.code } };
+  } catch (error) {
+    logger.error(`[billing/offPack] The ${kind} balance check failed; skipping it`, {
+      error: error instanceof Error ? error.name : typeof error,
+    });
+    return { ok: false, error: { code: 'balance_unavailable' } };
+  }
+}
+
+export type OffPackRefusalCode = ViolationTypes.TOKEN_BALANCE | 'balance_unavailable';
+
+const BALANCE_UNAVAILABLE_MESSAGE = 'The credit check for this call is unavailable.';
+
+/**
+ * Fails a run whose required off-pack call (summarization) was refused. It extends the SDK's
+ * stream-limit error because that is the class the summarize node rethrows instead of degrading
+ * to its metadata stub or trying fallback providers (`@librechat/agents`
+ * src/summarization/node.ts, `executeSummarizationWithFallback`), as `FatalModelBoundPolicyError`
+ * does for the content policy.
+ */
+export class OffPackBalanceRefusalError extends StreamLimitExceededError {
+  public readonly code: OffPackRefusalCode;
+
+  constructor(code: OffPackRefusalCode, message: string) {
+    super({ kind: 'delta_events', limit: 0, observed: 0 });
+    this.name = 'OffPackBalanceRefusalError';
+    this.message = message;
+    this.code = code;
+    Object.setPrototypeOf(this, OffPackBalanceRefusalError.prototype);
+  }
+}
+
+/**
+ * The error text a refused run shows the user: the same `token_balance` payload a normal
+ * balance refusal sends, or a fixed message when the balance store failed. Undefined for any
+ * other error.
+ */
+export function getOffPackRefusalText(error: unknown): string | undefined {
+  if (!(error instanceof OffPackBalanceRefusalError)) {
+    return undefined;
+  }
+  return error.code === ViolationTypes.TOKEN_BALANCE ? error.message : BALANCE_UNAVAILABLE_MESSAGE;
+}
+
+/**
+ * A LangChain callback that admits a model call before the provider is invoked: LangChain awaits
+ * `handleChatModelStart` (`awaitHandlers`) before the request is sent, and rethrows its error
+ * (`raiseError`), so a refusal means no provider call.
+ */
+export type OffPackModelGuard = {
+  readonly name: 'librechat-off-pack-balance';
+  readonly raiseError: true;
+  readonly awaitHandlers: true;
+  readonly handleChatModelStart: (
+    llm: unknown,
+    messageBatches: readonly (readonly BaseMessage[])[],
+  ) => Promise<void>;
+  readonly handleLLMStart: (llm: unknown, prompts: readonly string[]) => Promise<void>;
+};
+
+/**
+ * The guard installed on an agent's summarization client in a time-pack turn. Summarization
+ * usage is recorded under the agent's id, so it is covered when it runs on the agent's provider
+ * with a model the pack allows. Any other summarizer reserves its input at its own rate; when
+ * it cannot, the run fails with `token_balance`, as a normal turn the user cannot pay for does.
+ * Undefined when the gate does not check.
+ */
+export function createOffPackSummarizationGuard({
+  gate,
+  agent,
+  agentProvider,
+  provider,
+  model,
+}: {
+  gate: OffPackBalanceGate | null | undefined;
+  agent: BalanceAgent;
+  /** The provider the agent's own calls run on, as the run resolved it. */
+  agentProvider?: string | null;
+  /** The summarizer's provider and model. */
+  provider?: string | null;
+  model?: string | null;
+}): OffPackModelGuard | undefined {
+  if (gate?.checks !== true) {
+    return undefined;
+  }
+  const agentUsage = toUsageEndpoint(agent);
+  const sameProvider = provider == null || agentProvider == null || provider === agentProvider;
+  const target: OffPackTarget = {
+    endpoint: sameProvider ? agentUsage.endpoint : provider,
+    model: model ?? agentModel(agent),
+    usageEndpoint: sameProvider ? agentUsage.endpoint : null,
+    endpointTokenConfig: sameProvider ? agent.endpointTokenConfig : undefined,
+  };
+  const admit = async (promptText: string): Promise<void> => {
+    let admission: OffPackAdmission;
+    try {
+      admission = await gate.admit({ ...target, promptText });
+    } catch (error) {
+      logger.error('[billing/offPack] Summarization balance check failed; failing the run', {
+        error: error instanceof Error ? error.name : typeof error,
+      });
+      throw new OffPackBalanceRefusalError('balance_unavailable', BALANCE_UNAVAILABLE_MESSAGE);
+    }
+    if (!admission.ok) {
+      logger.info('[billing/offPack] Summarization refused: its model was not admitted', {
+        model: target.model,
+      });
+      throw new OffPackBalanceRefusalError(ViolationTypes.TOKEN_BALANCE, admission.error.message);
+    }
+  };
+  return Object.freeze({
+    name: 'librechat-off-pack-balance',
+    raiseError: true,
+    awaitHandlers: true,
+    handleChatModelStart: (_llm: unknown, messageBatches: readonly (readonly BaseMessage[])[]) =>
+      admit(messagesText(messageBatches.flat())),
+    handleLLMStart: (_llm: unknown, prompts: readonly string[]) => admit(prompts.join('\n')),
+  });
 }
 
 function messagesText(messages: readonly BaseMessage[]): string {

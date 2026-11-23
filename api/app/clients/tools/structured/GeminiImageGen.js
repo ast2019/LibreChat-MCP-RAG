@@ -4,8 +4,9 @@ const { v4 } = require('uuid');
 const { GoogleGenAI } = require('@google/genai');
 const { logger } = require('@librechat/data-schemas');
 const { tool } = require('@librechat/agents/langchain/tools');
-const { ContentTypes, EImageOutputType } = require('librechat-data-provider');
+const { ContentTypes, EModelEndpoint, EImageOutputType } = require('librechat-data-provider');
 const {
+  admitOffPack,
   geminiToolkit,
   loadServiceKey,
   getBalanceConfig,
@@ -372,6 +373,20 @@ function createGeminiImageTool(fields = {}) {
         }
       }
 
+      /** A time-pack turn skipped the turn's credit check; this charged call passes its own. */
+      const admission = await admitOffPack(req?._offPackBalance, {
+        endpoint: EModelEndpoint.google,
+        model: geminiModel,
+        usageEndpoint: null,
+        promptText: prompt,
+      });
+      if (!admission.ok) {
+        return [
+          [{ type: ContentTypes.TEXT, text: admission.error.message }],
+          { content: [], file_ids: [] },
+        ];
+      }
+
       let derivedSignal = null;
       let abortHandler = null;
 
@@ -398,6 +413,7 @@ function createGeminiImageTool(fields = {}) {
         if (abortHandler && derivedSignal) {
           derivedSignal.removeEventListener('abort', abortHandler);
         }
+        await admission.release().catch(() => undefined);
       }
 
       const safetyBlock = checkForSafetyBlock(apiResponse);

@@ -1,16 +1,22 @@
 import { ViolationTypes } from 'librechat-data-provider';
-import { HookRegistry, executeHooks } from '@librechat/agents';
 import { HumanMessage } from '@librechat/agents/langchain/messages';
+import { SimpleChatModel } from '@langchain/core/language_models/chat_models';
+import { HookRegistry, executeHooks, StreamLimitExceededError } from '@librechat/agents';
 import type { TimePackEntitlement } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type { CheckBalanceDeps } from '~/middleware/checkBalance';
 import type { ServerRequest } from '~/types/http';
 import {
+  admitOffPack,
+  admitOffPackLabel,
   withOffPackBalance,
   admitOffPackAgents,
+  getOffPackRefusalText,
   createOffPackBalanceGate,
   createSubagentBalanceHook,
+  OffPackBalanceRefusalError,
   createOffPackMemoryAdmission,
+  createOffPackSummarizationGuard,
 } from './offPack';
 import { createBalanceReservations } from '~/middleware/checkBalance';
 import { collectAgentEndpoints } from './usage';
@@ -340,5 +346,197 @@ describe('createSubagentBalanceHook', () => {
     );
 
     expect(result).toEqual({ decision: 'deny', reason: expect.not.stringContaining('mongo') });
+  });
+});
+
+describe('admitOffPackLabel', () => {
+  const labelModel = {
+    provider: 'openrouter',
+    clientOptions: { model: 'gpt-5-nano' },
+    endpoint: 'OpenRouter',
+    sameEndpoint: false,
+  };
+
+  it('skips a label on another endpoint the user cannot pay for', async () => {
+    const { gate, deps } = createGate({ balance: 0 });
+
+    const admission = await admitOffPackLabel(
+      gate,
+      claude,
+      'activity label',
+      labelModel,
+      'x'.repeat(400),
+    );
+
+    expect(admission).toEqual({ ok: false, error: { code: ViolationTypes.TOKEN_BALANCE } });
+    expect(deps.reserveBalance).toHaveBeenCalledWith(expect.objectContaining({ amount: 100 }));
+    expect(deps.getMultiplier).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'gpt-5-nano', endpoint: 'OpenRouter' }),
+    );
+  });
+
+  it('admits a paid label and releases its credits', async () => {
+    const { gate, deps } = createGate({ balance: 1000 });
+
+    const admission = await admitOffPackLabel(gate, claude, 'activity label', labelModel, 'x');
+
+    expect(admission.ok).toBe(true);
+    await (admission.ok && admission.release());
+    expect(deps.releaseBalanceReservation).toHaveBeenCalledTimes(1);
+  });
+
+  it('admits a label on the agent endpoint and an allowed model as covered', async () => {
+    const { gate, deps } = createGate({ balance: 0 });
+
+    const admission = await admitOffPackLabel(
+      gate,
+      claude,
+      'reasoning label',
+      { provider: 'anthropic', clientOptions: { model: 'claude-sonnet-5-5' }, sameEndpoint: true },
+      'x',
+    );
+
+    expect(admission.ok).toBe(true);
+    expect(deps.reserveBalance).not.toHaveBeenCalled();
+  });
+
+  it('checks a label on the agent endpoint with a model outside the pack', async () => {
+    const { gate } = createGate({ balance: 0 });
+
+    const admission = await admitOffPackLabel(
+      gate,
+      claude,
+      'activity phase',
+      { provider: 'anthropic', clientOptions: { model: 'claude-haiku-4' }, sameEndpoint: true },
+      'x',
+    );
+
+    expect(admission.ok).toBe(false);
+  });
+
+  it('skips the label when the balance store fails', async () => {
+    const deps = createDeps(1000);
+    (deps.reserveBalance as jest.Mock).mockRejectedValue(new Error('db down'));
+    const { gate } = createGate({ deps });
+
+    await expect(
+      admitOffPackLabel(gate, claude, 'activity label', labelModel, 'x'),
+    ).resolves.toEqual({ ok: false, error: { code: 'balance_unavailable' } });
+  });
+
+  it('admits labels unchecked without a gate (resume) or outside a time-pack turn', async () => {
+    const { gate, deps } = createGate({ withEntitlement: false });
+
+    expect((await admitOffPackLabel(undefined, claude, 'label', labelModel, 'x')).ok).toBe(true);
+    expect((await admitOffPackLabel(gate, claude, 'label', labelModel, 'x')).ok).toBe(true);
+    expect(deps.reserveBalance).not.toHaveBeenCalled();
+  });
+});
+
+describe('admitOffPack', () => {
+  it('refuses a charged tool call without credits and admits it outside a time-pack turn', async () => {
+    const target = {
+      endpoint: 'google',
+      model: 'gemini-image',
+      usageEndpoint: null,
+      promptText: 'x',
+    };
+
+    expect(await admitOffPack(createGate({ balance: 0 }).gate, target)).toMatchObject({
+      ok: false,
+      error: { code: ViolationTypes.TOKEN_BALANCE },
+    });
+    expect((await admitOffPack(undefined, target)).ok).toBe(true);
+    expect((await admitOffPack(createGate({ enabled: false }).gate, target)).ok).toBe(true);
+  });
+});
+
+describe('createOffPackSummarizationGuard', () => {
+  /** A chat model whose provider call is observable; the guard runs as its client callback. */
+  class ProviderModel extends SimpleChatModel {
+    calls = 0;
+    _llmType(): string {
+      return 'provider-test';
+    }
+
+    async _call(): Promise<string> {
+      this.calls += 1;
+      return 'summary';
+    }
+  }
+
+  const summarizer = (
+    gate: ReturnType<typeof createGate>['gate'],
+    provider: string,
+    model: string,
+  ) =>
+    createOffPackSummarizationGuard({
+      gate,
+      agent: claude,
+      agentProvider: 'anthropic',
+      provider,
+      model,
+    });
+
+  it('fails the summarization before the provider is invoked when the user cannot pay', async () => {
+    const { gate, deps } = createGate({ balance: 0 });
+    const guard = summarizer(gate, 'openrouter', 'gemini-flash');
+    const model = new ProviderModel({ callbacks: [guard!] });
+
+    const error = await model.invoke([new HumanMessage('a long history')]).catch((e) => e);
+
+    expect(error).toBeInstanceOf(OffPackBalanceRefusalError);
+    /** The summarize node rethrows this class instead of degrading to its metadata stub. */
+    expect(error).toBeInstanceOf(StreamLimitExceededError);
+    expect(model.calls).toBe(0);
+    expect(JSON.parse(getOffPackRefusalText(error)!)).toMatchObject({
+      type: ViolationTypes.TOKEN_BALANCE,
+    });
+    expect(deps.getMultiplier).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'gemini-flash', endpoint: 'openrouter' }),
+    );
+  });
+
+  it('runs a paid summarization', async () => {
+    const { gate, deps } = createGate({ balance: 1000 });
+    const model = new ProviderModel({
+      callbacks: [summarizer(gate, 'openrouter', 'gemini-flash')!],
+    });
+
+    await model.invoke([new HumanMessage('history')]);
+
+    expect(model.calls).toBe(1);
+    expect(deps.reserveBalance).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs a self-summarization the pack covers without a check', async () => {
+    const { gate, deps } = createGate({ balance: 0 });
+    const model = new ProviderModel({
+      callbacks: [summarizer(gate, 'anthropic', 'claude-sonnet-5-5')!],
+    });
+
+    await model.invoke([new HumanMessage('history')]);
+
+    expect(model.calls).toBe(1);
+    expect(deps.reserveBalance).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with a fixed message when the balance store fails', async () => {
+    const deps = createDeps(1000);
+    (deps.reserveBalance as jest.Mock).mockRejectedValue(new Error('db down'));
+    const { gate } = createGate({ deps });
+    const model = new ProviderModel({ callbacks: [summarizer(gate, 'openrouter', 'gemini')!] });
+
+    const error = await model.invoke([new HumanMessage('history')]).catch((e) => e);
+
+    expect(model.calls).toBe(0);
+    expect(getOffPackRefusalText(error)).toBe('The credit check for this call is unavailable.');
+  });
+
+  it('installs nothing outside a time-pack turn', () => {
+    expect(
+      summarizer(createGate({ withEntitlement: false }).gate, 'openrouter', 'g'),
+    ).toBeUndefined();
+    expect(getOffPackRefusalText(new Error('other'))).toBeUndefined();
   });
 });

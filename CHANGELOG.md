@@ -38,10 +38,17 @@ LibreChat versions are tracked separately in `package.json`.
   every other model call of the turn reserves its prompt at its own model's rate first, as a
   normal chat does: the memory agent is skipped when the user cannot pay for it; a subagent is
   denied with `token_balance` and the parent answer continues; an off-plan handoff or parallel
-  agent fails the turn with `token_balance` before the run starts; an off-plan title is
-  skipped and the fallback title is kept. Before, a user with no credits got these calls for
-  free, because the debit afterwards was clamped at zero. Summarization and activity labels on
-  another model are still only charged afterwards.
+  agent fails the turn with `token_balance` before the run starts; an off-plan title, activity
+  label, phase summary or reasoning label is skipped (logged; the placeholder or fallback title
+  stays); an off-plan summarization fails the turn with `token_balance` instead of running, and
+  the conversation history is kept; the Gemini image tool answers the model with
+  `token_balance` instead of generating. Before, a user with no credits got these calls for
+  free, because the debit afterwards was clamped at zero. A resumed turn (tool approval) runs
+  without any up-front check, for plan and non-plan users alike.
+- **Two grants of a plan at once both count.** Two concurrent grants for one user read the
+  same expiry and wrote the same extension, so one grant's days were lost. The expiry is now
+  extended by the database in one write (`max(now, current expiry) + durationDays`), and the
+  copy on the user record applies only over an older grant, so the two records agree.
 - **Redis errors** admitted without any limit. They now use the process pool
   (`timePack.redisFailure: memory`, default) or refuse (`reject`).
 - `maxSeatsPerUser` is enforced; the meter's increment and expiry are one step; a second tab

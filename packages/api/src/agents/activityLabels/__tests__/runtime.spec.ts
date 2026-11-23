@@ -16,6 +16,8 @@ import {
   createActivityLabelHook,
 } from '../runtime';
 import type { ActivityLabelBatchMeta, ActivityLabelSlot, GenerateLabelPayload } from '../runtime';
+import { admitOffPackLabel, createOffPackBalanceGate } from '~/billing/offPack';
+import { createBalanceReservations } from '~/middleware/checkBalance';
 
 /** Flushes the hook's detached generation chain. */
 async function flushDetached(): Promise<void> {
@@ -692,5 +694,98 @@ describe('createActivityLabelHook', () => {
     const label = slots[0].filled[0] as string;
     expect(label.length).toBeLessThanOrEqual(200);
     expect(label.endsWith('…')).toBe(true);
+  });
+});
+
+describe('time-pack activity labels', () => {
+  /** A time-pack turn's gate for a user with no credits (balance on). */
+  function unpaidGate() {
+    const reserveBalance = jest.fn(async () => ({ reserved: false, balance: 0 }));
+    const gate = createOffPackBalanceGate({
+      req: { user: { id: 'user-1' } } as never,
+      res: {} as never,
+      user: 'user-1',
+      entitlement: {
+        timePackId: 'claude-time',
+        timePackEndpoint: 'ClaudeTime',
+        timePackExpiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      balanceConfig: { enabled: true },
+      reservations: createBalanceReservations(),
+      deps: {
+        getMultiplier: () => 1,
+        reserveBalance,
+        renewBalanceReservation: jest.fn(),
+        releaseBalanceReservation: jest.fn(),
+        logViolation: jest.fn(),
+      },
+      countTokens: (text) => text.length,
+    });
+    return { gate, reserveBalance };
+  }
+
+  const agent = { id: 'main', endpoint: 'ClaudeTime', provider: 'anthropic', model: 'claude' };
+  /** `activityEndpoint: OpenRouter`: the label runs outside the entitlement. */
+  const offPackLLM = jest.fn(async () => ({
+    provider: Providers.OPENROUTER,
+    clientOptions: { model: 'gpt-5-nano' },
+    endpoint: 'OpenRouter',
+    sameEndpoint: false,
+  }));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInvoke.mockResolvedValue({ content: 'Searched the docs' });
+  });
+
+  it.each([
+    ['SDK bridge', true],
+    ['direct model call', false],
+  ])('skips an off-pack label the user cannot pay for before the %s runs', async (_path, sdk) => {
+    const { gate, reserveBalance } = unpaidGate();
+    const filled: Array<string | null> = [];
+    const generateLabel = jest.fn(async () => 'Searched the docs');
+    const hook = createActivityLabelHook({
+      claimSlot: () => ({
+        index: 0,
+        fill: (text) => {
+          filled.push(text);
+          return true;
+        },
+      }),
+      resolveLLM: offPackLLM,
+      ...(sdk && { generateLabel }),
+      admit: (llm, promptText) => admitOffPackLabel(gate, agent, 'activity label', llm, promptText),
+    });
+
+    await hook(batchInput(), new AbortController().signal);
+    await flushDetached();
+
+    expect(generateLabel).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(filled).toEqual([null]);
+    expect(reserveBalance).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates the label when the user can pay and releases its credits', async () => {
+    const release = jest.fn(async () => undefined);
+    const admit = jest.fn(async () => ({ ok: true as const, release }));
+    const generateLabel = jest.fn(async () => 'Searched the docs');
+    const hook = createActivityLabelHook({
+      claimSlot: () => ({ index: 0, fill: () => true }),
+      resolveLLM: offPackLLM,
+      generateLabel,
+      admit,
+    });
+
+    await hook(batchInput(), new AbortController().signal);
+    await flushDetached();
+
+    expect(admit).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'OpenRouter' }),
+      expect.stringContaining('librechat'),
+    );
+    expect(generateLabel).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });

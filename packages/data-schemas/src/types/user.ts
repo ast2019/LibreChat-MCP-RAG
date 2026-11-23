@@ -113,6 +113,8 @@ export interface IUser extends Document {
   timePackGrantedAt?: Date | string;
   /** Dedicated custom endpoint for the active time pack. */
   timePackEndpoint?: string;
+  /** Balance-record revision the time-pack fields were copied from; not selected by default. */
+  timePackRevision?: number;
   favorites?: TUserFavorite[];
   /** Display order for the sidebar's Pinned section: favorite and pinned-chat
    *  entry keys interleaved (`agent:`, `spec:`, `model:`, `convo:` prefixes). */

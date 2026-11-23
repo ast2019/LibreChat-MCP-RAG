@@ -2,6 +2,7 @@ import { ContentTypes, stripOpaqueReasoning } from 'librechat-data-provider';
 import type { HookCallback } from '@librechat/agents';
 import type {
   ActivityLabelBlockContext,
+  ActivityLabelHookOptions,
   ActivityLabelInvokeCallbacks,
   ActivityLabelLLM,
   GenerateLabelPayload,
@@ -207,6 +208,8 @@ export interface ActivityLabelHostDeps {
    */
   generateLabel?: (payload: GenerateLabelPayload) => Promise<string | null | undefined>;
   getInvokeCallbacks?: () => ActivityLabelInvokeCallbacks;
+  /** Checked before each label's model call; a refusal skips the label. */
+  admit?: ActivityLabelHookOptions['admit'];
 }
 
 /**
@@ -253,6 +256,7 @@ export function createActivityLabelWiring(deps: ActivityLabelHostDeps): {
       trackTask: deps.trackPendingFill,
       signal: deps.abortSignal,
       getInvokeCallbacks: deps.getInvokeCallbacks,
+      ...(deps.admit && { admit: deps.admit }),
       ...(deps.generateLabel && { generateLabel: deps.generateLabel }),
       claimSlot: (meta) => {
         const parts = deps.getContentParts();

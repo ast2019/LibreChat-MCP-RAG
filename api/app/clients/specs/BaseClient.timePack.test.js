@@ -3,6 +3,10 @@ const { HumanMessage } = require('@librechat/agents/langchain/messages');
 const { EModelEndpoint } = require('librechat-data-provider');
 const { initializeFakeClient } = require('./FakeClient');
 
+const mockGenerateContent = jest.fn();
+jest.mock('@google/genai', () => ({
+  GoogleGenAI: jest.fn(() => ({ models: { generateContent: mockGenerateContent } })),
+}));
 jest.mock('~/db/connect');
 jest.mock('~/server/services/Config', () => ({
   getAppConfig: jest.fn().mockResolvedValue({ paths: { uploads: '/tmp' }, fileStrategy: 'local' }),
@@ -31,6 +35,7 @@ jest.mock('~/models', () => ({
   getUserMemories: jest.fn().mockResolvedValue([]),
   setMemory: jest.fn(),
   deleteMemory: jest.fn(),
+  spendTokens: jest.fn(),
 }));
 jest.mock('@librechat/api', () => ({
   ...jest.requireActual('@librechat/api'),
@@ -48,6 +53,7 @@ jest.mock('@librechat/api', () => ({
 
 const { reserveBalance } = require('~/models');
 const AgentClient = require('~/server/controllers/agents/client');
+const createGeminiImageTool = require('~/app/clients/tools/structured/GeminiImageGen');
 
 const entitlement = {
   timePackId: 'claude-time',
@@ -162,5 +168,84 @@ describe('BaseClient on a time-pack turn with balance enabled', () => {
 
     expect(reserveBalance).not.toHaveBeenCalled();
     expect(memoryRun).toHaveBeenCalledTimes(1);
+  });
+
+  describe('label and tool model calls', () => {
+    /** `activityEndpoint`/`reasoningLabelEndpoint` on another endpoint than the pack. */
+    const offPackLLM = {
+      provider: 'openrouter',
+      clientOptions: { model: 'gpt-5-nano' },
+      endpoint: 'OpenRouter',
+      sameEndpoint: false,
+    };
+    let run;
+    let results;
+
+    beforeEach(() => {
+      run = {
+        generateActivityPhaseLabel: jest.fn().mockResolvedValue({ label: 'Read the files' }),
+        generateReasoningLabel: jest.fn().mockResolvedValue({ label: 'Weighing options' }),
+      };
+      results = {};
+      client.admitLabel = AgentClient.prototype.admitLabel;
+      client.resolveActivityPhaseLabelLLM = async () => offPackLLM;
+      client.resolveReasoningLabelLLM = async () => offPackLLM;
+      client.recordActivityLabelUsage = jest.fn();
+      client.sendCompletion.mockImplementation(async function () {
+        this.run = run;
+        results.phase = await AgentClient.prototype.generateActivityPhaseViaRun.call(this, {
+          activities: [{ toolName: 'read_file' }],
+          phaseIndex: 0,
+          totalActivityCount: 1,
+          status: 'completed',
+          agentIds: [],
+          charLimit: 80,
+          prompt: 'Summarize the phase',
+          signal: new AbortController().signal,
+        });
+        results.reasoning = await AgentClient.prototype.generateReasoningLabelViaRun.call(this, {
+          visibleReasoning: 'compare the two plans',
+          reasoningStepId: 'step-1',
+          revision: 1,
+          status: 'final',
+          charLimit: 80,
+          signal: new AbortController().signal,
+        });
+        const gemini = createGeminiImageTool({
+          isAgent: true,
+          req: this.options.req,
+          GEMINI_API_KEY: 'test-key',
+        });
+        results.image = await gemini.invoke({ prompt: 'a red bicycle' });
+        return { completion: 'Mock response text', metadata: undefined };
+      });
+    });
+
+    it('skips off-pack phase and reasoning labels and refuses the image tool without credits', async () => {
+      reserveBalance.mockResolvedValue({ reserved: false, balance: 0 });
+
+      await client.sendMessage('Hello', {});
+
+      expect(run.generateActivityPhaseLabel).not.toHaveBeenCalled();
+      expect(run.generateReasoningLabel).not.toHaveBeenCalled();
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+      expect(results.phase).toEqual({});
+      expect(results.reasoning).toEqual({});
+      expect(JSON.stringify(results.image)).toContain('token_balance');
+      /** The phase, the reasoning label and the image call were each checked. */
+      expect(reserveBalance).toHaveBeenCalledTimes(3);
+    });
+
+    it('runs them once their credits are reserved', async () => {
+      reserveBalance.mockResolvedValue({ reserved: true, balance: 1000 });
+      mockGenerateContent.mockResolvedValue({ candidates: [] });
+
+      await client.sendMessage('Hello', {});
+
+      expect(run.generateActivityPhaseLabel).toHaveBeenCalledTimes(1);
+      expect(run.generateReasoningLabel).toHaveBeenCalledTimes(1);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(results.phase.label).toBe('Read the files');
+    });
   });
 });

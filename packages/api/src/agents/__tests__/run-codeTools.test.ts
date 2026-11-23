@@ -813,11 +813,11 @@ describe('createRun subagent balance gate', () => {
     }),
   });
 
-  const capture = async (subagentBalanceGate: ReturnType<typeof gate>) => {
+  const capture = async (offPackBalanceGate: ReturnType<typeof gate>) => {
     await createRun({
       agents: [makeAgent({ subagents: { enabled: true, allowSelf: false } })] as never,
       signal: new AbortController().signal,
-      subagentBalanceGate,
+      offPackBalanceGate,
     });
     return (Run.create as jest.Mock).mock.calls[0][0].hooks as HookRegistry;
   };

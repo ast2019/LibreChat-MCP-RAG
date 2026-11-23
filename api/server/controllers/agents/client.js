@@ -30,7 +30,9 @@ const {
   toLocalSpendContext,
   recordTimePackUsage,
   admitOffPackAgents,
+  admitOffPackLabel,
   withOffPackBalance,
+  getOffPackRefusalText,
   createOffPackMemoryAdmission,
   collectAgentEndpoints,
   toUsageEndpoint,
@@ -380,6 +382,11 @@ function getUserFacingRequestError(baseMessage, error, appConfig) {
   /** Carries no model or user content, so it is safe under every filter. */
   if (error?.name === 'ManualSummarizationSkippedError') {
     return JSON.stringify({ type: ErrorTypes.COMPACTION_SKIPPED, reason: error.reason });
+  }
+  /** The normal `token_balance` payload of a refused off-pack call; no model or user content. */
+  const offPackRefusal = getOffPackRefusalText(error);
+  if (offPackRefusal != null) {
+    return offPackRefusal;
   }
   const protectionEnabled = hasModelBoundContentProtection(
     appConfig?.filters,
@@ -1473,8 +1480,17 @@ class AgentClient extends BaseClient {
     if (typeof this.run?.generateActivityPhaseLabel !== 'function') {
       return {};
     }
-    const { provider, clientOptions, endpointTokenConfig, sameEndpoint } =
-      await this.resolveActivityPhaseLabelLLM();
+    const phaseLLM = await this.resolveActivityPhaseLabelLLM();
+    const { provider, clientOptions, endpointTokenConfig, sameEndpoint } = phaseLLM;
+    /** A time-pack turn admits an off-pack phase model first; a refusal skips the phase. */
+    const admission = await this.admitLabel(
+      'activity phase',
+      phaseLLM,
+      JSON.stringify({ prompt, activities, assistantContext }),
+    );
+    if (!admission.ok) {
+      return {};
+    }
     const { handleLLMEnd, collected } = createMetadataAggregator();
     let sdkPromptText;
     const capturePrompt = {
@@ -1528,6 +1544,8 @@ class AgentClient extends BaseClient {
       if (!signal?.aborted) {
         logger.warn('[AgentClient] Activity phase generation failed', error);
       }
+    } finally {
+      await admission.release().catch(() => undefined);
     }
     return {
       label,
@@ -1597,7 +1615,13 @@ class AgentClient extends BaseClient {
           'reasoning-label',
         ),
       onError: (error) => logger.warn('[AgentClient] Reasoning label generation failed', error),
+      admit: (llm, promptText) => this.admitLabel('reasoning label', llm, promptText),
     });
+  }
+
+  /** Admits a label model of a time-pack turn (`admitOffPackLabel`); a refusal skips the label. */
+  admitLabel(kind, llm, promptText) {
+    return admitOffPackLabel(this.offPackBalance, this.options.agent, kind, llm, promptText);
   }
 
   /** Bounded settle for in-flight label fills before finalization. On
@@ -1799,6 +1823,7 @@ class AgentClient extends BaseClient {
         this.pendingActivityLabelFills.push(fillDone);
       },
       resolveLLM: () => this.resolveActivityLabelLLM(),
+      admit: (llm, promptText) => this.admitLabel('activity label', llm, promptText),
       /** Per-generation usage accounting for the direct fallback path;
        *  the SDK bridge records its own via chainOptions callbacks. */
       getInvokeCallbacks: () => {
@@ -5211,7 +5236,7 @@ class AgentClient extends BaseClient {
             this.buildDetachedSubagentUsageRecorder(balanceConfig, transactionsConfig),
           ),
           subagentTasks: this.options.subagentTasks,
-          subagentBalanceGate: this.offPackBalance,
+          offPackBalanceGate: this.offPackBalance,
           runFiles: this.options.runFiles,
         }).then((createdRun) => {
           if (!createdRun) {

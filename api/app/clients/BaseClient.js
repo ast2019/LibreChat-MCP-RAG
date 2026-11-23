@@ -1033,6 +1033,10 @@ class BaseClient {
       countTokens,
       promptTokens,
     });
+    /** Tools that call a model themselves read the turn's gate from the request. */
+    if (this.options.req != null) {
+      this.options.req._offPackBalance = this.offPackBalance;
+    }
     let completionResult;
     try {
       if (

@@ -7,6 +7,7 @@ import type {
 } from 'librechat-data-provider';
 import type {
   IUser,
+  GrantedTimePack,
   BalanceConfig,
   CreateUserRequest,
   UserRecord,
@@ -86,6 +87,7 @@ export function createUserMethods(
     options?: { preserveExpiresAt?: boolean },
   ) => Promise<IUser | null>;
   awaitAuthUserDocEviction: (userId: string) => Promise<void>;
+  setUserTimePack: (userId: string, timePack: GrantedTimePack) => Promise<boolean>;
   unsetUserPhone: (userId: string) => Promise<IUser | null>;
   consumeBackupCode: (userId: string, codeHash: string) => Promise<boolean>;
   claimSamlIdentity: (
@@ -442,6 +444,35 @@ export function createUserMethods(
     ).lean<IUser>();
     await invalidateAuthUserDocCache(userId);
     return updated;
+  }
+
+  /**
+   * Copies a grant's time-pack fields from the balance record onto the user. The copy applies
+   * only over an older `timePackRevision`, so when concurrent grants finish out of order the user
+   * keeps the latest balance state. Returns whether the copy applied. Invalidates the cached auth
+   * user either way, so a burst-cached `req.user` cannot keep the old entitlement.
+   */
+  async function setUserTimePack(userId: string, timePack: GrantedTimePack): Promise<boolean> {
+    const User = mongoose.models.User;
+    const updated = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [{ timePackRevision: null }, { timePackRevision: { $lt: timePack.timePackRevision } }],
+      },
+      {
+        $set: {
+          timePackId: timePack.timePackId,
+          timePackLabel: timePack.timePackLabel,
+          timePackEndpoint: timePack.timePackEndpoint,
+          timePackExpiresAt: timePack.timePackExpiresAt,
+          timePackGrantedAt: timePack.timePackGrantedAt,
+          timePackRevision: timePack.timePackRevision,
+        },
+      },
+      { new: true, projection: { _id: 1 } },
+    ).lean<Pick<IUser, '_id'>>();
+    await invalidateAuthUserDocCache(userId);
+    return updated != null;
   }
 
   /**
@@ -1073,6 +1104,7 @@ export function createUserMethods(
     createUser,
     createUserIfAbsent,
     updateUser,
+    setUserTimePack,
     awaitAuthUserDocEviction,
     unsetUserPhone,
     consumeBackupCode,

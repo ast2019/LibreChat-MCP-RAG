@@ -35,69 +35,48 @@ describe('resolveTimePackGrant', () => {
 });
 
 describe('grantTimePack', () => {
-  it('writes time fields without touching credits', async () => {
-    const now = new Date('2026-01-01T00:00:00.000Z');
-    const upsertBalanceFields = jest.fn().mockResolvedValue({});
-    const setUserTimePack = jest.fn().mockResolvedValue({});
-
-    const result = await grantTimePack(
-      { upsertBalanceFields, setUserTimePack, now: () => now },
-      {
-        userId: 'u1',
-        pack: timePack,
-        durationDays: 30,
-        endpoint: 'ClaudeTime',
-      },
-    );
-
-    expect(upsertBalanceFields).toHaveBeenCalledWith('u1', {
+  it('extends on the balance record and copies the result onto the user', async () => {
+    const now = new Date('2026-01-10T00:00:00.000Z');
+    const granted = {
       timePackId: 'claude-time',
       timePackLabel: 'Claude month',
-      timePackExpiresAt: new Date('2026-01-31T00:00:00.000Z'),
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: new Date('2026-03-02T00:00:00.000Z'),
       timePackGrantedAt: now,
-      timePackEndpoint: 'ClaudeTime',
-    });
-    expect(setUserTimePack).toHaveBeenCalled();
-    expect(result.pack).toEqual({ id: 'claude-time', label: 'Claude month' });
-  });
-
-  it('keeps the remaining days when re-granted before expiry (F8)', async () => {
-    const now = new Date('2026-01-10T00:00:00.000Z');
-    const upsertBalanceFields = jest.fn().mockResolvedValue({});
-    const findBalanceByUser = jest.fn().mockResolvedValue({
-      timePackEndpoint: 'ClaudeTime',
-      timePackExpiresAt: new Date('2026-01-31T00:00:00.000Z'),
-    });
+      timePackRevision: 3,
+    };
+    const extendTimePack = jest.fn().mockResolvedValue(granted);
+    const setUserTimePack = jest.fn().mockResolvedValue(true);
 
     const result = await grantTimePack(
-      { upsertBalanceFields, findBalanceByUser, now: () => now },
+      { extendTimePack, setUserTimePack, now: () => now },
       { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
     );
 
-    expect(result.expiresAt.toISOString()).toBe('2026-03-02T00:00:00.000Z');
-    expect(result.grantedAt).toBe(now);
-    expect(upsertBalanceFields).toHaveBeenCalledWith(
-      'u1',
-      expect.objectContaining({ timePackExpiresAt: new Date('2026-03-02T00:00:00.000Z') }),
-    );
+    expect(extendTimePack).toHaveBeenCalledWith('u1', {
+      timePackId: 'claude-time',
+      timePackLabel: 'Claude month',
+      timePackEndpoint: 'ClaudeTime',
+      durationDays: 30,
+      now,
+    });
+    expect(setUserTimePack).toHaveBeenCalledWith('u1', granted);
+    expect(result).toEqual({
+      pack: { id: 'claude-time', label: 'Claude month' },
+      expiresAt: granted.timePackExpiresAt,
+      endpoint: 'ClaudeTime',
+      grantedAt: now,
+    });
   });
 
-  it('starts from now when the current pack expired or is on another endpoint', async () => {
-    const now = new Date('2026-01-10T00:00:00.000Z');
-    for (const current of [
-      { timePackEndpoint: 'ClaudeTime', timePackExpiresAt: '2026-01-01T00:00:00.000Z' },
-      { timePackEndpoint: 'OtherTime', timePackExpiresAt: '2026-05-01T00:00:00.000Z' },
-      null,
-    ]) {
-      const result = await grantTimePack(
-        {
-          upsertBalanceFields: jest.fn().mockResolvedValue({}),
-          findBalanceByUser: jest.fn().mockResolvedValue(current),
-          now: () => now,
-        },
+  it('does not copy onto the user when the balance write fails', async () => {
+    const setUserTimePack = jest.fn();
+    await expect(
+      grantTimePack(
+        { extendTimePack: jest.fn().mockRejectedValue(new Error('db down')), setUserTimePack },
         { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
-      );
-      expect(result.expiresAt.toISOString()).toBe('2026-02-09T00:00:00.000Z');
-    }
+      ),
+    ).rejects.toThrow('db down');
+    expect(setUserTimePack).not.toHaveBeenCalled();
   });
 });

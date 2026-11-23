@@ -214,6 +214,7 @@ async function callAndCapture(
     requestBody?: Parameters<typeof createRun>[0]['requestBody'];
     steering?: Parameters<typeof createRun>[0]['steering'];
     customHandlers?: Parameters<typeof createRun>[0]['customHandlers'];
+    offPackBalanceGate?: Parameters<typeof createRun>[0]['offPackBalanceGate'];
   } = {},
 ) {
   const agents = opts.agents ?? [makeAgent()];
@@ -236,6 +237,7 @@ async function callAndCapture(
     requestBody: opts.requestBody,
     steering: opts.steering,
     customHandlers: opts.customHandlers,
+    offPackBalanceGate: opts.offPackBalanceGate,
     streaming: true,
     streamUsage: true,
   });
@@ -411,6 +413,39 @@ describe('custom endpoint stream usage defaults', () => {
 
     expect(clientOptions.streamUsage).toBe(true);
     expect(clientOptions.usage).toBe(true);
+  });
+});
+
+describe('time-pack summarization gate', () => {
+  const gate = (checks: boolean) => ({
+    checks,
+    promptTokens: 0,
+    covers: () => false,
+    admit: jest.fn(),
+  });
+
+  it('guards only the summarization client of a time-pack turn', async () => {
+    const agents = await callAndCapture({
+      offPackBalanceGate: gate(true),
+      summarizationConfig: { provider: 'anthropic', model: 'claude-test' },
+    });
+
+    const summary = agents[0].summarizationConfig as Record<string, unknown>;
+    const callbacks = (summary.parameters as Record<string, unknown>).callbacks as Array<{
+      name?: string;
+    }>;
+    expect(callbacks.map((callback) => callback.name)).toEqual(['librechat-off-pack-balance']);
+    expect((agents[0].clientOptions as Record<string, unknown>).callbacks).toBeUndefined();
+  });
+
+  it('installs no guard when the gate does not check', async () => {
+    const agents = await callAndCapture({
+      offPackBalanceGate: gate(false),
+      summarizationConfig: { provider: 'anthropic', model: 'claude-test' },
+    });
+
+    const summary = agents[0].summarizationConfig as Record<string, unknown>;
+    expect((summary.parameters as Record<string, unknown> | undefined)?.callbacks).toBeUndefined();
   });
 });
 
