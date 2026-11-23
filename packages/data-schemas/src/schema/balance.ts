@@ -107,6 +107,15 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
     default: undefined,
     select: false,
   },
+  /**
+   * One-time credits recently added (see `applyBalanceCredit`); the fence against a second $inc.
+   * `{ id, at, settledAt? }` markers, or plain-string ids written before markers carried times.
+   */
+  appliedCredits: {
+    type: [Schema.Types.Mixed],
+    default: undefined,
+    select: false,
+  },
 });
 
 export default balanceSchema;

@@ -33,6 +33,8 @@ let releaseBalanceReservation: ReturnType<
 let findBalanceByUser: ReturnType<typeof createTransactionMethods>['findBalanceByUser'];
 let upsertBalanceFields: ReturnType<typeof createTransactionMethods>['upsertBalanceFields'];
 let updateBalance: ReturnType<typeof createTransactionMethods>['updateBalance'];
+let applyBalanceCredit: ReturnType<typeof createTransactionMethods>['applyBalanceCredit'];
+let settleBalanceCredit: ReturnType<typeof createTransactionMethods>['settleBalanceCredit'];
 let getMultiplier: ReturnType<typeof createTxMethods>['getMultiplier'];
 let getCacheMultiplier: ReturnType<typeof createTxMethods>['getCacheMultiplier'];
 
@@ -64,6 +66,8 @@ beforeAll(async () => {
   findBalanceByUser = transactionMethods.findBalanceByUser;
   upsertBalanceFields = transactionMethods.upsertBalanceFields;
   updateBalance = transactionMethods.updateBalance;
+  applyBalanceCredit = transactionMethods.applyBalanceCredit;
+  settleBalanceCredit = transactionMethods.settleBalanceCredit;
 
   const spendMethods = createSpendTokensMethods(mongoose, {
     createTransaction: transactionMethods.createTransaction,
@@ -1846,5 +1850,296 @@ describe('Balance Reservations', () => {
       expect((await readState(user))?.pendingRefill).toBeUndefined();
       expect(await Transaction.countDocuments({ user, context: 'autoRefill' })).toBe(1);
     });
+  });
+});
+
+describe('applyBalanceCredit', () => {
+  const pack = { id: 'starter', label: 'Starter' };
+  const readCredits = (user: mongoose.Types.ObjectId) =>
+    Balance.findOne({ user }).select('+appliedCredits').lean<IBalance>();
+
+  it('adds a credit and its pack once, however often it is applied', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const at = new Date();
+    const grant = {
+      user: user.toString(),
+      creditId: 'payment:a',
+      credits: 2_000_000,
+      pack,
+      grantedAfter: at,
+      at,
+    };
+
+    expect(await applyBalanceCredit(grant)).toBe(true);
+    expect(await applyBalanceCredit(grant)).toBe(false);
+
+    expect(await readCredits(user)).toMatchObject({
+      tokenCredits: 2_000_000,
+      packId: 'starter',
+      packLabel: 'Starter',
+      packAllotment: 2_000_000,
+      packGrantedAt: at,
+      appliedCredits: [{ id: 'payment:a', at }],
+    });
+  });
+
+  it('adds the credit once when callers race, with or without a balance record', async () => {
+    for (const existing of [false, true]) {
+      const user = new mongoose.Types.ObjectId();
+      if (existing) {
+        await Balance.create({ user, tokenCredits: 500 });
+      }
+      const at = new Date();
+      const grant = {
+        user: user.toString(),
+        creditId: 'payment:b',
+        credits: 1_000,
+        pack,
+        grantedAfter: at,
+        at,
+      };
+
+      const results = await Promise.all(Array.from({ length: 8 }, () => applyBalanceCredit(grant)));
+
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect((await readCredits(user))?.tokenCredits).toBe(existing ? 1_500 : 1_000);
+      expect(await Balance.countDocuments({ user })).toBe(1);
+    }
+  });
+
+  it('keeps a newer pack and grows its allotment when an older credit lands late', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const paidAt = new Date(Date.now() - 60_000);
+    const newerAt = new Date(Date.now() - 30_000);
+    await Balance.create({
+      user,
+      tokenCredits: 15_000_000,
+      packId: 'pro',
+      packLabel: 'Pro',
+      packAllotment: 15_000_000,
+      packGrantedAt: newerAt,
+    });
+
+    await applyBalanceCredit({
+      user: user.toString(),
+      creditId: 'payment:late',
+      credits: 2_000_000,
+      pack,
+      grantedAfter: paidAt,
+      at: new Date(),
+    });
+
+    expect(await readCredits(user)).toMatchObject({
+      tokenCredits: 17_000_000,
+      packId: 'pro',
+      packLabel: 'Pro',
+      packAllotment: 17_000_000,
+      packGrantedAt: newerAt,
+    });
+  });
+
+  it('leaves other credits and reads of the balance untouched', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const at = new Date();
+    const base = { user: user.toString(), credits: 10, grantedAfter: at, at };
+    await applyBalanceCredit({ ...base, creditId: 'payment:1' });
+    await applyBalanceCredit({ ...base, creditId: 'payment:2' });
+
+    expect((await readCredits(user))?.tokenCredits).toBe(20);
+    expect(await findBalanceByUser(user.toString())).not.toHaveProperty('appliedCredits');
+    await expect(
+      applyBalanceCredit({ ...base, creditId: 'payment:3', credits: 0 }),
+    ).rejects.toThrow('positive credits');
+  });
+
+  const HOUR = 60 * 60_000;
+  const DAY = 24 * HOUR;
+  const markerIds = async (user: mongoose.Types.ObjectId) =>
+    ((await readCredits(user))?.appliedCredits ?? []).map((marker) =>
+      typeof marker === 'string' ? marker : marker.id,
+    );
+  /** A balance holding `appliedCredits` as stored, bypassing the schema like old data would */
+  const seed = async (appliedCredits: unknown[], tokenCredits = 0) => {
+    const user = new mongoose.Types.ObjectId();
+    await Balance.collection.insertOne({ user, tokenCredits, appliedCredits });
+    return user;
+  };
+
+  it('drops markers settled longer than the retention on the next credit', async () => {
+    const now = new Date();
+    const ago = (ms: number) => new Date(now.getTime() - ms);
+    const user = await seed([
+      { id: 'payment:aged', at: ago(10 * DAY), settledAt: ago(8 * DAY) },
+      { id: 'payment:recent', at: ago(2 * DAY), settledAt: ago(DAY) },
+      { id: 'payment:open', at: ago(30 * DAY) },
+    ]);
+
+    expect(
+      await applyBalanceCredit({
+        user: user.toString(),
+        creditId: 'payment:new',
+        credits: 10,
+        grantedAfter: now,
+        at: now,
+      }),
+    ).toBe(true);
+
+    expect((await markerIds(user)).sort()).toEqual([
+      'payment:new',
+      'payment:open',
+      'payment:recent',
+    ]);
+    expect((await readCredits(user))?.tokenCredits).toBe(10);
+  });
+
+  it('starts the retention when a marker is settled, not when it was written', async () => {
+    const now = Date.now();
+    const user = new mongoose.Types.ObjectId();
+    const markers = { retentionMs: 2 * HOUR, limit: 100 };
+    const credit = (creditId: string, at: number) =>
+      applyBalanceCredit({
+        user: user.toString(),
+        creditId,
+        credits: 10,
+        grantedAfter: new Date(at),
+        at: new Date(at),
+        markers,
+      });
+
+    await credit('payment:a', now - 30 * DAY);
+    await settleBalanceCredit({ user: user.toString(), creditId: 'payment:a', at: new Date(now) });
+    await settleBalanceCredit({
+      user: user.toString(),
+      creditId: 'payment:a',
+      at: new Date(now + DAY),
+    });
+    await credit('payment:b', now + HOUR);
+    expect(await markerIds(user)).toContain('payment:a');
+    expect(await credit('payment:a', now + HOUR)).toBe(false);
+
+    await credit('payment:c', now + 3 * HOUR);
+    expect((await markerIds(user)).sort()).toEqual(['payment:b', 'payment:c']);
+    expect((await readCredits(user))?.tokenCredits).toBe(30);
+  });
+
+  it('never keeps more markers than the limit, dropping the oldest settled ones first', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const markers = { retentionMs: 7 * DAY, limit: 10 };
+    const at = new Date();
+    for (let i = 0; i < 25; i++) {
+      const creditId = `payment:${i}`;
+      await applyBalanceCredit({
+        user: user.toString(),
+        creditId,
+        credits: 1,
+        grantedAfter: at,
+        at,
+        markers,
+      });
+      if (i >= 3) {
+        await settleBalanceCredit({ user: user.toString(), creditId, at });
+      }
+      expect((await markerIds(user)).length).toBeLessThanOrEqual(10);
+    }
+
+    const ids = await markerIds(user);
+    expect(ids).toHaveLength(10);
+    /** The unsettled markers stay; the room left goes to the newest settled ones */
+    expect(ids.slice().sort()).toEqual(
+      [
+        'payment:0',
+        'payment:1',
+        'payment:2',
+        ...[18, 19, 20, 21, 22, 23, 24].map((i) => `payment:${i}`),
+      ].sort(),
+    );
+    expect((await readCredits(user))?.tokenCredits).toBe(25);
+  });
+
+  it('caps unsettled markers too, keeping the newest', async () => {
+    const at = new Date();
+    const user = await seed(Array.from({ length: 15 }, (_, i) => ({ id: `payment:${i}`, at })));
+
+    await applyBalanceCredit({
+      user: user.toString(),
+      creditId: 'payment:new',
+      credits: 1,
+      grantedAfter: at,
+      at,
+      markers: { retentionMs: 7 * DAY, limit: 10 },
+    });
+
+    expect(await markerIds(user)).toEqual([
+      ...[6, 7, 8, 9, 10, 11, 12, 13, 14].map((i) => `payment:${i}`),
+      'payment:new',
+    ]);
+  });
+
+  it('credits once when callers race while the markers are being pruned', async () => {
+    const at = new Date();
+    const old = new Date(at.getTime() - 30 * DAY);
+    const user = await seed(
+      Array.from({ length: 10 }, (_, i) => ({ id: `payment:${i}`, at: old, settledAt: old })),
+      100,
+    );
+    const grant = {
+      user: user.toString(),
+      creditId: 'payment:race',
+      credits: 1_000,
+      grantedAfter: at,
+      at,
+      markers: { retentionMs: 7 * DAY, limit: 10 },
+    };
+
+    const results = await Promise.all(Array.from({ length: 8 }, () => applyBalanceCredit(grant)));
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect((await readCredits(user))?.tokenCredits).toBe(1_100);
+    expect(await markerIds(user)).toEqual(['payment:race']);
+  });
+
+  it('counts a plain-string marker as present and rewrites it as an unsettled marker', async () => {
+    const at = new Date();
+    const user = await seed(['payment:legacy'], 500);
+    const grant = (creditId: string) => ({
+      user: user.toString(),
+      creditId,
+      credits: 10,
+      grantedAfter: at,
+      at,
+    });
+
+    expect(await applyBalanceCredit(grant('payment:legacy'))).toBe(false);
+    expect(await applyBalanceCredit(grant('payment:next'))).toBe(true);
+    expect((await readCredits(user))?.appliedCredits).toEqual([
+      { id: 'payment:legacy', at },
+      { id: 'payment:next', at },
+    ]);
+    expect(await applyBalanceCredit(grant('payment:legacy'))).toBe(false);
+    expect((await readCredits(user))?.tokenCredits).toBe(510);
+  });
+
+  it('refuses a marker policy below the floors', async () => {
+    const at = new Date();
+    const base = {
+      user: new mongoose.Types.ObjectId().toString(),
+      credits: 1,
+      grantedAfter: at,
+      at,
+    };
+    await expect(
+      applyBalanceCredit({
+        ...base,
+        creditId: 'payment:x',
+        markers: { retentionMs: 2 * 60_000, limit: 1000 },
+      }),
+    ).rejects.toThrow('at least 1 hour');
+    await expect(
+      applyBalanceCredit({
+        ...base,
+        creditId: 'payment:x',
+        markers: { retentionMs: DAY, limit: 5 },
+      }),
+    ).rejects.toThrow('at least 10');
   });
 });

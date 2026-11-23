@@ -17,6 +17,11 @@ export interface ITransaction extends Document {
   writeTokens?: number;
   readTokens?: number;
   messageId?: string;
+  /**
+   * Set only on payment credits: false until the credit reached the balance. A row without the
+   * field predates the flag and counts as applied.
+   */
+  applied?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
   tenantId?: string;
@@ -60,6 +65,7 @@ const transactionSchema: Schema<ITransaction> = new Schema(
     writeTokens: { type: Number },
     readTokens: { type: Number },
     messageId: { type: String },
+    applied: { type: Boolean },
     tenantId: {
       type: String,
       index: true,

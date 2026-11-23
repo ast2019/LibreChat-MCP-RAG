@@ -43,6 +43,25 @@ describe('resolvePaymentSettings', () => {
     ).toBe(0);
   });
 
+  it('keeps credit markers for 7 days and at most 1000 by default, and reads both from the config', () => {
+    expect(resolvePaymentSettings(withPayments(undefined), {}).creditMarkers).toEqual({
+      retentionMs: 7 * 24 * 60 * 60_000,
+      limit: 1000,
+    });
+    expect(
+      resolvePaymentSettings(
+        withPayments({ enabled: true, creditMarkerRetentionHours: 1, creditMarkerLimit: 10 }),
+        {},
+      ).creditMarkers,
+    ).toEqual({ retentionMs: 60 * 60_000, limit: 10 });
+    /** Below the floors the block is invalid, so payments stay off rather than half-applied */
+    for (const floor of [{ creditMarkerRetentionHours: 0 }, { creditMarkerLimit: 9 }]) {
+      expect(resolvePaymentSettings(withPayments({ enabled: true, ...floor }), {}).enabled).toBe(
+        false,
+      );
+    }
+  });
+
   it('treats an invalid block as disabled', () => {
     const settings = resolvePaymentSettings(
       withPayments({ enabled: true, orderTtlMinutes: 1 }),

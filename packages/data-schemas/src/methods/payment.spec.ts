@@ -3,8 +3,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { ITransaction } from '~/schema/transaction';
 import type { IPaymentOrder } from '~/types';
 import { createPaymentMethods, paymentLedgerMarker, PAYMENT_LEDGER_INDEX } from './payment';
-import logger from '~/config/winston';
 import { createModels } from '~/models';
+import logger from '~/config/winston';
 
 jest.mock('~/config/winston', () => ({
   error: jest.fn(),
@@ -47,15 +47,29 @@ const paymentCredit = (messageId = paymentLedgerMarker(orderId)) => ({
   messageId,
 });
 
+const entry = { userId: user.toString(), orderId, credits: 2_000_000 };
+
+const orderData = () => ({
+  user: user.toString(),
+  packId: 'starter',
+  packLabel: 'Starter',
+  credits: 1,
+  amountRial: 10,
+  gateway: 'zarinpal' as const,
+  expiresAt: new Date(Date.now() + 60_000),
+});
+
+const hasLedgerIndex = async () =>
+  (await Transaction.collection.indexes()).some((index) => index.name === PAYMENT_LEDGER_INDEX);
+
 describe('payment ledger guard', () => {
   it('refuses a second credit transaction for the same order', async () => {
     const methods = createPaymentMethods(mongoose);
-    expect(await methods.hasPaymentLedgerEntry(user.toString(), orderId)).toBe(false);
+    expect(await methods.recordPaymentLedgerEntry(entry)).toBe('pending');
 
-    await Transaction.create(paymentCredit());
     await expect(Transaction.create(paymentCredit())).rejects.toMatchObject({ code: 11000 });
 
-    expect(await methods.hasPaymentLedgerEntry(user.toString(), orderId)).toBe(true);
+    expect(await Transaction.countDocuments({ user })).toBe(1);
     const indexes = await Transaction.collection.indexes();
     expect(indexes.find((index) => index.name === PAYMENT_LEDGER_INDEX)).toMatchObject({
       unique: true,
@@ -65,7 +79,7 @@ describe('payment ledger guard', () => {
 
   it('leaves usage and manual grants out of the guard', async () => {
     const methods = createPaymentMethods(mongoose);
-    await methods.hasPaymentLedgerEntry(user.toString(), orderId);
+    await methods.recordPaymentLedgerEntry(entry);
 
     const usage = { user, tokenType: 'prompt' as const, rawAmount: -10, messageId: 'msg-1' };
     await Transaction.create(usage);
@@ -74,7 +88,7 @@ describe('payment ledger guard', () => {
     await Transaction.create(manual);
     await Transaction.create(manual);
 
-    expect(await Transaction.countDocuments({ user })).toBe(4);
+    expect(await Transaction.countDocuments({ user })).toBe(5);
   });
 
   it('keeps crediting and names the orders when existing data already holds a duplicate', async () => {
@@ -82,13 +96,112 @@ describe('payment ledger guard', () => {
     await Transaction.create(paymentCredit());
     const methods = createPaymentMethods(mongoose);
 
-    await expect(methods.hasPaymentLedgerEntry(user.toString(), orderId)).resolves.toBe(true);
+    await expect(methods.recordPaymentLedgerEntry(entry)).resolves.toBe('legacy');
 
-    const indexes = await Transaction.collection.indexes();
-    expect(indexes.some((index) => index.name === PAYMENT_LEDGER_INDEX)).toBe(false);
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('credited more than once'), {
-      markers: [paymentLedgerMarker(orderId)],
+    expect(await hasLedgerIndex()).toBe(false);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('more than one ledger entry'),
+      {
+        markers: [paymentLedgerMarker(orderId)],
+      },
+    );
+  });
+
+  it('builds the ledger index on a later call once the duplicates are removed', async () => {
+    const realNow = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(realNow);
+    try {
+      await Transaction.create(paymentCredit());
+      const duplicate = await Transaction.create(paymentCredit());
+      const methods = createPaymentMethods(mongoose);
+
+      await methods.createPaymentOrder(orderData());
+      expect(await hasLedgerIndex()).toBe(false);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+
+      await Transaction.deleteOne({ _id: duplicate._id });
+      /** Inside the backoff no build is attempted (and nothing is logged again) */
+      await methods.createPaymentOrder(orderData());
+      expect(await hasLedgerIndex()).toBe(false);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+
+      clock.mockReturnValue(realNow + 61_000);
+      await methods.createPaymentOrder(orderData());
+      expect(await hasLedgerIndex()).toBe(true);
+      await expect(Transaction.create(paymentCredit())).rejects.toMatchObject({ code: 11000 });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('backs off further while the duplicates remain, logging once per attempt', async () => {
+    const realNow = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(realNow);
+    try {
+      await Transaction.create(paymentCredit());
+      await Transaction.create(paymentCredit());
+      const methods = createPaymentMethods(mongoose);
+
+      await methods.createPaymentOrder(orderData());
+      clock.mockReturnValue(realNow + 61_000);
+      await methods.createPaymentOrder(orderData());
+      expect(logger.error).toHaveBeenCalledTimes(2);
+      /** The second failure doubled the wait to two minutes */
+      clock.mockReturnValue(realNow + 61_000 + 90_000);
+      await methods.createPaymentOrder(orderData());
+      expect(logger.error).toHaveBeenCalledTimes(2);
+      clock.mockReturnValue(realNow + 61_000 + 121_000);
+      await methods.createPaymentOrder(orderData());
+      expect(logger.error).toHaveBeenCalledTimes(3);
+      expect(await hasLedgerIndex()).toBe(false);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});
+
+describe('payment ledger entry', () => {
+  it('writes one pending entry, and reports it applied once marked', async () => {
+    const methods = createPaymentMethods(mongoose);
+
+    expect(await methods.recordPaymentLedgerEntry(entry)).toBe('pending');
+    expect(await methods.recordPaymentLedgerEntry(entry)).toBe('pending');
+    await methods.markPaymentLedgerApplied(entry.userId, orderId);
+    expect(await methods.recordPaymentLedgerEntry(entry)).toBe('applied');
+
+    const rows = await Transaction.find({ user }).lean();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      tokenType: 'credits',
+      context: 'pack',
+      rawAmount: 2_000_000,
+      tokenValue: 2_000_000,
+      messageId: paymentLedgerMarker(orderId),
+      applied: true,
     });
+  });
+
+  it('writes one entry when callers race', async () => {
+    const methods = createPaymentMethods(mongoose);
+
+    const states = await Promise.all(
+      Array.from({ length: 6 }, () => methods.recordPaymentLedgerEntry(entry)),
+    );
+
+    expect(states).toEqual(Array(6).fill('pending'));
+    expect(await Transaction.countDocuments({ user })).toBe(1);
+  });
+
+  it('counts an entry written before the applied flag as applied', async () => {
+    await Transaction.create(paymentCredit());
+    const methods = createPaymentMethods(mongoose);
+
+    expect(await methods.recordPaymentLedgerEntry(entry)).toBe('legacy');
+    await methods.markPaymentLedgerApplied(entry.userId, orderId);
+
+    const rows = await Transaction.find({ user }).lean();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].applied).toBeUndefined();
   });
 });
 

@@ -13,6 +13,14 @@ export type TPaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 export const DEFAULT_PAYMENT_ORDER_TTL_MINUTES = 30;
 export const DEFAULT_PAYMENT_REQUEST_TIMEOUT_MS = 15_000;
 export const DEFAULT_PAYMENT_REVERIFY_CLOSED_MINUTES = 1440;
+/** Hours a settled credit marker stays on the balance (see `creditMarkerRetentionHours`). */
+export const DEFAULT_PAYMENT_CREDIT_MARKER_RETENTION_HOURS = 168;
+/** Most credit markers one balance keeps (see `creditMarkerLimit`). */
+export const DEFAULT_PAYMENT_CREDIT_MARKER_LIMIT = 1000;
+/** Shortest retention allowed: far above the 2-minute credit lease a late caller can outlive. */
+export const MIN_PAYMENT_CREDIT_MARKER_RETENTION_HOURS = 1;
+/** Fewest markers allowed, so concurrent purchases of one user never push each other out. */
+export const MIN_PAYMENT_CREDIT_MARKER_LIMIT = 10;
 
 const httpUrlSchema = z
   .string()
@@ -61,6 +69,29 @@ export const paymentsConfigSchema = z.object({
     .min(1000)
     .max(60_000)
     .default(DEFAULT_PAYMENT_REQUEST_TIMEOUT_MS),
+  /**
+   * Hours a paid order's credit marker stays on the buyer's balance after its ledger entry is
+   * marked applied. The marker stops a late caller (a stale lease holder or a retry that read the
+   * entry before it was applied) from adding the credits twice; that caller is bounded by the
+   * credit lease, so the minimum of 1 hour is far above it. Markers whose ledger entry is not
+   * confirmed applied are never dropped by age.
+   */
+  creditMarkerRetentionHours: z
+    .number()
+    .int()
+    .min(MIN_PAYMENT_CREDIT_MARKER_RETENTION_HOURS)
+    .max(8760)
+    .default(DEFAULT_PAYMENT_CREDIT_MARKER_RETENTION_HOURS),
+  /**
+   * Hard cap on credit markers per balance, so the balance document stays far below MongoDB's
+   * 16 MiB limit. Past the cap the oldest settled markers go first.
+   */
+  creditMarkerLimit: z
+    .number()
+    .int()
+    .min(MIN_PAYMENT_CREDIT_MARKER_LIMIT)
+    .max(10_000)
+    .default(DEFAULT_PAYMENT_CREDIT_MARKER_LIMIT),
   /** Text the gateway shows the buyer; `{pack}` is replaced with the pack label. */
   description: z.string().min(1).max(200).optional(),
   gateways: z

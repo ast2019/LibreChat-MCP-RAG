@@ -1,6 +1,6 @@
 import { PAYMENT_GATEWAYS, paymentsConfigSchema } from 'librechat-data-provider';
 import type { TPaymentGateway, TPaymentsStartupConfig } from 'librechat-data-provider';
-import type { AppConfig } from '@librechat/data-schemas';
+import type { AppConfig, BalanceCreditMarkerPolicy } from '@librechat/data-schemas';
 import type { GatewayConfigs } from './types';
 
 export type PaymentsEnv = Record<string, string | undefined>;
@@ -24,6 +24,8 @@ export interface PaymentSettings {
   /** Window in which reconciliation re-verifies orders closed as unpaid; 0 is off */
   reverifyClosedMinutes: number;
   requestTimeoutMs: number;
+  /** Retention and cap of the credit markers on a buyer's balance */
+  creditMarkers: BalanceCreditMarkerPolicy;
   description?: string;
   gateways: { [K in TPaymentGateway]: GatewaySettings<K> };
 }
@@ -76,6 +78,10 @@ export function resolvePaymentSettings(
     orderTtlMinutes: raw.orderTtlMinutes,
     reverifyClosedMinutes: raw.reverifyClosedMinutes,
     requestTimeoutMs: raw.requestTimeoutMs,
+    creditMarkers: {
+      retentionMs: raw.creditMarkerRetentionHours * 60 * 60_000,
+      limit: raw.creditMarkerLimit,
+    },
     ...(raw.description != null && { description: raw.description }),
     gateways: {
       zarinpal: {

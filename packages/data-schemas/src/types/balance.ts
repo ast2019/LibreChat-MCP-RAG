@@ -44,6 +44,35 @@ export interface IBalance extends Document {
   /** Sum of `reservations` amounts, maintained by the same writes */
   reservedCredits?: number;
   pendingRefill?: IBalancePendingRefill;
+  /**
+   * Markers of the one-time credits (`applyBalanceCredit`) recently added. A plain string is a
+   * marker written before markers carried times; it counts as present.
+   */
+  appliedCredits?: (BalanceCreditMarker | string)[];
+}
+
+/** One credit already on the balance: the fence against adding it again. */
+export interface BalanceCreditMarker {
+  id: string;
+  /** When the credit was added */
+  at: Date;
+  /** When the caller confirmed its own record of the credit (`settleBalanceCredit`) */
+  settledAt?: Date;
+}
+
+/** Confirms that the caller recorded a credit as applied, so its marker may age out. */
+export interface BalanceCreditSettlement {
+  user: string;
+  creditId: string;
+  at: Date;
+}
+
+/** How long credit markers stay on a balance, and how many it keeps at most. */
+export interface BalanceCreditMarkerPolicy {
+  /** A settled marker is dropped once settled longer than this */
+  retentionMs: number;
+  /** Most markers kept; past it the oldest settled ones go first, then the oldest unsettled */
+  limit: number;
 }
 
 /** Plain data fields for creating or updating a balance record (no Mongoose Document methods) */
@@ -85,6 +114,26 @@ export interface GrantedTimePack {
   timePackExpiresAt: Date;
   timePackGrantedAt: Date;
   timePackRevision: number;
+}
+
+/** A credit added to a user's balance at most once, identified by `creditId`. */
+export interface BalanceCreditGrant {
+  user: string;
+  /** Stable id of this credit (for example a payment's ledger marker) */
+  creditId: string;
+  /** Positive credits to add */
+  credits: number;
+  /**
+   * The pack this credit grants. Its fields are recorded with the new balance as the allotment,
+   * unless a grant stamped after `grantedAfter` already owns them; then the allotment only grows
+   * by `credits`.
+   */
+  pack?: { id: string; label: string };
+  grantedAfter: Date;
+  /** Stamps the pack grant and the marker, and is the clock the marker retention reads */
+  at: Date;
+  /** Defaults to the `payments.creditMarker*` defaults of the config schema */
+  markers?: BalanceCreditMarkerPolicy;
 }
 
 /** Holds credits against a user's balance for the lifetime of one in-flight request */

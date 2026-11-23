@@ -26,7 +26,6 @@ const handlers = createPaymentHandlers({
   currencyRates: getSharedCurrencyRates(),
   store: db,
   grant: {
-    createTransaction: db.createTransaction,
     upsertBalanceFields: db.upsertBalanceFields,
     setUserPack: (userId, packId) =>
       db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
