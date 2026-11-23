@@ -7,5 +7,7 @@ export * from './status';
 export * from './registry';
 export * from './service';
 export * from './handlers';
+export * from './limiter';
+export * from './public';
 export { createZarinpalDriver, ZARINPAL_HOSTS } from './drivers/zarinpal';
 export { createIdpayDriver, IDPAY_API } from './drivers/idpay';

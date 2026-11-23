@@ -1309,6 +1309,32 @@ describe('GET /api/config/packs', () => {
     expect(JSON.stringify(response.body)).not.toContain('admin-only note');
   });
 
+  it('lists only the credit packs checkout sells', async () => {
+    mockGetAppConfig.mockResolvedValue({
+      ...packsConfig,
+      balance: {
+        enabled: true,
+        packs: [
+          ...packsConfig.balance.packs,
+          {
+            id: 'claude-month',
+            label: 'Claude',
+            kind: 'time',
+            durationDays: 30,
+            endpoint: 'ClaudeTime',
+          },
+          { id: 'broken', label: 'Broken', credits: 1.5 },
+          { id: 'nameless', credits: 100 },
+          { id: 'zero', label: 'Zero', credits: 0 },
+        ],
+      },
+    });
+    const response = await request(createApp()).get('/api/config/packs');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.packs.map((pack) => pack.id)).toEqual(['starter', 'pro']);
+  });
+
   it('lists no packs when the balance is off', async () => {
     mockGetAppConfig.mockResolvedValue({ ...packsConfig, balance: { enabled: false } });
     const response = await request(createApp()).get('/api/config/packs');

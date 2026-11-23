@@ -12,6 +12,7 @@ export type TPaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 
 export const DEFAULT_PAYMENT_ORDER_TTL_MINUTES = 30;
 export const DEFAULT_PAYMENT_REQUEST_TIMEOUT_MS = 15_000;
+export const DEFAULT_PAYMENT_REVERIFY_CLOSED_MINUTES = 1440;
 
 const httpUrlSchema = z
   .string()
@@ -42,6 +43,17 @@ export const paymentsConfigSchema = z.object({
   callbackBaseUrl: httpUrlSchema.optional(),
   /** Minutes an unpaid order stays open before reconciliation may expire it. */
   orderTtlMinutes: z.number().int().min(5).max(1440).default(DEFAULT_PAYMENT_ORDER_TTL_MINUTES),
+  /**
+   * Minutes after creation during which reconciliation re-verifies a canceled or failed order
+   * once (after its expiry) with the gateway, so an unverified "canceled" return cannot close a
+   * payment for good. 0 turns the re-check off.
+   */
+  reverifyClosedMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(10_080)
+    .default(DEFAULT_PAYMENT_REVERIFY_CLOSED_MINUTES),
   /** Timeout for one gateway HTTP call. */
   requestTimeoutMs: z
     .number()
@@ -87,6 +99,13 @@ export const PAYMENT_ERROR_CODES = [
   'rate_limited',
 ] as const;
 export type TPaymentErrorCode = (typeof PAYMENT_ERROR_CODES)[number];
+
+/**
+ * Codes of a closed order that only says "the buyer did not pay" — a canceled return or a
+ * verify that found no payment yet. Such an order may still settle when a later verify finds
+ * the payment; any other closed order (an amount mismatch, a foreign authority) stays closed.
+ */
+export const PAYMENT_REVERIFIABLE_CODES: readonly TPaymentErrorCode[] = ['canceled', 'not_paid'];
 
 export const isPaymentErrorCode = (value: unknown): value is TPaymentErrorCode =>
   typeof value === 'string' && (PAYMENT_ERROR_CODES as readonly string[]).includes(value);

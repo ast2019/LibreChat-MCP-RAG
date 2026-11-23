@@ -231,7 +231,12 @@ export type TAdminAttachVmAccessResponse = { id: string; attachVmAccess: boolean
 /** `PATCH /api/admin/users/:id/password`: an admin sets a new password; the user's sessions end */
 export type TAdminSetPasswordRequest = { userId: string; password: string };
 
-export type TAdminSetPasswordResponse = { id: string; updated: boolean };
+export type TAdminSetPasswordResponse = {
+  id: string;
+  updated: boolean;
+  /** False when the user's sessions or cached sign-in could not be cleared right away */
+  sessionsEnded?: boolean;
+};
 
 export type TAdminHiggsfieldAccessRequest = { userId: string; higgsfieldAccess: boolean | null };
 

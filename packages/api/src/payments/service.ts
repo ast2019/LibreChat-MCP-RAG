@@ -1,4 +1,4 @@
-import { isPaymentGateway } from 'librechat-data-provider';
+import { isPaymentGateway, PAYMENT_REVERIFIABLE_CODES } from 'librechat-data-provider';
 import { logger, paymentLedgerMarker } from '@librechat/data-schemas';
 import type {
   TBalancePack,
@@ -14,12 +14,12 @@ import type {
 } from '@librechat/data-schemas';
 import type { ResolvedCurrency } from '~/billing/currency';
 import type { PaymentDriverRegistry } from './registry';
-import type { GrantBalanceDeps } from '~/billing/packs';
+import type { GrantBalanceDeps, RepairPackGrantDeps } from '~/billing/packs';
 import type { PaymentSettings } from './config';
 import type { GatewayHealth } from './health';
 import type { PaymentDriver } from './types';
 import { FINAL_DRIVER_CODES, isPaymentDriverError } from './errors';
-import { grantBalance } from '~/billing/packs';
+import { grantBalance, repairPackGrant } from '~/billing/packs';
 import { getUsableGateways } from './config';
 import { packPriceRial } from './pricing';
 
@@ -46,7 +46,9 @@ export interface PaymentStore {
   listPaymentOrdersToReconcile: (params: {
     now: Date;
     limit?: number;
+    reverifyClosedSince?: Date;
   }) => Promise<PaymentOrderRecord[]>;
+  markPaymentOrderReverified: (orderId: string, at: Date) => Promise<void>;
 }
 
 export interface PaymentServiceDeps {
@@ -59,6 +61,8 @@ export interface PaymentServiceDeps {
     ) => ReturnType<GrantBalanceDeps['createTransaction']>;
     upsertBalanceFields: GrantBalanceDeps['upsertBalanceFields'];
     setUserPack?: GrantBalanceDeps['setUserPack'];
+    /** The user's balance, read on a retry to finish the pack fields of a half-done grant */
+    findBalance: RepairPackGrantDeps['findBalance'];
   };
   registry: PaymentDriverRegistry;
   health?: GatewayHealth;
@@ -80,20 +84,38 @@ export interface PaymentOutcome {
 const DEFAULT_CREDIT_LEASE_MS = 2 * 60_000;
 const DEFAULT_DESCRIPTION = 'خرید بستهٔ {pack}';
 
+/** How an unpaid verify closes the order: a callback's own cancel keeps its status and code. */
+type UnpaidClose = { status: 'failed' | 'canceled'; code: TPaymentErrorCode };
+
+const isClosed = (order: PaymentOrderRecord): boolean =>
+  order.status === 'failed' || order.status === 'canceled';
+
+/** A closed order that only says "not paid" and can still be verified against the gateway. */
+const isReverifiable = (order: PaymentOrderRecord): boolean =>
+  isClosed(order) &&
+  order.authority != null &&
+  order.errorCode != null &&
+  PAYMENT_REVERIFIABLE_CODES.includes(order.errorCode);
+
+/** MongoDB's duplicate-key error: the unique payment-marker index refused a second credit. */
+const isDuplicateKey = (error: unknown): boolean =>
+  (error as { code?: unknown } | null)?.code === 11000;
+
 const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: PaymentFailure } => ({
   ok: false,
   error: { code, status },
 });
 
 /** `getBalanceConfig()` output; packs merge in unvalidated, so each is checked before use. */
-type BalanceLike = { enabled?: boolean; packs?: Partial<TBalancePack>[] } | null | undefined;
+export type BalanceLike = { enabled?: boolean; packs?: Partial<TBalancePack>[] } | null | undefined;
 
 /** Credit packs only — time packs are granted by admins, not sold through the payment gateways. */
-type ValidPack = TBalancePack & { credits: number };
+export type SellablePack = TBalancePack & { credits: number };
 
-function validPacks(balance: BalanceLike): ValidPack[] {
+/** The packs checkout sells: credit packs with an id, a label and a positive whole credit count. */
+export function sellablePacks(balance: BalanceLike): SellablePack[] {
   return (balance?.packs ?? []).filter(
-    (pack): pack is ValidPack =>
+    (pack): pack is SellablePack =>
       typeof pack?.id === 'string' &&
       typeof pack.label === 'string' &&
       (pack.kind == null || pack.kind === 'credits') &&
@@ -113,7 +135,7 @@ export function getPaymentOptions(
   if (gateways.length === 0 || balance?.enabled !== true) {
     return { enabled: false, gateways: [], packs: [] };
   }
-  const packs = validPacks(balance).flatMap((pack) => {
+  const packs = sellablePacks(balance).flatMap((pack) => {
     const amountRial = packPriceRial(pack.credits, currency);
     return amountRial == null
       ? []
@@ -150,6 +172,8 @@ export interface PaymentService {
   reconcile: (input: {
     resolveSettings: (order: PaymentOrderRecord) => Promise<PaymentSettings>;
     limit?: number;
+    /** Re-verify canceled/failed orders created within this many minutes; 0 or unset skips them */
+    reverifyClosedMinutes?: number;
   }) => Promise<TAdminPaymentsReconcileResponse>;
   ensureCredited: (order: PaymentOrderRecord) => Promise<boolean>;
 }
@@ -192,7 +216,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     }
     const pack =
       typeof input.packId === 'string'
-        ? validPacks(balance).find((candidate) => candidate.id === input.packId)
+        ? sellablePacks(balance).find((candidate) => candidate.id === input.packId)
         : undefined;
     if (pack == null) {
       return fail('pack_not_found', 404);
@@ -248,28 +272,27 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     };
   }
 
-  /** Grants a paid order's credits once. The caller holds the order's credit lease. */
+  /**
+   * Grants a paid order's credits once. The caller holds the order's credit lease. When the
+   * ledger entry already exists (a retry after a failure part-way through the grant), the pack
+   * fields and the user's pack are finished instead, without a second credit.
+   */
   async function credit(order: PaymentOrderRecord): Promise<boolean> {
+    const pack = { id: order.packId, label: order.packLabel };
     try {
+      let granted = false;
       if (!(await store.hasPaymentLedgerEntry(order.userId, order.id))) {
-        await grantBalance(
+        granted = await grantOnce(order);
+      }
+      if (!granted) {
+        await repairPackGrant(
           {
-            createTransaction: (tx) =>
-              deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
+            findBalance: deps.grant.findBalance,
             upsertBalanceFields: deps.grant.upsertBalanceFields,
             setUserPack: deps.grant.setUserPack,
             now,
           },
-          {
-            userId: order.userId,
-            credits: order.credits,
-            pack: {
-              id: order.packId,
-              label: order.packLabel,
-              kind: 'credits',
-              credits: order.credits,
-            },
-          },
+          { userId: order.userId, pack, grantedAfter: order.paidAt ?? order.createdAt },
         );
       }
       await store.markPaymentOrderCredited(order.id, now());
@@ -279,6 +302,42 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       logger.error(`[payments] crediting order ${order.id} failed; reconciliation retries it`, {
         error: error instanceof Error ? error.message : 'unknown',
       });
+      return false;
+    }
+  }
+
+  /**
+   * Writes the order's ledger entry and pack fields. False when the ledger's unique payment
+   * marker refused the entry: a concurrent claim (one whose lease ran out mid-grant) already
+   * wrote it, so this credit counts as done and only the pack fields are finished.
+   */
+  async function grantOnce(order: PaymentOrderRecord): Promise<boolean> {
+    try {
+      await grantBalance(
+        {
+          createTransaction: (tx) =>
+            deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
+          upsertBalanceFields: deps.grant.upsertBalanceFields,
+          setUserPack: deps.grant.setUserPack,
+          now,
+        },
+        {
+          userId: order.userId,
+          credits: order.credits,
+          pack: {
+            id: order.packId,
+            label: order.packLabel,
+            kind: 'credits',
+            credits: order.credits,
+          },
+        },
+      );
+      return true;
+    } catch (error) {
+      if (!isDuplicateKey(error)) {
+        throw error;
+      }
+      logger.info(`[payments] order ${order.id} was already credited by a concurrent claim`);
       return false;
     }
   }
@@ -315,13 +374,16 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
 
   /**
    * Verifies with the gateway (amount from the order) and settles exactly once. `callback`
-   * closes a definitive non-payment as failed; `check` (reconciliation/admin) leaves an
-   * unexpired unpaid order open and expires it once past `expiresAt`.
+   * closes a definitive non-payment as failed (or as `unpaidClose` says); `check`
+   * (reconciliation/admin) leaves an unexpired unpaid order open and expires it once past
+   * `expiresAt`. A closed order that is verified again stays as it is unless the gateway
+   * reports it paid.
    */
   async function verifyAndSettle(
     order: PaymentOrderRecord,
     driver: PaymentDriver,
     mode: 'callback' | 'check',
+    unpaidClose?: UnpaidClose,
   ): Promise<PaymentOutcome> {
     if (order.authority == null) {
       if (mode === 'check' && order.expiresAt.getTime() <= now().getTime()) {
@@ -351,22 +413,42 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       }
       recordSuccess(driver);
       const unpaid = error.code === 'not_paid' || error.code === 'canceled';
-      if (mode === 'check' && unpaid && order.expiresAt.getTime() > now().getTime()) {
-        return { status: 'pending', orderId: order.id };
-      }
-      const status = mode === 'check' && unpaid ? 'expired' : 'failed';
       if (error.code === 'amount_mismatch') {
         logger.error(`[payments] order ${order.id} amount mismatch at ${driver.name}; review it`);
       } else {
         logger.info(`[payments] order ${order.id} not paid: ${error.code}${gatewayStatus}`);
       }
-      const closed = await store.closePaymentOrder(order.id, status, error.code);
+      if (isClosed(order)) {
+        if (mode === 'check') {
+          await store.markPaymentOrderReverified(order.id, now());
+        }
+        return outcomeOf(order);
+      }
+      if (mode === 'check' && unpaid && order.expiresAt.getTime() > now().getTime()) {
+        return { status: 'pending', orderId: order.id };
+      }
+      let close: UnpaidClose | { status: 'expired'; code: TPaymentErrorCode } = {
+        status: 'failed',
+        code: error.code,
+      };
+      if (mode === 'check' && unpaid) {
+        close = { status: 'expired', code: error.code };
+      } else if (unpaid && unpaidClose) {
+        close = unpaidClose;
+      }
+      const closed = await store.closePaymentOrder(order.id, close.status, close.code);
       return closed ? outcomeOf(closed) : refresh(order.id);
     }
     recordSuccess(driver);
 
     if (receipt.amountRial != null && receipt.amountRial !== order.amountRial) {
       logger.error(`[payments] order ${order.id} amount mismatch at ${driver.name}; review it`);
+      if (isClosed(order)) {
+        if (mode === 'check') {
+          await store.markPaymentOrderReverified(order.id, now());
+        }
+        return outcomeOf(order);
+      }
       const closed = await store.closePaymentOrder(order.id, 'failed', 'amount_mismatch');
       return closed ? outcomeOf(closed) : refresh(order.id);
     }
@@ -402,7 +484,10 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   /**
    * Handles the buyer's return. The order must belong to this gateway and the returned
    * transaction id must equal the one stored at checkout — that pair is the callback's state,
-   * so a forged or replayed return can at most trigger a harmless re-verification.
+   * so a forged or replayed return can at most trigger a harmless re-verification. The return's
+   * own status is never trusted: a "canceled" or "failed" return is verified with the gateway
+   * too and closes the order only when the gateway reports it unpaid, and an OK return for an
+   * order closed as unpaid is verified again.
    */
   async function completeCallback(input: {
     settings: PaymentSettings;
@@ -430,23 +515,23 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     if (order.status === 'paid') {
       return outcomeOf(order, await ensureCredited(order));
     }
-    if (order.status === 'failed' || order.status === 'canceled') {
-      return outcomeOf(order);
+    if (isClosed(order)) {
+      return returned.status === 'ok' && isReverifiable(order)
+        ? verifyAndSettle(order, driver, 'callback')
+        : outcomeOf(order);
     }
     if (returned.status !== 'ok') {
-      const canceled = returned.status === 'canceled';
-      const closed = await store.closePaymentOrder(
-        order.id,
-        canceled ? 'canceled' : 'failed',
-        canceled ? 'canceled' : 'not_paid',
-      );
       logger.info(`[payments] order ${order.id} returned ${returned.status} from ${driver.name}`);
-      return closed ? outcomeOf(closed) : refresh(order.id);
+      const canceled = returned.status === 'canceled';
+      return verifyAndSettle(order, driver, 'callback', {
+        status: canceled ? 'canceled' : 'failed',
+        code: canceled ? 'canceled' : 'not_paid',
+      });
     }
     return verifyAndSettle(order, driver, 'callback');
   }
 
-  /** Admin "check again" for one order. */
+  /** Admin "check again" for one order; also re-verifies an order closed only as unpaid. */
   async function checkOrder(
     order: PaymentOrderRecord,
     settings: PaymentSettings,
@@ -454,7 +539,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     if (order.status === 'paid') {
       return outcomeOf(order, await ensureCredited(order));
     }
-    if (order.status !== 'pending' && order.status !== 'expired') {
+    if (order.status !== 'pending' && order.status !== 'expired' && !isReverifiable(order)) {
       return outcomeOf(order);
     }
     const driver = deps.registry.get(order.gateway, settings);
@@ -465,17 +550,28 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   }
 
   /**
-   * Re-verifies pending orders past their expiry and credits paid orders whose credit never
-   * landed. Orders run one after another so a backlog does not burst the gateway.
+   * Re-verifies pending orders past their expiry, credits paid orders whose credit never
+   * landed, and re-verifies once each recent order closed only as unpaid (after its expiry).
+   * Orders run one after another so a backlog does not burst the gateway.
    */
   async function reconcile({
     resolveSettings,
     limit,
+    reverifyClosedMinutes,
   }: {
     resolveSettings: (order: PaymentOrderRecord) => Promise<PaymentSettings>;
     limit?: number;
+    reverifyClosedMinutes?: number;
   }): Promise<TAdminPaymentsReconcileResponse> {
-    const orders = await store.listPaymentOrdersToReconcile({ now: now(), limit });
+    const at = now();
+    const orders = await store.listPaymentOrdersToReconcile({
+      now: at,
+      limit,
+      ...(reverifyClosedMinutes != null &&
+        reverifyClosedMinutes > 0 && {
+          reverifyClosedSince: new Date(at.getTime() - reverifyClosedMinutes * 60_000),
+        }),
+    });
     const summary = { checked: orders.length, paid: 0, expired: 0, credited: 0, failed: 0 };
     for (const order of orders) {
       try {

@@ -4666,6 +4666,7 @@
   "com_admin_password_confirm": "Repeat the new password",
   "com_admin_password_save": "Save password",
   "com_admin_password_saved": "The password of {{0}} was changed.",
+  "com_admin_password_saved_sessions_kept": "The password of {{0}} was changed, but their current sign-ins could not be ended right away. They stop working within a few minutes.",
   "com_admin_password_invalid": "The password must be at least {{0}} characters.",
   "com_admin_password_admin_forbidden": "Only an admin who may manage roles can change an admin's password.",
   "com_admin_password_user_missing": "This user no longer exists.",

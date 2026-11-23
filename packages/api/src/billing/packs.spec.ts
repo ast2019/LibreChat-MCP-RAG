@@ -1,6 +1,7 @@
 import type { TBalancePack } from 'librechat-data-provider';
 import {
   grantBalance,
+  repairPackGrant,
   resolveBalanceGrant,
   MAX_GRANT_CREDITS,
   PACK_GRANT_CONTEXT,
@@ -119,5 +120,58 @@ describe('grantBalance', () => {
       ),
     ).rejects.toThrow('Balance grant was not recorded');
     expect(upsertBalanceFields).not.toHaveBeenCalled();
+  });
+});
+
+describe('repairPackGrant', () => {
+  const paidAt = new Date('2026-10-23T10:00:00.000Z');
+  const now = new Date('2026-10-23T10:05:00.000Z');
+  const pack = { id: 'starter', label: 'Starter' };
+
+  function deps(balance: Record<string, unknown> | null) {
+    return {
+      findBalance: jest.fn().mockResolvedValue(balance),
+      upsertBalanceFields: jest.fn().mockResolvedValue({}),
+      setUserPack: jest.fn().mockResolvedValue({}),
+      now: () => now,
+    };
+  }
+
+  it('writes the pack fields when the grant never stamped them', async () => {
+    const d = deps({ tokenCredits: 2_100_000, packId: 'old', packGrantedAt: new Date(0) });
+    await expect(repairPackGrant(d, { userId: 'u1', pack, grantedAfter: paidAt })).resolves.toBe(
+      'applied',
+    );
+    expect(d.upsertBalanceFields).toHaveBeenCalledWith('u1', {
+      packId: 'starter',
+      packLabel: 'Starter',
+      packAllotment: 2_100_000,
+      packGrantedAt: now,
+    });
+    expect(d.setUserPack).toHaveBeenCalledWith('u1', 'starter');
+  });
+
+  it('only re-copies the user pack when the fields are already this grant', async () => {
+    const d = deps({ tokenCredits: 2_000_000, packId: 'starter', packGrantedAt: now });
+    await expect(repairPackGrant(d, { userId: 'u1', pack, grantedAfter: paidAt })).resolves.toBe(
+      'current',
+    );
+    expect(d.upsertBalanceFields).not.toHaveBeenCalled();
+    expect(d.setUserPack).toHaveBeenCalledWith('u1', 'starter');
+  });
+
+  it('leaves a newer grant alone', async () => {
+    const d = deps({ tokenCredits: 9, packId: 'pro', packGrantedAt: now });
+    await expect(repairPackGrant(d, { userId: 'u1', pack, grantedAfter: paidAt })).resolves.toBe(
+      'superseded',
+    );
+    expect(d.upsertBalanceFields).not.toHaveBeenCalled();
+    expect(d.setUserPack).not.toHaveBeenCalled();
+  });
+
+  it('fails when the ledger entry has no balance behind it', async () => {
+    await expect(
+      repairPackGrant(deps(null), { userId: 'u1', pack, grantedAfter: paidAt }),
+    ).rejects.toThrow('no balance');
   });
 });

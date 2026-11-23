@@ -18,6 +18,7 @@ const paymentOrderSchema: Schema<IPaymentOrder> = new Schema<IPaymentOrder>(
     creditLeaseUntil: { type: Date, default: null },
     creditedAt: { type: Date, default: null },
     paidAt: { type: Date, default: null },
+    reverifiedAt: { type: Date, default: null },
     expiresAt: { type: Date, required: true },
     tenantId: { type: String, index: true },
   },

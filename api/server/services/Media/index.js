@@ -76,6 +76,7 @@ const startMediaJobWorker = () => {
   const runner = createMediaJobRunner({
     claimDueMediaJobs: db.claimDueMediaJobs,
     updateMediaJob: db.updateMediaJob,
+    completeMediaJob: db.completeMediaJob,
     loadOwnerRequest,
     saveMedia: saveGeneratedMedia,
     billing,

@@ -4660,6 +4660,7 @@
   "com_admin_password_confirm": "تکرار رمز جدید",
   "com_admin_password_save": "ذخیره رمز",
   "com_admin_password_saved": "رمز {{0}} عوض شد.",
+  "com_admin_password_saved_sessions_kept": "رمز {{0}} عوض شد، اما ورودهای فعلی او همین حالا قطع نشد. این ورودها تا چند دقیقه دیگر از کار می‌افتند.",
   "com_admin_password_invalid": "رمز باید دست‌کم {{0}} نویسه باشد.",
   "com_admin_password_admin_forbidden": "رمز حساب مدیر را فقط مدیری که اجازه مدیریت نقش‌ها دارد می‌تواند عوض کند.",
   "com_admin_password_user_missing": "این کاربر دیگر وجود ندارد.",

@@ -502,6 +502,29 @@ describe('loadAgent', () => {
     }
   });
 
+  test('ask_user_question survives loadToolDefinitions for an ordinary chat', async () => {
+    const agent = await loadAgent(
+      {
+        req: {
+          user: { id: 'user123' },
+          body: { promptPrefix: 'x', ephemeralAgent: { ask_user_question: true } },
+        } as unknown as LoadAgentParams['req'],
+        agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+        endpoint: 'openai',
+        model_parameters: { model: 'gpt-4' } as unknown as AgentModelParameters,
+      },
+      deps,
+    );
+    const tools = (agent?.tools ?? []).map(String);
+    expect(tools).toContain('ask_user_question');
+    const result = await loadToolDefinitions(
+      { userId: 'user123', agentId: 'a', tools },
+      { getOrFetchMCPServerTools: jest.fn().mockResolvedValue(null), isBuiltInTool: () => true },
+    );
+    const definition = result.toolDefinitions.find(({ name }) => name === 'ask_user_question');
+    expect(definition?.parameters).toMatchObject({ required: ['questions'] });
+  });
+
   test('adds the browser tools only when the user turned the browser on and may use it', async () => {
     const env = { ...process.env };
     process.env.BROWSER_SERVICE_URL = 'http://browser:3100';

@@ -125,9 +125,9 @@ const higgsfieldAccess = createAdminHiggsfieldAccessHandlers({
 const setPassword = createAdminSetPasswordHandler({
   findUser: (id) => db.findUser({ _id: id }, 'role email provider'),
   hashSecret,
-  savePassword: (id, hash) =>
-    db.updateUser(id, { password: hash }, {}, { preserveExpiresAt: true }),
+  savePassword: (id, update) => db.updateUser(id, update, {}, { preserveExpiresAt: true }),
   endSessions: (id) => db.deleteAllUserSessions({ userId: id }),
+  awaitAuthUserDocEviction: db.awaitAuthUserDocEviction,
   canManageAdmins: (req) => hasCapability(req.user, SystemCapabilities.MANAGE_ROLES),
   minPasswordLength: parseInt(process.env.MIN_PASSWORD_LENGTH, 10) || 8,
 });

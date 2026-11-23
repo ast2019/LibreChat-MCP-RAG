@@ -280,10 +280,13 @@ export function createMediaTools(
                 timeoutMs: image.timeoutMs,
                 signal: run?.signal,
               });
-              /** Without a reported cost, the reported tokens at the catalogue price */
+              /** Without a reported cost, the reported tokens at the catalogue price. A zero
+               *  token price means the model is priced another way (per image or request), so
+               *  it falls through to the estimate, as `estimateImageUsd` does, never to zero. */
+              const tokenPrice = catalogueModel?.imageOutputPrice;
               const priced =
-                generated.outputTokens != null && catalogueModel?.imageOutputPrice != null
-                  ? generated.outputTokens * catalogueModel.imageOutputPrice
+                generated.outputTokens != null && tokenPrice != null && tokenPrice > 0
+                  ? generated.outputTokens * tokenPrice
                   : undefined;
               await rememberImageModel(chosen!.id);
               return {

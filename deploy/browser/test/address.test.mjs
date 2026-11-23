@@ -73,3 +73,25 @@ test('a name with any private record is refused, even beside a public one', asyn
   await assert.rejects(resolvePublic('[::1]'), { code: 'blocked_address' });
   await assert.rejects(resolvePublic('169.254.169.254'), { code: 'blocked_address' });
 });
+
+/* IPv4-translated (::ffff:0:0:0/96) and IPv4-compatible (::/96) addresses carry an IPv4
+   address the same way the mapped form does, so they are refused in every spelling. */
+test('IPv4-translated and IPv4-compatible IPv6 addresses are refused', () => {
+  for (const address of [
+    '::ffff:0:7f00:1',
+    '::ffff:0:127.0.0.1',
+    '0:0:0:0:ffff:0:a00:1',
+    '::FFFF:0:A9FE:A9FE',
+    '::ffff:0:808:808',
+    '::7f00:1',
+    '::a9fe:a9fe',
+    '::808:808',
+    '0:0:0:0:0:0:8.8.8.8',
+    '::0:0:7f00:1',
+  ]) {
+    assert.equal(isPublicAddress(address), false, address);
+  }
+  for (const address of ['::1:0:0:1', '1::7f00:1', '::ffff:1:0:7f00:1', '2001:4860:4860::8888']) {
+    assert.equal(isPublicAddress(address), true, address);
+  }
+});

@@ -2740,6 +2740,16 @@ export const rateLimitSchema = z.object({
       userWindowInMinutes: z.number().optional(),
     })
     .optional(),
+  /**
+   * Payment gateway returns (`/api/payments/callback/:gateway`) per source address; the route
+   * is unauthenticated. Defaults to 60 per minute, room for many buyers behind one carrier NAT.
+   */
+  paymentCallback: z
+    .object({
+      ipMax: z.number().int().positive().optional(),
+      ipWindowInMinutes: z.number().positive().optional(),
+    })
+    .optional(),
   /** Confirming one; the endpoint is unauthenticated, so the source address is bounded too. */
   emailChangeConfirm: z
     .object({

@@ -35,6 +35,14 @@ describe('resolvePaymentSettings', () => {
     expect(settings.gateways.idpay.config).toBeUndefined();
   });
 
+  it('re-verifies closed orders for a day by default and reads the window from the config', () => {
+    expect(resolvePaymentSettings(withPayments(undefined), {}).reverifyClosedMinutes).toBe(1440);
+    expect(
+      resolvePaymentSettings(withPayments({ enabled: true, reverifyClosedMinutes: 0 }), {})
+        .reverifyClosedMinutes,
+    ).toBe(0);
+  });
+
   it('treats an invalid block as disabled', () => {
     const settings = resolvePaymentSettings(
       withPayments({ enabled: true, orderTtlMinutes: 1 }),

@@ -277,6 +277,30 @@ describe('media tools', () => {
       expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 60_000);
     });
 
+    it('charges the estimate, not zero, for tokens of a model with no token price', async () => {
+      const { deps, billing } = makeDeps({
+        imageCatalogue: () => [
+          ...imageCatalogue(),
+          { id: 'per-image/model', imageOutputPrice: 0, acceptsImages: true },
+        ],
+        fetch: jest.fn().mockResolvedValue(
+          json({
+            data: [{ b64_json: Buffer.from('png').toString('base64') }],
+            usage: { output_tokens: 400 },
+          }),
+        ),
+      });
+      await tool(deps).invoke({
+        id: 'm4',
+        name: MediaTools.image,
+        args: { prompt: 'poster', model: 'per-image/model' },
+        type: 'tool_call',
+      });
+      /** No usable price: the hold's estimate ($0.10 x1.5), as the estimate already does */
+      expect(billing.hold).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 150_000);
+      expect(billing.record).toHaveBeenCalledWith(catalogueReq, expect.any(Object), 150_000);
+    });
+
     it('uses the composer pick, then the saved choice, and remembers the model used', async () => {
       const saveImageModel = jest.fn().mockResolvedValue(null);
       const run = async (body: unknown, personalization?: { imageModel?: string }) => {
@@ -424,6 +448,9 @@ describe('background video jobs', () => {
     const deps = {
       claimDueMediaJobs: jest.fn().mockResolvedValue([job]),
       updateMediaJob: jest.fn().mockResolvedValue(null),
+      completeMediaJob: jest
+        .fn()
+        .mockImplementation(async (id: string) => ({ ...job, id, status: 'completed' })),
       loadOwnerRequest: jest.fn().mockResolvedValue(req),
       saveMedia: jest.fn().mockResolvedValue({
         file_id: 'f1',
@@ -454,10 +481,46 @@ describe('background video jobs', () => {
       expect.objectContaining({ context: 'video_generation' }),
       1_500_000,
     );
-    expect(deps.updateMediaJob).toHaveBeenCalledWith(
+    expect(deps.completeMediaJob).toHaveBeenCalledWith(
       'job7',
       expect.objectContaining({ status: 'completed', filepath: '/images/u1/f1-video.mp4' }),
     );
+  });
+
+  const finished = () =>
+    jest
+      .fn()
+      .mockResolvedValueOnce(json({ status: 'completed', usage: { cost: 1 } }))
+      .mockResolvedValueOnce(
+        new Response(Buffer.from('mp4'), { headers: { 'content-type': 'video/mp4' } }),
+      )
+      .mockResolvedValueOnce(json({ status: 'completed', usage: { cost: 1 } }))
+      .mockResolvedValueOnce(
+        new Response(Buffer.from('mp4'), { headers: { 'content-type': 'video/mp4' } }),
+      );
+
+  it('charges a finished video once when its completion write fails and it is polled again', async () => {
+    const { runner, deps } = runnerWith(finished());
+    const blip = new Error('database blip');
+    deps.updateMediaJob.mockImplementation(async (_id: string, update: { status?: string }) => {
+      if (update.status === 'completed' && deps.updateMediaJob.mock.calls.length === 1) {
+        throw blip;
+      }
+      return null;
+    });
+    deps.completeMediaJob.mockRejectedValueOnce(blip);
+
+    await runner.tick();
+    await runner.tick();
+
+    expect(deps.billing.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('never charges a video another worker already delivered', async () => {
+    const { runner, deps } = runnerWith(finished());
+    deps.completeMediaJob.mockResolvedValueOnce(null as never);
+    await runner.tick();
+    expect(deps.billing.record).not.toHaveBeenCalled();
   });
 
   it('waits on a running job, and never charges a failed or overdue one', async () => {

@@ -256,6 +256,11 @@ describe('isBuiltInTool — chat tools outside the manifest', () => {
   it('still rejects an unknown name', () => {
     expect(isBuiltInTool('not_a_real_tool')).toBe(false);
   });
+
+  /** The question form is a manifest tool (agentsOnly), so it needs no nativeTools entry */
+  it('accepts ask_user_question through the manifest', () => {
+    expect(isBuiltInTool('ask_user_question')).toBe(true);
+  });
 });
 
 describe('ToolService - Action Capability Gating', () => {

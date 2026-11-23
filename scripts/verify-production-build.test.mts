@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
+  SHARED_COPIES,
   composeBuilds,
+  defaultImageReference,
+  unpinnedImageDefaults,
+  differingCopies,
   edgeTtsPin,
   extractTsCodes,
   lastBaseImage,
@@ -123,4 +127,45 @@ test('edgeTtsPin reads the pin, its install and the API check', () => {
   const drifted = good.replace('edge-tts==${EDGE_TTS_VERSION}', 'edge-tts==7.2.0').replace(/^RUN python3 .*$/m, '');
   assert.deepEqual(edgeTtsPin(drifted), { version: '7.3.1', installsPin: false, checksApi: false });
   assert.equal(edgeTtsPin('FROM x\nRUN pip install edge-tts').version, null);
+});
+
+test('differingCopies reports a drifted or missing copy', () => {
+  const files: Record<string, string> = { a: 'x', b: 'x', c: 'y' };
+  const read = (path: string) => files[path] ?? null;
+  assert.deepEqual(differingCopies([['a', 'b']], read), []);
+  assert.deepEqual(differingCopies([['a', 'c']], read), ['a and c differ']);
+  assert.deepEqual(differingCopies([['a', 'z']], read), ['z is missing']);
+  assert.ok(SHARED_COPIES.some(([left]) => left.endsWith('blocklist.mjs')));
+});
+
+test('defaultImageReference resolves compose defaults with no variables set', () => {
+  assert.equal(defaultImageReference('ghcr.io/a/b:${TAG:-main}'), 'ghcr.io/a/b:main');
+  assert.equal(defaultImageReference('a/b:${TAG-1.2}'), 'a/b:1.2');
+  assert.equal(defaultImageReference('${IMAGE:?set it}'), '');
+  assert.equal(defaultImageReference('${IMAGE}'), '');
+  assert.equal(
+    defaultImageReference('ghcr.io/a/b:${TAG:-main@sha256:abc}'),
+    'ghcr.io/a/b:main@sha256:abc',
+  );
+});
+
+test('unpinnedImageDefaults flags floating latest/main defaults and untagged images', () => {
+  const compose = {
+    services: {
+      ok: { image: 'redis:7-alpine' },
+      pinned: { image: 'ollama/ollama:latest@sha256:abc' },
+      pinnedVar: { image: 'ghcr.io/x/y:${TAG:-main@sha256:def}' },
+      built: { build: { context: '.' } },
+      latest: { image: 'ollama/ollama:latest' },
+      main: { image: 'ghcr.io/x/y:${TAG:-main}' },
+      bare: { image: 'nginx' },
+      registryPort: { image: 'localhost:5000/team/app' },
+    },
+  };
+  assert.deepEqual(unpinnedImageDefaults(compose), [
+    'latest: ollama/ollama:latest',
+    'main: ghcr.io/x/y:main',
+    'bare: nginx',
+    'registryPort: localhost:5000/team/app',
+  ]);
 });

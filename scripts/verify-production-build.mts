@@ -251,6 +251,60 @@ export function composeBuilds(compose: unknown): ComposeService[] {
   return builds;
 }
 
+/**
+ * The image reference a compose `image:` names when no variable is set: `${VAR:-x}` and
+ * `${VAR-x}` give their default, `${VAR}` and `${VAR:?message}` give nothing.
+ */
+export function defaultImageReference(image: string): string {
+  return image.replace(
+    /\$\{[A-Za-z_][A-Za-z0-9_]*(?:(:?[-?])([^}]*))?\}/g,
+    (_match, operator: string | undefined, value: string | undefined) =>
+      operator != null && operator.endsWith('-') ? (value ?? '') : '',
+  );
+}
+
+/** Tags that move: an image on one of them changes under the deployment without a commit. */
+const FLOATING_TAGS = new Set(['latest', 'main']);
+
+/**
+ * Services whose default image floats: no `@sha256:` digest and a `latest`/`main` tag or no tag
+ * at all. Pins keep the tag for readers (`name:tag@sha256:…`); an env override may still float.
+ */
+export function unpinnedImageDefaults(compose: unknown): string[] {
+  const services = (compose as { services?: Record<string, { image?: unknown }> })?.services ?? {};
+  const floating: string[] = [];
+  for (const [name, service] of Object.entries(services)) {
+    if (typeof service?.image !== 'string') continue;
+    const reference = defaultImageReference(service.image);
+    if (reference.includes('@sha256:')) continue;
+    const lastSegment = reference.slice(reference.lastIndexOf('/') + 1);
+    const tag = lastSegment.includes(':') ? lastSegment.slice(lastSegment.lastIndexOf(':') + 1) : '';
+    if (tag === '' || FLOATING_TAGS.has(tag)) floating.push(`${name}: ${reference}`);
+  }
+  return floating;
+}
+
+/**
+ * Files that services building from their own directories each carry a copy of; every pair
+ * must stay byte-identical (the SSRF address blocklist of the browser and site-mcp egress).
+ */
+export const SHARED_COPIES: ReadonlyArray<readonly [string, string]> = [
+  ['deploy/browser/src/blocklist.mjs', 'deploy/site-mcp/src/blocklist.mjs'],
+];
+
+/** The pairs whose two copies differ or are missing. */
+export function differingCopies(
+  pairs: ReadonlyArray<readonly [string, string]>,
+  read: (path: string) => string | null,
+): string[] {
+  return pairs.flatMap(([a, b]) => {
+    const left = read(a);
+    const right = read(b);
+    if (left == null || right == null) return [`${left == null ? a : b} is missing`];
+    return left === right ? [] : [`${a} and ${b} differ`];
+  });
+}
+
 // ---------------------------------------------------------------- runner
 
 type Status = 'pass' | 'fail' | 'skipped';
@@ -384,6 +438,18 @@ async function staticDockerChecks(): Promise<ComposeService[]> {
       problems.push(`${build.name}: ${dockerfile} does not exist`);
     }
   }
+  const compose = problems.length === 0 ? await loadYaml(composeText) : null;
+  const floating = compose == null ? [] : unpinnedImageDefaults(compose);
+  record(
+    'compose image defaults are pinned by digest (no floating latest/main)',
+    floating.length > 0 ? 'fail' : 'pass',
+    floating.length > 0
+      ? `pin these to the digest their tag resolves to today:\n${floating.join('\n')}`
+      : '',
+    started,
+  );
+  started = Date.now();
+
   record(
     'compose parses and every build has a Dockerfile',
     problems.length > 0 ? 'fail' : 'pass',
@@ -419,6 +485,19 @@ async function staticDockerChecks(): Promise<ComposeService[]> {
     if (existsSync(resolve(ROOT, dockerfile))) await checkAptPackages(dockerfile);
   }
   return builds;
+}
+
+function checkSharedCopies(): void {
+  const started = Date.now();
+  const problems = differingCopies(SHARED_COPIES, (path) =>
+    existsSync(resolve(ROOT, path)) ? readText(path) : null,
+  );
+  record(
+    'shared file copies are identical',
+    problems.length > 0 ? 'fail' : 'pass',
+    problems.join('\n') || `${SHARED_COPIES.length} pair(s)`,
+    started,
+  );
 }
 
 const REMOTION_DIR = 'deploy/remotion';
@@ -518,6 +597,7 @@ async function main(): Promise<number> {
   }
 
   const builds = await staticDockerChecks();
+  checkSharedCopies();
   checkEdgeTts();
 
   const started = Date.now();
