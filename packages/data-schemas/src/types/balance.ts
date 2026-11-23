@@ -44,6 +44,8 @@ export interface IBalance extends Document {
   /** Sum of `reservations` amounts, maintained by the same writes */
   reservedCredits?: number;
   pendingRefill?: IBalancePendingRefill;
+  /** Ids of the one-time credits (`applyBalanceCredit`) already added; never removed */
+  appliedCredits?: string[];
 }
 
 /** Plain data fields for creating or updating a balance record (no Mongoose Document methods) */
@@ -85,6 +87,23 @@ export interface GrantedTimePack {
   timePackExpiresAt: Date;
   timePackGrantedAt: Date;
   timePackRevision: number;
+}
+
+/** A credit added to a user's balance at most once, identified by `creditId`. */
+export interface BalanceCreditGrant {
+  user: string;
+  /** Stable id of this credit (for example a payment's ledger marker) */
+  creditId: string;
+  /** Positive credits to add */
+  credits: number;
+  /**
+   * The pack this credit grants. Its fields are recorded with the new balance as the allotment,
+   * unless a grant stamped after `grantedAfter` already owns them; then the allotment only grows
+   * by `credits`.
+   */
+  pack?: { id: string; label: string };
+  grantedAfter: Date;
+  at: Date;
 }
 
 /** Holds credits against a user's balance for the lifetime of one in-flight request */

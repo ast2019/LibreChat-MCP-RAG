@@ -107,6 +107,12 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
     default: undefined,
     select: false,
   },
+  /** One-time credits already added (see `applyBalanceCredit`); the fence against a second $inc */
+  appliedCredits: {
+    type: [String],
+    default: undefined,
+    select: false,
+  },
 });
 
 export default balanceSchema;

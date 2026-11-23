@@ -7,6 +7,23 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.3] - 2026-11-23
+
+### Fixed
+- **A paid order adds its credits exactly once, whatever step fails.** When the ledger entry
+  landed and the balance update then failed, the retry treated the entry as complete and the
+  order's credits were missing for good; a lost acknowledgement of the balance update could
+  also add them twice. The ledger entry is now written `applied: false`; the credits, the pack
+  fields and the order's marker reach the balance in one write that matches only while the
+  marker is absent; then the entry is marked applied. A retry, a reconciliation pass or a second
+  lease holder finishes whatever step is missing and never adds the credits again. A ledger entry
+  without the flag (written by an earlier version) counts as applied and is logged when it
+  completes an order, so an admin can check that balance.
+- **The payment ledger index is retried after duplicates are removed.** When existing duplicate
+  entries refuse the unique index, they are logged by marker and the build is tried again on a
+  later payment call after a backoff of one minute, doubling to 30, instead of only after a
+  restart. Exactly-once no longer depends on the index.
+
 ## [0.40.2] - 2026-11-23
 
 ### Security

@@ -1,5 +1,5 @@
-import { isPaymentGateway, PAYMENT_REVERIFIABLE_CODES } from 'librechat-data-provider';
 import { logger, paymentLedgerMarker } from '@librechat/data-schemas';
+import { isPaymentGateway, PAYMENT_REVERIFIABLE_CODES } from 'librechat-data-provider';
 import type {
   TBalancePack,
   TPaymentOptions,
@@ -9,17 +9,19 @@ import type {
 } from 'librechat-data-provider';
 import type {
   PaymentSettlement,
+  BalanceCreditGrant,
   PaymentOrderRecord,
+  PaymentLedgerState,
   PaymentOrderCreateData,
 } from '@librechat/data-schemas';
+import type { GrantBalanceDeps, RepairPackGrantDeps } from '~/billing/packs';
 import type { ResolvedCurrency } from '~/billing/currency';
 import type { PaymentDriverRegistry } from './registry';
-import type { GrantBalanceDeps, RepairPackGrantDeps } from '~/billing/packs';
 import type { PaymentSettings } from './config';
 import type { GatewayHealth } from './health';
 import type { PaymentDriver } from './types';
 import { FINAL_DRIVER_CODES, isPaymentDriverError } from './errors';
-import { grantBalance, repairPackGrant } from '~/billing/packs';
+import { repairPackGrant } from '~/billing/packs';
 import { getUsableGateways } from './config';
 import { packPriceRial } from './pricing';
 
@@ -42,7 +44,14 @@ export interface PaymentStore {
   ) => Promise<PaymentOrderRecord | null>;
   claimPaymentOrderCredit: (orderId: string, now: Date, leaseUntil: Date) => Promise<boolean>;
   markPaymentOrderCredited: (orderId: string, at: Date) => Promise<void>;
-  hasPaymentLedgerEntry: (userId: string, orderId: string) => Promise<boolean>;
+  recordPaymentLedgerEntry: (entry: {
+    userId: string;
+    orderId: string;
+    credits: number;
+  }) => Promise<PaymentLedgerState>;
+  markPaymentLedgerApplied: (userId: string, orderId: string) => Promise<void>;
+  /** Adds a credit to the balance at most once per `creditId` (see data-schemas). */
+  applyBalanceCredit: (grant: BalanceCreditGrant) => Promise<boolean>;
   listPaymentOrdersToReconcile: (params: {
     now: Date;
     limit?: number;
@@ -53,15 +62,11 @@ export interface PaymentStore {
 
 export interface PaymentServiceDeps {
   store: PaymentStore;
-  /** The admin grant path (ledger transaction + pack allotment); the transaction also carries
-   *  the order's ledger marker so a retry can tell it already landed. */
+  /** Finishes the pack side of a credit: the balance's pack fields for a ledger entry that
+   *  predates `applied`, and the pack copied onto the user. */
   grant: {
-    createTransaction: (
-      tx: Parameters<GrantBalanceDeps['createTransaction']>[0] & { messageId: string },
-    ) => ReturnType<GrantBalanceDeps['createTransaction']>;
     upsertBalanceFields: GrantBalanceDeps['upsertBalanceFields'];
     setUserPack?: GrantBalanceDeps['setUserPack'];
-    /** The user's balance, read on a retry to finish the pack fields of a half-done grant */
     findBalance: RepairPackGrantDeps['findBalance'];
   };
   registry: PaymentDriverRegistry;
@@ -96,10 +101,6 @@ const isReverifiable = (order: PaymentOrderRecord): boolean =>
   order.authority != null &&
   order.errorCode != null &&
   PAYMENT_REVERIFIABLE_CODES.includes(order.errorCode);
-
-/** MongoDB's duplicate-key error: the unique payment-marker index refused a second credit. */
-const isDuplicateKey = (error: unknown): boolean =>
-  (error as { code?: unknown } | null)?.code === 11000;
 
 const fail = (code: TPaymentErrorCode, status: number): { ok: false; error: PaymentFailure } => ({
   ok: false,
@@ -273,28 +274,54 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   }
 
   /**
-   * Grants a paid order's credits once. The caller holds the order's credit lease. When the
-   * ledger entry already exists (a retry after a failure part-way through the grant), the pack
-   * fields and the user's pack are finished instead, without a second credit.
+   * Adds a paid order's credits to the balance exactly once and sets its pack, resumable after
+   * a failure at any step. The caller holds the order's credit lease.
+   *
+   * 1. The ledger entry is written `pending` (or found, when a previous attempt wrote it).
+   * 2. A pending entry is applied: the balance takes the credits and the pack fields in one write
+   *    fenced on the order's marker, so a retry or a stale lease holder cannot add them again.
+   * 3. The entry is marked applied; an entry already applied, or written before the flag
+   *    existed, skips step 2.
+   * 4. The pack is copied onto the user (and, for an old entry, the pack fields are finished).
+   * 5. The order is marked credited.
    */
   async function credit(order: PaymentOrderRecord): Promise<boolean> {
     const pack = { id: order.packId, label: order.packLabel };
+    const grantedAfter = order.paidAt ?? order.createdAt;
     try {
-      let granted = false;
-      if (!(await store.hasPaymentLedgerEntry(order.userId, order.id))) {
-        granted = await grantOnce(order);
-      }
-      if (!granted) {
-        await repairPackGrant(
-          {
-            findBalance: deps.grant.findBalance,
-            upsertBalanceFields: deps.grant.upsertBalanceFields,
-            setUserPack: deps.grant.setUserPack,
-            now,
-          },
-          { userId: order.userId, pack, grantedAfter: order.paidAt ?? order.createdAt },
+      const state = await store.recordPaymentLedgerEntry({
+        userId: order.userId,
+        orderId: order.id,
+        credits: order.credits,
+      });
+      if (state === 'pending') {
+        const added = await store.applyBalanceCredit({
+          user: order.userId,
+          creditId: paymentLedgerMarker(order.id),
+          credits: order.credits,
+          pack,
+          grantedAfter,
+          at: now(),
+        });
+        if (!added) {
+          logger.info(`[payments] order ${order.id} credits were already on the balance`);
+        }
+        await store.markPaymentLedgerApplied(order.userId, order.id);
+      } else if (state === 'legacy') {
+        logger.warn(
+          `[payments] order ${order.id} has a ledger entry from before credits were tracked as ` +
+            'applied; it is treated as credited, so confirm the balance if the order was retried',
         );
       }
+      await repairPackGrant(
+        {
+          findBalance: deps.grant.findBalance,
+          upsertBalanceFields: deps.grant.upsertBalanceFields,
+          setUserPack: deps.grant.setUserPack,
+          now,
+        },
+        { userId: order.userId, pack, grantedAfter },
+      );
       await store.markPaymentOrderCredited(order.id, now());
       logger.info(`[payments] order ${order.id} credited ${order.credits} credits`);
       return true;
@@ -302,42 +329,6 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       logger.error(`[payments] crediting order ${order.id} failed; reconciliation retries it`, {
         error: error instanceof Error ? error.message : 'unknown',
       });
-      return false;
-    }
-  }
-
-  /**
-   * Writes the order's ledger entry and pack fields. False when the ledger's unique payment
-   * marker refused the entry: a concurrent claim (one whose lease ran out mid-grant) already
-   * wrote it, so this credit counts as done and only the pack fields are finished.
-   */
-  async function grantOnce(order: PaymentOrderRecord): Promise<boolean> {
-    try {
-      await grantBalance(
-        {
-          createTransaction: (tx) =>
-            deps.grant.createTransaction({ ...tx, messageId: paymentLedgerMarker(order.id) }),
-          upsertBalanceFields: deps.grant.upsertBalanceFields,
-          setUserPack: deps.grant.setUserPack,
-          now,
-        },
-        {
-          userId: order.userId,
-          credits: order.credits,
-          pack: {
-            id: order.packId,
-            label: order.packLabel,
-            kind: 'credits',
-            credits: order.credits,
-          },
-        },
-      );
-      return true;
-    } catch (error) {
-      if (!isDuplicateKey(error)) {
-        throw error;
-      }
-      logger.info(`[payments] order ${order.id} was already credited by a concurrent claim`);
       return false;
     }
   }

@@ -90,3 +90,10 @@ export interface PaymentSettlement {
   /** How long the winner may hold the credit claim */
   leaseUntil: Date;
 }
+
+/**
+ * Where an order's credit stands in the ledger: `pending` when its entry exists but the credit
+ * has not been confirmed on the balance, `applied` once it has, and `legacy` for an entry written
+ * before the ledger recorded that (it counts as applied).
+ */
+export type PaymentLedgerState = 'pending' | 'applied' | 'legacy';

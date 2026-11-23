@@ -6,6 +6,7 @@ import type {
   BalanceReservationRelease,
   BalanceReservationResult,
   IBalancePendingRefill,
+  BalanceCreditGrant,
   IBalanceReservation,
   IBalanceUpdate,
   TransactionData,
@@ -126,6 +127,7 @@ export function createTransactionMethods(
   renewBalanceReservation: (params: BalanceReservationRenewal) => Promise<void>;
   releaseBalanceReservation: (params: BalanceReservationRelease) => Promise<void>;
   createStructuredTransaction: (_txData: TxData) => Promise<TransactionResult | undefined>;
+  applyBalanceCredit: (grant: BalanceCreditGrant) => Promise<boolean>;
 } {
   /** Calculate and set the tokenValue for a transaction */
   function calculateTokenValue(txn: InternalTxDoc) {
@@ -840,6 +842,57 @@ export function createTransactionMethods(
     };
   }
 
+  /**
+   * Adds a one-time credit to the user's balance: the credits, the pack fields and `creditId`
+   * land in one conditional write that matches only while `creditId` is not yet recorded, so any
+   * number of retries or concurrent callers add the credits once. Resolves true when this call
+   * added them, false when an earlier call already had. Creates the balance record if absent.
+   */
+  async function applyBalanceCredit({
+    user,
+    creditId,
+    credits,
+    pack,
+    grantedAfter,
+    at,
+  }: BalanceCreditGrant): Promise<boolean> {
+    if (!Number.isFinite(credits) || credits <= 0) {
+      throw new Error('A balance credit needs positive credits');
+    }
+    const Balance = mongoose.models.Balance as Model<IBalance>;
+    const record =
+      (await Balance.findOne({ user }).sort(oldestFirst).select('_id').lean<IBalance>()) ??
+      (await upsertBalanceRecord(user, {}, { tokenCredits: 0 }));
+    if (record == null) {
+      throw new Error(`Balance credit for user ${user} did not reach a balance record`);
+    }
+    /** Every expression of one `$set` stage reads the document as it was before the write. */
+    const total = { $add: [{ $max: [0, { $ifNull: ['$tokenCredits', 0] }] }, credits] };
+    const newer = { $gt: ['$packGrantedAt', { $literal: grantedAfter }] };
+    const packFields = pack
+      ? {
+          packId: { $cond: [newer, '$packId', { $literal: pack.id }] },
+          packLabel: { $cond: [newer, '$packLabel', { $literal: pack.label }] },
+          packAllotment: {
+            $cond: [newer, { $add: [{ $ifNull: ['$packAllotment', 0] }, credits] }, total],
+          },
+          packGrantedAt: { $cond: [newer, '$packGrantedAt', { $literal: at }] },
+        }
+      : {};
+    const result = await Balance.updateOne({ _id: record._id, appliedCredits: { $ne: creditId } }, [
+      {
+        $set: {
+          tokenCredits: total,
+          appliedCredits: {
+            $concatArrays: [{ $ifNull: ['$appliedCredits', []] }, [{ $literal: creditId }]],
+          },
+          ...packFields,
+        },
+      },
+    ]);
+    return result.matchedCount === 1;
+  }
+
   /** Deletes transactions matching a filter. */
   async function deleteTransactions(
     filter: FilterQuery<ITransaction>,
@@ -883,6 +936,7 @@ export function createTransactionMethods(
     renewBalanceReservation,
     releaseBalanceReservation,
     createStructuredTransaction,
+    applyBalanceCredit,
   };
 }
 

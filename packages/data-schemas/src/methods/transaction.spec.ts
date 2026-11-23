@@ -33,6 +33,7 @@ let releaseBalanceReservation: ReturnType<
 let findBalanceByUser: ReturnType<typeof createTransactionMethods>['findBalanceByUser'];
 let upsertBalanceFields: ReturnType<typeof createTransactionMethods>['upsertBalanceFields'];
 let updateBalance: ReturnType<typeof createTransactionMethods>['updateBalance'];
+let applyBalanceCredit: ReturnType<typeof createTransactionMethods>['applyBalanceCredit'];
 let getMultiplier: ReturnType<typeof createTxMethods>['getMultiplier'];
 let getCacheMultiplier: ReturnType<typeof createTxMethods>['getCacheMultiplier'];
 
@@ -64,6 +65,7 @@ beforeAll(async () => {
   findBalanceByUser = transactionMethods.findBalanceByUser;
   upsertBalanceFields = transactionMethods.upsertBalanceFields;
   updateBalance = transactionMethods.updateBalance;
+  applyBalanceCredit = transactionMethods.applyBalanceCredit;
 
   const spendMethods = createSpendTokensMethods(mongoose, {
     createTransaction: transactionMethods.createTransaction,
@@ -1846,5 +1848,105 @@ describe('Balance Reservations', () => {
       expect((await readState(user))?.pendingRefill).toBeUndefined();
       expect(await Transaction.countDocuments({ user, context: 'autoRefill' })).toBe(1);
     });
+  });
+});
+
+describe('applyBalanceCredit', () => {
+  const pack = { id: 'starter', label: 'Starter' };
+  const readCredits = (user: mongoose.Types.ObjectId) =>
+    Balance.findOne({ user }).select('+appliedCredits').lean<IBalance>();
+
+  it('adds a credit and its pack once, however often it is applied', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const at = new Date();
+    const grant = {
+      user: user.toString(),
+      creditId: 'payment:a',
+      credits: 2_000_000,
+      pack,
+      grantedAfter: at,
+      at,
+    };
+
+    expect(await applyBalanceCredit(grant)).toBe(true);
+    expect(await applyBalanceCredit(grant)).toBe(false);
+
+    expect(await readCredits(user)).toMatchObject({
+      tokenCredits: 2_000_000,
+      packId: 'starter',
+      packLabel: 'Starter',
+      packAllotment: 2_000_000,
+      packGrantedAt: at,
+      appliedCredits: ['payment:a'],
+    });
+  });
+
+  it('adds the credit once when callers race, with or without a balance record', async () => {
+    for (const existing of [false, true]) {
+      const user = new mongoose.Types.ObjectId();
+      if (existing) {
+        await Balance.create({ user, tokenCredits: 500 });
+      }
+      const at = new Date();
+      const grant = {
+        user: user.toString(),
+        creditId: 'payment:b',
+        credits: 1_000,
+        pack,
+        grantedAfter: at,
+        at,
+      };
+
+      const results = await Promise.all(Array.from({ length: 8 }, () => applyBalanceCredit(grant)));
+
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect((await readCredits(user))?.tokenCredits).toBe(existing ? 1_500 : 1_000);
+      expect(await Balance.countDocuments({ user })).toBe(1);
+    }
+  });
+
+  it('keeps a newer pack and grows its allotment when an older credit lands late', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const paidAt = new Date(Date.now() - 60_000);
+    const newerAt = new Date(Date.now() - 30_000);
+    await Balance.create({
+      user,
+      tokenCredits: 15_000_000,
+      packId: 'pro',
+      packLabel: 'Pro',
+      packAllotment: 15_000_000,
+      packGrantedAt: newerAt,
+    });
+
+    await applyBalanceCredit({
+      user: user.toString(),
+      creditId: 'payment:late',
+      credits: 2_000_000,
+      pack,
+      grantedAfter: paidAt,
+      at: new Date(),
+    });
+
+    expect(await readCredits(user)).toMatchObject({
+      tokenCredits: 17_000_000,
+      packId: 'pro',
+      packLabel: 'Pro',
+      packAllotment: 17_000_000,
+      packGrantedAt: newerAt,
+    });
+  });
+
+  it('leaves other credits and reads of the balance untouched', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const at = new Date();
+    const base = { user: user.toString(), credits: 10, grantedAfter: at, at };
+    await applyBalanceCredit({ ...base, creditId: 'payment:1' });
+    await applyBalanceCredit({ ...base, creditId: 'payment:2' });
+
+    expect((await readCredits(user))?.tokenCredits).toBe(20);
+    expect(await findBalanceByUser(user.toString())).not.toHaveProperty('appliedCredits');
+    await expect(
+      applyBalanceCredit({ ...base, creditId: 'payment:3', credits: 0 }),
+    ).rejects.toThrow('positive credits');
   });
 });

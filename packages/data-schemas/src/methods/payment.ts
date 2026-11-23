@@ -10,6 +10,7 @@ import type {
   PaymentOrderListRow,
   PaymentOrderListParams,
   PaymentOrderCreateData,
+  PaymentLedgerState,
 } from '~/types';
 import type { ITransaction } from '~/schema/transaction';
 import { isValidObjectIdString } from '~/utils/objectId';
@@ -36,6 +37,13 @@ export const paymentLedgerMarker = (orderId: string): string => `payment:${order
 export const PAYMENT_LEDGER_INDEX = 'payment_ledger_marker_unique';
 /** Payment credits are pack grants that carry a marker; no other grant writes a messageId. */
 const PAYMENT_LEDGER_FILTER = { context: 'pack', messageId: { $type: 'string' } };
+/**
+ * Backoff between attempts to build the ledger index while duplicate entries refuse it. Not a
+ * config lever: it only paces the self-repair after an admin removes the duplicates, and the
+ * credit path is exactly-once without the index.
+ */
+const LEDGER_INDEX_RETRY_MIN_MS = 60_000;
+const LEDGER_INDEX_RETRY_MAX_MS = 30 * 60_000;
 
 export interface PaymentMethods {
   createPaymentOrder: (data: PaymentOrderCreateData) => Promise<PaymentOrderRecord>;
@@ -65,10 +73,17 @@ export interface PaymentMethods {
   claimPaymentOrderCredit: (orderId: string, now: Date, leaseUntil: Date) => Promise<boolean>;
   markPaymentOrderCredited: (orderId: string, at: Date) => Promise<void>;
   /**
-   * Whether the ledger already holds this order's credit transaction. Resolves once the unique
-   * payment-marker index exists (or could not be built), so a credit written after it is guarded.
+   * Writes the order's credit entry to the ledger unless it exists, and resolves its state. A new
+   * entry starts `pending`; {@link PaymentMethods.markPaymentLedgerApplied} completes it once the
+   * credit is on the balance. Waits for the unique payment-marker index while it can be built.
    */
-  hasPaymentLedgerEntry: (userId: string, orderId: string) => Promise<boolean>;
+  recordPaymentLedgerEntry: (entry: {
+    userId: string;
+    orderId: string;
+    credits: number;
+  }) => Promise<PaymentLedgerState>;
+  /** Marks the order's ledger entry as applied to the balance. */
+  markPaymentLedgerApplied: (userId: string, orderId: string) => Promise<void>;
   listPaymentOrders: (
     params: PaymentOrderListParams,
   ) => Promise<{ orders: PaymentOrderListRow[]; total: number }>;
@@ -143,15 +158,21 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
   const orders = () => mongoose.models.PaymentOrder as Model<IPaymentOrder>;
   const users = () => mongoose.models.User as Model<IUser>;
   const transactions = () => mongoose.models.Transaction as Model<ITransaction>;
+  /** In flight, or fulfilled once every index exists; never holds a degraded result. */
   let indexes: Promise<void> | null = null;
+  /** While the ledger index cannot be built, the next attempt waits until this instant. */
+  let retryLedgerIndexAt = 0;
+  let ledgerIndexBackoffMs = LEDGER_INDEX_RETRY_MIN_MS;
 
   /**
    * The ledger's payment markers become unique. Existing data could hold a duplicate from the
    * race this guards against; then the build fails, the duplicates are named in the log for an
-   * admin to review, and crediting carries on without the guard rather than stopping payments.
+   * admin to review, and resolves false. Crediting carries on without the index: the balance
+   * applies each order's credit at most once on its own (`applyBalanceCredit`).
    */
-  async function ensureLedgerIndex(): Promise<void> {
+  async function ensureLedgerIndex(): Promise<boolean> {
     try {
+      // eslint-disable-next-line no-restricted-syntax -- an index build reads and writes no tenant data; Mongoose has no per-index create with options
       await transactions().collection.createIndex(
         { messageId: 1 },
         {
@@ -160,6 +181,7 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
           partialFilterExpression: PAYMENT_LEDGER_FILTER,
         },
       );
+      return true;
     } catch (error) {
       if (!isDuplicateKey(error)) {
         throw error;
@@ -173,23 +195,44 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
         ])
         .exec();
       logger.error(
-        '[payments] Payment orders credited more than once; the unique ledger guard is not built until they are resolved',
+        '[payments] Payment orders have more than one ledger entry; the unique ledger index is ' +
+          `not built until they are resolved. Next attempt in ${Math.round(ledgerIndexBackoffMs / 1000)}s`,
         { markers: duplicates.map((row) => row._id) },
       );
+      return false;
     }
   }
 
-  /** The unique indexes are the double-credit guard, so writes wait until they exist. */
+  /**
+   * Builds the order and ledger indexes before the payment writes that rely on them. A ledger
+   * index refused by duplicate entries is retried on a later call once its backoff has passed
+   * (doubling up to {@link LEDGER_INDEX_RETRY_MAX_MS}), so removing the duplicates brings the
+   * index back without a restart, and calls in between cost no query.
+   */
   function ensureIndexes(): Promise<void> {
-    if (indexes == null) {
-      indexes = Promise.all([createIndexesWithRetry(orders()), ensureLedgerIndex()])
-        .then(() => undefined)
-        .catch((error) => {
-          indexes = null;
-          throw error;
-        });
+    if (indexes != null) {
+      return indexes;
     }
-    return indexes;
+    if (Date.now() < retryLedgerIndexAt) {
+      return Promise.resolve();
+    }
+    const attempt = Promise.all([createIndexesWithRetry(orders()), ensureLedgerIndex()]).then(
+      ([, built]) => {
+        if (built) {
+          ledgerIndexBackoffMs = LEDGER_INDEX_RETRY_MIN_MS;
+          return;
+        }
+        indexes = null;
+        retryLedgerIndexAt = Date.now() + ledgerIndexBackoffMs;
+        ledgerIndexBackoffMs = Math.min(ledgerIndexBackoffMs * 2, LEDGER_INDEX_RETRY_MAX_MS);
+      },
+      (error: unknown) => {
+        indexes = null;
+        throw error;
+      },
+    );
+    indexes = attempt;
+    return attempt;
   }
 
   const validId = (id: string) => typeof id === 'string' && isValidObjectIdString(id);
@@ -295,16 +338,64 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     );
   }
 
-  async function hasPaymentLedgerEntry(userId: string, orderId: string) {
+  async function recordPaymentLedgerEntry({
+    userId,
+    orderId,
+    credits,
+  }: {
+    userId: string;
+    orderId: string;
+    credits: number;
+  }): Promise<PaymentLedgerState> {
     if (!validId(userId) || !validId(orderId)) {
-      return false;
+      throw new Error('A payment ledger entry needs a valid user and order id');
     }
     await ensureIndexes();
-    const found = await transactions().exists({
-      user: userId,
-      messageId: paymentLedgerMarker(orderId),
-    });
-    return found != null;
+    /** The oldest entry wins when an index-less race wrote two; both resolve the same state. */
+    const upsert = () =>
+      transactions()
+        .findOneAndUpdate(
+          {
+            user: userId,
+            context: PAYMENT_LEDGER_FILTER.context,
+            messageId: paymentLedgerMarker(orderId),
+          },
+          {
+            $setOnInsert: {
+              tokenType: 'credits',
+              rawAmount: credits,
+              rate: 1,
+              tokenValue: credits,
+              applied: false,
+            },
+          },
+          { upsert: true, new: true, sort: { _id: 1 } },
+        )
+        .lean<Pick<ITransaction, 'applied'>>();
+    let entry: Pick<ITransaction, 'applied'> | null;
+    try {
+      entry = await upsert();
+    } catch (error) {
+      /** Two upserts raced on the unique index: the loser reads the winner's entry */
+      if (!isDuplicateKey(error)) {
+        throw error;
+      }
+      entry = await upsert();
+    }
+    if (entry == null) {
+      throw new Error(`payment order ${orderId} ledger entry was not written`);
+    }
+    if (entry.applied == null) {
+      return 'legacy';
+    }
+    return entry.applied ? 'applied' : 'pending';
+  }
+
+  async function markPaymentLedgerApplied(userId: string, orderId: string): Promise<void> {
+    await transactions().updateMany(
+      { user: userId, messageId: paymentLedgerMarker(orderId), applied: false },
+      { $set: { applied: true } },
+    );
   }
 
   async function listPaymentOrders({
@@ -471,7 +562,8 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
     closePaymentOrder,
     claimPaymentOrderCredit,
     markPaymentOrderCredited,
-    hasPaymentLedgerEntry,
+    recordPaymentLedgerEntry,
+    markPaymentLedgerApplied,
     listPaymentOrders,
     listPaymentOrdersToReconcile,
     markPaymentOrderReverified,
