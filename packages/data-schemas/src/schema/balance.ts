@@ -116,6 +116,11 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
     default: undefined,
     select: false,
   },
+  /** Bumped by every write of `appliedCredits`; the compare-and-swap of `applyBalanceCredit`. */
+  appliedCreditsRevision: {
+    type: Number,
+    select: false,
+  },
 });
 
 export default balanceSchema;

@@ -49,6 +49,8 @@ export interface IBalance extends Document {
    * marker written before markers carried times; it counts as present.
    */
   appliedCredits?: (BalanceCreditMarker | string)[];
+  /** Bumped by every write of `appliedCredits`, so a write computed from a read can be fenced */
+  appliedCreditsRevision?: number;
 }
 
 /** One credit already on the balance: the fence against adding it again. */

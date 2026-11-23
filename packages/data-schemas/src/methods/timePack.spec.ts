@@ -75,6 +75,21 @@ describe('extendBalanceTimePack', () => {
     expect(last?.timePackExpiresAt.toISOString()).toBe(record?.timePackExpiresAt?.toISOString());
   });
 
+  it('adds every duration when several grants race, each with its own revision', async () => {
+    const user = new mongoose.Types.ObjectId();
+    await Balance.create({ user, tokenCredits: 0 });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => balances.extendBalanceTimePack(user.toString(), grant())),
+    );
+
+    const record = await Balance.findOne({ user }).lean();
+    expect(record?.timePackExpiresAt?.toISOString()).toBe(
+      new Date(now.getTime() + 150 * DAY_MS).toISOString(),
+    );
+    expect(results.map((result) => result.timePackRevision).sort()).toEqual([1, 2, 3, 4, 5]);
+  });
+
   it('starts from now when the pack expired or is on another endpoint', async () => {
     const expired = new mongoose.Types.ObjectId();
     const other = new mongoose.Types.ObjectId();
