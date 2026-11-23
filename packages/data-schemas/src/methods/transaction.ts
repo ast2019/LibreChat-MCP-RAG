@@ -1,11 +1,20 @@
-import { isBalanceRefillDue } from 'librechat-data-provider';
+import {
+  isBalanceRefillDue,
+  MIN_PAYMENT_CREDIT_MARKER_LIMIT,
+  DEFAULT_PAYMENT_CREDIT_MARKER_LIMIT,
+  MIN_PAYMENT_CREDIT_MARKER_RETENTION_HOURS,
+  DEFAULT_PAYMENT_CREDIT_MARKER_RETENTION_HOURS,
+} from 'librechat-data-provider';
 import type { AnyBulkWriteOperation, FilterQuery, Model, Types } from 'mongoose';
 import type {
   BalanceReservationRequest,
   BalanceReservationRenewal,
   BalanceReservationRelease,
   BalanceReservationResult,
+  BalanceCreditMarkerPolicy,
+  BalanceCreditSettlement,
   IBalancePendingRefill,
+  BalanceCreditMarker,
   BalanceCreditGrant,
   IBalanceReservation,
   IBalanceUpdate,
@@ -23,6 +32,100 @@ const maxReservationAttempts = 10;
 /** Every balance read resolves a user to their oldest record, so duplicate records stay inert */
 const oldestFirst = { _id: 1 } as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+const DEFAULT_CREDIT_MARKERS: BalanceCreditMarkerPolicy = {
+  retentionMs: DEFAULT_PAYMENT_CREDIT_MARKER_RETENTION_HOURS * HOUR_MS,
+  limit: DEFAULT_PAYMENT_CREDIT_MARKER_LIMIT,
+};
+
+/** The config schema enforces the same floors; a policy below them is a caller bug. */
+function assertCreditMarkerPolicy({ retentionMs, limit }: BalanceCreditMarkerPolicy): void {
+  if (
+    !Number.isFinite(retentionMs) ||
+    retentionMs < MIN_PAYMENT_CREDIT_MARKER_RETENTION_HOURS * HOUR_MS
+  ) {
+    throw new Error(
+      `Credit marker retention must be at least ${MIN_PAYMENT_CREDIT_MARKER_RETENTION_HOURS} hour(s)`,
+    );
+  }
+  if (!Number.isInteger(limit) || limit < MIN_PAYMENT_CREDIT_MARKER_LIMIT) {
+    throw new Error(
+      `Credit marker limit must be an integer of at least ${MIN_PAYMENT_CREDIT_MARKER_LIMIT}`,
+    );
+  }
+}
+
+/**
+ * `appliedCredits` after adding `marker`, as one pipeline expression: plain-string markers become
+ * unsettled `{ id, at }` markers, settled markers older than the retention are dropped, and the
+ * rest is capped at `limit` (the new marker included) by keeping the newest unsettled markers and
+ * then the newest settled ones in the room left.
+ */
+function boundedMarkers(
+  marker: BalanceCreditMarker,
+  { retentionMs, limit }: BalanceCreditMarkerPolicy,
+): Record<string, unknown> {
+  const room = limit - 1;
+  const cutoff = new Date(marker.at.getTime() - retentionMs);
+  const isSettled = { $eq: [{ $type: '$$m.settledAt' }, 'date'] };
+  const normalized = {
+    $map: {
+      input: { $ifNull: ['$appliedCredits', []] },
+      as: 'm',
+      in: {
+        $cond: [
+          { $eq: [{ $type: '$$m' }, 'string'] },
+          { id: '$$m', at: { $literal: marker.at } },
+          '$$m',
+        ],
+      },
+    },
+  };
+  const live = {
+    $filter: {
+      input: normalized,
+      as: 'm',
+      cond: { $not: [{ $and: [isSettled, { $lt: ['$$m.settledAt', { $literal: cutoff }] }] }] },
+    },
+  };
+  return {
+    $let: {
+      vars: { live },
+      in: {
+        $let: {
+          vars: {
+            open: {
+              $slice: [
+                { $filter: { input: '$$live', as: 'm', cond: { $not: [isSettled] } } },
+                -room,
+              ],
+            },
+            settled: { $filter: { input: '$$live', as: 'm', cond: isSettled } },
+          },
+          in: {
+            $let: {
+              vars: { settledRoom: { $subtract: [room, { $size: '$$open' }] } },
+              in: {
+                $concatArrays: [
+                  '$$open',
+                  {
+                    $cond: [
+                      { $gt: ['$$settledRoom', 0] },
+                      { $slice: ['$$settled', { $multiply: ['$$settledRoom', -1] }] },
+                      [],
+                    ],
+                  },
+                  [{ id: { $literal: marker.id }, at: { $literal: marker.at } }],
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
 
 type MultiplierParams = {
   model?: string;
@@ -128,6 +231,7 @@ export function createTransactionMethods(
   releaseBalanceReservation: (params: BalanceReservationRelease) => Promise<void>;
   createStructuredTransaction: (_txData: TxData) => Promise<TransactionResult | undefined>;
   applyBalanceCredit: (grant: BalanceCreditGrant) => Promise<boolean>;
+  settleBalanceCredit: (settlement: BalanceCreditSettlement) => Promise<void>;
 } {
   /** Calculate and set the tokenValue for a transaction */
   function calculateTokenValue(txn: InternalTxDoc) {
@@ -843,10 +947,19 @@ export function createTransactionMethods(
   }
 
   /**
-   * Adds a one-time credit to the user's balance: the credits, the pack fields and `creditId`
-   * land in one conditional write that matches only while `creditId` is not yet recorded, so any
-   * number of retries or concurrent callers add the credits once. Resolves true when this call
-   * added them, false when an earlier call already had. Creates the balance record if absent.
+   * Adds a one-time credit to the user's balance: the credits, the pack fields and a
+   * `{ id: creditId, at }` marker land in one conditional write that matches only while no
+   * marker for `creditId` is present, so any number of retries or concurrent callers add the
+   * credits once. Resolves true when this call added them, false when an earlier call already
+   * had. Creates the balance record if absent.
+   *
+   * The same write bounds the markers: a marker settled (`settleBalanceCredit`) more than
+   * `markers.retentionMs` before `at` is dropped, and at most `markers.limit` are kept, dropping
+   * the oldest settled ones first. A marker is only a fence for callers that have not seen the
+   * caller's own record of the credit as applied, so the caller must check that record right
+   * before every call; then only a caller stalled longer than the retention could add a credit
+   * twice. A plain-string marker (written before markers carried times) counts as present and
+   * is rewritten as an unsettled marker stamped `at`.
    */
   async function applyBalanceCredit({
     user,
@@ -855,10 +968,12 @@ export function createTransactionMethods(
     pack,
     grantedAfter,
     at,
+    markers = DEFAULT_CREDIT_MARKERS,
   }: BalanceCreditGrant): Promise<boolean> {
     if (!Number.isFinite(credits) || credits <= 0) {
       throw new Error('A balance credit needs positive credits');
     }
+    assertCreditMarkerPolicy(markers);
     const Balance = mongoose.models.Balance as Model<IBalance>;
     const record =
       (await Balance.findOne({ user }).sort(oldestFirst).select('_id').lean<IBalance>()) ??
@@ -879,18 +994,39 @@ export function createTransactionMethods(
           packGrantedAt: { $cond: [newer, '$packGrantedAt', { $literal: at }] },
         }
       : {};
-    const result = await Balance.updateOne({ _id: record._id, appliedCredits: { $ne: creditId } }, [
+    const result = await Balance.updateOne(
       {
-        $set: {
-          tokenCredits: total,
-          appliedCredits: {
-            $concatArrays: [{ $ifNull: ['$appliedCredits', []] }, [{ $literal: creditId }]],
-          },
-          ...packFields,
-        },
+        _id: record._id,
+        appliedCredits: { $ne: creditId },
+        'appliedCredits.id': { $ne: creditId },
       },
-    ]);
+      [
+        {
+          $set: {
+            tokenCredits: total,
+            appliedCredits: boundedMarkers({ id: creditId, at }, markers),
+            ...packFields,
+          },
+        },
+      ],
+    );
     return result.matchedCount === 1;
+  }
+
+  /**
+   * Marks a credit's marker settled once the caller has recorded the credit as applied, which
+   * starts its retention. Idempotent; a missing marker (dropped by the limit) is a no-op.
+   */
+  async function settleBalanceCredit({
+    user,
+    creditId,
+    at,
+  }: BalanceCreditSettlement): Promise<void> {
+    const Balance = mongoose.models.Balance as Model<IBalance>;
+    await Balance.updateMany(
+      { user, appliedCredits: { $elemMatch: { id: creditId, settledAt: null } } },
+      { $set: { 'appliedCredits.$.settledAt': at } },
+    );
   }
 
   /** Deletes transactions matching a filter. */
@@ -937,6 +1073,7 @@ export function createTransactionMethods(
     releaseBalanceReservation,
     createStructuredTransaction,
     applyBalanceCredit,
+    settleBalanceCredit,
   };
 }
 

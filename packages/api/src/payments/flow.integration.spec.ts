@@ -5,6 +5,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createModels, createMethods } from '@librechat/data-schemas';
 import type { AppConfig, IUser } from '@librechat/data-schemas';
 import type { CurrencyRates } from '~/billing/currency';
+import { resolvePaymentSettings } from './config';
 import { createPaymentHandlers } from './handlers';
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -87,6 +88,15 @@ function createGateway() {
 
 let currentUser: { id: string; role: string } | null;
 
+const ENV = {
+  DOMAIN_SERVER: 'https://hive.example',
+  DOMAIN_CLIENT: 'https://hive.example',
+  ZARINPAL_MERCHANT_ID: MERCHANT,
+  IDPAY_API_KEY: 'idpay-key',
+};
+/** What the handlers resolve for every order of this app */
+const settings = resolvePaymentSettings(appConfig, ENV);
+
 function createApp(gateway: ReturnType<typeof createGateway>, now?: () => Date) {
   const handlers = createPaymentHandlers({
     now,
@@ -102,12 +112,7 @@ function createApp(gateway: ReturnType<typeof createGateway>, now?: () => Date) 
       findBalance: (userId) => db.findBalanceByUser(userId, { applyReset: false }),
     },
     fetch: gateway.fetchImpl,
-    env: {
-      DOMAIN_SERVER: 'https://hive.example',
-      DOMAIN_CLIENT: 'https://hive.example',
-      ZARINPAL_MERCHANT_ID: MERCHANT,
-      IDPAY_API_KEY: 'idpay-key',
-    },
+    env: ENV,
   });
   const app = express();
   app.use(express.json());
@@ -776,7 +781,7 @@ describe('payment flow against MongoDB', () => {
     const { handlers } = createApp(createGateway(), () => new Date(clock));
     const credit = async (orderId: string) => {
       const order = await db.findPaymentOrderById(orderId);
-      return handlers.service.ensureCredited(order!).catch(() => false);
+      return handlers.service.ensureCredited(order!, settings).catch(() => false);
     };
 
     /** A clean credit, counting its writes: one crash point after each of them */
@@ -839,7 +844,7 @@ describe('payment flow against MongoDB', () => {
     const orderId = await createPaidOrder(userId, new Date(clock));
     const credit = async () => {
       const order = await db.findPaymentOrderById(orderId);
-      return handlers.service.ensureCredited(order!).catch(() => false);
+      return handlers.service.ensureCredited(order!, settings).catch(() => false);
     };
 
     /** The first attempt dies right after its ledger write */
@@ -881,6 +886,45 @@ describe('payment flow against MongoDB', () => {
       credited: true,
       userPack: 'starter',
     });
+  });
+
+  it('does not credit a late retry again after its marker aged out, because its ledger entry is applied', async () => {
+    const userId = await createUser();
+    let clock = Date.now();
+    const { handlers } = createApp(createGateway(), () => new Date(clock));
+    const credit = async (orderId: string) => {
+      const order = await db.findPaymentOrderById(orderId);
+      return handlers.service.ensureCredited(order!, settings);
+    };
+    const markers = async () =>
+      (
+        await mongoose.models.Balance.findOne({ user: userId })
+          .select('+appliedCredits')
+          .lean<{ appliedCredits?: { id: string; settledAt?: Date }[] }>()
+      )?.appliedCredits ?? [];
+
+    const first = await createPaidOrder(userId, new Date(clock));
+    expect(await credit(first)).toBe(true);
+    expect(await markers()).toEqual([
+      expect.objectContaining({ id: `payment:${first}`, settledAt: new Date(clock) }),
+    ]);
+
+    /** Past the 7-day default retention, the next credit drops the first marker */
+    clock += 8 * 24 * 60 * 60_000;
+    const second = await createPaidOrder(userId, new Date(clock));
+    expect(await credit(second)).toBe(true);
+    expect((await markers()).map((marker) => marker.id)).toEqual([`payment:${second}`]);
+
+    /** A late retry of the first order (its "credited" flag lost) reads the applied entry */
+    await mongoose.models.PaymentOrder.updateOne(
+      { _id: first },
+      { $set: { creditedAt: null, creditLeaseUntil: null } },
+    );
+    expect(await credit(first)).toBe(true);
+
+    expect((await db.findBalanceByUser(userId))?.tokenCredits).toBe(4_000_000);
+    expect(await ledger(userId)).toHaveLength(2);
+    expect((await markers()).map((marker) => marker.id)).toEqual([`payment:${second}`]);
   });
 
   it('treats a ledger entry without the applied flag as credited and completes a pending one', async () => {
@@ -946,7 +990,7 @@ describe('payment flow against MongoDB', () => {
     await waitForParked(parked, 1);
     clock += 3 * 60_000;
     const order = await db.findPaymentOrderById(orderId);
-    const second = handlers.service.ensureCredited(order!);
+    const second = handlers.service.ensureCredited(order!, settings);
     await waitForParked(parked, 2);
     restore();
     parked.forEach((release) => release());

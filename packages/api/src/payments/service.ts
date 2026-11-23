@@ -8,6 +8,7 @@ import type {
   TAdminPaymentsReconcileResponse,
 } from 'librechat-data-provider';
 import type {
+  BalanceCreditSettlement,
   PaymentSettlement,
   BalanceCreditGrant,
   PaymentOrderRecord,
@@ -52,6 +53,8 @@ export interface PaymentStore {
   markPaymentLedgerApplied: (userId: string, orderId: string) => Promise<void>;
   /** Adds a credit to the balance at most once per `creditId` (see data-schemas). */
   applyBalanceCredit: (grant: BalanceCreditGrant) => Promise<boolean>;
+  /** Lets the credit's marker age out once the ledger entry is applied (see data-schemas). */
+  settleBalanceCredit: (settlement: BalanceCreditSettlement) => Promise<void>;
   listPaymentOrdersToReconcile: (params: {
     now: Date;
     limit?: number;
@@ -176,7 +179,8 @@ export interface PaymentService {
     /** Re-verify canceled/failed orders created within this many minutes; 0 or unset skips them */
     reverifyClosedMinutes?: number;
   }) => Promise<TAdminPaymentsReconcileResponse>;
-  ensureCredited: (order: PaymentOrderRecord) => Promise<boolean>;
+  /** Credits a paid order with the credit-marker policy of `settings` (its tenant's). */
+  ensureCredited: (order: PaymentOrderRecord, settings: PaymentSettings) => Promise<boolean>;
 }
 
 export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
@@ -277,15 +281,21 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
    * Adds a paid order's credits to the balance exactly once and sets its pack, resumable after
    * a failure at any step. The caller holds the order's credit lease.
    *
-   * 1. The ledger entry is written `pending` (or found, when a previous attempt wrote it).
-   * 2. A pending entry is applied: the balance takes the credits and the pack fields in one write
-   *    fenced on the order's marker, so a retry or a stale lease holder cannot add them again.
-   * 3. The entry is marked applied; an entry already applied, or written before the flag
-   *    existed, skips step 2.
-   * 4. The pack is copied onto the user (and, for an old entry, the pack fields are finished).
-   * 5. The order is marked credited.
+   * 1. The ledger entry is written `pending`, or found when a previous attempt wrote it; either
+   *    way its current state is read in this write, immediately before step 2.
+   * 2. Only a pending entry is applied: the balance takes the credits and the pack fields in one
+   *    write fenced on the order's marker, so a retry or a stale lease holder cannot add them
+   *    again. An entry already applied, or written before the flag existed, skips steps 2-3.
+   * 3. The entry is marked applied.
+   * 4. The balance marker is settled (also when step 1 found the entry applied, finishing an
+   *    earlier attempt), which starts its retention. A settled marker is dropped after
+   *    `creditMarkers.retentionMs`; a caller that read the entry as pending before step 3 and
+   *    reaches step 2 later than that is the only one it no longer stops, and the lease bounds
+   *    such callers far below the retention's 1-hour floor.
+   * 5. The pack is copied onto the user (and, for an old entry, the pack fields are finished).
+   * 6. The order is marked credited.
    */
-  async function credit(order: PaymentOrderRecord): Promise<boolean> {
+  async function credit(order: PaymentOrderRecord, settings: PaymentSettings): Promise<boolean> {
     const pack = { id: order.packId, label: order.packLabel };
     const grantedAfter = order.paidAt ?? order.createdAt;
     try {
@@ -294,20 +304,25 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
         orderId: order.id,
         credits: order.credits,
       });
+      const creditId = paymentLedgerMarker(order.id);
       if (state === 'pending') {
         const added = await store.applyBalanceCredit({
           user: order.userId,
-          creditId: paymentLedgerMarker(order.id),
+          creditId,
           credits: order.credits,
           pack,
           grantedAfter,
           at: now(),
+          markers: settings.creditMarkers,
         });
         if (!added) {
           logger.info(`[payments] order ${order.id} credits were already on the balance`);
         }
         await store.markPaymentLedgerApplied(order.userId, order.id);
-      } else if (state === 'legacy') {
+      }
+      if (state === 'pending' || state === 'applied') {
+        await store.settleBalanceCredit({ user: order.userId, creditId, at: now() });
+      } else {
         logger.warn(
           `[payments] order ${order.id} has a ledger entry from before credits were tracked as ` +
             'applied; it is treated as credited, so confirm the balance if the order was retried',
@@ -334,7 +349,10 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   }
 
   /** Credits a paid order unless someone else holds its lease or it is already credited. */
-  async function ensureCredited(order: PaymentOrderRecord): Promise<boolean> {
+  async function ensureCredited(
+    order: PaymentOrderRecord,
+    settings: PaymentSettings,
+  ): Promise<boolean> {
     if (order.credited) {
       return true;
     }
@@ -344,7 +362,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       at,
       new Date(at.getTime() + leaseMs),
     );
-    return claimed ? credit(order) : false;
+    return claimed ? credit(order, settings) : false;
   }
 
   function outcomeOf(order: PaymentOrderRecord, credited = order.credited): PaymentOutcome {
@@ -373,6 +391,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
   async function verifyAndSettle(
     order: PaymentOrderRecord,
     driver: PaymentDriver,
+    settings: PaymentSettings,
     mode: 'callback' | 'check',
     unpaidClose?: UnpaidClose,
   ): Promise<PaymentOutcome> {
@@ -455,7 +474,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       /** Another callback won the settle, or the reference already belongs to another order */
       const current = await store.findPaymentOrderById(order.id);
       if (current?.status === 'paid') {
-        return outcomeOf(current, await ensureCredited(current));
+        return outcomeOf(current, await ensureCredited(current, settings));
       }
       logger.error(`[payments] order ${order.id} verified but could not be settled`);
       return { status: 'failed', orderId: order.id, code: 'verify_failed' };
@@ -464,7 +483,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       `[payments] order ${order.id} paid on ${driver.name}` +
         (receipt.alreadyVerified ? ' (already verified)' : ''),
     );
-    return outcomeOf(settled, await credit(settled));
+    return outcomeOf(settled, await credit(settled, settings));
   }
 
   async function refresh(orderId: string): Promise<PaymentOutcome> {
@@ -504,22 +523,22 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
       return { status: 'failed', orderId: order.id, code: 'invalid_callback' };
     }
     if (order.status === 'paid') {
-      return outcomeOf(order, await ensureCredited(order));
+      return outcomeOf(order, await ensureCredited(order, input.settings));
     }
     if (isClosed(order)) {
       return returned.status === 'ok' && isReverifiable(order)
-        ? verifyAndSettle(order, driver, 'callback')
+        ? verifyAndSettle(order, driver, input.settings, 'callback')
         : outcomeOf(order);
     }
     if (returned.status !== 'ok') {
       logger.info(`[payments] order ${order.id} returned ${returned.status} from ${driver.name}`);
       const canceled = returned.status === 'canceled';
-      return verifyAndSettle(order, driver, 'callback', {
+      return verifyAndSettle(order, driver, input.settings, 'callback', {
         status: canceled ? 'canceled' : 'failed',
         code: canceled ? 'canceled' : 'not_paid',
       });
     }
-    return verifyAndSettle(order, driver, 'callback');
+    return verifyAndSettle(order, driver, input.settings, 'callback');
   }
 
   /** Admin "check again" for one order; also re-verifies an order closed only as unpaid. */
@@ -528,7 +547,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     settings: PaymentSettings,
   ): Promise<PaymentOutcome> {
     if (order.status === 'paid') {
-      return outcomeOf(order, await ensureCredited(order));
+      return outcomeOf(order, await ensureCredited(order, settings));
     }
     if (order.status !== 'pending' && order.status !== 'expired' && !isReverifiable(order)) {
       return outcomeOf(order);
@@ -537,7 +556,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     if (driver == null) {
       return { status: 'pending', orderId: order.id, code: 'gateway_unavailable' };
     }
-    return verifyAndSettle(order, driver, 'check');
+    return verifyAndSettle(order, driver, settings, 'check');
   }
 
   /**
@@ -567,7 +586,7 @@ export function createPaymentService(deps: PaymentServiceDeps): PaymentService {
     for (const order of orders) {
       try {
         if (order.status === 'paid') {
-          summary.credited += (await ensureCredited(order)) ? 1 : 0;
+          summary.credited += (await ensureCredited(order, await resolveSettings(order))) ? 1 : 0;
           continue;
         }
         const outcome = await checkOrder(order, await resolveSettings(order));

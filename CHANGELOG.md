@@ -19,6 +19,15 @@ LibreChat versions are tracked separately in `package.json`.
   lease holder finishes whatever step is missing and never adds the credits again. A ledger entry
   without the flag (written by an earlier version) counts as applied and is logged when it
   completes an order, so an admin can check that balance.
+- **The balance keeps a bounded set of credit markers.** Each marker is `{ id, at }` and is
+  settled once its ledger entry is marked applied. The write that adds a credit also drops
+  markers settled more than `payments.creditMarkerRetentionHours` ago (default 168, minimum 1)
+  and keeps at most `payments.creditMarkerLimit` markers (default 1000, minimum 10), dropping the
+  oldest settled ones first, so a heavy buyer's balance document stays far below MongoDB's
+  16 MiB limit. A marker whose ledger entry is not yet applied is never dropped by age. Every
+  credit attempt reads its ledger entry immediately before the balance write and skips the write
+  when the entry is already applied, so a dropped marker cannot let a retry add the credits again.
+  A plain-string marker counts as present and is rewritten as an unsettled marker.
 - **The payment ledger index is retried after duplicates are removed.** When existing duplicate
   entries refuse the unique index, they are logged by marker and the build is tried again on a
   later payment call after a backoff of one minute, doubling to 30, instead of only after a

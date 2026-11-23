@@ -745,6 +745,12 @@ payments:
   # within this many minutes of its creation (0 = off).
   reverifyClosedMinutes: 1440
   requestTimeoutMs: 15000
+  # Each purchase leaves a marker on the buyer's balance that stops a late retry from adding its
+  # credits twice. A marker is dropped this many hours after its ledger entry is marked applied
+  # (minimum 1, far above the 2-minute credit lease), and a balance keeps at most
+  # creditMarkerLimit of them (minimum 10), so the balance document stays small.
+  creditMarkerRetentionHours: 168
+  creditMarkerLimit: 1000
   description: 'خرید {pack} در HiveGPT'
   gateways:
     zarinpal:
