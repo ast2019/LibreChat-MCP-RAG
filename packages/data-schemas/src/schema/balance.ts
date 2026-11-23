@@ -76,6 +76,10 @@ const balanceSchema: Schema<t.IBalance> = new Schema<t.IBalance>({
   timePackEndpoint: {
     type: String,
   },
+  /** Incremented by every time-pack grant; orders the copies of the fields onto the user. */
+  timePackRevision: {
+    type: Number,
+  },
   /** Credits held by in-flight requests; released when each request settles, or pruned once expired */
   reservations: {
     type: [

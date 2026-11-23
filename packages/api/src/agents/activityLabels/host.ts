@@ -412,6 +412,7 @@ export async function resolveActivityLabelModel({
     /** Priced with the LABEL endpoint's rates, not the agent's. */
     endpointTokenConfig: options.endpointTokenConfig,
     sameEndpoint: endpoint === agentEndpoint,
+    endpoint,
   };
 }
 

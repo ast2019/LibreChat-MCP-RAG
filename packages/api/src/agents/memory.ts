@@ -1059,6 +1059,14 @@ ${memory ?? 'No existing memories'}`;
 /** Bills the memory model's usage; the caller supplies the ledger and the model's rates. */
 export type MemoryUsageSink = (usage: ActivityLabelUsage[]) => Promise<void>;
 
+/**
+ * Admits one memory run before its model is invoked, given the run's input. A refusal skips
+ * that run (logged, no model call); a throw is an operational failure and skips it too.
+ */
+export type MemoryRunAdmission = (
+  messages: readonly BaseMessage[],
+) => Promise<{ ok: true } | { ok: false; error: { code: string } }>;
+
 export async function createMemoryProcessor({
   res,
   userId,
@@ -1074,6 +1082,7 @@ export async function createMemoryProcessor({
   user,
   tenantId,
   onUsage,
+  admit,
 }: {
   res: ServerResponse;
   messageId: string;
@@ -1092,6 +1101,8 @@ export async function createMemoryProcessor({
   tenantId?: string;
   /** Bills each memory run's token usage; omission leaves memory runs unbilled. */
   onUsage?: MemoryUsageSink;
+  /** Checked before each memory run; omission admits every run. */
+  admit?: MemoryRunAdmission;
 }): Promise<
   | [undefined, undefined]
   | [
@@ -1140,6 +1151,16 @@ export async function createMemoryProcessor({
       signal?: AbortSignal,
     ): Promise<(TAttachment | null)[] | undefined> {
       try {
+        const admission = await admit?.(messages);
+        if (admission != null && !admission.ok) {
+          logger.info('[MemoryAgent] Skipped: the memory model was not admitted', {
+            userId,
+            conversationId,
+            messageId,
+            code: admission.error.code,
+          });
+          return;
+        }
         return await processMemory({
           res,
           userId,

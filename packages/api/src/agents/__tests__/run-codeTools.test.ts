@@ -799,3 +799,50 @@ describe('attached-machine policy for lazily initialized graph members', () => {
     expect(await decide()).toBe('deny');
   });
 });
+
+describe('createRun subagent balance gate', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const gate = (checks: boolean) => ({
+    checks,
+    promptTokens: 0,
+    covers: () => false,
+    admit: jest.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'token_balance', message: '{"type":"token_balance"}' },
+    }),
+  });
+
+  const capture = async (offPackBalanceGate: ReturnType<typeof gate>) => {
+    await createRun({
+      agents: [makeAgent({ subagents: { enabled: true, allowSelf: false } })] as never,
+      signal: new AbortController().signal,
+      offPackBalanceGate,
+    });
+    return (Run.create as jest.Mock).mock.calls[0][0].hooks as HookRegistry;
+  };
+
+  it('denies an unpaid subagent start on a time-pack turn', async () => {
+    const hooks = await capture(gate(true));
+    const [matcher] = hooks.getMatchers('SubagentStart');
+
+    const result = await matcher.hooks[0](
+      {
+        hook_event_name: 'SubagentStart',
+        runId: 'run-1',
+        agentId: 'helper',
+        agentType: 'helper',
+        inputs: [],
+      },
+      new AbortController().signal,
+    );
+
+    expect(result).toEqual({ decision: 'deny', reason: '{"type":"token_balance"}' });
+  });
+
+  it('registers no subagent hook when the gate does not check', async () => {
+    const hooks = await capture(gate(false));
+
+    expect(hooks.getMatchers('SubagentStart')).toHaveLength(0);
+  });
+});

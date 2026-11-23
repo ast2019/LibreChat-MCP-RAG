@@ -1441,3 +1441,49 @@ describe('processMemory usage billing', () => {
     expect(onUsage).not.toHaveBeenCalled();
   });
 });
+
+describe('Memory run admission', () => {
+  const createProcessor = (admit: Parameters<typeof createMemoryProcessor>[0]['admit']) =>
+    createMemoryProcessor({
+      res: { headersSent: true, write: jest.fn() } as unknown as Response,
+      userId: 'user-1',
+      messageId: 'response-1',
+      conversationId: 'conversation-1',
+      memoryMethods: {
+        setMemory: jest.fn(),
+        deleteMemory: jest.fn(),
+        getUserMemories: jest.fn().mockResolvedValue([]),
+        getFormattedMemories: jest
+          .fn()
+          .mockResolvedValue({ withKeys: '', withoutKeys: '', totalTokens: 0 }),
+      },
+      admit,
+    });
+
+  it('skips the memory model, without failing, when the run is not admitted', async () => {
+    const admit = jest.fn().mockResolvedValue({ ok: false, error: { code: 'token_balance' } });
+    const [, runMemory] = await createProcessor(admit);
+    const input = [new HumanMessage('I teach physics.')];
+
+    await expect(runMemory!(input)).resolves.toBeUndefined();
+
+    expect(admit).toHaveBeenCalledWith(input);
+    expect(Run.create).not.toHaveBeenCalled();
+  });
+
+  it('runs the memory model once admitted', async () => {
+    const admit = jest.fn().mockResolvedValue({ ok: true });
+    const [, runMemory] = await createProcessor(admit);
+
+    await runMemory!([new HumanMessage('I teach physics.')]);
+
+    expect(Run.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the memory model when the admission itself fails', async () => {
+    const [, runMemory] = await createProcessor(jest.fn().mockRejectedValue(new Error('down')));
+
+    await expect(runMemory!([new HumanMessage('hi')])).resolves.toBeUndefined();
+    expect(Run.create).not.toHaveBeenCalled();
+  });
+});

@@ -6,6 +6,7 @@ export {
   stringifyActivityEvidence,
 } from './runtime';
 export type {
+  ActivityLabelAdmission,
   ActivityLabelBatchMeta,
   ActivityLabelBlockContext,
   ActivityLabelHookOptions,

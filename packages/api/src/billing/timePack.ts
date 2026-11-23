@@ -1,4 +1,4 @@
-import { isTimePack, timePackExpiresAt, TIME_METER_CONTEXT } from 'librechat-data-provider';
+import { isTimePack, TIME_METER_CONTEXT } from 'librechat-data-provider';
 import type { TBalancePack } from 'librechat-data-provider';
 
 export { TIME_METER_CONTEXT };
@@ -68,22 +68,31 @@ export type TimePackFields = {
   timePackEndpoint: string;
 };
 
+/** The fields a grant left on the balance record; the revision orders copies onto the user. */
+export type GrantedTimePackFields = TimePackFields & { timePackRevision: number };
+
+export type TimePackExtension = {
+  timePackId: string;
+  timePackLabel: string;
+  timePackEndpoint: string;
+  durationDays: number;
+  now: Date;
+};
+
 export interface GrantTimePackDeps {
-  /** Same balance writer as credit grants; only time fields are set for this path. */
-  upsertBalanceFields: GrantBalanceUpsert;
-  setUserTimePack?: (user: string, fields: TimePackFields) => Promise<unknown>;
+  /**
+   * Records the grant on the balance record in one atomic write (data-schemas
+   * `extendBalanceTimePack`): a re-grant on the same endpoint before expiry adds `durationDays`
+   * to the stored expiry, so concurrent grants each keep their days.
+   */
+  extendTimePack: (user: string, grant: TimePackExtension) => Promise<GrantedTimePackFields>;
+  /**
+   * Copies the granted fields onto the user document (data-schemas `setUserTimePack`), applied
+   * only over an older revision, and invalidates the cached auth user.
+   */
+  setUserTimePack?: (user: string, fields: GrantedTimePackFields) => Promise<unknown>;
   now?: () => Date;
 }
-
-type GrantBalanceUpsert = (
-  user: string,
-  fields: Partial<TimePackFields> & {
-    packId?: string;
-    packLabel?: string;
-    packAllotment?: number;
-    packGrantedAt?: Date;
-  },
-) => Promise<unknown>;
 
 export interface GrantTimePackResult {
   pack: { id: string; label: string };
@@ -93,7 +102,8 @@ export interface GrantTimePackResult {
 }
 
 /**
- * Records a Claude time entitlement without touching token credits or the credit pack id.
+ * Records a Claude time entitlement without touching token credits or the credit pack id. A
+ * re-grant before expiry on the same endpoint adds `durationDays` to the current expiry.
  */
 export async function grantTimePack(
   deps: GrantTimePackDeps,
@@ -109,21 +119,19 @@ export async function grantTimePack(
     endpoint: string;
   },
 ): Promise<GrantTimePackResult> {
-  const grantedAt = (deps.now ?? (() => new Date()))();
-  const expiresAt = timePackExpiresAt(grantedAt, durationDays);
-  const fields: TimePackFields = {
+  const now = (deps.now ?? (() => new Date()))();
+  const granted = await deps.extendTimePack(userId, {
     timePackId: pack.id,
     timePackLabel: pack.label,
-    timePackExpiresAt: expiresAt,
-    timePackGrantedAt: grantedAt,
     timePackEndpoint: endpoint,
-  };
-  await deps.upsertBalanceFields(userId, fields);
-  await deps.setUserTimePack?.(userId, fields);
+    durationDays,
+    now,
+  });
+  await deps.setUserTimePack?.(userId, granted);
   return {
     pack: { id: pack.id, label: pack.label },
-    expiresAt,
+    expiresAt: granted.timePackExpiresAt,
     endpoint,
-    grantedAt,
+    grantedAt: granted.timePackGrantedAt,
   };
 }

@@ -23,7 +23,14 @@ export interface ActivityLabelLLM {
    * inheriting the agent's custom rates there would misprice the label.
    */
   sameEndpoint?: boolean;
+  /** Endpoint the label runs on (the agent's unless `activityEndpoint` names another). */
+  endpoint?: string;
 }
+
+/** Whether a label call may run; see `admitOffPackLabel` in `~/billing/offPack`. */
+export type ActivityLabelAdmission =
+  | { ok: true; release: () => Promise<void> }
+  | { ok: false; error: { code: string } };
 
 /**
  * Batch metadata handed to the host at slot-claim time (all deterministic).
@@ -161,6 +168,12 @@ export interface ActivityLabelHookOptions {
    * label calls participate in usage accounting like titles do.
    */
   getInvokeCallbacks?: () => ActivityLabelInvokeCallbacks;
+  /**
+   * Checked before either generation path invokes a model, with the resolved label model and
+   * the prompt about to be sent. A refusal skips the label: the slot fills empty, no model is
+   * called and nothing is billed. Omission admits every label.
+   */
+  admit?: (llm: ActivityLabelLLM, promptText: string) => Promise<ActivityLabelAdmission>;
   /** Cap on labels per run (cost guard). Default 20. */
   maxPerRun?: number;
   /** Per-entry output truncation for the prompt. Default 600 chars. */
@@ -563,6 +576,8 @@ export function createActivityLabelHook(
       let deferredUsage:
         | ((estimate?: () => LabelUsageEstimate) => void | Promise<void>)
         | undefined;
+      /** Releases the credits `admit` held for this label once the task settles. */
+      let release: (() => Promise<void>) | undefined;
       const collectDeferredUsage = async (
         committed: boolean,
         estimate?: () => LabelUsageEstimate,
@@ -588,6 +603,17 @@ export function createActivityLabelHook(
          *  captures labels a claim-time snapshot would miss — exactly the
          *  rapid consecutive batches where continuity matters most. */
         const previousLabels = recentLabels(slot.index);
+        if (opts.admit != null) {
+          const admission = await opts.admit(
+            await getLLM(),
+            buildPrompt(input.entries, charLimit, slot.context, opts.prompt, previousLabels),
+          );
+          if (!admission.ok) {
+            await slot.fill(null);
+            return;
+          }
+          release = admission.release;
+        }
         /** Direct, untraced call: the fallback when no SDK bridge is wired or
          *  when the bridge declines because the package is too old. */
         let directPromptText: string | undefined;
@@ -679,6 +705,8 @@ export function createActivityLabelHook(
          *  them when the empty fill committed, on the same shown-iff-billed
          *  rule (collect itself never throws past its own catch). */
         await collectDeferredUsage(committed);
+      } finally {
+        await release?.().catch(() => undefined);
       }
     })();
     opts.trackTask?.(task);

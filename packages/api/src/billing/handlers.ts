@@ -43,6 +43,8 @@ export interface BillingBalance {
 }
 
 export interface AdminBalanceDeps extends GrantBalanceDeps {
+  /** Records a time-pack grant on the balance record in one atomic write. */
+  extendTimePack: GrantTimePackDeps['extendTimePack'];
   /** Copies time-pack fields onto the user document (independent of credit packId). */
   setUserTimePack?: GrantTimePackDeps['setUserTimePack'];
   /** Balance settings that apply to the requesting admin's deployment/tenant. */

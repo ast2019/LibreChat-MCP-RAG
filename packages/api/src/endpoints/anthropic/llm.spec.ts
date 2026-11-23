@@ -2558,3 +2558,21 @@ describe('assistant prefill', () => {
     expect(await sendAndCaptureMessages('claude-haiku-4-5')).toEqual(['user', 'assistant']);
   });
 });
+
+/** The unlimited Claude plan's `time-*` specs (config/librechat.saas.yaml) on the ClaudeTime endpoint. */
+describe('getLLMConfig with the time-pack Claude model ids', () => {
+  it.each([
+    ['claude-sonnet-5-5', AnthropicEffort.high],
+    ['claude-opus-5-5', AnthropicEffort.medium],
+    ['claude-fable-5-2', AnthropicEffort.high],
+    ['claude-mythos-5-2', AnthropicEffort.high],
+  ])('sends adaptive thinking and effort for %s', (model, effort) => {
+    const result = getLLMConfig('test-key', {
+      modelOptions: { model, thinking: true, effort },
+    });
+
+    expect((result.llmConfig.thinking as unknown as { type: string }).type).toBe('adaptive');
+    expect(result.llmConfig.thinking).not.toHaveProperty('budget_tokens');
+    expect(result.llmConfig.invocationKwargs?.output_config).toEqual({ effort });
+  });
+});

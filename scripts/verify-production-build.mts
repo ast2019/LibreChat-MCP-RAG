@@ -499,6 +499,13 @@ async function main(): Promise<number> {
       ['jest', 'src/tools/definitions.spec.ts', 'src/tools/registry'],
       resolve(ROOT, 'packages/api'),
     );
+    // The api exits at boot when configSchema.strict() rejects CONFIG_PATH (0.38.13, #117).
+    runBuildStep(
+      'config/librechat.saas.yaml parses with the boot config schema (packages/api)',
+      'npx',
+      ['jest', 'src/app/saas.spec.ts'],
+      resolve(ROOT, 'packages/api'),
+    );
     runBuildStep(
       'remotion worker tests',
       process.execPath,

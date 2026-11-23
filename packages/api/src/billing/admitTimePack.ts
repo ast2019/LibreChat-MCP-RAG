@@ -1,87 +1,83 @@
-import { getActiveTimePackEntitlement, isTimePackClaudeRequest } from 'librechat-data-provider';
-import type { TBalanceConfig, TBalancePack } from 'librechat-data-provider';
-import type { TimeSeatAcquireResult } from './timeSeats';
-import {
-  acquireTimePackSeat,
-  releaseTimePackSeat,
-  tryOversellTimePackSeat,
-  timePackViolationType,
+import { isTimePack } from 'librechat-data-provider';
+import type { ErrorTypes, TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
+import type {
+  TimeSeatPool,
+  TimeSeatLease,
+  TimeSeatHeartbeat,
+  TimeSeatRejectReason,
+  TimeSeatEvictedLease,
 } from './timeSeats';
-
-export type TimePackAdmitUser = {
-  id?: string;
-  timePackId?: string | null;
-  timePackLabel?: string | null;
-  timePackExpiresAt?: Date | string | null;
-  timePackGrantedAt?: Date | string | null;
-  timePackEndpoint?: string | null;
-};
+import type { TimePackAdmitUser, TimePackRoutePack, TimePackTargetInput } from './route';
+import type { OwnedGenerationControl } from '~/user/generations';
+import { getTimeSeatPool, startTimeSeatHeartbeat, timePackViolationType } from './timeSeats';
+import { resolveTimePackRoute, resolveTimePackTarget } from './route';
+import { abortOwnedGeneration } from '~/user/generations';
 
 /** Whether this agents request should use the Claude time-pack seat path. */
-export function shouldUseTimePackSeats({
-  user,
-  endpoint,
-  model,
-  packs,
-}: {
+export function shouldUseTimePackSeats(params: {
   user?: TimePackAdmitUser | null;
   endpoint?: string | null;
   model?: string | null;
-  packs?: readonly TBalancePack[] | null;
+  packs?: readonly TimePackRoutePack[] | null;
 }): boolean {
-  const entitlement = getActiveTimePackEntitlement(user ?? undefined);
-  if (entitlement == null) {
-    return false;
-  }
-  const pack = packs?.find((entry) => entry.id === entitlement.timePackId);
-  return isTimePackClaudeRequest({
-    entitlement: {
-      ...entitlement,
-      ...(pack?.models != null && { models: pack.models }),
-    },
-    endpoint,
-    model,
-    models: pack?.models,
-  });
+  return resolveTimePackRoute(params).kind === 'seat';
 }
 
 export type TimePackAdmitResult =
-  | { ok: true; pendingSeats: number; limit: number }
+  | { ok: true; pendingSeats: number; limit: number; lease: TimeSeatLease }
   | {
       ok: false;
       status: 429;
       type: string;
-      reason: 'cooldown' | 'held' | 'full' | 'unavailable';
+      reason: TimeSeatRejectReason;
       pendingSeats: number;
       limit: number;
       cooldownMs?: number;
       score: number;
+      /** False for `held`: a second tab of an entitled user is not abuse. */
+      logViolation: boolean;
     };
 
 /**
- * Acquires a shared time-pack seat, force-resting a heavy holder when the pool is full and
- * oversale is allowed. `abortHolder` stops the rested user's in-flight generations.
+ * Acquires a shared time-pack seat for one generation (`leaseId`, its stream id). When the pool
+ * is full and oversale is allowed, the heaviest holder is force-rested in the same step, and
+ * `abortLease` stops only the generations that held the evicted seats.
  */
 export async function admitTimePackRequest({
   userId,
+  leaseId,
+  tenantId,
   balance,
-  abortHolder,
+  abortLease,
+  pool = getTimeSeatPool(),
 }: {
   userId: string;
+  leaseId: string;
+  tenantId?: string;
   balance?: Partial<TBalanceConfig> | null;
-  abortHolder: (userId: string) => Promise<void>;
+  abortLease: (lease: TimeSeatEvictedLease) => Promise<void>;
+  pool?: TimeSeatPool;
 }): Promise<TimePackAdmitResult> {
-  const runtime = balance?.timePack;
-  let result: TimeSeatAcquireResult = await acquireTimePackSeat(userId, runtime);
-  if (!result.allowed && result.reason === 'full') {
-    const oversold = await tryOversellTimePackSeat(userId, runtime, abortHolder);
-    if (oversold != null) {
-      result = oversold;
-    }
-  }
+  const result = await pool.acquire(
+    { userId, leaseId, ...(tenantId != null && tenantId !== '' && { tenantId }) },
+    balance?.timePack,
+  );
   if (result.allowed) {
-    return { ok: true, pendingSeats: result.pendingSeats, limit: result.limit };
+    await Promise.all(
+      result.evicted.map((lease) =>
+        abortLease(lease).catch(() => {
+          /** The evicted run no longer holds a seat; a failed stop leaves it unmetered only. */
+        }),
+      ),
+    );
+    return {
+      ok: true,
+      pendingSeats: result.pendingSeats,
+      limit: result.limit,
+      lease: result.lease,
+    };
   }
+  const held = result.reason === 'held';
   return {
     ok: false,
     status: 429,
@@ -90,11 +86,138 @@ export async function admitTimePackRequest({
     pendingSeats: result.pendingSeats,
     limit: result.limit,
     ...(result.cooldownMs != null && { cooldownMs: result.cooldownMs }),
-    score: 1,
+    score: held ? 0 : 1,
+    logViolation: !held,
   };
 }
 
-export { releaseTimePackSeat };
+/** Request fields the time-pack admission sets and the release reads. */
+export type TimePackRequestState = {
+  _scheduleConcurrencyExempt?: boolean;
+  _timePackSeatHeld?: boolean;
+  _timePackLease?: { lease: TimeSeatLease; heartbeat: TimeSeatHeartbeat } | null;
+  /** Set for every request on the time-pack route, seat or not; usage is metered against it. */
+  _timePackEntitlement?: TimePackEntitlement | null;
+};
+
+export type TimePackRequestLike = TimePackRequestState & {
+  user?: (TimePackAdmitUser & { tenantId?: string }) | null;
+  config?: { balance?: Partial<TBalanceConfig> | null } | null;
+};
+
+export type TimePackRequestAdmission =
+  | { kind: 'none' }
+  | { kind: 'admitted' }
+  | {
+      kind: 'denied';
+      status: 403;
+      body: { type: ErrorTypes.TIME_PACK_REQUIRED; code: ErrorTypes.TIME_PACK_REQUIRED };
+    }
+  | { kind: 'rejected'; admission: Extract<TimePackAdmitResult, { ok: false }> };
+
+/**
+ * The agents controllers' time-pack gate. Runs before any generation work: a time-pack endpoint
+ * without a matching entitlement is denied even for concurrency-exempt (scheduled) runs; with
+ * one, a seat is acquired unless the run is exempt, and kept alive by a heartbeat until
+ * {@link releaseAdmittedRequestSlot}. `endpoint`/`model` are the agent's real ones: a saved
+ * agent's provider, not `agents`.
+ */
+export async function admitTimePackForRequest(
+  req: TimePackRequestLike,
+  {
+    endpoint,
+    model,
+    leaseId,
+    abortLease,
+    pool = getTimeSeatPool(),
+  }: {
+    endpoint?: string | null;
+    model?: string | null;
+    leaseId: string;
+    abortLease: (lease: TimeSeatEvictedLease) => Promise<void>;
+    pool?: TimeSeatPool;
+  },
+): Promise<TimePackRequestAdmission> {
+  req._timePackSeatHeld = false;
+  req._timePackLease = null;
+  req._timePackEntitlement = null;
+  const balance = req.config?.balance;
+  const route = resolveTimePackRoute({ user: req.user, endpoint, model, packs: balance?.packs });
+  if (route.kind === 'none') {
+    return { kind: 'none' };
+  }
+  if (route.kind === 'denied') {
+    return {
+      kind: 'denied',
+      status: 403,
+      body: { type: route.code, code: route.code },
+    };
+  }
+  req._timePackEntitlement = route.entitlement;
+  const userId = req.user?.id;
+  if (req._scheduleConcurrencyExempt === true || !userId) {
+    return { kind: 'admitted' };
+  }
+  const admission = await admitTimePackRequest({
+    userId,
+    leaseId,
+    tenantId: req.user?.tenantId,
+    balance,
+    abortLease,
+    pool,
+  });
+  if (!admission.ok) {
+    return { kind: 'rejected', admission };
+  }
+  req._timePackSeatHeld = true;
+  req._timePackLease = {
+    lease: admission.lease,
+    heartbeat: startTimeSeatHeartbeat(pool, admission.lease, balance?.timePack),
+  };
+  return { kind: 'admitted' };
+}
+
+/**
+ * {@link admitTimePackForRequest} on the endpoint and model the agents request really runs on
+ * (see {@link resolveTimePackTarget}). Without a configured time pack it returns `none` without
+ * waiting for the agent load.
+ */
+export async function admitAgentTimePack(
+  req: TimePackRequestLike,
+  {
+    endpointOption,
+    body,
+    leaseId,
+    abortLease,
+    pool,
+  }: TimePackTargetInput & {
+    leaseId: string;
+    abortLease: (lease: TimeSeatEvictedLease) => Promise<void>;
+    pool?: TimeSeatPool;
+  },
+): Promise<TimePackRequestAdmission> {
+  if (!(req.config?.balance?.packs ?? []).some((pack) => isTimePack(pack))) {
+    req._timePackSeatHeld = false;
+    req._timePackLease = null;
+    req._timePackEntitlement = null;
+    return { kind: 'none' };
+  }
+  const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
+  return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool });
+}
+
+/** Stops exactly the generation an evicted lease held, checked against its owner. */
+export function abortTimePackLease(
+  control: OwnedGenerationControl,
+): (lease: TimeSeatEvictedLease) => Promise<void> {
+  return async (lease) => {
+    await abortOwnedGeneration(
+      lease.leaseId,
+      { id: lease.userId, ...(lease.tenantId != null && { tenantId: lease.tenantId }) },
+      control,
+    );
+  };
+}
 
 /**
  * Releases whichever concurrency slot the agents controller admitted: a time-pack seat or
@@ -104,20 +227,24 @@ export async function releaseAdmittedRequestSlot({
   req,
   userId,
   decrementPendingRequest,
+  pool = getTimeSeatPool(),
 }: {
-  req?: {
-    _scheduleConcurrencyExempt?: boolean;
-    _timePackSeatHeld?: boolean;
-  } | null;
+  req?: TimePackRequestState | null;
   userId?: string | null;
   decrementPendingRequest: (userId: string) => Promise<unknown>;
+  pool?: TimeSeatPool;
 }): Promise<void> {
   if (req?._scheduleConcurrencyExempt === true || !userId) {
     return;
   }
   if (req?._timePackSeatHeld) {
     req._timePackSeatHeld = false;
-    await releaseTimePackSeat(userId);
+    const held = req._timePackLease;
+    req._timePackLease = null;
+    if (held != null) {
+      held.heartbeat.stop();
+      await pool.release(held.lease);
+    }
     return;
   }
   await decrementPendingRequest(userId);

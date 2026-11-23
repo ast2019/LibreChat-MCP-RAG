@@ -7,6 +7,55 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-11-22
+
+### Added
+- **Unlimited Claude plan (time packs, shipped in #116–#119 without an entry).** A `kind: time`
+  pack grants Claude on its own endpoint (`ClaudeTime`, `time-*` model specs) for
+  `durationDays` without spending credits; a re-grant before the end adds to the remaining days.
+  Generations share a pool of `balance.timePack.maxSeats` (4) with `maxSeatsPerUser` (1) each.
+  When the pool is full, the heaviest user over `oversellMinMeteredCredits` in the fixed
+  `usageWindowHours` window loses the seat of that one generation and rests `restMinutes`.
+  Covered usage is written to the ledger as `time_meter` and metered for fairness; other models
+  in the same turn are charged as usual. Without an active plan the endpoint answers
+  `time_pack_required`.
+
+### Fixed
+- **A crashed generation no longer keeps its seat.** Each generation holds a lease that a
+  heartbeat renews every `leaseSeconds / 3` (`leaseSeconds`, default 120); expired leases are
+  dropped before every admission, in Redis and in memory. Before, a process that died
+  mid-generation left the user «held» and the pool a seat short.
+- **Oversale is one atomic step** and stops only the generation that held the seat, not the
+  holder's other chats; a request arriving meanwhile can no longer take the freed seat.
+- **No server-side bypass of the plan.** Ordinary chats were held back only by
+  `modelSpecs.enforce`; saved agents, scheduled runs and subagents on `ClaudeTime` were not
+  checked. They now get `time_pack_required` before any work.
+- **Billing inside a plan turn.** Subagents, summarization, memory and titles on other models
+  were metered instead of charged; titles finished after the seat was released were charged
+  instead of metered. A model allowlist no longer matches a request without a model.
+- **Off-plan calls of a plan turn pass the balance check before they run.** A plan turn skips
+  the up-front credit reservation only for the covered Claude call. With `balance.enabled`,
+  every other model call of the turn reserves its prompt at its own model's rate first, as a
+  normal chat does: the memory agent is skipped when the user cannot pay for it; a subagent is
+  denied with `token_balance` and the parent answer continues; an off-plan handoff or parallel
+  agent fails the turn with `token_balance` before the run starts; an off-plan title, activity
+  label, phase summary or reasoning label is skipped (logged; the placeholder or fallback title
+  stays); an off-plan summarization fails the turn with `token_balance` instead of running, and
+  the conversation history is kept; the Gemini image tool answers the model with
+  `token_balance` instead of generating. Before, a user with no credits got these calls for
+  free, because the debit afterwards was clamped at zero. A resumed turn (tool approval) runs
+  without any up-front check, for plan and non-plan users alike.
+- **Two grants of a plan at once both count.** Two concurrent grants for one user read the
+  same expiry and wrote the same extension, so one grant's days were lost. The expiry is now
+  extended by the database in one write (`max(now, current expiry) + durationDays`), and the
+  copy on the user record applies only over an older grant, so the two records agree.
+- **Redis errors** admitted without any limit. They now use the process pool
+  (`timePack.redisFailure: memory`, default) or refuse (`reject`).
+- `maxSeatsPerUser` is enforced; the meter's increment and expiry are one step; a second tab
+  is answered «held» without logging a violation toward a ban.
+- `config/librechat.saas.yaml` is parsed through the boot config loader in
+  `npm run verify:prod`, so a bad value fails before deploy (0.38.13, #117).
+
 ## [0.40.0] - 2026-11-22
 
 ### Changed

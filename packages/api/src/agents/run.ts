@@ -57,6 +57,7 @@ import type { TerminalSteerHook, SteerPreemption } from '~/agents/steering/runti
 import type { ModelBoundChatModelCallback } from '~/middleware/modelBoundContent';
 import type { ScheduledMCPPolicyError } from '~/schedules/authorization/policy';
 import type { ScheduleMCPExecution } from '~/schedules/authorization/execution';
+import type { OffPackBalanceGate, OffPackModelGuard } from '~/billing/offPack';
 import type { ModelErrorTrackerCallback } from '~/agents/failures/tracker';
 import type { ToolInputValidationError } from '~/agents/toolValidation';
 import type { ResolvedToolApprovalHook } from '~/agents/hitl/hooks';
@@ -113,6 +114,7 @@ import {
 } from './files/runtime';
 import { resolveToolApprovalPolicy, exemptAskUserQuestionFromApproval } from '~/agents/hitl/policy';
 import { applyCustomHandoffPromptKeyCompatibility } from '~/agents/handoffPromptKeyCompatibility';
+import { createSubagentBalanceHook, createOffPackSummarizationGuard } from '~/billing/offPack';
 import { stripIntentFromToolRegistry, stripIntentFromToolDefinitions } from '~/agents/intent';
 import { createAgentToolApprovalSession, bindRunToolApprovalSession } from './hitl/modes';
 import { resolveConfigHeaders, resolveModelHeaders, mergeHeaders } from '~/utils/headers';
@@ -135,6 +137,7 @@ import { getPluginHookSource } from '~/agents/hooks/source';
 import { getOpenAIConfig } from '~/endpoints/openai/config';
 import { createStepBudgetHook } from '~/agents/stepBudget';
 import { buildHITLRunWiring } from '~/agents/hitl/runtime';
+import { collectAgentEndpoints } from '~/billing/usage';
 import { buildLangfuseConfig } from '~/langfuse/config';
 import { applyTestRunHook } from '~/agents/testHook';
 import { isUserProvided } from '~/utils/common';
@@ -1543,7 +1546,7 @@ type CallbackClientOptions = {
   fallbacks?: FallbackConfig[];
 };
 
-type RunModelCallback = ModelBoundChatModelCallback | ModelErrorTrackerCallback;
+type RunModelCallback = ModelBoundChatModelCallback | ModelErrorTrackerCallback | OffPackModelGuard;
 
 /**
  * Installs run-stable callbacks on the model client itself. Subagent child
@@ -2158,6 +2161,7 @@ export async function createRun({
   appConfig,
   subagentUsageSink,
   subagentTasks,
+  offPackBalanceGate,
   runFiles,
   steering,
   activityLabel,
@@ -2271,6 +2275,13 @@ export async function createRun({
   subagentUsageSink?: (event: SubagentUsageEvent) => void;
   /** Host-owned detached-subagent task store and trusted parent-thread scope. */
   subagentTasks?: SubagentTaskConfig;
+  /**
+   * The turn's off-pack balance gate. When it checks (a time-pack turn with balance on), each
+   * subagent child and each summarization call the time pack does not cover is admitted against
+   * the user's balance before its model is invoked: a subagent is denied with the
+   * `token_balance` error, a summarization fails the run with it.
+   */
+  offPackBalanceGate?: OffPackBalanceGate;
   /** Run-scoped file authorization and child context, supplied by the host. */
   runFiles?: RunFileSession;
   /**
@@ -2465,14 +2476,24 @@ export async function createRun({
       { user, tenantId, requestBody },
       agent,
     );
-    const summarization = modelCallbacks?.length
+    /** A time-pack turn admits an off-pack summarizer before each summarization call. */
+    const summaryGuard = createOffPackSummarizationGuard({
+      gate: offPackBalanceGate,
+      agent,
+      agentProvider: provider as string,
+      provider: shapedSummarization.config.provider,
+      model: shapedSummarization.config.model,
+    });
+    const summaryCallbacks =
+      summaryGuard != null ? [...(modelCallbacks ?? []), summaryGuard] : modelCallbacks;
+    const summarization = summaryCallbacks?.length
       ? {
           ...shapedSummarization,
           config: {
             ...shapedSummarization.config,
             parameters: withModelCallbacks(
               { ...(shapedSummarization.config.parameters ?? {}) },
-              modelCallbacks,
+              summaryCallbacks,
             ),
           },
         }
@@ -2897,7 +2918,16 @@ export async function createRun({
         recordScheduledMCPDenial,
       )
     : undefined;
+  const subagentBalance =
+    offPackBalanceGate?.checks === true
+      ? createSubagentBalanceHook({
+          gate: offPackBalanceGate,
+          agents,
+          usageAgents: collectAgentEndpoints(agents),
+        })
+      : undefined;
   registerResolvedMCPToolAliases = (resolvedAgent) => {
+    subagentBalance?.addAgent(resolvedAgent);
     agentApprovalSession.addAgent(resolvedAgent);
     scheduledPolicy?.registerAgent(resolvedAgent);
     for (const agentId of collectNativeEditFileAgentIds([resolvedAgent])) {
@@ -2961,6 +2991,10 @@ export async function createRun({
    * this guard is defense in depth).
    */
   let hooks = approvalWiring?.hooks;
+  if (subagentBalance != null) {
+    hooks ??= new HookRegistry();
+    hooks.register('SubagentStart', { hooks: [subagentBalance.hook], internal: true });
+  }
   if (scheduledPolicy) {
     hooks ??= new HookRegistry();
     hooks.register('PreToolUse', { hooks: [scheduledPolicy.hook, scheduledPolicy.receipt] });

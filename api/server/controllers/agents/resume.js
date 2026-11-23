@@ -37,10 +37,9 @@ const {
   getUserFacingResumeError,
   decrementPendingRequest,
   checkAndIncrementPendingRequest,
-  shouldUseTimePackSeats,
-  admitTimePackRequest,
+  admitAgentTimePack,
+  abortTimePackLease,
   releaseAdmittedRequestSlot,
-  stopUserGenerations,
   isSteerPreemptSupported,
   isStopConfirmed,
   toPendingSteer,
@@ -1212,43 +1211,30 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
   // Count the resume against the concurrency limit. The original turn released its slot
   // when it paused, so resuming must re-acquire one — otherwise pausing several turns
   // and resuming them at once would bypass LIMIT_CONCURRENT_MESSAGES.
-  req._timePackSeatHeld = false;
-  const resumeEndpoint = job.metadata?.endpoint ?? req.body?.endpoint ?? null;
-  const resumeModel =
-    req.body?.endpointOption?.modelOptions?.model ||
-    req.body?.endpointOption?.model_parameters?.model ||
-    req.body?.model ||
-    null;
-  const useTimePackSeats = shouldUseTimePackSeats({
-    user: req.user,
-    endpoint: resumeEndpoint,
-    model: resumeModel,
-    packs: req.config?.balance?.packs,
+  const timePack = await admitAgentTimePack(req, {
+    endpointOption: req.body?.endpointOption,
+    body: { endpoint: job.metadata?.endpoint ?? req.body?.endpoint, model: req.body?.model },
+    leaseId: streamId,
+    abortLease: abortTimePackLease(GenerationJobManager),
   });
-  if (useTimePackSeats) {
-    const admission = await admitTimePackRequest({
-      userId,
-      balance: req.config?.balance,
-      abortHolder: async (holderId) => {
-        await stopUserGenerations(holderId, req.user?.tenantId, GenerationJobManager);
+  if (timePack.kind === 'denied') {
+    return sendGenerationJson(res, timePack.status, timePack.body, generationProtocolVersion);
+  }
+  if (timePack.kind === 'rejected') {
+    const { admission } = timePack;
+    return sendGenerationJson(
+      res,
+      429,
+      {
+        type: admission.type,
+        error: admission.reason === 'cooldown' ? 'Time-pack rest required' : 'Time-pack seats full',
+        reason: admission.reason,
+        ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
       },
-    });
-    if (!admission.ok) {
-      return sendGenerationJson(
-        res,
-        429,
-        {
-          type: admission.type,
-          error:
-            admission.reason === 'cooldown' ? 'Time-pack rest required' : 'Time-pack seats full',
-          reason: admission.reason,
-          ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
-        },
-        generationProtocolVersion,
-      );
-    }
-    req._timePackSeatHeld = true;
-  } else {
+      generationProtocolVersion,
+    );
+  }
+  if (timePack.kind === 'none') {
     const { allowed } = await checkAndIncrementPendingRequest(userId);
     if (!allowed) {
       return sendGenerationJson(

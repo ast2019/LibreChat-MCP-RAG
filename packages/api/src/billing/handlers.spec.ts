@@ -28,6 +28,7 @@ function createDeps(over: Partial<AdminBalanceDeps> = {}): AdminBalanceDeps {
     findBalanceByUser: jest.fn().mockResolvedValue({ tokenCredits: 500_000, packAllotment: 2e6 }),
     createTransaction: jest.fn().mockResolvedValue({ balance: 2_000_000 }),
     upsertBalanceFields: jest.fn().mockResolvedValue({}),
+    extendTimePack: jest.fn(),
     listUsersWithBalances: jest.fn().mockResolvedValue({
       total: 1,
       users: [

@@ -9,6 +9,8 @@ import type {
   IBalanceReservation,
   IBalanceUpdate,
   TransactionData,
+  GrantedTimePack,
+  TimePackGrant,
   IBalance,
 } from '~/types';
 import type { ITransaction } from '~/schema/transaction';
@@ -19,6 +21,7 @@ const cancelRate = 1.15;
 const maxReservationAttempts = 10;
 /** Every balance read resolves a user to their oldest record, so duplicate records stay inert */
 const oldestFirst = { _id: 1 } as const;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type MultiplierParams = {
   model?: string;
@@ -112,6 +115,7 @@ export function createTransactionMethods(
     fields: IBalanceUpdate,
     insertOnly?: IBalanceUpdate,
   ) => Promise<IBalance | null>;
+  extendBalanceTimePack: (user: string, grant: TimePackGrant) => Promise<GrantedTimePack>;
   getTransactions: (filter: FilterQuery<ITransaction>) => Promise<ITransaction[]>;
   deleteTransactions: (
     filter: FilterQuery<ITransaction>,
@@ -766,6 +770,76 @@ export function createTransactionMethods(
     return record;
   }
 
+  /**
+   * Records a time-pack (re-)grant on the user's balance record in one write. The new expiry is
+   * computed by the server from the stored one: `durationDays` added to the later of `now` and
+   * the current expiry when the current pack is on the same endpoint, else to `now`. Concurrent
+   * grants therefore each add their days instead of overwriting one another, and each bumps
+   * `timePackRevision` so their copies onto the user can be ordered. Creates the record if absent.
+   */
+  async function extendBalanceTimePack(
+    user: string,
+    { timePackId, timePackLabel, timePackEndpoint, durationDays, now }: TimePackGrant,
+  ): Promise<GrantedTimePack> {
+    const durationMs = durationDays * DAY_MS;
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      throw new Error('A time-pack grant needs a positive durationDays');
+    }
+    const Balance = mongoose.models.Balance as Model<IBalance>;
+    const grantedAt = new Date(now.getTime());
+    /** Every expression of one `$set` stage reads the document as it was before the write. */
+    const extend = [
+      {
+        $set: {
+          timePackExpiresAt: {
+            $add: [
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$timePackEndpoint', { $literal: timePackEndpoint }] },
+                      { $gt: ['$timePackExpiresAt', { $literal: grantedAt }] },
+                    ],
+                  },
+                  '$timePackExpiresAt',
+                  { $literal: grantedAt },
+                ],
+              },
+              durationMs,
+            ],
+          },
+          timePackId: { $literal: timePackId },
+          timePackLabel: { $literal: timePackLabel },
+          timePackEndpoint: { $literal: timePackEndpoint },
+          timePackGrantedAt: { $literal: grantedAt },
+          timePackRevision: { $add: [{ $ifNull: ['$timePackRevision', 0] }, 1] },
+        },
+      },
+    ];
+    const write = () =>
+      Balance.findOneAndUpdate({ user }, extend, { new: true, sort: oldestFirst }).lean<IBalance>();
+    let record = await write();
+    if (record == null) {
+      await upsertBalanceRecord(user, {});
+      record = await write();
+    }
+    if (
+      record?.timePackExpiresAt == null ||
+      record.timePackGrantedAt == null ||
+      record.timePackRevision == null
+    ) {
+      throw new Error(`Time-pack grant for user ${user} did not reach a balance record`);
+    }
+    return {
+      timePackId,
+      timePackLabel,
+      timePackEndpoint,
+      timePackExpiresAt: new Date(record.timePackExpiresAt),
+      timePackGrantedAt: new Date(record.timePackGrantedAt),
+      timePackRevision: record.timePackRevision,
+    };
+  }
+
   /** Deletes transactions matching a filter. */
   async function deleteTransactions(
     filter: FilterQuery<ITransaction>,
@@ -799,6 +873,7 @@ export function createTransactionMethods(
     updateBalance,
     bulkInsertTransactions,
     findBalanceByUser,
+    extendBalanceTimePack,
     upsertBalanceFields,
     getTransactions,
     deleteTransactions,

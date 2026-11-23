@@ -25,11 +25,17 @@ const {
   isMemoryAgentEnabled,
   isMemoryExcludedForEndpoint,
   isMemoryReadExcludedForEndpoint,
-  recordCollectedUsage,
   resolveRunUsageContext,
   isLocalChatSpend,
   toLocalSpendContext,
-  TIME_METER_CONTEXT,
+  recordTimePackUsage,
+  admitOffPackAgents,
+  admitOffPackLabel,
+  withOffPackBalance,
+  getOffPackRefusalText,
+  createOffPackMemoryAdmission,
+  collectAgentEndpoints,
+  toUsageEndpoint,
   addTimePackMeteredCredits,
   getScheduleMCPExecution,
   createScheduledMCPPolicyRecorder,
@@ -376,6 +382,11 @@ function getUserFacingRequestError(baseMessage, error, appConfig) {
   /** Carries no model or user content, so it is safe under every filter. */
   if (error?.name === 'ManualSummarizationSkippedError') {
     return JSON.stringify({ type: ErrorTypes.COMPACTION_SKIPPED, reason: error.reason });
+  }
+  /** The normal `token_balance` payload of a refused off-pack call; no model or user content. */
+  const offPackRefusal = getOffPackRefusalText(error);
+  if (offPackRefusal != null) {
+    return offPackRefusal;
   }
   const protectionEnabled = hasModelBoundContentProtection(
     appConfig?.filters,
@@ -1469,8 +1480,17 @@ class AgentClient extends BaseClient {
     if (typeof this.run?.generateActivityPhaseLabel !== 'function') {
       return {};
     }
-    const { provider, clientOptions, endpointTokenConfig, sameEndpoint } =
-      await this.resolveActivityPhaseLabelLLM();
+    const phaseLLM = await this.resolveActivityPhaseLabelLLM();
+    const { provider, clientOptions, endpointTokenConfig, sameEndpoint } = phaseLLM;
+    /** A time-pack turn admits an off-pack phase model first; a refusal skips the phase. */
+    const admission = await this.admitLabel(
+      'activity phase',
+      phaseLLM,
+      JSON.stringify({ prompt, activities, assistantContext }),
+    );
+    if (!admission.ok) {
+      return {};
+    }
     const { handleLLMEnd, collected } = createMetadataAggregator();
     let sdkPromptText;
     const capturePrompt = {
@@ -1524,6 +1544,8 @@ class AgentClient extends BaseClient {
       if (!signal?.aborted) {
         logger.warn('[AgentClient] Activity phase generation failed', error);
       }
+    } finally {
+      await admission.release().catch(() => undefined);
     }
     return {
       label,
@@ -1593,7 +1615,13 @@ class AgentClient extends BaseClient {
           'reasoning-label',
         ),
       onError: (error) => logger.warn('[AgentClient] Reasoning label generation failed', error),
+      admit: (llm, promptText) => this.admitLabel('reasoning label', llm, promptText),
     });
+  }
+
+  /** Admits a label model of a time-pack turn (`admitOffPackLabel`); a refusal skips the label. */
+  admitLabel(kind, llm, promptText) {
+    return admitOffPackLabel(this.offPackBalance, this.options.agent, kind, llm, promptText);
   }
 
   /** Bounded settle for in-flight label fills before finalization. On
@@ -1795,6 +1823,7 @@ class AgentClient extends BaseClient {
         this.pendingActivityLabelFills.push(fillDone);
       },
       resolveLLM: () => this.resolveActivityLabelLLM(),
+      admit: (llm, promptText) => this.admitLabel('activity label', llm, promptText),
       /** Per-generation usage accounting for the direct fallback path;
        *  the SDK bridge records its own via chainOptions callbacks. */
       getInvokeCallbacks: () => {
@@ -3514,6 +3543,8 @@ class AgentClient extends BaseClient {
           crossEndpoint: true,
           updateStreamUsage: false,
         }),
+      /** A time-pack turn pays for the memory model; without the credits memory is skipped. */
+      admit: createOffPackMemoryAdmission(() => this.offPackBalance, agent),
     });
 
     this.processMemory = processMemory;
@@ -3707,6 +3738,12 @@ class AgentClient extends BaseClient {
 
   /** @type {sendCompletion} */
   async sendCompletion(payload, opts = {}) {
+    /** Off-pack handoff and parallel agents of a time-pack run need credits up front; a refusal
+     *  fails the turn like the turn's own balance check. */
+    await admitOffPackAgents(this.offPackBalance, [
+      this.options.agent,
+      ...(this.agentConfigs?.values() ?? []),
+    ]);
     await this.chatCompletion({
       payload,
       onProgress: opts.onProgress,
@@ -3880,6 +3917,10 @@ class AgentClient extends BaseClient {
      * fallback and leaving the real generation unbilled.
      */
     updateStreamUsage = true,
+    /** Endpoint the usage ran on when it names no agent (titles); defaults to the agent's. */
+    usageEndpoint,
+    /** Time-pack entitlement of the turn; titles pass the one captured with their request. */
+    timePackEntitlement = this.options.req?._timePackEntitlement,
   }) {
     /** Per-agent resolution keys off the AGENT's config map, which cannot
      *  describe a label running on a different endpoint — so an explicit
@@ -3901,9 +3942,15 @@ class AgentClient extends BaseClient {
         appConfig?.documentOcr?.localEndpoints ?? appConfig?.speech?.stt?.localEndpoints,
     });
     const spendContext = toLocalSpendContext(context, local);
-    const timePackMetering = req?._timePackSeatHeld === true;
     const pricing = { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier };
-    const result = await recordCollectedUsage(
+    const userId = this.user ?? this.options.req.user?.id;
+    /** Where usage naming no agent ran: the caller's endpoint, or the agent's own endpoint
+     *  unless the usage ran elsewhere (`crossEndpoint`). */
+    let defaultUsageEndpoint = crossEndpoint ? null : toUsageEndpoint(this.options.agent);
+    if (usageEndpoint != null) {
+      defaultUsageEndpoint = { endpoint: usageEndpoint };
+    }
+    const result = await recordTimePackUsage(
       {
         spendTokens: db.spendTokens,
         spendStructuredTokens: db.spendStructuredTokens,
@@ -3911,14 +3958,14 @@ class AgentClient extends BaseClient {
         bulkWriteOps: { insertMany: db.bulkInsertTransactions, updateBalance: db.updateBalance },
       },
       {
-        user: this.user ?? this.options.req.user?.id,
+        user: userId,
         conversationId: this.conversationId,
         collectedUsage,
         model: model ?? this.model ?? this.options.agent.model_parameters.model,
-        context: timePackMetering ? TIME_METER_CONTEXT : spendContext,
+        context: spendContext,
         messageId: this.responseMessageId,
-        balance: timePackMetering ? { enabled: false } : balance,
-        transactions: timePackMetering ? { enabled: true } : transactions,
+        balance,
+        transactions,
         endpointTokenConfig: overrideTokenConfig
           ? endpointTokenConfig
           : this.options.endpointTokenConfig,
@@ -3926,24 +3973,19 @@ class AgentClient extends BaseClient {
           ? {}
           : { resolveEndpointTokenConfig: (usage) => this.resolveAgentEndpointTokenConfig(usage) }),
       },
+      {
+        scope: {
+          entitlement: timePackEntitlement,
+          defaultEndpoint: defaultUsageEndpoint,
+          agentEndpoints: collectAgentEndpoints([
+            this.options.agent,
+            ...(this.agentConfigs?.values() ?? []),
+          ]),
+        },
+        meter: (credits) =>
+          addTimePackMeteredCredits(userId, credits, appConfig?.balance?.timePack),
+      },
     );
-
-    if (timePackMetering && Array.isArray(collectedUsage) && collectedUsage.length > 0) {
-      const userId = this.user ?? req?.user?.id;
-      const tokenConfig = overrideTokenConfig
-        ? endpointTokenConfig
-        : this.options.endpointTokenConfig;
-      let meteredCredits = 0;
-      for (const usage of collectedUsage) {
-        if (usage == null) {
-          continue;
-        }
-        meteredCredits += computeUsageCostUSD(usage, pricing, tokenConfig) * 1_000_000;
-      }
-      if (userId && meteredCredits > 0) {
-        await addTimePackMeteredCredits(userId, meteredCredits, appConfig?.balance?.timePack);
-      }
-    }
 
     if (result && updateStreamUsage) {
       this.usage = result;
@@ -5194,6 +5236,7 @@ class AgentClient extends BaseClient {
             this.buildDetachedSubagentUsageRecorder(balanceConfig, transactionsConfig),
           ),
           subagentTasks: this.options.subagentTasks,
+          offPackBalanceGate: this.offPackBalance,
           runFiles: this.options.runFiles,
         }).then((createdRun) => {
           if (!createdRun) {
@@ -6351,28 +6394,35 @@ class AgentClient extends BaseClient {
 
     try {
       await requirePrivateTextAdmission(req, abortController.signal);
-      const titleResult = await this.run.generateTitle({
-        provider,
-        clientOptions,
-        inputText: text,
-        contentParts: immediate ? [] : this.contentParts,
-        titleMethod: titleConfig.titleMethod,
-        titlePrompt: titleConfig.titlePrompt,
-        titlePromptTemplate: titleConfig.titlePromptTemplate,
-        chainOptions: {
-          runName: 'TitleRun',
-          signal: abortController.signal,
-          callbacks: [
-            {
-              handleLLMEnd,
+      const generateTitle = () =>
+        this.run.generateTitle({
+          provider,
+          clientOptions,
+          inputText: text,
+          contentParts: immediate ? [] : this.contentParts,
+          titleMethod: titleConfig.titleMethod,
+          titlePrompt: titleConfig.titlePrompt,
+          titlePromptTemplate: titleConfig.titlePromptTemplate,
+          chainOptions: {
+            runName: 'TitleRun',
+            signal: abortController.signal,
+            callbacks: [
+              {
+                handleLLMEnd,
+              },
+            ],
+            configurable: {
+              thread_id: this.conversationId,
+              user_id: this.user ?? this.options.req.user?.id,
             },
-          ],
-          configurable: {
-            thread_id: this.conversationId,
-            user_id: this.user ?? this.options.req.user?.id,
           },
-        },
-      });
+        });
+      /** An off-pack title of a time-pack turn is paid for; without the credits it is skipped. */
+      const titleResult = await withOffPackBalance(
+        this.offPackBalance,
+        { endpoint, model: clientOptions.model, promptText: text ?? '' },
+        generateTitle,
+      );
 
       const collectedUsage = collectedMetadata.map((item) => {
         let input_tokens, output_tokens;
@@ -6402,6 +6452,8 @@ class AgentClient extends BaseClient {
         collectedUsage,
         context: 'title',
         model: clientOptions.model,
+        usageEndpoint: endpoint,
+        timePackEntitlement: req?._timePackEntitlement,
         balance: balanceConfig,
         transactions: transactionsConfig,
         messageId: this.responseMessageId,

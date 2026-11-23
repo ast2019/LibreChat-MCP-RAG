@@ -1,10 +1,12 @@
 import type { TBalancePack, TTimePackRuntime } from './config';
 import {
-  DEFAULT_TIME_PACK_MAX_SEATS,
-  DEFAULT_TIME_PACK_MAX_SEATS_PER_USER,
   DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS,
-  DEFAULT_TIME_PACK_REST_MINUTES,
+  DEFAULT_TIME_PACK_MAX_SEATS_PER_USER,
   DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS,
+  DEFAULT_TIME_PACK_REDIS_FAILURE,
+  DEFAULT_TIME_PACK_LEASE_SECONDS,
+  DEFAULT_TIME_PACK_REST_MINUTES,
+  DEFAULT_TIME_PACK_MAX_SEATS,
 } from './config';
 
 /** Ledger context for time-path Claude usage that must not change tokenCredits. */
@@ -38,6 +40,8 @@ export function resolveTimePackRuntime(
     usageWindowHours: config?.usageWindowHours ?? DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS,
     oversellMinMeteredCredits:
       config?.oversellMinMeteredCredits ?? DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS,
+    leaseSeconds: config?.leaseSeconds ?? DEFAULT_TIME_PACK_LEASE_SECONDS,
+    redisFailure: config?.redisFailure ?? DEFAULT_TIME_PACK_REDIS_FAILURE,
   };
 }
 
@@ -53,6 +57,17 @@ function asDate(value: Date | string | null | undefined): Date | null {
   }
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Whether `endpoint` is the dedicated endpoint of any configured `kind: time` pack. */
+export function isTimePackEndpoint(
+  packs: readonly Pick<TBalancePack, 'kind' | 'endpoint'>[] | null | undefined,
+  endpoint: string | null | undefined,
+): boolean {
+  if (!endpoint) {
+    return false;
+  }
+  return (packs ?? []).some((pack) => isTimePack(pack) && pack.endpoint?.trim() === endpoint);
 }
 
 /** Active Claude time entitlement, or null when missing/expired. */
@@ -89,7 +104,29 @@ export function timePackExpiresAt(grantedAt: Date, durationDays: number): Date {
   return expires;
 }
 
-/** Whether this request should use the time-pack Claude path. */
+/**
+ * Expiry for a (re-)grant: `durationDays` added to the later of `now` and the current expiry, so
+ * granting again before the end keeps the remaining days.
+ */
+export function extendTimePackExpiry({
+  currentExpiresAt,
+  now,
+  durationDays,
+}: {
+  currentExpiresAt?: Date | string | null;
+  now: Date;
+  durationDays: number;
+}): Date {
+  const current = asDate(currentExpiresAt);
+  const start = current != null && current.getTime() > now.getTime() ? current : now;
+  return timePackExpiresAt(start, durationDays);
+}
+
+/**
+ * Whether this request or usage row belongs to the time-pack Claude path: the entitlement's
+ * endpoint, and a model on the pack's allowlist when it has one (an unknown model never matches
+ * an allowlist).
+ */
 export function isTimePackClaudeRequest({
   entitlement,
   endpoint,
@@ -108,8 +145,8 @@ export function isTimePackClaudeRequest({
     return false;
   }
   const allow = models ?? entitlement.models;
-  if (allow != null && allow.length > 0 && model) {
-    return allow.includes(model);
+  if (allow != null && allow.length > 0) {
+    return typeof model === 'string' && model !== '' && allow.includes(model);
   }
   return true;
 }

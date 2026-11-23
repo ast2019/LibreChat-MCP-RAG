@@ -11,8 +11,8 @@ import type {
   ReasoningLabelStatus,
   ReasoningLabelWiring,
 } from './runtime';
+import type { ActivityLabelAdmission, ActivityLabelLLM } from '~/agents/activityLabels/runtime';
 import type { ResolvedReasoningLabelConfig } from '~/agents/activityLabels/host';
-import type { ActivityLabelLLM } from '~/agents/activityLabels/runtime';
 import type { LooseContentPart } from '~/agents/activityLabels/wiring';
 import { createReasoningLabelWiring } from './runtime';
 
@@ -82,6 +82,11 @@ export interface GenerateReasoningLabelRevisionOptions {
   parentMessageId?: string;
   recordUsage: (usage: ReasoningLabelUsageRecord) => void | Promise<void>;
   onError?: (error: unknown) => void;
+  /**
+   * Checked before the model is invoked, with the resolved model and the visible reasoning about
+   * to be sent. A refusal skips the revision: no model call, no label, nothing billed.
+   */
+  admit?: (llm: ActivityLabelLLM, promptText: string) => Promise<ActivityLabelAdmission>;
 }
 
 export interface ReasoningLabelHostScope {
@@ -266,11 +271,20 @@ export async function generateReasoningLabelRevision({
   parentMessageId,
   recordUsage,
   onError,
+  admit,
 }: GenerateReasoningLabelRevisionOptions): Promise<GeneratedReasoningLabel> {
   if (typeof run?.generateReasoningLabel !== 'function') {
     return {};
   }
-  const { provider, clientOptions, endpointTokenConfig, sameEndpoint } = await resolveModel();
+  const llm = await resolveModel();
+  const { provider, clientOptions, endpointTokenConfig, sameEndpoint } = llm;
+  const admission = await admit?.(
+    llm,
+    [payload.prompt ?? '', payload.previousLabel ?? '', payload.visibleReasoning].join('\n'),
+  );
+  if (admission != null && !admission.ok) {
+    return {};
+  }
   const { handleLLMEnd, collected } = createMetadataAggregator();
   let sdkPromptText: string | undefined;
   let sdkCompletionText: string | undefined;
@@ -326,6 +340,8 @@ export async function generateReasoningLabelRevision({
     if (!payload.signal.aborted) {
       onError?.(error);
     }
+  } finally {
+    await admission?.release().catch(() => undefined);
   }
 
   const collectedMetadata = usage != null ? [{ usage_metadata: usage }] : collected;

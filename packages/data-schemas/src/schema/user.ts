@@ -280,6 +280,12 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       default: undefined,
     },
+    /** Balance-record revision the time-pack fields above were copied from. */
+    timePackRevision: {
+      type: Number,
+      default: undefined,
+      select: false,
+    },
     /** Per-user grant or denial of local/private model specs; an unset key follows the role. */
     modelAccess: {
       type: {

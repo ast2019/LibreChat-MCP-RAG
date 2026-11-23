@@ -23,6 +23,7 @@ const {
   isModelBoundAttachmentFile,
   isToolOwnedAttachment,
   withBalanceReservations,
+  createOffPackBalanceGate,
   findCheckpointSummaryPart,
   getSummaryPartText,
   resolveCheckpointMessage,
@@ -1013,11 +1014,34 @@ class BaseClient {
 
     const balanceConfig = getBalanceConfig(appConfig);
     const transactionsConfig = getTransactionsConfig(appConfig);
+    const balanceDeps = {
+      logViolation,
+      getMultiplier: db.getMultiplier,
+      reserveBalance: db.reserveBalance,
+      renewBalanceReservation: db.renewBalanceReservation,
+      releaseBalanceReservation: db.releaseBalanceReservation,
+    };
+    /** A time-pack turn skips the reservation below; its other model calls admit through this. */
+    this.offPackBalance = createOffPackBalanceGate({
+      req: this.options.req,
+      res: this.options.res,
+      user: this.user,
+      entitlement: this.options.req?._timePackEntitlement,
+      balanceConfig,
+      reservations: balanceReservations,
+      deps: balanceDeps,
+      countTokens,
+      promptTokens,
+    });
+    /** Tools that call a model themselves read the turn's gate from the request. */
+    if (this.options.req != null) {
+      this.options.req._offPackBalance = this.offPackBalance;
+    }
     let completionResult;
     try {
       if (
         balanceConfig?.enabled &&
-        this.options.req?._timePackSeatHeld !== true &&
+        this.options.req?._timePackEntitlement == null &&
         supportsBalanceCheck[this.options.endpointType ?? this.options.endpoint]
       ) {
         const balanceAdmission = checkBalance(
@@ -1033,14 +1057,7 @@ class BaseClient {
               endpointTokenConfig: this.options.endpointTokenConfig,
             },
           },
-          {
-            logViolation,
-            getMultiplier: db.getMultiplier,
-            reserveBalance: db.reserveBalance,
-            renewBalanceReservation: db.renewBalanceReservation,
-            releaseBalanceReservation: db.releaseBalanceReservation,
-            balanceConfig,
-          },
+          { ...balanceDeps, balanceConfig },
         );
         await balanceReservations.track(balanceAdmission);
       }

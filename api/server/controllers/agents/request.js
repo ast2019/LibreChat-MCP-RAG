@@ -23,10 +23,9 @@ const {
   decrementPendingRequest,
   sanitizeMessageForTransmit,
   checkAndIncrementPendingRequest,
-  shouldUseTimePackSeats,
-  admitTimePackRequest,
+  admitAgentTimePack,
+  abortTimePackLease,
   releaseAdmittedRequestSlot,
-  stopUserGenerations,
   exemptFromConcurrencyLimiter,
   isScheduleFireRequest,
   isUnpersistedPreliminaryParent,
@@ -1533,67 +1532,53 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
   const scheduleConcurrencyExempt = exemptFromConcurrencyLimiter(req);
   req._scheduleConcurrencyExempt = scheduleConcurrencyExempt;
-  req._timePackSeatHeld = false;
-  if (!scheduleConcurrencyExempt) {
-    const timePackEndpoint =
-      endpointOption?.endpoint ?? endpointOption?.endpointType ?? req.body?.endpoint ?? null;
-    const timePackModel =
-      endpointOption?.modelOptions?.model ||
-      endpointOption?.model_parameters?.model ||
-      req.body?.model ||
-      null;
-    const useTimePackSeats = shouldUseTimePackSeats({
-      user: req.user,
-      endpoint: timePackEndpoint,
-      model: timePackModel,
-      packs: req.config?.balance?.packs,
-    });
-    if (useTimePackSeats) {
-      const admission = await admitTimePackRequest({
+  const releaseOwnedClaim = async () => {
+    if (ownedIdempotencyClaim) {
+      await GenerationJobManager.releaseGeneration(
         userId,
-        balance: req.config?.balance,
-        abortHolder: async (holderId) => {
-          await stopUserGenerations(holderId, req.user?.tenantId, GenerationJobManager);
-        },
-      });
-      if (!admission.ok) {
-        if (ownedIdempotencyClaim) {
-          await GenerationJobManager.releaseGeneration(
-            userId,
-            clientRequestId,
-            streamId,
-            ownedIdempotencyClaim,
-          ).catch(() => {});
-        }
-        const violationInfo = {
-          type: admission.type,
-          limit: admission.limit,
-          pendingRequests: admission.pendingSeats,
-          score: admission.score,
-          reason: admission.reason,
-          ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
-        };
-        await logViolation(req, res, admission.type, violationInfo, admission.score);
-        startupTelemetry?.end('rejected');
-        return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
-      }
-      req._timePackSeatHeld = true;
-    } else {
-      const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
-      if (!allowed) {
-        if (ownedIdempotencyClaim) {
-          await GenerationJobManager.releaseGeneration(
-            userId,
-            clientRequestId,
-            streamId,
-            ownedIdempotencyClaim,
-          ).catch(() => {});
-        }
-        const violationInfo = getViolationInfo(pendingRequests, limit);
-        await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
-        startupTelemetry?.end('rejected');
-        return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
-      }
+        clientRequestId,
+        streamId,
+        ownedIdempotencyClaim,
+      ).catch(() => {});
+    }
+  };
+  const timePack = await admitAgentTimePack(req, {
+    endpointOption,
+    body: req.body,
+    leaseId: streamId,
+    abortLease: abortTimePackLease(GenerationJobManager),
+  });
+  if (timePack.kind === 'denied') {
+    await releaseOwnedClaim();
+    startupTelemetry?.end('rejected');
+    return sendGenerationJson(res, timePack.status, timePack.body, generationProtocolVersion);
+  }
+  if (timePack.kind === 'rejected') {
+    const { admission } = timePack;
+    await releaseOwnedClaim();
+    const violationInfo = {
+      type: admission.type,
+      limit: admission.limit,
+      pendingRequests: admission.pendingSeats,
+      score: admission.score,
+      reason: admission.reason,
+      ...(admission.cooldownMs != null && { cooldownMs: admission.cooldownMs }),
+    };
+    if (admission.logViolation) {
+      await logViolation(req, res, admission.type, violationInfo, admission.score);
+    }
+    startupTelemetry?.end('rejected');
+    return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
+  }
+  /** A time-pack seat (or its exemption) replaces the per-user concurrency counter. */
+  if (!scheduleConcurrencyExempt && timePack.kind === 'none') {
+    const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
+    if (!allowed) {
+      await releaseOwnedClaim();
+      const violationInfo = getViolationInfo(pendingRequests, limit);
+      await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
+      startupTelemetry?.end('rejected');
+      return sendGenerationJson(res, 429, violationInfo, generationProtocolVersion);
     }
   }
   startupTelemetry?.mark('request_admitted');

@@ -37,6 +37,8 @@ export interface IBalance extends Document {
   timePackExpiresAt?: Date;
   timePackGrantedAt?: Date;
   timePackEndpoint?: string;
+  /** Incremented by every time-pack grant; orders the copies of these fields onto the user */
+  timePackRevision?: number;
   /** Reservation state is excluded from reads unless explicitly selected */
   reservations?: IBalanceReservation[];
   /** Sum of `reservations` amounts, maintained by the same writes */
@@ -63,6 +65,26 @@ export interface IBalanceUpdate {
   timePackExpiresAt?: Date;
   timePackGrantedAt?: Date;
   timePackEndpoint?: string;
+}
+
+/** One time-pack (re-)grant: the pack's fields and the days it adds. */
+export interface TimePackGrant {
+  timePackId: string;
+  timePackLabel: string;
+  timePackEndpoint: string;
+  /** Whole days added to the later of `now` and the current expiry on the same endpoint */
+  durationDays: number;
+  now: Date;
+}
+
+/** A user's time-pack fields as a grant left them on the balance record. */
+export interface GrantedTimePack {
+  timePackId: string;
+  timePackLabel: string;
+  timePackEndpoint: string;
+  timePackExpiresAt: Date;
+  timePackGrantedAt: Date;
+  timePackRevision: number;
 }
 
 /** Holds credits against a user's balance for the lifetime of one in-flight request */

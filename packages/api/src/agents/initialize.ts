@@ -148,6 +148,7 @@ import { hasActiveFileFieldPolicy } from '~/protection';
 import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
+import { resolveTimePackRoute } from '~/billing/route';
 import { getSkillOfficeTools } from '~/office/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
@@ -1429,6 +1430,18 @@ export async function initializeAgent(
     throw new Error(
       `{ "type": "${ErrorTypes.INVALID_AGENT_PROVIDER}", "info": "${agent.provider}" }`,
     );
+  }
+  /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs
+   * the user's active entitlement; the controllers reject the primary one earlier. */
+  if (
+    resolveTimePackRoute({
+      user,
+      endpoint: agent.provider,
+      model: agent.model ?? agent.model_parameters?.model,
+      packs: appConfig?.balance?.packs,
+    }).kind === 'denied'
+  ) {
+    throw new Error(`{ "type": "${ErrorTypes.TIME_PACK_REQUIRED}" }`);
   }
 
   /**

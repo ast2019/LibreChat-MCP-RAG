@@ -1,7 +1,9 @@
+import { Providers } from '@librechat/agents';
 import { GraphEvents } from '@librechat/agents';
 import { ContentTypes, StepTypes, ReasoningLabelEvents } from 'librechat-data-provider';
 import {
   createReasoningLabelHostWiring,
+  generateReasoningLabelRevision,
   getLabelUsageSequenceSeed,
   type CreateReasoningLabelHostWiringOptions,
 } from './host';
@@ -110,5 +112,57 @@ describe('reasoning label host', () => {
       attempts: 1,
       reset: true,
     });
+  });
+});
+
+describe('generateReasoningLabelRevision admission', () => {
+  const revision = (admit: Parameters<typeof generateReasoningLabelRevision>[0]['admit']) => {
+    const run = { generateReasoningLabel: jest.fn(async () => ({ label: 'Weighing options' })) };
+    const recordUsage = jest.fn();
+    const result = generateReasoningLabelRevision({
+      payload: {
+        visibleReasoning: 'compare the two plans',
+        reasoningStepId: 'step-1',
+        revision: 1,
+        status: 'final',
+        charLimit: 80,
+        signal: new AbortController().signal,
+      } as never,
+      run,
+      resolveModel: async () => ({
+        provider: Providers.OPENROUTER,
+        clientOptions: { model: 'gpt-5-nano' },
+        endpoint: 'OpenRouter',
+        sameEndpoint: false,
+      }),
+      sourceRunId: 'r',
+      sourceTraceId: 't',
+      responseId: 'r',
+      sessionId: 'c',
+      recordUsage,
+      admit,
+    });
+    return { run, recordUsage, result };
+  };
+
+  it('skips the revision before the model is invoked when it is refused', async () => {
+    const admit = jest.fn(async () => ({ ok: false as const, error: { code: 'token_balance' } }));
+    const { run, result } = revision(admit);
+
+    await expect(result).resolves.toEqual({});
+    expect(admit).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'OpenRouter' }),
+      expect.stringContaining('compare the two plans'),
+    );
+    expect(run.generateReasoningLabel).not.toHaveBeenCalled();
+  });
+
+  it('runs an admitted revision and releases its credits', async () => {
+    const release = jest.fn(async () => undefined);
+    const { run, result } = revision(async () => ({ ok: true, release }));
+
+    await expect(result).resolves.toMatchObject({ label: 'Weighing options' });
+    expect(run.generateReasoningLabel).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });
