@@ -578,6 +578,13 @@ async function main(): Promise<number> {
       ['jest', 'src/tools/definitions.spec.ts', 'src/tools/registry'],
       resolve(ROOT, 'packages/api'),
     );
+    // mongodb-memory-server accepts what DocumentDB 5.0 rejects; only this static guard sees it (0.40.4).
+    runBuildStep(
+      'Amazon DocumentDB compatibility guard (packages/data-schemas)',
+      'npx',
+      ['jest', 'src/methods/documentdb.spec.ts'],
+      resolve(ROOT, 'packages/data-schemas'),
+    );
     // The api exits at boot when configSchema.strict() rejects CONFIG_PATH (0.38.13, #117).
     runBuildStep(
       'config/librechat.saas.yaml parses with the boot config schema (packages/api)',

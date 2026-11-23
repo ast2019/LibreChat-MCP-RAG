@@ -13,8 +13,8 @@ import type {
   PaymentLedgerState,
 } from '~/types';
 import type { ITransaction } from '~/schema/transaction';
+import { buildIndexWithRetry, createIndexesWithRetry } from '~/utils/retry';
 import { isValidObjectIdString } from '~/utils/objectId';
-import { createIndexesWithRetry } from '~/utils/retry';
 import { buildUserSearchFilter } from '~/utils/search';
 import logger from '~/config/winston';
 
@@ -171,36 +171,45 @@ export function createPaymentMethods(mongoose: typeof import('mongoose')): Payme
    * applies each order's credit at most once on its own (`applyBalanceCredit`).
    */
   async function ensureLedgerIndex(): Promise<boolean> {
-    try {
-      // eslint-disable-next-line no-restricted-syntax -- an index build reads and writes no tenant data; Mongoose has no per-index create with options
-      await transactions().collection.createIndex(
-        { messageId: 1 },
-        {
-          name: PAYMENT_LEDGER_INDEX,
-          unique: true,
-          partialFilterExpression: PAYMENT_LEDGER_FILTER,
-        },
-      );
-      return true;
-    } catch (error) {
-      if (!isDuplicateKey(error)) {
-        throw error;
+    /** A duplicate refusal resolves false inside the build, so the retrying helper neither
+     * retries nor logs it. The helper waits out another build on the collection (one build per
+     * collection on DocumentDB), retries transient errors and lets every other error through. */
+    const built = await buildIndexWithRetry(async (): Promise<boolean> => {
+      try {
+        // eslint-disable-next-line no-restricted-syntax -- an index build reads and writes no tenant data; Mongoose has no per-index create with options
+        await transactions().collection.createIndex(
+          { messageId: 1 },
+          {
+            name: PAYMENT_LEDGER_INDEX,
+            unique: true,
+            partialFilterExpression: PAYMENT_LEDGER_FILTER,
+          },
+        );
+        return true;
+      } catch (error) {
+        if (!isDuplicateKey(error)) {
+          throw error;
+        }
+        return false;
       }
-      const duplicates = await transactions()
-        .aggregate<{ _id: string; count: number }>([
-          { $match: PAYMENT_LEDGER_FILTER },
-          { $group: { _id: '$messageId', count: { $sum: 1 } } },
-          { $match: { count: { $gt: 1 } } },
-          { $limit: 50 },
-        ])
-        .exec();
-      logger.error(
-        '[payments] Payment orders have more than one ledger entry; the unique ledger index is ' +
-          `not built until they are resolved. Next attempt in ${Math.round(ledgerIndexBackoffMs / 1000)}s`,
-        { markers: duplicates.map((row) => row._id) },
-      );
-      return false;
+    }, PAYMENT_LEDGER_INDEX);
+    if (built) {
+      return true;
     }
+    const duplicates = await transactions()
+      .aggregate<{ _id: string; count: number }>([
+        { $match: PAYMENT_LEDGER_FILTER },
+        { $group: { _id: '$messageId', count: { $sum: 1 } } },
+        { $match: { count: { $gt: 1 } } },
+        { $limit: 50 },
+      ])
+      .exec();
+    logger.error(
+      '[payments] Payment orders have more than one ledger entry; the unique ledger index is ' +
+        `not built until they are resolved. Next attempt in ${Math.round(ledgerIndexBackoffMs / 1000)}s`,
+      { markers: duplicates.map((row) => row._id) },
+    );
+    return false;
   }
 
   /**

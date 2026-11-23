@@ -7,6 +7,38 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.4] - 2026-11-23
+
+### Fixed
+- **Payment credits, time-pack grants and the payment ledger index work on Amazon DocumentDB
+  5.0 again.** 0.40.2 and 0.40.3 wrote the time-pack extension (#121) and the payment credit
+  (#123) as aggregation-pipeline updates and built the unique payment ledger index (#122, #123)
+  with a raw `createIndex`. DocumentDB 5.0 rejects pipeline updates, and it rejects a second
+  index build on a collection while one is running, so on that engine a paid order's credits and
+  a time-pack grant failed, and the ledger index could fail to build. Both writes now use
+  classic update operators only:
+  - A time-pack grant reads the balance, computes the new expiry (the days added to the later of
+    now and the current expiry on the same endpoint), and writes it with a compare-and-swap that
+    matches only while `timePackRevision`, the expiry and the endpoint still hold the values it
+    read. A grant that loses the race re-reads, up to 10 attempts, so two grants at once still
+    add both durations and get distinct revisions.
+  - A payment credit is still one write that matches only while the order's marker is absent
+    (a plain-string marker still counts as present), so it lands exactly once under retries,
+    races and crashes. The marker list, the negative-balance clamp at zero and the pack
+    allotment are computed from a read; the write's filter also requires the new
+    `appliedCreditsRevision` field (bumped by every credit and every settlement), the
+    `packGrantedAt` read, and the exact `tokenCredits` read whenever the write sets the balance
+    instead of incrementing it. Retention and the marker limit behave as in 0.40.3: settled
+    markers age out, unsettled ones never do, and the oldest settled markers are dropped first
+    at the limit. A write that loses a race re-reads, up to 10 attempts, then fails with an
+    error that payment reconciliation retries.
+  - The ledger index is built through `buildIndexWithRetry`, which waits while another build
+    holds the collection and retries transient errors. Duplicate entries are still logged by
+    marker and the build is retried after the same one-minute-doubling-to-30 backoff.
+- **`npm run verify:prod` runs the DocumentDB compatibility guard**
+  (`packages/data-schemas/src/methods/documentdb.spec.ts`). The test suites run on
+  `mongodb-memory-server`, which accepts these constructs, and no other gate ran the guard.
+
 ## [0.40.3] - 2026-11-23
 
 ### Fixed

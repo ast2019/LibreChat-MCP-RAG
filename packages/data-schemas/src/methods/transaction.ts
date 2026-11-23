@@ -56,75 +56,46 @@ function assertCreditMarkerPolicy({ retentionMs, limit }: BalanceCreditMarkerPol
   }
 }
 
+/** Waits a jittered `delayMs` and returns the next, doubled delay (capped at 500 ms). */
+async function backOff(delayMs: number): Promise<number> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs + Math.random() * delayMs));
+  return Math.min(delayMs * 2, 500);
+}
+
+function isSettledMarker(
+  marker: BalanceCreditMarker,
+): marker is BalanceCreditMarker & { settledAt: Date } {
+  return marker.settledAt instanceof Date;
+}
+
 /**
- * `appliedCredits` after adding `marker`, as one pipeline expression: plain-string markers become
- * unsettled `{ id, at }` markers, settled markers older than the retention are dropped, and the
- * rest is capped at `limit` (the new marker included) by keeping the newest unsettled markers and
- * then the newest settled ones in the room left.
+ * `appliedCredits` after adding `marker`: plain-string markers become unsettled `{ id, at }`
+ * markers, settled markers older than the retention are dropped, and the rest is capped at
+ * `limit` (the new marker included) by keeping the newest unsettled markers and then the newest
+ * settled ones in the room left. Order is kept within each group.
  */
 function boundedMarkers(
+  stored: readonly (BalanceCreditMarker | string)[] | undefined,
   marker: BalanceCreditMarker,
   { retentionMs, limit }: BalanceCreditMarkerPolicy,
-): Record<string, unknown> {
+): BalanceCreditMarker[] {
   const room = limit - 1;
-  const cutoff = new Date(marker.at.getTime() - retentionMs);
-  const isSettled = { $eq: [{ $type: '$$m.settledAt' }, 'date'] };
-  const normalized = {
-    $map: {
-      input: { $ifNull: ['$appliedCredits', []] },
-      as: 'm',
-      in: {
-        $cond: [
-          { $eq: [{ $type: '$$m' }, 'string'] },
-          { id: '$$m', at: { $literal: marker.at } },
-          '$$m',
-        ],
-      },
-    },
-  };
-  const live = {
-    $filter: {
-      input: normalized,
-      as: 'm',
-      cond: { $not: [{ $and: [isSettled, { $lt: ['$$m.settledAt', { $literal: cutoff }] }] }] },
-    },
-  };
-  return {
-    $let: {
-      vars: { live },
-      in: {
-        $let: {
-          vars: {
-            open: {
-              $slice: [
-                { $filter: { input: '$$live', as: 'm', cond: { $not: [isSettled] } } },
-                -room,
-              ],
-            },
-            settled: { $filter: { input: '$$live', as: 'm', cond: isSettled } },
-          },
-          in: {
-            $let: {
-              vars: { settledRoom: { $subtract: [room, { $size: '$$open' }] } },
-              in: {
-                $concatArrays: [
-                  '$$open',
-                  {
-                    $cond: [
-                      { $gt: ['$$settledRoom', 0] },
-                      { $slice: ['$$settled', { $multiply: ['$$settledRoom', -1] }] },
-                      [],
-                    ],
-                  },
-                  [{ id: { $literal: marker.id }, at: { $literal: marker.at } }],
-                ],
-              },
-            },
-          },
-        },
-      },
-    },
-  };
+  const cutoff = marker.at.getTime() - retentionMs;
+  const live = (stored ?? [])
+    .map(
+      (entry): BalanceCreditMarker =>
+        typeof entry === 'string' ? { id: entry, at: marker.at } : entry,
+    )
+    .filter((entry) => !(isSettledMarker(entry) && entry.settledAt.getTime() < cutoff));
+  const unsettled = live.filter((entry) => !isSettledMarker(entry));
+  const open = unsettled.slice(Math.max(0, unsettled.length - room));
+  const settled = live.filter(isSettledMarker);
+  const settledRoom = room - open.length;
+  return [
+    ...open,
+    ...(settledRoom > 0 ? settled.slice(Math.max(0, settled.length - settledRoom)) : []),
+    { id: marker.id, at: marker.at },
+  ];
 }
 
 type MultiplierParams = {
@@ -877,11 +848,14 @@ export function createTransactionMethods(
   }
 
   /**
-   * Records a time-pack (re-)grant on the user's balance record in one write. The new expiry is
-   * computed by the server from the stored one: `durationDays` added to the later of `now` and
-   * the current expiry when the current pack is on the same endpoint, else to `now`. Concurrent
-   * grants therefore each add their days instead of overwriting one another, and each bumps
-   * `timePackRevision` so their copies onto the user can be ordered. Creates the record if absent.
+   * Records a time-pack (re-)grant on the user's balance record. The new expiry is `durationDays`
+   * added to the later of `now` and the current expiry when the current pack is on the same
+   * endpoint, else to `now`. It is computed from a read and written by a compare-and-swap that
+   * matches only while `timePackRevision`, `timePackExpiresAt` and `timePackEndpoint` still hold
+   * the values read, and bumps `timePackRevision`; a grant that lost the race re-reads. Concurrent
+   * grants therefore each add their days instead of overwriting one another, and the revision
+   * orders their copies onto the user. Creates the record if absent. Throws when the retry bound
+   * is exhausted.
    */
   async function extendBalanceTimePack(
     user: string,
@@ -893,57 +867,63 @@ export function createTransactionMethods(
     }
     const Balance = mongoose.models.Balance as Model<IBalance>;
     const grantedAt = new Date(now.getTime());
-    /** Every expression of one `$set` stage reads the document as it was before the write. */
-    const extend = [
-      {
-        $set: {
-          timePackExpiresAt: {
-            $add: [
-              {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ['$timePackEndpoint', { $literal: timePackEndpoint }] },
-                      { $gt: ['$timePackExpiresAt', { $literal: grantedAt }] },
-                    ],
-                  },
-                  '$timePackExpiresAt',
-                  { $literal: grantedAt },
-                ],
-              },
-              durationMs,
-            ],
-          },
-          timePackId: { $literal: timePackId },
-          timePackLabel: { $literal: timePackLabel },
-          timePackEndpoint: { $literal: timePackEndpoint },
-          timePackGrantedAt: { $literal: grantedAt },
-          timePackRevision: { $add: [{ $ifNull: ['$timePackRevision', 0] }, 1] },
+    let delay = 10;
+
+    for (let attempt = 1; attempt <= maxReservationAttempts; attempt++) {
+      const current = await Balance.findOne({ user })
+        .sort(oldestFirst)
+        .select({ timePackEndpoint: 1, timePackExpiresAt: 1, timePackRevision: 1 })
+        .lean<IBalance>();
+      if (current == null) {
+        await upsertBalanceRecord(user, {});
+        continue;
+      }
+      const expiry = current.timePackExpiresAt;
+      const extendsCurrent =
+        current.timePackEndpoint === timePackEndpoint && expiry != null && expiry > grantedAt;
+      const from = extendsCurrent ? expiry.getTime() : grantedAt.getTime();
+      const record = await Balance.findOneAndUpdate(
+        {
+          _id: current._id,
+          timePackRevision: current.timePackRevision ?? null,
+          timePackExpiresAt: expiry ?? null,
+          timePackEndpoint: current.timePackEndpoint ?? null,
         },
-      },
-    ];
-    const write = () =>
-      Balance.findOneAndUpdate({ user }, extend, { new: true, sort: oldestFirst }).lean<IBalance>();
-    let record = await write();
-    if (record == null) {
-      await upsertBalanceRecord(user, {});
-      record = await write();
+        {
+          $set: {
+            timePackId,
+            timePackLabel,
+            timePackEndpoint,
+            timePackGrantedAt: grantedAt,
+            timePackExpiresAt: new Date(from + durationMs),
+          },
+          $inc: { timePackRevision: 1 },
+        },
+        { new: true },
+      ).lean<IBalance>();
+      if (record != null) {
+        if (
+          record.timePackExpiresAt == null ||
+          record.timePackGrantedAt == null ||
+          record.timePackRevision == null
+        ) {
+          throw new Error(`Time-pack grant for user ${user} did not reach a balance record`);
+        }
+        return {
+          timePackId,
+          timePackLabel,
+          timePackEndpoint,
+          timePackExpiresAt: new Date(record.timePackExpiresAt),
+          timePackGrantedAt: new Date(record.timePackGrantedAt),
+          timePackRevision: record.timePackRevision,
+        };
+      }
+      if (attempt < maxReservationAttempts) {
+        delay = await backOff(delay);
+      }
     }
-    if (
-      record?.timePackExpiresAt == null ||
-      record.timePackGrantedAt == null ||
-      record.timePackRevision == null
-    ) {
-      throw new Error(`Time-pack grant for user ${user} did not reach a balance record`);
-    }
-    return {
-      timePackId,
-      timePackLabel,
-      timePackEndpoint,
-      timePackExpiresAt: new Date(record.timePackExpiresAt),
-      timePackGrantedAt: new Date(record.timePackGrantedAt),
-      timePackRevision: record.timePackRevision,
-    };
+
+    throw new Error(`Time-pack grant for user ${user} exceeded its retry bound.`);
   }
 
   /**
@@ -951,7 +931,7 @@ export function createTransactionMethods(
    * `{ id: creditId, at }` marker land in one conditional write that matches only while no
    * marker for `creditId` is present, so any number of retries or concurrent callers add the
    * credits once. Resolves true when this call added them, false when an earlier call already
-   * had. Creates the balance record if absent.
+   * had. Creates the balance record if absent. Throws when the retry bound is exhausted.
    *
    * The same write bounds the markers: a marker settled (`settleBalanceCredit`) more than
    * `markers.retentionMs` before `at` is dropped, and at most `markers.limit` are kept, dropping
@@ -960,6 +940,14 @@ export function createTransactionMethods(
    * before every call; then only a caller stalled longer than the retention could add a credit
    * twice. A plain-string marker (written before markers carried times) counts as present and
    * is rewritten as an unsettled marker stamped `at`.
+   *
+   * The write uses classic update operators only (Amazon DocumentDB rejects pipeline updates).
+   * The values it derives from the stored document are computed from a read, and the write's
+   * filter is the compare-and-swap that keeps them true: `appliedCreditsRevision` (bumped by
+   * every write of the markers) for the marker array, the exact `tokenCredits` read when the
+   * write sets it (a negative balance clamps at zero, a pack grant records the new balance as
+   * its allotment), and the `packGrantedAt` read. Otherwise the credits are a plain `$inc`, so
+   * concurrent spending does not force a retry. A write that matches nothing re-reads.
    */
   async function applyBalanceCredit({
     user,
@@ -981,36 +969,72 @@ export function createTransactionMethods(
     if (record == null) {
       throw new Error(`Balance credit for user ${user} did not reach a balance record`);
     }
-    /** Every expression of one `$set` stage reads the document as it was before the write. */
-    const total = { $add: [{ $max: [0, { $ifNull: ['$tokenCredits', 0] }] }, credits] };
-    const newer = { $gt: ['$packGrantedAt', { $literal: grantedAfter }] };
-    const packFields = pack
-      ? {
-          packId: { $cond: [newer, '$packId', { $literal: pack.id }] },
-          packLabel: { $cond: [newer, '$packLabel', { $literal: pack.label }] },
-          packAllotment: {
-            $cond: [newer, { $add: [{ $ifNull: ['$packAllotment', 0] }, credits] }, total],
-          },
-          packGrantedAt: { $cond: [newer, '$packGrantedAt', { $literal: at }] },
-        }
-      : {};
-    const result = await Balance.updateOne(
-      {
-        _id: record._id,
-        appliedCredits: { $ne: creditId },
-        'appliedCredits.id': { $ne: creditId },
-      },
-      [
+    let delay = 10;
+
+    for (let attempt = 1; attempt <= maxReservationAttempts; attempt++) {
+      const current = await Balance.findOne({ _id: record._id })
+        .select({
+          tokenCredits: 1,
+          packGrantedAt: 1,
+          appliedCredits: 1,
+          appliedCreditsRevision: 1,
+        })
+        .lean<IBalance>();
+      if (current == null) {
+        throw new Error(`Balance credit for user ${user} lost its balance record`);
+      }
+      const stored = current.appliedCredits ?? [];
+      if (stored.some((entry) => (typeof entry === 'string' ? entry : entry.id) === creditId)) {
+        return false;
+      }
+
+      const balance = current.tokenCredits;
+      const total = Math.max(0, balance ?? 0) + credits;
+      const newer = current.packGrantedAt instanceof Date && current.packGrantedAt > grantedAfter;
+      const grantsPack = pack != null && !newer;
+      /** A plain `$inc` gives the same total unless the balance is negative or unset, or the
+       * total must also be stored as the pack allotment. */
+      const setsTotal = grantsPack || !(typeof balance === 'number' && balance >= 0);
+      const set: Record<string, unknown> = {
+        appliedCredits: boundedMarkers(stored, { id: creditId, at }, markers),
+      };
+      const inc: Record<string, number> = { appliedCreditsRevision: 1 };
+      if (setsTotal) {
+        set.tokenCredits = total;
+      } else {
+        inc.tokenCredits = credits;
+      }
+      if (grantsPack) {
+        Object.assign(set, {
+          packId: pack.id,
+          packLabel: pack.label,
+          packAllotment: total,
+          packGrantedAt: at,
+        });
+      } else if (pack != null) {
+        inc.packAllotment = credits;
+      }
+
+      const result = await Balance.updateOne(
         {
-          $set: {
-            tokenCredits: total,
-            appliedCredits: boundedMarkers({ id: creditId, at }, markers),
-            ...packFields,
-          },
+          _id: record._id,
+          appliedCredits: { $ne: creditId },
+          'appliedCredits.id': { $ne: creditId },
+          appliedCreditsRevision: current.appliedCreditsRevision ?? null,
+          tokenCredits: setsTotal ? (balance ?? null) : { $gte: 0 },
+          ...(pack != null && { packGrantedAt: current.packGrantedAt ?? null }),
         },
-      ],
-    );
-    return result.matchedCount === 1;
+        { $set: set, $inc: inc },
+      );
+      if (result.matchedCount === 1) {
+        return true;
+      }
+      if (attempt < maxReservationAttempts) {
+        delay = await backOff(delay);
+      }
+    }
+
+    throw new Error(`Balance credit for user ${user} exceeded its retry bound.`);
   }
 
   /**
@@ -1025,7 +1049,8 @@ export function createTransactionMethods(
     const Balance = mongoose.models.Balance as Model<IBalance>;
     await Balance.updateMany(
       { user, appliedCredits: { $elemMatch: { id: creditId, settledAt: null } } },
-      { $set: { 'appliedCredits.$.settledAt': at } },
+      /** The revision makes a credit write that read the marker unsettled re-read it. */
+      { $set: { 'appliedCredits.$.settledAt': at }, $inc: { appliedCreditsRevision: 1 } },
     );
   }
 

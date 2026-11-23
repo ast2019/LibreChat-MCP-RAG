@@ -2098,6 +2098,93 @@ describe('applyBalanceCredit', () => {
     expect(await markerIds(user)).toEqual(['payment:race']);
   });
 
+  it('keeps every marker and every credit when different credits race on one balance', async () => {
+    const user = new mongoose.Types.ObjectId();
+    await Balance.create({ user, tokenCredits: 0 });
+    const at = new Date();
+    const ids = Array.from({ length: 8 }, (_, i) => `payment:concurrent-${i}`);
+
+    const results = await Promise.all(
+      ids.map((creditId) =>
+        applyBalanceCredit({ user: user.toString(), creditId, credits: 100, grantedAfter: at, at }),
+      ),
+    );
+
+    expect(results).toEqual(ids.map(() => true));
+    expect((await readCredits(user))?.tokenCredits).toBe(800);
+    expect((await markerIds(user)).sort()).toEqual(ids.slice().sort());
+  });
+
+  it('keeps a settlement that lands while another credit is being written', async () => {
+    const user = new mongoose.Types.ObjectId();
+    const at = new Date();
+    const base = { user: user.toString(), credits: 10, grantedAfter: at, at };
+    await applyBalanceCredit({ ...base, creditId: 'payment:first' });
+
+    /** The settlement lands between the credit's read and its write */
+    const write = Balance.updateOne.bind(Balance);
+    const between = jest
+      .spyOn(Balance, 'updateOne')
+      .mockImplementationOnce(((...args: Parameters<typeof write>) =>
+        settleBalanceCredit({ user: user.toString(), creditId: 'payment:first', at }).then(() =>
+          write(...args),
+        )) as unknown as typeof write);
+    try {
+      expect(await applyBalanceCredit({ ...base, creditId: 'payment:second' })).toBe(true);
+    } finally {
+      between.mockRestore();
+    }
+
+    const markers = (await readCredits(user))?.appliedCredits ?? [];
+    expect(markers).toContainEqual({ id: 'payment:first', at, settledAt: at });
+    expect(markers).toContainEqual({ id: 'payment:second', at });
+  });
+
+  it('clamps a negative balance at zero before adding the credit', async () => {
+    const user = new mongoose.Types.ObjectId();
+    await Balance.create({ user, tokenCredits: -500 });
+    const at = new Date();
+
+    await applyBalanceCredit({
+      user: user.toString(),
+      creditId: 'payment:negative',
+      credits: 1_000,
+      pack,
+      grantedAfter: at,
+      at,
+    });
+
+    expect(await readCredits(user)).toMatchObject({ tokenCredits: 1_000, packAllotment: 1_000 });
+  });
+
+  it('records the balance after the credit as the allotment while spending races it', async () => {
+    const user = new mongoose.Types.ObjectId();
+    await Balance.create({ user, tokenCredits: 10_000 });
+    const at = new Date();
+
+    const [added] = await Promise.all([
+      applyBalanceCredit({
+        user: user.toString(),
+        creditId: 'payment:spent',
+        credits: 5_000,
+        pack,
+        grantedAfter: at,
+        at,
+      }),
+      ...Array.from({ length: 5 }, () =>
+        updateBalance({ user: user.toString(), incrementValue: -100 }),
+      ),
+    ]);
+
+    expect(added).toBe(true);
+    const record = await readCredits(user);
+    expect(record?.tokenCredits).toBe(14_500);
+    /** The allotment is the balance the credit write left, before the spends ordered after it */
+    expect(record?.packAllotment).toBeGreaterThanOrEqual(14_500);
+    expect(record?.packAllotment).toBeLessThanOrEqual(15_000);
+    expect(((record?.packAllotment ?? 0) - 14_500) % 100).toBe(0);
+  });
+
   it('counts a plain-string marker as present and rewrites it as an unsettled marker', async () => {
     const at = new Date();
     const user = await seed(['payment:legacy'], 500);
