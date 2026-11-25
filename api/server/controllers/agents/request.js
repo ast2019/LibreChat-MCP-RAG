@@ -26,6 +26,8 @@ const {
   admitAgentTimePack,
   abortTimePackLease,
   releaseAdmittedRequestSlot,
+  syncUserTimePackFromBalance,
+  applyGrantedTimePackToUser,
   exemptFromConcurrencyLimiter,
   isScheduleFireRequest,
   isUnpersistedPreliminaryParent,
@@ -106,6 +108,8 @@ const {
   stampConvoLastResponse,
   isSubagentOwnerAdmissible,
   appendConvoMessageReference,
+  findBalanceByUser,
+  setUserTimePack,
 } = require('~/models');
 const {
   acquireEventChildGenerationLease,
@@ -1542,12 +1546,37 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       ).catch(() => {});
     }
   };
-  const timePack = await admitAgentTimePack(req, {
+  let timePack = await admitAgentTimePack(req, {
     endpointOption,
     body: req.body,
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
   });
+  /**
+   * Balance may hold an active entitlement the user document never received (grant copy
+   * missed). Sync once and retry so ClaudeTime is not refused while OpenRouter stays hidden
+   * only after the user fields catch up.
+   */
+  if (timePack.kind === 'denied' && userId) {
+    try {
+      const synced = await syncUserTimePackFromBalance(
+        { findBalanceByUser, setUserTimePack },
+        userId,
+        req.user,
+      );
+      if (synced != null) {
+        applyGrantedTimePackToUser(req.user, synced);
+        timePack = await admitAgentTimePack(req, {
+          endpointOption,
+          body: req.body,
+          leaseId: streamId,
+          abortLease: abortTimePackLease(GenerationJobManager),
+        });
+      }
+    } catch (error) {
+      logger.warn('[AgentController] Time-pack sync from balance failed:', error);
+    }
+  }
   if (timePack.kind === 'denied') {
     await releaseOwnedClaim();
     startupTelemetry?.end('rejected');

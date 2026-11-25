@@ -40,6 +40,8 @@ const {
   admitAgentTimePack,
   abortTimePackLease,
   releaseAdmittedRequestSlot,
+  syncUserTimePackFromBalance,
+  applyGrantedTimePackToUser,
   isSteerPreemptSupported,
   isStopConfirmed,
   toPendingSteer,
@@ -97,6 +99,8 @@ const {
   appendConvoMessageReference,
   stampConvoLastResponse,
   stampForcedRetention,
+  findBalanceByUser,
+  setUserTimePack,
 } = require('~/models');
 const {
   acquireEventChildGenerationLease,
@@ -1211,12 +1215,28 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
   // Count the resume against the concurrency limit. The original turn released its slot
   // when it paused, so resuming must re-acquire one — otherwise pausing several turns
   // and resuming them at once would bypass LIMIT_CONCURRENT_MESSAGES.
-  const timePack = await admitAgentTimePack(req, {
+  const timePackTarget = {
     endpointOption: req.body?.endpointOption,
     body: { endpoint: job.metadata?.endpoint ?? req.body?.endpoint, model: req.body?.model },
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
-  });
+  };
+  let timePack = await admitAgentTimePack(req, timePackTarget);
+  if (timePack.kind === 'denied' && userId) {
+    try {
+      const synced = await syncUserTimePackFromBalance(
+        { findBalanceByUser, setUserTimePack },
+        userId,
+        req.user,
+      );
+      if (synced != null) {
+        applyGrantedTimePackToUser(req.user, synced);
+        timePack = await admitAgentTimePack(req, timePackTarget);
+      }
+    } catch (error) {
+      logger.warn('[AgentController] Time-pack sync from balance on resume failed:', error);
+    }
+  }
   if (timePack.kind === 'denied') {
     return sendGenerationJson(res, timePack.status, timePack.body, generationProtocolVersion);
   }

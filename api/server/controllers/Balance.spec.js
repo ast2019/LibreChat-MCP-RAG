@@ -1,5 +1,12 @@
+jest.mock('@librechat/api', () => ({
+  syncUserTimePackFromBalance: jest.fn().mockResolvedValue(null),
+  applyGrantedTimePackToUser: jest.fn(),
+  grantedTimePackFromBalance: jest.fn().mockReturnValue(null),
+}));
+
 jest.mock('~/models', () => ({
   findBalanceByUser: jest.fn(),
+  setUserTimePack: jest.fn(),
 }));
 
 const { findBalanceByUser } = require('~/models');

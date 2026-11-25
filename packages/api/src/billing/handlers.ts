@@ -47,6 +47,8 @@ export interface AdminBalanceDeps extends GrantBalanceDeps {
   extendTimePack: GrantTimePackDeps['extendTimePack'];
   /** Copies time-pack fields onto the user document (independent of credit packId). */
   setUserTimePack?: GrantTimePackDeps['setUserTimePack'];
+  /** Reads the user's time-pack fields after a refused copy (for force-repair). */
+  getUserTimePackFields?: GrantTimePackDeps['getUserTimePackFields'];
   /** Balance settings that apply to the requesting admin's deployment/tenant. */
   getBalanceConfig: (req: BillingRequest) => Promise<Partial<TBalanceConfig> | null>;
   findUserByEmail: (email: string) => Promise<BillingUser | null>;

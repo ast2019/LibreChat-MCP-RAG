@@ -33,6 +33,8 @@ const {
   getClipStartupConfig,
   getBrowserStartupConfig,
   getPhoneLoginStartupFlags,
+  syncUserTimePackFromBalance,
+  applyGrantedTimePackToUser,
 } = require('@librechat/api');
 const {
   SystemRoles,
@@ -46,6 +48,7 @@ const { hasCapability } = require('~/server/middleware/roles/capabilities');
 const { getLdapConfig } = require('~/server/services/Config/ldap');
 const { getRumConfig } = require('~/server/services/Config/rum');
 const { getAppConfig } = require('~/server/services/Config/app');
+const db = require('~/models');
 
 const router = express.Router();
 const emailLoginEnabled =
@@ -274,6 +277,27 @@ router.get('/', async function (req, res) {
       }
 
       return res.status(200).send(payload);
+    }
+
+    /**
+     * Model-spec filtering for Claude time packs reads `user.timePack*`, while the balance
+     * badge reads the Balance record. If a grant updated only the balance, sync before the
+     * filtered config is built so the selector offers ClaudeTime instead of OpenRouter Claude.
+     */
+    try {
+      const synced = await syncUserTimePackFromBalance(
+        {
+          findBalanceByUser: db.findBalanceByUser,
+          setUserTimePack: db.setUserTimePack,
+        },
+        req.user.id,
+        req.user,
+      );
+      if (synced != null) {
+        applyGrantedTimePackToUser(req.user, synced);
+      }
+    } catch (error) {
+      logger.warn('[config] Time-pack sync from balance failed:', error);
     }
 
     const [appConfig, conversationListLimits] = await Promise.all([
