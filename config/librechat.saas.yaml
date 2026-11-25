@@ -871,15 +871,20 @@ endpoints:
       apiKey: '${CLAUDE_TIME_KEY}'
       baseURL: '${CLAUDE_TIME_BASE_URL}'
       models:
+        # IDs must match GET /v1/models on the Claude Unlimited gateway (no Mythos — restricted).
         default:
           - 'claude-sonnet-5-5'
           - 'claude-opus-5-5'
-          - 'claude-fable-5-2'
-          - 'claude-mythos-5-2'
+          - 'claude-fable-5-1'
+          - 'claude-haiku-5-5'
         fetch: false
       titleConvo: true
-      titleModel: 'claude-sonnet-5-5'
+      titleModel: 'claude-haiku-5-5'
       modelDisplayLabel: 'Claude'
+      # Gateways may answer upstream_empty_response (empty 200) after their own retry; LangChain
+      # retries 5xx/429 this many extra times before the turn fails.
+      addParams:
+        maxRetries: 3
       # Metering rates for fairness (credits equivalent); time path does not charge tokenCredits.
       # `context` is required by configSchema — missing it exits the api process (Coolify restart loop).
       priceMultiplier: 1
@@ -892,14 +897,14 @@ endpoints:
           prompt: 15
           completion: 75
           context: 1000000
-        'claude-fable-5-2':
-          prompt: 5
-          completion: 25
-          context: 1000000
-        'claude-mythos-5-2':
+        'claude-fable-5-1':
           prompt: 10
           completion: 50
           context: 1000000
+        'claude-haiku-5-5':
+          prompt: 1
+          completion: 5
+          context: 200000
 
     - name: 'OpenRouterPrivate'
       apiKey: '${OPENROUTER_KEY}'
@@ -1146,29 +1151,29 @@ modelSpecs:
         thinking: true
         effort: medium
     - name: 'time-fable'
-      label: 'Claude Fable 5.2'
-      description: 'پلن نامحدود؛ Fable'
+      label: 'Claude Fable 5.1'
+      description: 'پلن نامحدود؛ قوی‌ترین Fable'
       group: 'Claude'
       iconURL: 'anthropic'
       timePack: true
       preset:
         endpoint: 'ClaudeTime'
-        model: 'claude-fable-5-2'
-        modelLabel: 'Claude Fable 5.2'
+        model: 'claude-fable-5-1'
+        modelLabel: 'Claude Fable 5.1'
         thinking: true
         effort: high
-    - name: 'time-mythos'
-      label: 'Claude Mythos 5.2'
-      description: 'پلن نامحدود؛ Mythos'
+    - name: 'time-haiku'
+      label: 'Claude Haiku 5.5'
+      description: 'پلن نامحدود؛ سریع و سبک'
       group: 'Claude'
       iconURL: 'anthropic'
       timePack: true
       preset:
         endpoint: 'ClaudeTime'
-        model: 'claude-mythos-5-2'
-        modelLabel: 'Claude Mythos 5.2'
+        model: 'claude-haiku-5-5'
+        modelLabel: 'Claude Haiku 5.5'
         thinking: true
-        effort: high
+        effort: low
     # --- ChatGPT ---
     - name: 'gpt'
       label: 'ChatGPT'

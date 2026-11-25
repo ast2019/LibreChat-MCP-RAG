@@ -57,7 +57,7 @@ describe('config/librechat.saas.yaml', () => {
     const specs = (parsed.modelSpecs?.list ?? []).filter((spec) => spec.timePack === true);
     expect(specs.map((spec) => spec.name).sort()).toEqual([
       'time-fable',
-      'time-mythos',
+      'time-haiku',
       'time-pro',
       'time-smart',
     ]);

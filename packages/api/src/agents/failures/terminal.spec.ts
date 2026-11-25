@@ -218,6 +218,24 @@ describe('terminal agent-run error logging', () => {
     );
   });
 
+  it('names an empty provider response instead of the bare gateway wording', () => {
+    const logger = { error: jest.fn() };
+    const observer = createTerminalRunErrorObserver({
+      logger,
+      source: '[Agent API]',
+      protectionEnabled: false,
+    });
+    const empty = new Error(
+      'The model provider returned an empty response. Your key and request are fine. You were not charged. Retry shortly.',
+    );
+    observer.modelCallback.handleLLMError(empty);
+
+    expect(observer.getUserFacingError(empty, () => 'fallback')).toBe(
+      'The model provider returned an empty response. Try again shortly.\n' +
+        JSON.stringify({ type: 'model_empty_response' }),
+    );
+  });
+
   it.each([
     [
       'stalled',

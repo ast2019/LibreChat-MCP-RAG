@@ -182,6 +182,7 @@ const {
   appendYouTubeVideoParts,
   resolveGoogleVideoError,
   resolveLangChainError,
+  resolveEmptyProviderResponse,
   resolveYouTubeInjectionConfig,
   decrementPendingRequest,
   releaseAdmittedRequestSlot,
@@ -395,7 +396,7 @@ function getUserFacingRequestError(baseMessage, error, appConfig) {
   if (protectionEnabled || !error?.message) {
     return baseMessage;
   }
-  const typedError = resolveLangChainError(error);
+  const typedError = resolveLangChainError(error) ?? resolveEmptyProviderResponse(error);
   if (typedError != null) {
     return typedError;
   }

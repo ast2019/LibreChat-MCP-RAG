@@ -18,6 +18,8 @@ import {
   isStepLimitError,
   getModelStreamFailure,
   resolveModelStreamError,
+  isEmptyProviderResponse,
+  resolveEmptyProviderResponse,
 } from './errors';
 import { MCPAuthenticationRejectedError, MCPAuthenticationRefreshError } from '~/mcp/errors';
 import { createTerminalRunErrorObserver } from './failures/terminal';
@@ -126,6 +128,34 @@ describe('LangChain provider error text', () => {
       const error = Object.assign(new Error('failed'), { lc_error_code: 'OUTPUT_PARSING_FAILURE' });
       expect(resolveLangChainError(error)).toBeUndefined();
     });
+  });
+
+  describe('empty provider responses', () => {
+    it.each([
+      'The model provider returned an empty response. Your key and request are fine. You were not charged. Retry shortly.',
+      'The model provider returned an empty response.',
+      'upstream_empty_response',
+    ])('classifies gateway empty-response wording: %s', (message) => {
+      const error = new Error(message);
+      expect(isEmptyProviderResponse(error)).toBe(true);
+      expect(resolveEmptyProviderResponse(error)).toBe(
+        'The model provider returned an empty response. Try again shortly.\n' +
+          JSON.stringify({ type: ErrorTypes.MODEL_EMPTY_RESPONSE }),
+      );
+    });
+
+    it('classifies a stable upstream_empty_response code without relying on message text', () => {
+      const error = Object.assign(new Error('temporary'), { code: 'upstream_empty_response' });
+      expect(isEmptyProviderResponse(error)).toBe(true);
+    });
+
+    it.each([undefined, null, new Error('429 rate limited'), new Error('provider failed')])(
+      'ignores unrelated failures',
+      (error) => {
+        expect(isEmptyProviderResponse(error)).toBe(false);
+        expect(resolveEmptyProviderResponse(error)).toBeUndefined();
+      },
+    );
   });
 
   describe('getUserFacingProviderError', () => {

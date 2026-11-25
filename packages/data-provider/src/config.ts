@@ -5731,6 +5731,11 @@ export enum ErrorTypes {
    */
   MODEL_STREAM_STALLED = 'model_stream_stalled',
   /**
+   * Gateway/provider answered successfully but with no content (empty 200 / upstream_empty_response).
+   * Transient — retry shortly; nothing was billed when the gateway reports that.
+   */
+  MODEL_EMPTY_RESPONSE = 'model_empty_response',
+  /**
    * The turn asked for a different model spec in a private conversation that already has history
    */
   MODEL_SPEC_LOCKED = 'model_spec_locked',

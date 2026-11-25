@@ -31,6 +31,7 @@ export const errorCopy: Record<string, TranslationKeys> = {
   [ErrorTypes.MODEL_RATE_LIMIT]: 'com_error_model_rate_limit',
   [ErrorTypes.MODEL_STREAM_CLOSED]: 'com_error_model_stream_closed',
   [ErrorTypes.MODEL_STREAM_STALLED]: 'com_error_model_stream_stalled',
+  [ErrorTypes.MODEL_EMPTY_RESPONSE]: 'com_error_model_empty_response',
   [ErrorTypes.MODEL_SPEC_LOCKED]: 'com_error_model_spec_locked',
   [ErrorTypes.MODEL_SPEC_REQUIRES_NEW_CHAT]: 'com_error_model_spec_requires_new_chat',
   [ErrorTypes.MODEL_SPEC_NO_COMPARE]: 'com_error_model_spec_no_compare',
