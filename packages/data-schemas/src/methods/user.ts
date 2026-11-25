@@ -87,7 +87,11 @@ export function createUserMethods(
     options?: { preserveExpiresAt?: boolean },
   ) => Promise<IUser | null>;
   awaitAuthUserDocEviction: (userId: string) => Promise<void>;
-  setUserTimePack: (userId: string, timePack: GrantedTimePack) => Promise<boolean>;
+  setUserTimePack: (
+    userId: string,
+    timePack: GrantedTimePack,
+    options?: { allowSameRevision?: boolean },
+  ) => Promise<boolean>;
   unsetUserPhone: (userId: string) => Promise<IUser | null>;
   consumeBackupCode: (userId: string, codeHash: string) => Promise<boolean>;
   claimSamlIdentity: (
@@ -448,16 +452,30 @@ export function createUserMethods(
 
   /**
    * Copies a grant's time-pack fields from the balance record onto the user. The copy applies
-   * only over an older `timePackRevision`, so when concurrent grants finish out of order the user
-   * keeps the latest balance state. Returns whether the copy applied. Invalidates the cached auth
-   * user either way, so a burst-cached `req.user` cannot keep the old entitlement.
+   * only over an older `timePackRevision` (or the same revision when `allowSameRevision` is set,
+   * so a repair can rewrite fields that drifted), so when concurrent grants finish out of order
+   * the user keeps the latest balance state. `$exists: false` is listed explicitly for engines
+   * that do not treat `{ field: null }` as matching a missing field. Returns whether the copy
+   * applied. Invalidates the cached auth user either way, so a burst-cached `req.user` cannot
+   * keep the old entitlement.
    */
-  async function setUserTimePack(userId: string, timePack: GrantedTimePack): Promise<boolean> {
+  async function setUserTimePack(
+    userId: string,
+    timePack: GrantedTimePack,
+    options?: { allowSameRevision?: boolean },
+  ): Promise<boolean> {
     const User = mongoose.models.User;
+    const revisionGuard = options?.allowSameRevision
+      ? { timePackRevision: { $lte: timePack.timePackRevision } }
+      : { timePackRevision: { $lt: timePack.timePackRevision } };
     const updated = await User.findOneAndUpdate(
       {
         _id: userId,
-        $or: [{ timePackRevision: null }, { timePackRevision: { $lt: timePack.timePackRevision } }],
+        $or: [
+          { timePackRevision: { $exists: false } },
+          { timePackRevision: null },
+          revisionGuard,
+        ],
       },
       {
         $set: {

@@ -197,4 +197,22 @@ describe('setUserTimePack', () => {
     );
     expect(stored).not.toHaveProperty('timePackRevision');
   });
+
+  it('repairs the same revision when allowSameRevision is set', async () => {
+    const users = createUserMethods(mongoose);
+    const user = await User.create({ email: 'repair@b.co', provider: 'local' });
+    const id = user._id.toString();
+
+    expect(await users.setUserTimePack(id, granted(2, 30))).toBe(true);
+    expect(await users.setUserTimePack(id, granted(2, 30))).toBe(false);
+    expect(await users.setUserTimePack(id, granted(2, 45), { allowSameRevision: true })).toBe(
+      true,
+    );
+
+    const stored = await User.findById(id).select('+timePackRevision').lean();
+    expect(stored?.timePackRevision).toBe(2);
+    expect(new Date(stored?.timePackExpiresAt ?? 0).toISOString()).toBe(
+      new Date(now.getTime() + 45 * DAY_MS).toISOString(),
+    );
+  });
 });

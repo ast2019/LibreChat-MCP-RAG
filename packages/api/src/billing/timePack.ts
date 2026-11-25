@@ -1,5 +1,9 @@
-import { isTimePack, TIME_METER_CONTEXT } from 'librechat-data-provider';
-import type { TBalancePack } from 'librechat-data-provider';
+import {
+  isTimePack,
+  TIME_METER_CONTEXT,
+  getActiveTimePackEntitlement,
+} from 'librechat-data-provider';
+import type { TBalancePack, TimePackFields as EntitlementFields } from 'librechat-data-provider';
 
 export { TIME_METER_CONTEXT };
 
@@ -79,6 +83,8 @@ export type TimePackExtension = {
   now: Date;
 };
 
+export type SetUserTimePackOptions = { allowSameRevision?: boolean };
+
 export interface GrantTimePackDeps {
   /**
    * Records the grant on the balance record in one atomic write (data-schemas
@@ -88,9 +94,14 @@ export interface GrantTimePackDeps {
   extendTimePack: (user: string, grant: TimePackExtension) => Promise<GrantedTimePackFields>;
   /**
    * Copies the granted fields onto the user document (data-schemas `setUserTimePack`), applied
-   * only over an older revision, and invalidates the cached auth user.
+   * only over an older revision (or the same revision when repairing), and invalidates the
+   * cached auth user.
    */
-  setUserTimePack?: (user: string, fields: GrantedTimePackFields) => Promise<unknown>;
+  setUserTimePack?: (
+    user: string,
+    fields: GrantedTimePackFields,
+    options?: SetUserTimePackOptions,
+  ) => Promise<unknown>;
   now?: () => Date;
 }
 
@@ -101,9 +112,118 @@ export interface GrantTimePackResult {
   grantedAt: Date;
 }
 
+/** Balance fields the sync path needs; revision orders the copy onto the user. */
+export type TimePackBalanceRecord = {
+  timePackId?: string | null;
+  timePackLabel?: string | null;
+  timePackEndpoint?: string | null;
+  timePackExpiresAt?: Date | string | null;
+  timePackGrantedAt?: Date | string | null;
+  timePackRevision?: number | null;
+};
+
+export interface SyncUserTimePackDeps {
+  findBalanceByUser: (userId: string) => Promise<TimePackBalanceRecord | null>;
+  setUserTimePack: (
+    userId: string,
+    fields: GrantedTimePackFields,
+    options?: SetUserTimePackOptions,
+  ) => Promise<unknown>;
+  now?: () => Date;
+}
+
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (value == null) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Builds grant fields from a balance record when it holds an active time pack with a revision.
+ * Returns null when the balance has no usable entitlement to copy.
+ */
+export function grantedTimePackFromBalance(
+  balance: TimePackBalanceRecord | null | undefined,
+  now: Date = new Date(),
+): GrantedTimePackFields | null {
+  if (balance == null) {
+    return null;
+  }
+  const revision = balance.timePackRevision;
+  if (typeof revision !== 'number' || !Number.isFinite(revision) || revision < 1) {
+    return null;
+  }
+  const timePackId = typeof balance.timePackId === 'string' ? balance.timePackId.trim() : '';
+  const timePackEndpoint =
+    typeof balance.timePackEndpoint === 'string' ? balance.timePackEndpoint.trim() : '';
+  const timePackExpiresAt = asDate(balance.timePackExpiresAt);
+  const timePackGrantedAt = asDate(balance.timePackGrantedAt) ?? now;
+  const timePackLabel =
+    typeof balance.timePackLabel === 'string' && balance.timePackLabel.trim() !== ''
+      ? balance.timePackLabel.trim()
+      : timePackId;
+  if (
+    !timePackId ||
+    !timePackEndpoint ||
+    timePackExpiresAt == null ||
+    timePackExpiresAt.getTime() <= now.getTime()
+  ) {
+    return null;
+  }
+  return {
+    timePackId,
+    timePackLabel,
+    timePackEndpoint,
+    timePackExpiresAt,
+    timePackGrantedAt,
+    timePackRevision: revision,
+  };
+}
+
+/** Writes the granted fields onto a mutable user-like object used for routing and config. */
+export function applyGrantedTimePackToUser<T extends EntitlementFields>(
+  user: T,
+  granted: GrantedTimePackFields,
+): T {
+  user.timePackId = granted.timePackId;
+  user.timePackLabel = granted.timePackLabel;
+  user.timePackEndpoint = granted.timePackEndpoint;
+  user.timePackExpiresAt = granted.timePackExpiresAt;
+  user.timePackGrantedAt = granted.timePackGrantedAt;
+  return user;
+}
+
+/**
+ * When the loaded user has no active Claude time entitlement but the balance record does,
+ * copies the balance fields onto the user (same-revision repair allowed) and returns them.
+ * Model-spec filtering and seat admission both read the user document; the balance badge
+ * alone is not enough, so a grant that updated only the balance left users on OpenRouter Claude.
+ */
+export async function syncUserTimePackFromBalance(
+  deps: SyncUserTimePackDeps,
+  userId: string,
+  user?: EntitlementFields | null,
+): Promise<GrantedTimePackFields | null> {
+  const now = (deps.now ?? (() => new Date()))();
+  if (getActiveTimePackEntitlement(user ?? undefined, now) != null) {
+    return null;
+  }
+  const balance = await deps.findBalanceByUser(userId);
+  const granted = grantedTimePackFromBalance(balance, now);
+  if (granted == null) {
+    return null;
+  }
+  await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+  return granted;
+}
+
 /**
  * Records a Claude time entitlement without touching token credits or the credit pack id. A
  * re-grant before expiry on the same endpoint adds `durationDays` to the current expiry.
+ * After the balance write, the fields are copied onto the user; if the first copy loses a
+ * revision race, a same-revision repair is attempted so the user document is not left behind.
  */
 export async function grantTimePack(
   deps: GrantTimePackDeps,
@@ -127,7 +247,12 @@ export async function grantTimePack(
     durationDays,
     now,
   });
-  await deps.setUserTimePack?.(userId, granted);
+  if (deps.setUserTimePack != null) {
+    const applied = await deps.setUserTimePack(userId, granted);
+    if (applied === false) {
+      await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+    }
+  }
   return {
     pack: { id: pack.id, label: pack.label },
     expiresAt: granted.timePackExpiresAt,

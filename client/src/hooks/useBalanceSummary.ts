@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { BALANCE_DISPLAY_MODES } from 'librechat-data-provider';
+import { useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { BALANCE_DISPLAY_MODES, QueryKeys } from 'librechat-data-provider';
 import type { BalanceDisplay, TBalanceResponse } from 'librechat-data-provider';
 import type { BalanceSummary, CurrencyConfig } from '~/utils';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
@@ -43,6 +44,7 @@ export function useBalanceDisplay(): { display: BalanceDisplay; currency?: Curre
  * failed refetch, so a transient error never blanks a figure the user already saw.
  */
 export default function useBalanceSummary(): BalanceView {
+  const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
   const { display, currency } = useBalanceDisplay();
@@ -64,6 +66,28 @@ export default function useBalanceSummary(): BalanceView {
     }
     return query.isFetched ? { status: 'empty' } : { status: 'loading' };
   }, [data, isError, query.isFetched, display, startBalance]);
+
+  /**
+   * Startup config is cached forever. After an admin time-pack grant, `/api/balance` can show
+   * the plan while `modelSpecs` still list OpenRouter Claude (no `timePack: true`). Refetch
+   * config (and models) so the selector switches to ClaudeTime.
+   */
+  useEffect(() => {
+    if (state.status !== 'success') {
+      return;
+    }
+    const timePackActive = state.summary.timePackExpiresAt != null;
+    const list = startupConfig?.modelSpecs?.list;
+    if (list == null) {
+      return;
+    }
+    const hasTimePackSpec = list.some((spec) => spec?.timePack === true);
+    if (timePackActive === hasTimePackSpec) {
+      return;
+    }
+    void queryClient.invalidateQueries([QueryKeys.startupConfig]);
+    void queryClient.invalidateQueries([QueryKeys.models]);
+  }, [state, startupConfig?.modelSpecs?.list, queryClient]);
 
   return {
     enabled,
