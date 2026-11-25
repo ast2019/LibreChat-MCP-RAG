@@ -1,10 +1,18 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createModels, createMethods } from '@librechat/data-schemas';
+import { getActiveTimePackEntitlement } from 'librechat-data-provider';
 import type { TBalancePack } from 'librechat-data-provider';
+import type { AppConfig } from '@librechat/data-schemas';
 import type { Response } from 'express';
 import type { AdminBalanceDeps } from './handlers';
+import {
+  syncUserTimePackFromBalance,
+  applyGrantedTimePackToUser,
+  grantTimePack,
+} from './timePack';
 import { createAdminBalanceHandlers } from './handlers';
+import { applyTimePackSpecs } from '~/app/admin';
 
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/data-schemas'),
@@ -73,7 +81,13 @@ function mockRes() {
 }
 
 /** The admin route's data wiring (api/server/routes/admin/balance.js), against MongoDB. */
-function routeDeps(): AdminBalanceDeps {
+function routeDeps(options?: { concurrentBalanceReads?: number }): AdminBalanceDeps {
+  const findBalance =
+    options?.concurrentBalanceReads != null && options.concurrentBalanceReads > 1
+      ? readTogether(options.concurrentBalanceReads, (userId: string) =>
+          db.findBalanceByUser(userId),
+        )
+      : (userId: string) => db.findBalanceByUser(userId);
   return {
     getBalanceConfig: async () => ({ enabled: true, packs: [timePack] }),
     findUserByEmail: async () => null,
@@ -81,23 +95,43 @@ function routeDeps(): AdminBalanceDeps {
       const user = await db.findUser({ _id: id }, '_id email');
       return user ? { id: user._id.toString(), email: user.email } : null;
     },
-    findBalanceByUser: readTogether(2, (userId: string) => db.findBalanceByUser(userId)),
+    findBalanceByUser: findBalance,
     createTransaction: db.createTransaction,
     upsertBalanceFields: db.upsertBalanceFields,
     extendTimePack: db.extendBalanceTimePack,
     setUserTimePack: db.setUserTimePack,
+    getUserTimePackFields: (userId) =>
+      db.getUserById(
+        userId,
+        'timePackId timePackLabel timePackEndpoint timePackExpiresAt timePackGrantedAt',
+      ),
     listUsersWithBalances: db.listUsersWithBalances,
     getBillingSummary: db.getBillingSummary,
     getPriceMultiplier: async () => undefined,
   };
 }
 
+const modelConfig = {
+  modelSpecs: {
+    list: [
+      { name: 'smart', group: 'Claude', preset: { endpoint: 'OpenRouter' } },
+      { name: 'gpt', group: 'ChatGPT', preset: { endpoint: 'OpenRouter' } },
+      {
+        name: 'time-smart',
+        group: 'Claude',
+        timePack: true,
+        preset: { endpoint: 'ClaudeTime' },
+      },
+    ],
+  },
+} as AppConfig;
+
 describe('time-pack grant against MongoDB', () => {
   it('keeps both durations when two grants for one user run at once', async () => {
     const user = await mongoose.models.User.create({ email: 'race@b.co', provider: 'local' });
     const userId = user._id.toString();
     const start = Date.now();
-    const handlers = createAdminBalanceHandlers(routeDeps());
+    const handlers = createAdminBalanceHandlers(routeDeps({ concurrentBalanceReads: 2 }));
     const grant = async () => {
       const res = mockRes();
       await handlers.grant(
@@ -121,5 +155,125 @@ describe('time-pack grant against MongoDB', () => {
       timePackExpiresAt?: Date;
     }>();
     expect(stored?.timePackExpiresAt?.getTime()).toBe(expiresAt);
+  });
+
+  it('after a grant, user entitlement hides OpenRouter Claude and shows ClaudeTime', async () => {
+    const user = await mongoose.models.User.create({ email: 'ok@b.co', provider: 'local' });
+    const userId = user._id.toString();
+    const handlers = createAdminBalanceHandlers(routeDeps());
+    const res = mockRes();
+    await handlers.grant(
+      { body: { userId, packId: timePack.id }, user: { id: 'admin' } } as unknown as Parameters<
+        typeof handlers.grant
+      >[0],
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+
+    const stored = await db.getUserById(
+      userId,
+      'timePackId timePackEndpoint timePackExpiresAt timePackLabel timePackGrantedAt',
+    );
+    expect(getActiveTimePackEntitlement(stored ?? undefined)).not.toBeNull();
+    expect(applyTimePackSpecs(modelConfig, true).modelSpecs?.list?.map((s) => s.name)).toEqual([
+      'gpt',
+      'time-smart',
+    ]);
+    expect(applyTimePackSpecs(modelConfig, false).modelSpecs?.list?.map((s) => s.name)).toEqual([
+      'smart',
+      'gpt',
+    ]);
+  });
+
+  it('repairs a balance-only orphan so ClaudeTime becomes visible', async () => {
+    const user = await mongoose.models.User.create({ email: 'orphan@b.co', provider: 'local' });
+    const userId = user._id.toString();
+    const expiresAt = new Date(Date.now() + 30 * DAY_MS);
+    await mongoose.models.Balance.create({
+      user: userId,
+      tokenCredits: 100,
+      timePackId: 'claude-time',
+      timePackLabel: 'Claude month',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: expiresAt,
+      timePackGrantedAt: new Date(),
+      timePackRevision: 2,
+    });
+
+    expect(getActiveTimePackEntitlement(user.toObject())).toBeNull();
+
+    const synced = await syncUserTimePackFromBalance(
+      { findBalanceByUser: db.findBalanceByUser, setUserTimePack: db.setUserTimePack },
+      userId,
+      {},
+    );
+    expect(synced?.timePackId).toBe('claude-time');
+
+    const reqUser = { id: userId } as {
+      id: string;
+      timePackId?: string | null;
+      timePackEndpoint?: string | null;
+      timePackExpiresAt?: Date | string | null;
+      timePackLabel?: string | null;
+      timePackGrantedAt?: Date | string | null;
+    };
+    applyGrantedTimePackToUser(reqUser, synced!);
+    expect(getActiveTimePackEntitlement(reqUser)).not.toBeNull();
+    expect(
+      applyTimePackSpecs(modelConfig, getActiveTimePackEntitlement(reqUser) != null).modelSpecs
+        ?.list?.map((s) => s.name),
+    ).toEqual(['gpt', 'time-smart']);
+
+    const stored = await db.getUserById(userId, 'timePackId timePackEndpoint timePackExpiresAt');
+    expect(stored?.timePackId).toBe('claude-time');
+  });
+
+  it('repairs a legacy balance row that has dates but no timePackRevision', async () => {
+    const user = await mongoose.models.User.create({ email: 'legacy@b.co', provider: 'local' });
+    const userId = user._id.toString();
+    await mongoose.models.Balance.create({
+      user: userId,
+      tokenCredits: 50,
+      timePackId: 'claude-time',
+      timePackLabel: 'Claude month',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: new Date(Date.now() + 10 * DAY_MS),
+      timePackGrantedAt: new Date(),
+    });
+
+    const synced = await syncUserTimePackFromBalance(
+      { findBalanceByUser: db.findBalanceByUser, setUserTimePack: db.setUserTimePack },
+      userId,
+      {},
+    );
+    expect(synced?.timePackRevision).toBe(1);
+    const stored = await db.getUserById(userId, 'timePackId timePackEndpoint');
+    expect(stored?.timePackEndpoint).toBe('ClaudeTime');
+  });
+
+  it('grants onto an existing balance that never had time-pack fields', async () => {
+    const user = await mongoose.models.User.create({ email: 'credit@b.co', provider: 'local' });
+    const userId = user._id.toString();
+    await mongoose.models.Balance.create({ user: userId, tokenCredits: 999 });
+
+    await grantTimePack(
+      {
+        extendTimePack: db.extendBalanceTimePack,
+        setUserTimePack: db.setUserTimePack,
+        getUserTimePackFields: (id) =>
+          db.getUserById(
+            id,
+            'timePackId timePackLabel timePackEndpoint timePackExpiresAt timePackGrantedAt',
+          ),
+      },
+      { userId, pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+    );
+
+    const balance = await db.findBalanceByUser(userId);
+    expect(balance?.tokenCredits).toBe(999);
+    expect(balance?.timePackEndpoint).toBe('ClaudeTime');
+    expect(balance?.timePackRevision).toBe(1);
+    const stored = await db.getUserById(userId, 'timePackId timePackEndpoint timePackExpiresAt');
+    expect(getActiveTimePackEntitlement(stored ?? undefined)).not.toBeNull();
   });
 });

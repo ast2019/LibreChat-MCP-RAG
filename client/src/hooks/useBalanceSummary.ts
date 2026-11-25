@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BALANCE_DISPLAY_MODES, QueryKeys } from 'librechat-data-provider';
 import type { BalanceDisplay, TBalanceResponse } from 'librechat-data-provider';
@@ -56,6 +56,8 @@ export default function useBalanceSummary(): BalanceView {
   });
   const { data, isError } = query;
   const startBalance = config?.startBalance;
+  /** One invalidate per mismatch key — avoids a tight loop when config still lacks time-pack specs. */
+  const invalidatedMismatch = useRef<string | null>(null);
 
   const state = useMemo<BalanceState>(() => {
     if (data != null && typeof data.tokenCredits === 'number') {
@@ -70,7 +72,7 @@ export default function useBalanceSummary(): BalanceView {
   /**
    * Startup config is cached forever. After an admin time-pack grant, `/api/balance` can show
    * the plan while `modelSpecs` still list OpenRouter Claude (no `timePack: true`). Refetch
-   * config (and models) so the selector switches to ClaudeTime.
+   * config (and models) once per mismatch so the selector can switch to ClaudeTime.
    */
   useEffect(() => {
     if (state.status !== 'success') {
@@ -83,8 +85,14 @@ export default function useBalanceSummary(): BalanceView {
     }
     const hasTimePackSpec = list.some((spec) => spec?.timePack === true);
     if (timePackActive === hasTimePackSpec) {
+      invalidatedMismatch.current = null;
       return;
     }
+    const key = `${timePackActive}:${hasTimePackSpec}:${state.summary.timePackExpiresAt ?? ''}`;
+    if (invalidatedMismatch.current === key) {
+      return;
+    }
+    invalidatedMismatch.current = key;
     void queryClient.invalidateQueries([QueryKeys.startupConfig]);
     void queryClient.invalidateQueries([QueryKeys.models]);
   }, [state, startupConfig?.modelSpecs?.list, queryClient]);

@@ -12,11 +12,14 @@ LibreChat versions are tracked separately in `package.json`.
 ### Fixed
 - **Granted Claude time packs no longer leave users on OpenRouter Claude.** The balance badge
   reads the Balance record, while model-spec filtering and seat admission read `user.timePack*`.
-  When a grant updated only the balance (or the user copy lagged), the UI still offered credit
-  Claude via OpenRouter and ClaudeTime was refused. Startup `/api/config` and `/api/balance` now
-  sync an active balance entitlement onto the user before filtering; a denied ClaudeTime turn
-  syncs once and retries; grants repair a same-revision user copy; the client refetches startup
-  config when the balance shows a time pack but the selector has no `timePack: true` specs.
+  When those disagree, the selector keeps credit Claude (`group: 'Claude'` → OpenRouter) and
+  hides ClaudeTime — or ClaudeTime is refused with `time_pack_required`. Startup `/api/config`
+  and `/api/balance` sync an active balance entitlement onto the user before filtering; a denied
+  ClaudeTime turn syncs once and retries; grants repair a refused user copy (same revision, then
+  force if the user still has no active entitlement); legacy Balance rows without
+  `timePackRevision` still sync; Balance CAS matches missing time-pack fields on DocumentDB; the
+  client refetches forever-cached startup config once per mismatch so the menu can switch to
+  ClaudeTime. Seat busy/rest and gateway empty responses are separate failures (see 0.40.1 / #125).
 
 ## [0.40.4] - 2026-11-23
 

@@ -882,12 +882,23 @@ export function createTransactionMethods(
       const extendsCurrent =
         current.timePackEndpoint === timePackEndpoint && expiry != null && expiry > grantedAt;
       const from = extendsCurrent ? expiry.getTime() : grantedAt.getTime();
+      /**
+       * Match missing and explicit null the same way: some engines (DocumentDB) do not treat
+       * `{ field: null }` as matching an absent field, so first grants on an existing balance
+       * would never CAS. When the read saw a real value, require that exact value.
+       */
+      const matchMaybeAbsent = <T>(field: string, value: T | null | undefined) =>
+        value == null
+          ? { $or: [{ [field]: null }, { [field]: { $exists: false } }] }
+          : { [field]: value };
       const record = await Balance.findOneAndUpdate(
         {
-          _id: current._id,
-          timePackRevision: current.timePackRevision ?? null,
-          timePackExpiresAt: expiry ?? null,
-          timePackEndpoint: current.timePackEndpoint ?? null,
+          $and: [
+            { _id: current._id },
+            matchMaybeAbsent('timePackRevision', current.timePackRevision),
+            matchMaybeAbsent('timePackExpiresAt', expiry),
+            matchMaybeAbsent('timePackEndpoint', current.timePackEndpoint),
+          ],
         },
         {
           $set: {

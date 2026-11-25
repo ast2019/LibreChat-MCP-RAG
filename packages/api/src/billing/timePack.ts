@@ -83,7 +83,7 @@ export type TimePackExtension = {
   now: Date;
 };
 
-export type SetUserTimePackOptions = { allowSameRevision?: boolean };
+export type SetUserTimePackOptions = { allowSameRevision?: boolean; force?: boolean };
 
 export interface GrantTimePackDeps {
   /**
@@ -95,13 +95,19 @@ export interface GrantTimePackDeps {
   /**
    * Copies the granted fields onto the user document (data-schemas `setUserTimePack`), applied
    * only over an older revision (or the same revision when repairing), and invalidates the
-   * cached auth user.
+   * cached auth user. Resolves `false` when the revision guard refused the write.
    */
   setUserTimePack?: (
     user: string,
     fields: GrantedTimePackFields,
     options?: SetUserTimePackOptions,
   ) => Promise<unknown>;
+  /**
+   * Reads the user's time-pack fields after a refused copy, so a concurrent newer grant that
+   * already landed is not treated as failure, while a user left without an active entitlement
+   * can still be force-repaired.
+   */
+  getUserTimePackFields?: (userId: string) => Promise<EntitlementFields | null>;
   now?: () => Date;
 }
 
@@ -140,9 +146,15 @@ function asDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** True only when the writer explicitly refused the revision guard. */
+function copyRefused(result: unknown): boolean {
+  return result === false;
+}
+
 /**
- * Builds grant fields from a balance record when it holds an active time pack with a revision.
- * Returns null when the balance has no usable entitlement to copy.
+ * Builds grant fields from a balance record when it holds an active time pack.
+ * A missing or non-positive `timePackRevision` is treated as `1` so legacy Balance rows
+ * (active dates, no revision) can still be copied onto the user.
  */
 export function grantedTimePackFromBalance(
   balance: TimePackBalanceRecord | null | undefined,
@@ -151,10 +163,11 @@ export function grantedTimePackFromBalance(
   if (balance == null) {
     return null;
   }
-  const revision = balance.timePackRevision;
-  if (typeof revision !== 'number' || !Number.isFinite(revision) || revision < 1) {
-    return null;
-  }
+  const rawRevision = balance.timePackRevision;
+  const timePackRevision =
+    typeof rawRevision === 'number' && Number.isFinite(rawRevision) && rawRevision >= 1
+      ? rawRevision
+      : 1;
   const timePackId = typeof balance.timePackId === 'string' ? balance.timePackId.trim() : '';
   const timePackEndpoint =
     typeof balance.timePackEndpoint === 'string' ? balance.timePackEndpoint.trim() : '';
@@ -178,7 +191,7 @@ export function grantedTimePackFromBalance(
     timePackEndpoint,
     timePackExpiresAt,
     timePackGrantedAt,
-    timePackRevision: revision,
+    timePackRevision,
   };
 }
 
@@ -197,9 +210,8 @@ export function applyGrantedTimePackToUser<T extends EntitlementFields>(
 
 /**
  * When the loaded user has no active Claude time entitlement but the balance record does,
- * copies the balance fields onto the user (same-revision repair allowed) and returns them.
- * Model-spec filtering and seat admission both read the user document; the balance badge
- * alone is not enough, so a grant that updated only the balance left users on OpenRouter Claude.
+ * copies the balance fields onto the user (same-revision repair allowed) and returns them
+ * only when the write did not refuse. Callers must not patch `req.user` when this returns null.
  */
 export async function syncUserTimePackFromBalance(
   deps: SyncUserTimePackDeps,
@@ -215,15 +227,22 @@ export async function syncUserTimePackFromBalance(
   if (granted == null) {
     return null;
   }
-  await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+  const applied = await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+  if (copyRefused(applied)) {
+    const forced = await deps.setUserTimePack(userId, granted, { force: true });
+    if (copyRefused(forced)) {
+      return null;
+    }
+  }
   return granted;
 }
 
 /**
  * Records a Claude time entitlement without touching token credits or the credit pack id. A
  * re-grant before expiry on the same endpoint adds `durationDays` to the current expiry.
- * After the balance write, the fields are copied onto the user; if the first copy loses a
- * revision race, a same-revision repair is attempted so the user document is not left behind.
+ * After the balance write, the fields are copied onto the user. A refused copy is retried with
+ * the same revision; if the user still has no active entitlement, a forced write runs. A
+ * concurrent newer grant that already left an active entitlement on the user is left alone.
  */
 export async function grantTimePack(
   deps: GrantTimePackDeps,
@@ -248,9 +267,21 @@ export async function grantTimePack(
     now,
   });
   if (deps.setUserTimePack != null) {
-    const applied = await deps.setUserTimePack(userId, granted);
-    if (applied === false) {
-      await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+    let applied = await deps.setUserTimePack(userId, granted);
+    if (copyRefused(applied)) {
+      applied = await deps.setUserTimePack(userId, granted, { allowSameRevision: true });
+    }
+    if (copyRefused(applied)) {
+      const onUser =
+        deps.getUserTimePackFields != null ? await deps.getUserTimePackFields(userId) : null;
+      if (getActiveTimePackEntitlement(onUser ?? undefined, now) == null) {
+        applied = await deps.setUserTimePack(userId, granted, { force: true });
+        if (copyRefused(applied)) {
+          throw new Error(
+            `Time-pack grant for user ${userId} wrote the balance but could not copy onto the user`,
+          );
+        }
+      }
     }
   }
   return {

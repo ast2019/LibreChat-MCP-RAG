@@ -78,10 +78,7 @@ describe('grantTimePack', () => {
   });
 
   it('repairs the user copy with the same revision when the first copy returns false', async () => {
-    const setUserTimePack = jest
-      .fn()
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+    const setUserTimePack = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
     await grantTimePack(
       {
@@ -98,6 +95,64 @@ describe('grantTimePack', () => {
     });
   });
 
+  it('force-writes when both guarded copies fail and the user has no active entitlement', async () => {
+    const setUserTimePack = jest
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const getUserTimePackFields = jest.fn().mockResolvedValue({});
+
+    await grantTimePack(
+      {
+        extendTimePack: jest.fn().mockResolvedValue(granted),
+        setUserTimePack,
+        getUserTimePackFields,
+        now: () => now,
+      },
+      { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+    );
+
+    expect(setUserTimePack).toHaveBeenNthCalledWith(3, 'u1', granted, { force: true });
+  });
+
+  it('does not force-write when a newer grant already left an active entitlement on the user', async () => {
+    const setUserTimePack = jest.fn().mockResolvedValue(false);
+    const getUserTimePackFields = jest.fn().mockResolvedValue({
+      timePackId: 'claude-time',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: granted.timePackExpiresAt,
+    });
+
+    await grantTimePack(
+      {
+        extendTimePack: jest.fn().mockResolvedValue(granted),
+        setUserTimePack,
+        getUserTimePackFields,
+        now: () => now,
+      },
+      { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+    );
+
+    expect(setUserTimePack).toHaveBeenCalledTimes(2);
+    expect(setUserTimePack).not.toHaveBeenCalledWith('u1', granted, { force: true });
+  });
+
+  it('throws when the balance wrote but the user copy cannot be forced', async () => {
+    const setUserTimePack = jest.fn().mockResolvedValue(false);
+    await expect(
+      grantTimePack(
+        {
+          extendTimePack: jest.fn().mockResolvedValue(granted),
+          setUserTimePack,
+          getUserTimePackFields: jest.fn().mockResolvedValue({}),
+          now: () => now,
+        },
+        { userId: 'u1', pack: timePack, durationDays: 30, endpoint: 'ClaudeTime' },
+      ),
+    ).rejects.toThrow(/could not copy onto the user/);
+  });
+
   it('does not copy onto the user when the balance write fails', async () => {
     const setUserTimePack = jest.fn();
     await expect(
@@ -111,7 +166,7 @@ describe('grantTimePack', () => {
 });
 
 describe('grantedTimePackFromBalance', () => {
-  it('returns fields only for an active pack with a revision', () => {
+  it('returns fields for an active pack with a revision', () => {
     expect(
       grantedTimePackFromBalance(
         {
@@ -132,6 +187,9 @@ describe('grantedTimePackFromBalance', () => {
       timePackGrantedAt: now,
       timePackRevision: 2,
     });
+  });
+
+  it('synthesizes revision 1 for legacy active balance rows without a revision', () => {
     expect(
       grantedTimePackFromBalance(
         {
@@ -141,8 +199,21 @@ describe('grantedTimePackFromBalance', () => {
           timePackRevision: 0,
         },
         now,
-      ),
-    ).toBeNull();
+      )?.timePackRevision,
+    ).toBe(1);
+    expect(
+      grantedTimePackFromBalance(
+        {
+          timePackId: 'claude-time',
+          timePackEndpoint: 'ClaudeTime',
+          timePackExpiresAt: granted.timePackExpiresAt,
+        },
+        now,
+      )?.timePackRevision,
+    ).toBe(1);
+  });
+
+  it('returns null when the pack is expired', () => {
     expect(
       grantedTimePackFromBalance(
         {
@@ -198,6 +269,50 @@ describe('syncUserTimePackFromBalance', () => {
     expect(result).toBeNull();
     expect(findBalanceByUser).not.toHaveBeenCalled();
     expect(setUserTimePack).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the guarded copy refuses and the force write also refuses', async () => {
+    const setUserTimePack = jest.fn().mockResolvedValue(false);
+    const result = await syncUserTimePackFromBalance(
+      {
+        findBalanceByUser: jest.fn().mockResolvedValue({
+          timePackId: 'claude-time',
+          timePackEndpoint: 'ClaudeTime',
+          timePackExpiresAt: granted.timePackExpiresAt,
+          timePackRevision: 4,
+        }),
+        setUserTimePack,
+        now: () => now,
+      },
+      'u1',
+      {},
+    );
+    expect(result).toBeNull();
+    expect(setUserTimePack).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ timePackRevision: 4 }),
+      { force: true },
+    );
+  });
+
+  it('force-writes when allowSameRevision refuses', async () => {
+    const setUserTimePack = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const result = await syncUserTimePackFromBalance(
+      {
+        findBalanceByUser: jest.fn().mockResolvedValue({
+          timePackId: 'claude-time',
+          timePackEndpoint: 'ClaudeTime',
+          timePackExpiresAt: granted.timePackExpiresAt,
+          timePackRevision: 4,
+        }),
+        setUserTimePack,
+        now: () => now,
+      },
+      'u1',
+      {},
+    );
+    expect(result?.timePackId).toBe('claude-time');
+    expect(setUserTimePack).toHaveBeenNthCalledWith(2, 'u1', expect.any(Object), { force: true });
   });
 
   it('applies granted fields onto a user object for routing', () => {

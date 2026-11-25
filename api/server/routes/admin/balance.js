@@ -43,6 +43,11 @@ const handlers = createAdminBalanceHandlers({
     db.updateUser(userId, { packId }, {}, { preserveExpiresAt: true }),
   extendTimePack: db.extendBalanceTimePack,
   setUserTimePack: db.setUserTimePack,
+  getUserTimePackFields: (userId) =>
+    db.getUserById(
+      userId,
+      'timePackId timePackLabel timePackEndpoint timePackExpiresAt timePackGrantedAt',
+    ),
   listUsersWithBalances: db.listUsersWithBalances,
   getBillingSummary: db.getBillingSummary,
   getUserUsageByContext: db.getUserUsageByContext,
