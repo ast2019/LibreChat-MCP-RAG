@@ -5,6 +5,7 @@ import {
   resolveLangChainError,
   getModelStreamFailure,
   resolveModelStreamError,
+  resolveEmptyProviderResponse,
   getProviderErrorMessage,
 } from '../errors';
 import { getSafeErrorMetadata, isOwnedAbortError } from '../../utils/errors';
@@ -109,6 +110,8 @@ export function createTerminalRunErrorObserver({
       const classifiedError =
         safelyResolveLangChainError(error) ??
         safelyResolveLangChainError(upstreamModelError) ??
+        resolveEmptyProviderResponse(upstreamModelError) ??
+        resolveEmptyProviderResponse(error) ??
         (status == null || status < 400
           ? (resolveModelStreamError(upstreamModelError) ?? resolveModelStreamError(error))
           : undefined);

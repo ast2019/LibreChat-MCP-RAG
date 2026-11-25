@@ -238,6 +238,11 @@ describe('Error — reader-facing provider and fallback copy', () => {
       'com_error_model_stream_stalled',
       'The model provider stopped sending the response, and the request timed out. Try again.',
     ],
+    [
+      ErrorTypes.MODEL_EMPTY_RESPONSE,
+      'com_error_model_empty_response',
+      'The model provider returned an empty response. Try again shortly.',
+    ],
   ])(
     'localizes a %s error even when it carries older-client fallback prose',
     (type, key, prose) => {

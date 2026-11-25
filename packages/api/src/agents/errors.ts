@@ -165,6 +165,41 @@ export function resolveModelStreamError(error: unknown): string | undefined {
     : `${MODEL_STREAM_FALLBACK[failure]}\n${JSON.stringify({ type: MODEL_STREAM_ERROR_TYPES[failure] })}`;
 }
 
+/** Safe prose for clients that predate `ErrorTypes.MODEL_EMPTY_RESPONSE`. */
+const EMPTY_PROVIDER_RESPONSE_FALLBACK =
+  'The model provider returned an empty response. Try again shortly.';
+
+/**
+ * Gateways (and some upstream relays) answer HTTP 200/503 with no usable content after their own
+ * retry. Match on wording and stable codes rather than status alone: LangChain often rethrows the
+ * body as a bare `Error` without preserving `status`.
+ */
+export function isEmptyProviderResponse(error: unknown): boolean {
+  const message = getProviderErrorMessage(error);
+  if (message != null) {
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes('empty response') ||
+      normalized.includes('upstream_empty_response') ||
+      normalized.includes('returned an empty')
+    ) {
+      return true;
+    }
+  }
+  if (error == null || typeof error !== 'object') {
+    return false;
+  }
+  const code = readErrorProperty(error, 'code') ?? readErrorProperty(error, 'errorCode');
+  return typeof code === 'string' && code.toLowerCase() === 'upstream_empty_response';
+}
+
+/** Typed payload when the provider completed with nothing to show. */
+export function resolveEmptyProviderResponse(error: unknown): string | undefined {
+  return isEmptyProviderResponse(error)
+    ? `${EMPTY_PROVIDER_RESPONSE_FALLBACK}\n${JSON.stringify({ type: ErrorTypes.MODEL_EMPTY_RESPONSE })}`
+    : undefined;
+}
+
 /**
  * Provider failure text for OpenAI-compatible responses, which carry raw strings rather than the
  * typed payloads the LibreChat client localizes.

@@ -2564,8 +2564,8 @@ describe('getLLMConfig with the time-pack Claude model ids', () => {
   it.each([
     ['claude-sonnet-5-5', AnthropicEffort.high],
     ['claude-opus-5-5', AnthropicEffort.medium],
-    ['claude-fable-5-2', AnthropicEffort.high],
-    ['claude-mythos-5-2', AnthropicEffort.high],
+    ['claude-fable-5-1', AnthropicEffort.high],
+    ['claude-haiku-5-5', AnthropicEffort.low],
   ])('sends adaptive thinking and effort for %s', (model, effort) => {
     const result = getLLMConfig('test-key', {
       modelOptions: { model, thinking: true, effort },
