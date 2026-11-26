@@ -50,6 +50,31 @@ export function getTimePackEntitlement(
     : entitlement;
 }
 
+/**
+ * Whether `endpoint` is the plan's dedicated Claude path: a configured `kind: time` pack
+ * names it, or the signed-in user's active entitlement does. The entitlement check keeps
+ * seat admission alive when an admin pack list dropped `kind: time` but grants remain.
+ */
+export function isTimePackRouteEndpoint({
+  packs,
+  endpoint,
+  entitlement,
+}: {
+  packs?: readonly TimePackRoutePack[] | null;
+  endpoint?: string | null;
+  entitlement?: TimePackEntitlement | null;
+}): boolean {
+  if (isTimePackEndpoint(packs, endpoint)) {
+    return true;
+  }
+  return (
+    entitlement != null &&
+    typeof endpoint === 'string' &&
+    endpoint !== '' &&
+    endpoint === entitlement.timePackEndpoint
+  );
+}
+
 /** Classifies a request (or one agent of it) by its real endpoint and model. */
 export function resolveTimePackRoute({
   user,
@@ -64,17 +89,22 @@ export function resolveTimePackRoute({
   packs?: readonly TimePackRoutePack[] | null;
   now?: Date;
 }): TimePackRoute {
-  if (!isTimePackEndpoint(packs, endpoint)) {
+  const entitlement = getTimePackEntitlement(user, packs, now);
+  if (!isTimePackRouteEndpoint({ packs, endpoint, entitlement })) {
     return { kind: 'none' };
   }
-  const entitlement = getTimePackEntitlement(user, packs, now);
   if (isTimePackClaudeRequest({ entitlement, endpoint, model })) {
     return { kind: 'seat', entitlement: entitlement as TimePackEntitlement };
   }
   return { kind: 'denied', code: ErrorTypes.TIME_PACK_REQUIRED };
 }
 
-type TargetAgent = { provider?: string | null; model?: string | null } | null | undefined;
+type TargetAgent = {
+  /** Configured endpoint name (survives the SDK provider swap in initializeAgent). */
+  endpoint?: string | null;
+  provider?: string | null;
+  model?: string | null;
+} | null | undefined;
 
 export type TimePackTargetInput = {
   /** `endpointOption` from the agents route; `agent` is the agent being loaded (a promise). */
@@ -89,8 +119,9 @@ export type TimePackTargetInput = {
 };
 
 /**
- * The endpoint and model a request really runs on: a saved agent's provider and model rather
- * than the `agents` route name, falling back to the route's endpoint for ephemeral chats.
+ * The endpoint and model a request really runs on. Prefer `agent.endpoint` (ClaudeTime) over
+ * `agent.provider` — initialize swaps provider to the SDK name (`anthropic`) while keeping the
+ * configured endpoint on `endpoint`. Fall back to the route / body for ephemeral chats.
  */
 export async function resolveTimePackTarget({
   endpointOption,
@@ -105,6 +136,7 @@ export async function resolveTimePackTarget({
   }
   return {
     endpoint:
+      agent?.endpoint ||
       agent?.provider ||
       endpointOption?.endpoint ||
       endpointOption?.endpointType ||

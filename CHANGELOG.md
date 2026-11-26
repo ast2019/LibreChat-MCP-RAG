@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.8] - 2026-11-26
+
+### Fixed
+- **ClaudeTime turns no longer reserve credit balances when the user holds an unlimited
+  plan.** A production debug share showed `ClaudeTime` + `claude-fable-5-1` invoking the
+  Anthropic gateway while `[Balance.check] Reserving token cost` still ran and no
+  `[timePack] seat acquired` line appeared — seat admission had returned `none`, so
+  `_timePackEntitlement` stayed null. Admission now still seats an entitled user when
+  `balance.packs` lost `kind: time` (admin override), routing uses the entitlement's
+  endpoint, and `resolveTimePackTarget` prefers `agent.endpoint` over the post-init SDK
+  `provider` (`anthropic`).
+
 ## [0.40.7] - 2026-11-26
 
 ### Fixed
