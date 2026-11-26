@@ -67,24 +67,21 @@ export function isTimePackFamilyModel(model: string): boolean {
 }
 
 /**
- * The models of one endpoint as a holder of the plan should see them: the credit-path Claude
- * models are dropped, because the plan serves the same family without credit spend and two
- * menus with the same models in them invite the more expensive one.
+ * Endpoint model lists for a time-pack holder. Credit-path Claude on OpenRouter stays listed:
+ * modelSpecs put unlimited models in the separate `ClaudeTime` group, so the holder can still
+ * pick regular Claude and spend credits deliberately. The plan endpoint keeps its own catalog.
  */
 export function filterModelsForTimePack(
   models: string[],
   {
-    endpointName,
-    timePackEndpoints,
-    active,
+    endpointName: _endpointName,
+    timePackEndpoints: _timePackEndpoints,
+    active: _active,
   }: {
     endpointName: string;
     timePackEndpoints: Set<string>;
     active: boolean;
   },
 ): string[] {
-  if (!active || timePackEndpoints.has(endpointName)) {
-    return models;
-  }
-  return models.filter((model) => !isTimePackFamilyModel(model));
+  return models;
 }

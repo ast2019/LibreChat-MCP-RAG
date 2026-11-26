@@ -19,6 +19,12 @@ LibreChat versions are tracked separately in `package.json`.
   on a configured time-pack endpoint without `_timePackEntitlement`. OpenRouter credit models
   are unchanged.
 
+### Changed
+- **Holders see a separate `ClaudeTime` model menu** for unlimited Sonnet/Opus/Fable/Haiku.
+  Credit-path `Claude` (OpenRouter) stays in its own group and still spends credits if chosen.
+  Without the plan, the ClaudeTime group is hidden; with the plan, both groups are shown so
+  the two paths cannot be confused.
+
 ## [0.40.8] - 2026-11-26
 
 ### Fixed

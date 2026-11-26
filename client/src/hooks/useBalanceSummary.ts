@@ -71,8 +71,8 @@ export default function useBalanceSummary(): BalanceView {
 
   /**
    * Startup config is cached forever. After an admin time-pack grant, `/api/balance` can show
-   * the plan while `modelSpecs` still list OpenRouter Claude (no `timePack: true`). Refetch
-   * config (and models) once per mismatch so the selector can switch to ClaudeTime.
+   * the plan while `modelSpecs` still omit `timePack: true` ClaudeTime specs. Refetch config
+   * (and models) once per mismatch so the ClaudeTime menu appears beside credit Claude.
    */
   useEffect(() => {
     if (state.status !== 'success') {

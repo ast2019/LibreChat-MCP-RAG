@@ -360,9 +360,8 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
     }
 
     /**
-     * A holder of the plan does not see the credit-path Claude models of the other endpoints:
-     * the plan serves the same family without spending credit, and two menus with the same
-     * models in them invite the more expensive one. The plan's own endpoint keeps its list.
+     * Time-pack holders keep credit-path Claude on other endpoints: unlimited models live in
+     * the ClaudeTime modelSpec group, and OpenRouter Claude still spends credits if chosen.
      */
     if (timePackActive && timePackEndpoints.size > 0) {
       for (const name of Object.keys(modelsConfig)) {

@@ -111,9 +111,10 @@ export function applyPrivacyAccessSpecs(config: AppConfig, access: PrivacyAccess
 }
 
 /**
- * Time-pack Claude specs (`timePack: true`) are visible only with an active entitlement. While
- * that entitlement is active, credit-path Claude specs (`group: 'Claude'` without `timePack`)
- * are hidden so the selector does not offer two Claude menus.
+ * Time-pack specs (`timePack: true`, menu group `ClaudeTime`) are visible only with an active
+ * entitlement. Credit-path Claude (`group: 'Claude'` on OpenRouter) stays visible either way so
+ * the holder can still spend credits on regular Claude while unlimited models live under a
+ * separate ClaudeTime menu — no silent swap between the two paths.
  */
 export function applyTimePackSpecs(config: AppConfig, hasActiveTimePack: boolean): AppConfig {
   const list = config.modelSpecs?.list;
@@ -123,9 +124,6 @@ export function applyTimePackSpecs(config: AppConfig, hasActiveTimePack: boolean
   const allowed = (spec: (typeof list)[number]) => {
     if (spec?.timePack === true) {
       return hasActiveTimePack;
-    }
-    if (hasActiveTimePack && spec?.group === 'Claude') {
-      return false;
     }
     return true;
   };
