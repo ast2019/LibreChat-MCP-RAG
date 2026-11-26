@@ -1,3 +1,4 @@
+import { logger } from '@librechat/data-schemas';
 import { isTimePack } from 'librechat-data-provider';
 import { ErrorTypes } from 'librechat-data-provider';
 import type { TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
@@ -162,6 +163,12 @@ export async function admitTimePackForRequest(
     return { kind: 'none' };
   }
   if (route.kind === 'denied') {
+    logger.debug('[timePack] admission denied', {
+      userId: req.user?.id,
+      endpoint,
+      model,
+      code: route.code,
+    });
     return {
       kind: 'denied',
       status: 403,
@@ -171,6 +178,13 @@ export async function admitTimePackForRequest(
   req._timePackEntitlement = route.entitlement;
   const userId = req.user?.id;
   if (req._scheduleConcurrencyExempt === true || !userId) {
+    logger.debug('[timePack] admitted without seat (exempt or missing user)', {
+      userId,
+      endpoint,
+      model,
+      exempt: req._scheduleConcurrencyExempt === true,
+      timePackId: route.entitlement.timePackId,
+    });
     return { kind: 'admitted' };
   }
   /**
@@ -185,6 +199,15 @@ export async function admitTimePackForRequest(
   });
   if (!rate.allowed) {
     const retryAfterMs = Math.max(1, rate.retryAfterMs);
+    logger.debug('[timePack] rate limited', {
+      userId,
+      endpoint,
+      model,
+      reason: rate.reason,
+      globalCount: rate.globalCount,
+      userCount: rate.userCount,
+      retryAfterMs,
+    });
     return {
       kind: 'rate_limited',
       status: 429,
@@ -214,6 +237,14 @@ export async function admitTimePackForRequest(
      * minute's allowance on requests that never reached the gateway.
      */
     await ratePool.release(userId, rate.bucket);
+    logger.debug('[timePack] seat rejected', {
+      userId,
+      endpoint,
+      model,
+      reason: admission.reason,
+      pendingSeats: admission.pendingSeats,
+      limit: admission.limit,
+    });
     return { kind: 'rejected', admission };
   }
   req._timePackSeatHeld = true;
@@ -221,6 +252,16 @@ export async function admitTimePackForRequest(
     lease: admission.lease,
     heartbeat: startTimeSeatHeartbeat(pool, admission.lease, balance?.timePack),
   };
+  logger.debug('[timePack] seat acquired (ClaudeTime path)', {
+    userId,
+    endpoint,
+    model,
+    timePackId: route.entitlement.timePackId,
+    pendingSeats: admission.pendingSeats,
+    limit: admission.limit,
+    globalRequests: rate.globalCount,
+    userRequests: rate.userCount,
+  });
   return { kind: 'admitted' };
 }
 

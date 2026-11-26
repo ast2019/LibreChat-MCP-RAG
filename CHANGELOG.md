@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.7] - 2026-11-26
+
+### Fixed
+- **Debug share can show whether a turn used the ClaudeTime path.** Successful time-pack
+  admission and `time_meter` recording logged nothing at debug level, so a share with only
+  MCP/config noise could not prove (or disprove) unlimited-plan usage. Admission now logs
+  seat acquire / deny / rate-limit, and usage logging records metered ClaudeTime turns
+  (no credit spend) versus charged off-pack rows — visible when admin debug mode is on.
+
 ## [0.40.6] - 2026-11-26
 
 ### Fixed

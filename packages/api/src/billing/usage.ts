@@ -1,3 +1,4 @@
+import { logger } from '@librechat/data-schemas';
 import { isTimePackClaudeRequest, TIME_METER_CONTEXT } from 'librechat-data-provider';
 import type { TimePackEntitlement } from 'librechat-data-provider';
 import type { RecordUsageDeps, RecordUsageParams, RecordUsageResult } from '~/agents/usage';
@@ -89,6 +90,15 @@ export async function recordTimePackUsage(
   if (metered.length === 0) {
     return recordCollectedUsage(deps, params);
   }
+  logger.debug('[timePack] metering ClaudeTime usage (no credit spend)', {
+    user: params.user,
+    model: params.model,
+    endpoint: scope.defaultEndpoint?.endpoint,
+    timePackId: scope.entitlement?.timePackId,
+    meteredCount: metered.length,
+    chargedCount: charged.length,
+    context: TIME_METER_CONTEXT,
+  });
   const chargedResult =
     charged.length > 0
       ? await recordCollectedUsage(deps, { ...params, collectedUsage: charged })
@@ -116,6 +126,11 @@ export async function recordTimePackUsage(
     }
     if (credits > 0) {
       await meter(credits);
+      logger.debug('[timePack] fairness meter updated', {
+        user: params.user,
+        credits: Math.round(credits),
+        timePackId: scope.entitlement?.timePackId,
+      });
     }
   }
 
