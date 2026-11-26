@@ -118,7 +118,7 @@ const modelConfig = {
       { name: 'gpt', group: 'ChatGPT', preset: { endpoint: 'OpenRouter' } },
       {
         name: 'time-smart',
-        group: 'Claude',
+        group: 'ClaudeTime',
         timePack: true,
         preset: { endpoint: 'ClaudeTime' },
       },
@@ -157,7 +157,7 @@ describe('time-pack grant against MongoDB', () => {
     expect(stored?.timePackExpiresAt?.getTime()).toBe(expiresAt);
   });
 
-  it('after a grant, user entitlement hides OpenRouter Claude and shows ClaudeTime', async () => {
+  it('after a grant, user entitlement shows ClaudeTime beside credit Claude', async () => {
     const user = await mongoose.models.User.create({ email: 'ok@b.co', provider: 'local' });
     const userId = user._id.toString();
     const handlers = createAdminBalanceHandlers(routeDeps());
@@ -176,6 +176,7 @@ describe('time-pack grant against MongoDB', () => {
     );
     expect(getActiveTimePackEntitlement(stored ?? undefined)).not.toBeNull();
     expect(applyTimePackSpecs(modelConfig, true).modelSpecs?.list?.map((s) => s.name)).toEqual([
+      'smart',
       'gpt',
       'time-smart',
     ]);

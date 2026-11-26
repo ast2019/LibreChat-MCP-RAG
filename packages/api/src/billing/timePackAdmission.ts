@@ -1,11 +1,11 @@
 import { logger } from '@librechat/data-schemas';
-import { isTimePack } from 'librechat-data-provider';
+import { ErrorTypes, getActiveTimePackEntitlement, isTimePack } from 'librechat-data-provider';
 import type { TimePackEntitlement } from 'librechat-data-provider';
 import type { TimePackRequestAdmission, TimePackRequestLike } from './admitTimePack';
 import type { TimeSeatPool, TimeSeatEvictedLease } from './timeSeats';
 import type { TimePackRatePool } from './timeRate';
 import { admitTimePackForRequest } from './admitTimePack';
-import { resolveTimePackRoute } from './route';
+import { isConfiguredTimePackEndpoint, resolveTimePackRoute } from './route';
 
 /**
  * One admission decision for every path that can reach a time-pack endpoint.
@@ -57,12 +57,34 @@ export async function admitTimePackForApi({
   pool?: TimeSeatPool;
   ratePool?: TimePackRatePool;
 }): Promise<TimePackRequestAdmission> {
-  const packs = req.config?.balance?.packs;
-  if (!(packs ?? []).some((pack) => isTimePack(pack))) {
-    req._timePackSeatHeld = false;
-    req._timePackLease = null;
-    req._timePackEntitlement = null;
-    return { kind: 'none' };
+  const packs = req.config?.balance?.packs ?? [];
+  const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
+  const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
+  if (!hasTimePackConfig) {
+    if (entitlement == null) {
+      if (isConfiguredTimePackEndpoint(endpoint, req.config)) {
+        req._timePackSeatHeld = false;
+        req._timePackLease = null;
+        req._timePackEntitlement = null;
+        return {
+          kind: 'denied',
+          status: 403,
+          body: { type: ErrorTypes.TIME_PACK_REQUIRED, code: ErrorTypes.TIME_PACK_REQUIRED },
+        };
+      }
+      req._timePackSeatHeld = false;
+      req._timePackLease = null;
+      req._timePackEntitlement = null;
+      return { kind: 'none' };
+    }
+    logger.warn(
+      '[timePack] balance.packs has no kind:time row; admitting from user entitlement only (API)',
+      {
+        userId: req.user?.id,
+        timePackId: entitlement.timePackId,
+        timePackEndpoint: entitlement.timePackEndpoint,
+      },
+    );
   }
   const route = resolveTimePackRoute({ user: req.user, endpoint, model, packs });
   if (route.kind === 'none') {

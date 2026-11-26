@@ -5,6 +5,7 @@ const {
   EModelEndpoint,
   ErrorTypes,
   ViolationTypes,
+  getActiveTimePackEntitlement,
   isEphemeralAgentId,
 } = require('librechat-data-provider');
 const {
@@ -120,6 +121,24 @@ const {
   negotiateNewGenerationProtocol,
   negotiateExistingGenerationProtocol,
 } = require('./protocol');
+
+async function syncUserTimePackEntitlementFromBalance(req, userId) {
+  if (!userId || getActiveTimePackEntitlement(req.user) != null) {
+    return;
+  }
+  try {
+    const synced = await syncUserTimePackFromBalance(
+      { findBalanceByUser, setUserTimePack },
+      userId,
+      req.user,
+    );
+    if (synced != null) {
+      applyGrantedTimePackToUser(req.user, synced);
+    }
+  } catch (error) {
+    logger.warn('[AgentController] Time-pack sync from balance before admit failed:', error);
+  }
+}
 
 function sendGenerationJson(res, status, body, generationProtocolVersion) {
   if (typeof res.set === 'function') {
@@ -1546,35 +1565,27 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       ).catch(() => {});
     }
   };
+  /**
+   * Balance may hold an active entitlement the user document never received (grant copy
+   * missed). Sync before the first admit so `admitAgentTimePack` does not return `none` (and
+   * fall through to Balance.check) when `balance.packs` dropped `kind: time`.
+   */
+  await syncUserTimePackEntitlementFromBalance(req, userId);
   let timePack = await admitAgentTimePack(req, {
     endpointOption,
     body: req.body,
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
   });
-  /**
-   * Balance may hold an active entitlement the user document never received (grant copy
-   * missed). Sync once and retry so ClaudeTime is not refused while OpenRouter stays hidden
-   * only after the user fields catch up.
-   */
   if (timePack.kind === 'denied' && userId) {
-    try {
-      const synced = await syncUserTimePackFromBalance(
-        { findBalanceByUser, setUserTimePack },
-        userId,
-        req.user,
-      );
-      if (synced != null) {
-        applyGrantedTimePackToUser(req.user, synced);
-        timePack = await admitAgentTimePack(req, {
-          endpointOption,
-          body: req.body,
-          leaseId: streamId,
-          abortLease: abortTimePackLease(GenerationJobManager),
-        });
-      }
-    } catch (error) {
-      logger.warn('[AgentController] Time-pack sync from balance failed:', error);
+    await syncUserTimePackEntitlementFromBalance(req, userId);
+    if (getActiveTimePackEntitlement(req.user) != null) {
+      timePack = await admitAgentTimePack(req, {
+        endpointOption,
+        body: req.body,
+        leaseId: streamId,
+        abortLease: abortTimePackLease(GenerationJobManager),
+      });
     }
   }
   if (timePack.kind === 'denied') {

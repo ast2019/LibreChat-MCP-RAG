@@ -4,10 +4,15 @@ import type { TimePackRequestLike } from './admitTimePack';
 import type { TimeSeatEvictedLease } from './timeSeats';
 import {
   releaseAdmittedRequestSlot,
+  admitAgentTimePack,
   admitTimePackForRequest,
   admitTimePackRequest,
 } from './admitTimePack';
-import { resolveTimePackRoute, resolveTimePackTarget } from './route';
+import {
+  isConfiguredTimePackEndpoint,
+  resolveTimePackRoute,
+  resolveTimePackTarget,
+} from './route';
 import { createTimePackRatePool } from './timeRate';
 import { createTimeSeatPool } from './timeSeats';
 
@@ -311,6 +316,61 @@ describe('resolveTimePackTarget (F2)', () => {
         },
       }),
     ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' });
+  });
+});
+
+describe('isConfiguredTimePackEndpoint', () => {
+  it('names pack endpoints and timePack model specs', () => {
+    const config = {
+      balance: { packs: [timePack] },
+      modelSpecs: { list: [{ timePack: true, preset: { endpoint: 'ClaudeTime' } }] },
+    };
+    expect(isConfiguredTimePackEndpoint('ClaudeTime', config)).toBe(true);
+    expect(isConfiguredTimePackEndpoint('OpenRouter', config)).toBe(false);
+  });
+});
+
+describe('admitAgentTimePack when packs lost kind:time', () => {
+  const request = (user: TimePackRequestLike['user']) =>
+    ({ user, config: { balance: { ...balance, packs: [] } } }) as TimePackRequestLike;
+
+  it('denies ClaudeTime without an entitlement instead of returning none', async () => {
+    await expect(
+      admitAgentTimePack(request({ id: 'free' }), {
+        endpointOption: {
+          endpoint: 'ClaudeTime',
+          model_parameters: { model: 'claude-opus-5-5' },
+        },
+        body: {},
+        leaseId: 's1',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toMatchObject({
+      kind: 'denied',
+      body: { code: ErrorTypes.TIME_PACK_REQUIRED },
+    });
+  });
+
+  it('still seats when the user entitlement survived the pack-list override', async () => {
+    const req = request(entitled('u'));
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          agent: Promise.resolve({
+            endpoint: 'ClaudeTime',
+            provider: 'anthropic',
+            model: 'claude-opus-5-5',
+          }),
+        },
+        body: {},
+        leaseId: 's1',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req._timePackEntitlement).not.toBeNull();
   });
 });
 

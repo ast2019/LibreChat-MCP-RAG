@@ -1134,11 +1134,12 @@ modelSpecs:
         endpoint: 'OpenRouter'
         model: '~anthropic/claude-haiku-latest'
         modelLabel: 'Claude Haiku'
-    # --- Unlimited Claude plan (dedicated API; only with an active time entitlement) ---
+    # --- Unlimited Claude plan (dedicated ClaudeTime API; only with an active time entitlement).
+    # Separate menu group so holders never confuse these with credit-path `group: Claude` (OpenRouter).
     - name: 'time-smart'
       label: 'Claude Sonnet 5.5'
-      description: 'پلن نامحدود؛ دقیق و متعادل'
-      group: 'Claude'
+      description: 'پلن نامحدود ClaudeTime؛ دقیق و متعادل'
+      group: 'ClaudeTime'
       groupIcon: 'anthropic'
       iconURL: 'anthropic'
       timePack: true
@@ -1150,8 +1151,9 @@ modelSpecs:
         effort: high
     - name: 'time-pro'
       label: 'Claude Opus 5.5'
-      description: 'پلن نامحدود؛ قوی‌ترین Claude'
-      group: 'Claude'
+      description: 'پلن نامحدود ClaudeTime؛ قوی‌ترین Claude'
+      group: 'ClaudeTime'
+      groupIcon: 'anthropic'
       iconURL: 'anthropic'
       timePack: true
       preset:
@@ -1162,8 +1164,9 @@ modelSpecs:
         effort: medium
     - name: 'time-fable'
       label: 'Claude Fable 5.1'
-      description: 'پلن نامحدود؛ قوی‌ترین Fable'
-      group: 'Claude'
+      description: 'پلن نامحدود ClaudeTime؛ قوی‌ترین Fable'
+      group: 'ClaudeTime'
+      groupIcon: 'anthropic'
       iconURL: 'anthropic'
       timePack: true
       preset:
@@ -1174,8 +1177,9 @@ modelSpecs:
         effort: high
     - name: 'time-haiku'
       label: 'Claude Haiku 5.5'
-      description: 'پلن نامحدود؛ سریع و سبک'
-      group: 'Claude'
+      description: 'پلن نامحدود ClaudeTime؛ سریع و سبک'
+      group: 'ClaudeTime'
+      groupIcon: 'anthropic'
       iconURL: 'anthropic'
       timePack: true
       preset:

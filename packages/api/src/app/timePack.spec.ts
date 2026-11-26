@@ -104,7 +104,7 @@ describe('filterModelsForTimePack', () => {
     ).toEqual(models);
   });
 
-  it('drops the credit-path Claude models for a holder of the plan', () => {
+  it('keeps credit-path Claude for a holder so the Claude menu still spends credits', () => {
     const models = ['anthropic/claude-sonnet-4.5', 'gpt-4o'];
 
     expect(
@@ -113,7 +113,7 @@ describe('filterModelsForTimePack', () => {
         timePackEndpoints,
         active: true,
       }),
-    ).toEqual(['gpt-4o']);
+    ).toEqual(models);
   });
 
   it('keeps the plan endpoint’s own list untouched', () => {

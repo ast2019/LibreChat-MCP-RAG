@@ -467,7 +467,7 @@ const executeOpenAIChatCompletion = async (envelope, { req, res }) => {
       const timePackLeaseId = responseId;
       const timePackAdmission = await admitTimePackForApi({
         req,
-        endpoint: agent.provider,
+        endpoint: agent.endpoint ?? agent.provider,
         model: agent.model,
         leaseId: timePackLeaseId,
         /** The API path owns no generation to abort, so an evicted seat needs no stop signal. */

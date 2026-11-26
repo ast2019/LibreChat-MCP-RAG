@@ -1,8 +1,10 @@
 import {
   ErrorTypes,
+  isTimePack,
   isTimePackEndpoint,
   isTimePackClaudeRequest,
   getActiveTimePackEntitlement,
+  normalizeEndpointName,
 } from 'librechat-data-provider';
 import type { TBalancePack, TimePackEntitlement } from 'librechat-data-provider';
 
@@ -73,6 +75,52 @@ export function isTimePackRouteEndpoint({
     endpoint !== '' &&
     endpoint === entitlement.timePackEndpoint
   );
+}
+
+export type TimePackConfigLike = {
+  balance?: { packs?: readonly TimePackRoutePack[] | null } | null;
+  modelSpecs?: {
+    list?: readonly { timePack?: boolean; preset?: { endpoint?: string | null } | null }[] | null;
+  } | null;
+};
+
+/** Endpoint names declared by `kind: time` packs and `timePack` model specs. */
+export function listConfiguredTimePackEndpoints(
+  config?: TimePackConfigLike | null,
+): string[] {
+  const names = new Set<string>();
+  for (const pack of config?.balance?.packs ?? []) {
+    if (!isTimePack(pack)) {
+      continue;
+    }
+    const endpoint = pack.endpoint?.trim();
+    if (endpoint) {
+      names.add(normalizeEndpointName(endpoint));
+    }
+  }
+  for (const spec of config?.modelSpecs?.list ?? []) {
+    if (spec?.timePack !== true) {
+      continue;
+    }
+    const endpoint =
+      typeof spec.preset?.endpoint === 'string' ? spec.preset.endpoint.trim() : '';
+    if (endpoint) {
+      names.add(normalizeEndpointName(endpoint));
+    }
+  }
+  return [...names];
+}
+
+/** Whether `endpoint` is a configured time-pack gateway path (independent of the user's plan). */
+export function isConfiguredTimePackEndpoint(
+  endpoint: string | null | undefined,
+  config?: TimePackConfigLike | null,
+): boolean {
+  if (endpoint == null || endpoint === '') {
+    return false;
+  }
+  const key = normalizeEndpointName(endpoint);
+  return listConfiguredTimePackEndpoints(config).includes(key);
 }
 
 /** Classifies a request (or one agent of it) by its real endpoint and model. */

@@ -8,7 +8,7 @@ const config = {
       { name: 'gpt', group: 'ChatGPT', preset: { endpoint: 'OpenRouter' } },
       {
         name: 'time-smart',
-        group: 'Claude',
+        group: 'ClaudeTime',
         timePack: true,
         preset: { endpoint: 'ClaudeTime' },
       },
@@ -22,8 +22,12 @@ describe('applyTimePackSpecs', () => {
     expect(filtered.modelSpecs?.list?.map((spec) => spec.name)).toEqual(['smart', 'gpt']);
   });
 
-  it('shows time-pack Claude and hides credit Claude while active', () => {
+  it('shows ClaudeTime beside credit Claude while the plan is active', () => {
     const filtered = applyTimePackSpecs(config, true);
-    expect(filtered.modelSpecs?.list?.map((spec) => spec.name)).toEqual(['gpt', 'time-smart']);
+    expect(filtered.modelSpecs?.list?.map((spec) => spec.name)).toEqual([
+      'smart',
+      'gpt',
+      'time-smart',
+    ]);
   });
 });
