@@ -64,6 +64,18 @@ describe('createTimePackRatePool (memory)', () => {
     expect(await pool.read('u1')).toEqual({ globalCount: 3, userCount: 2 });
     expect(await pool.read('u2')).toEqual({ globalCount: 3, userCount: 1 });
   });
+
+  it('returns a slot to the window that was charged, so a later gate failure does not starve capacity', async () => {
+    const pool = memoryPool();
+    const taken = await pool.acquire('u1', runtime);
+    expect(taken.allowed).toBe(true);
+    if (!taken.allowed) {
+      throw new Error('expected acquire to succeed');
+    }
+    expect(await pool.read('u1')).toEqual({ globalCount: 1, userCount: 1 });
+    await pool.release('u1', taken.bucket);
+    expect(await pool.read('u1')).toEqual({ globalCount: 0, userCount: 0 });
+  });
 });
 
 describe('acquireTimePackRateSlot', () => {

@@ -208,6 +208,12 @@ export async function admitTimePackForRequest(
     pool,
   });
   if (!admission.ok) {
+    /**
+     * The rate slot was taken so a waiting request would not hold a seat. When the seat gate
+     * then refuses, give the slot back: otherwise seat contention would spend the shared
+     * minute's allowance on requests that never reached the gateway.
+     */
+    await ratePool.release(userId, rate.bucket);
     return { kind: 'rejected', admission };
   }
   req._timePackSeatHeld = true;

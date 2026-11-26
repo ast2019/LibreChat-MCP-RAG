@@ -24,7 +24,7 @@ type Runtime = Required<TTimePackRuntime>;
 export type TimePackRateRejection = 'user_share' | 'global_full';
 
 export type TimePackRateResult =
-  | { allowed: true; globalCount: number; userCount: number; limit: number }
+  | { allowed: true; globalCount: number; userCount: number; limit: number; bucket: number }
   | {
       allowed: false;
       reason: TimePackRateRejection;
@@ -33,6 +33,7 @@ export type TimePackRateResult =
       limit: number;
       /** How long the caller may wait for capacity, in milliseconds. */
       retryAfterMs: number;
+      bucket: number;
     };
 
 export interface TimePackRatePoolDeps {
@@ -44,6 +45,15 @@ export interface TimePackRatePoolDeps {
 export interface TimePackRatePool {
   /** Takes one slot from the shared allowance when both the global cap and the user share allow. */
   acquire: (userId: string, runtime: RuntimeInput) => Promise<TimePackRateResult>;
+  /**
+   * Returns one previously acquired slot to the shared allowance.
+   *
+   * Used when a request took a rate slot and then failed a later gate (seat admission): the
+   * slot must not stay spent, or seat contention would starve the gateway allowance for users
+   * who could still run. `bucket` is the window from the matching {@link acquire} result so a
+   * release that crosses the minute boundary still touches the window that was charged.
+   */
+  release: (userId: string, bucket: number) => Promise<void>;
   /** The number of requests taken in the current window, globally and for one user. */
   read: (userId: string) => Promise<{ globalCount: number; userCount: number }>;
   /** The clock the pool reads, so a caller shares one notion of time with it. */
@@ -102,6 +112,25 @@ end
 return {globalCount, userCount, 1}
 `;
 
+/**
+ * Returns one slot to both counters without letting either go negative. The keys keep their
+ * existing TTL: a release must not extend or clear the minute window.
+ *
+ * KEYS: global counter, user counter.
+ */
+const RELEASE_SCRIPT = `
+local globalKey = KEYS[1]
+local userKey = KEYS[2]
+local globalCount = tonumber(redis.call('GET', globalKey) or '0')
+local userCount = tonumber(redis.call('GET', userKey) or '0')
+if globalCount > 0 then
+  redis.call('DECR', globalKey)
+end
+if userCount > 0 then
+  redis.call('DECR', userKey)
+end
+`;
+
 function globalKey(bucket: number): string {
   return `${CacheKeys.TIME_PACK_RATE}:{time_pack}:global:${bucket}`;
 }
@@ -141,6 +170,7 @@ export function createTimePackRatePool(deps: TimePackRatePoolDeps): TimePackRate
         userCount: userCount - 1,
         limit: runtime.requestsPerMinute,
         retryAfterMs: Math.max(0, windowEndMs(bucket) - at),
+        bucket,
       };
     }
     return {
@@ -148,7 +178,24 @@ export function createTimePackRatePool(deps: TimePackRatePoolDeps): TimePackRate
       globalCount,
       userCount,
       limit: runtime.requestsPerMinute,
+      bucket,
     };
+  }
+
+  function releaseMemory(userId: string, bucket: number): void {
+    const nextGlobal = (memoryGlobal.get(bucket) ?? 0) - 1;
+    if (nextGlobal <= 0) {
+      memoryGlobal.delete(bucket);
+    } else {
+      memoryGlobal.set(bucket, nextGlobal);
+    }
+    const memKey = userMemoryKey(userId, bucket);
+    const nextUser = (memoryUsers.get(memKey) ?? 0) - 1;
+    if (nextUser <= 0) {
+      memoryUsers.delete(memKey);
+    } else {
+      memoryUsers.set(memKey, nextUser);
+    }
   }
 
   async function acquireRedis(
@@ -175,6 +222,7 @@ export function createTimePackRatePool(deps: TimePackRatePoolDeps): TimePackRate
         globalCount: Number(globalCount),
         userCount: Number(userCount),
         limit: runtime.requestsPerMinute,
+        bucket,
       };
     }
     /** The script rolled both counters back; the reply still holds the pre-rollback counts. */
@@ -186,18 +234,29 @@ export function createTimePackRatePool(deps: TimePackRatePoolDeps): TimePackRate
       userCount: Number(userCount) - 1,
       limit: runtime.requestsPerMinute,
       retryAfterMs: Math.max(0, windowEndMs(bucket) - at),
+      bucket,
     };
+  }
+
+  async function releaseRedis(
+    redis: RedisScriptClient,
+    userId: string,
+    bucket: number,
+  ): Promise<void> {
+    await evalScript(redis, RELEASE_SCRIPT, 2, globalKey(bucket), userKey(userId, bucket));
   }
 
   return {
     async acquire(userId, runtimeInput) {
       const runtime = resolveTimePackRuntime(runtimeInput);
+      const bucket = windowBucket(now());
       if (!userId) {
         return {
           allowed: true,
           globalCount: 0,
           userCount: 0,
           limit: runtime.requestsPerMinute,
+          bucket,
         };
       }
       const redis = deps.redis();
@@ -218,7 +277,25 @@ export function createTimePackRatePool(deps: TimePackRatePoolDeps): TimePackRate
           globalCount: 0,
           userCount: 0,
           limit: runtime.requestsPerMinute,
+          bucket,
         };
+      }
+    },
+
+    async release(userId, bucket) {
+      if (!userId || !Number.isFinite(bucket)) {
+        return;
+      }
+      const redis = deps.redis();
+      if (redis == null) {
+        releaseMemory(userId, bucket);
+        return;
+      }
+      try {
+        await releaseRedis(redis, userId, bucket);
+      } catch (error) {
+        /** The minute window still expires; a lost refund only under-counts capacity briefly. */
+        logger.error('[timeRate] release failed', error);
       }
     },
 

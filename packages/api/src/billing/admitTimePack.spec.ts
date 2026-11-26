@@ -8,6 +8,7 @@ import {
   admitTimePackRequest,
 } from './admitTimePack';
 import { resolveTimePackRoute, resolveTimePackTarget } from './route';
+import { createTimePackRatePool } from './timeRate';
 import { createTimeSeatPool } from './timeSeats';
 
 const timePack: TBalancePack = {
@@ -235,6 +236,40 @@ describe('admitTimePackForRequest', () => {
       }),
     ).resolves.toEqual({ kind: 'none' });
     expect(req._timePackEntitlement).toBeNull();
+  });
+
+  it('returns the rate slot when the seat pool refuses, so seat contention does not starve the minute', async () => {
+    const pool = memoryPool();
+    const ratePool = createTimePackRatePool({ redis: () => null });
+    const noop = jest.fn();
+    await admitTimePackRequest({
+      userId: 'a',
+      leaseId: 'a1',
+      balance,
+      abortLease: noop,
+      pool,
+    });
+    await admitTimePackRequest({
+      userId: 'b',
+      leaseId: 'b1',
+      balance,
+      abortLease: noop,
+      pool,
+    });
+
+    const req = request(entitled('c'));
+    await expect(
+      admitTimePackForRequest(req, {
+        endpoint: 'ClaudeTime',
+        model: 'claude-opus-5-5',
+        leaseId: 'c1',
+        abortLease: noop,
+        pool,
+        ratePool,
+      }),
+    ).resolves.toMatchObject({ kind: 'rejected', admission: { reason: 'full' } });
+
+    expect(await ratePool.read('c')).toEqual({ globalCount: 0, userCount: 0 });
   });
 });
 
