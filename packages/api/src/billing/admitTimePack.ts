@@ -160,6 +160,18 @@ export async function admitTimePackForRequest(
   const balance = req.config?.balance;
   const route = resolveTimePackRoute({ user: req.user, endpoint, model, packs: balance?.packs });
   if (route.kind === 'none') {
+    if (endpoint === 'ClaudeTime') {
+      logger.debug('[timePack] route none for ClaudeTime (credits path)', {
+        userId: req.user?.id,
+        endpoint,
+        model,
+        hasEntitlement: getActiveTimePackEntitlement(req.user ?? undefined) != null,
+        timePackPacks: (balance?.packs ?? []).filter((pack) => isTimePack(pack)).map((pack) => ({
+          id: pack.id,
+          endpoint: pack.endpoint,
+        })),
+      });
+    }
     return { kind: 'none' };
   }
   if (route.kind === 'denied') {
@@ -299,6 +311,14 @@ export async function admitAgentTimePack(
       req._timePackSeatHeld = false;
       req._timePackLease = null;
       req._timePackEntitlement = null;
+      const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
+      if (endpoint === 'ClaudeTime' || body?.endpoint === 'ClaudeTime') {
+        logger.debug('[timePack] admission skipped (no kind:time pack, no user entitlement)', {
+          userId: req.user?.id,
+          endpoint,
+          model,
+        });
+      }
       return { kind: 'none' };
     }
     logger.warn(

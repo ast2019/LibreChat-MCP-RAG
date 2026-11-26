@@ -1546,18 +1546,33 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       ).catch(() => {});
     }
   };
+  /**
+   * Sync before the first admit. A balance-only grant used to sync only on `denied`; when
+   * `balance.packs` also lacked `kind: time`, admission returned `none`, ClaudeTime still
+   * answered, and BaseClient reserved credits (debug: Balance.check on ClaudeTime, no seat).
+   */
+  if (userId) {
+    try {
+      const synced = await syncUserTimePackFromBalance(
+        { findBalanceByUser, setUserTimePack },
+        userId,
+        req.user,
+      );
+      if (synced != null) {
+        applyGrantedTimePackToUser(req.user, synced);
+      }
+    } catch (error) {
+      logger.warn('[AgentController] Time-pack sync from balance failed:', error);
+    }
+  }
   let timePack = await admitAgentTimePack(req, {
     endpointOption,
     body: req.body,
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
   });
-  /**
-   * Balance may hold an active entitlement the user document never received (grant copy
-   * missed). Sync once and retry so ClaudeTime is not refused while OpenRouter stays hidden
-   * only after the user fields catch up.
-   */
-  if (timePack.kind === 'denied' && userId) {
+  /** Retry after sync if a race left the first admit on a stale user copy. */
+  if ((timePack.kind === 'denied' || timePack.kind === 'none') && userId) {
     try {
       const synced = await syncUserTimePackFromBalance(
         { findBalanceByUser, setUserTimePack },

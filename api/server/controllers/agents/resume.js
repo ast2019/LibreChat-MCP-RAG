@@ -1221,8 +1221,22 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
   };
+  if (userId) {
+    try {
+      const synced = await syncUserTimePackFromBalance(
+        { findBalanceByUser, setUserTimePack },
+        userId,
+        req.user,
+      );
+      if (synced != null) {
+        applyGrantedTimePackToUser(req.user, synced);
+      }
+    } catch (error) {
+      logger.warn('[AgentController] Time-pack sync from balance on resume failed:', error);
+    }
+  }
   let timePack = await admitAgentTimePack(req, timePackTarget);
-  if (timePack.kind === 'denied' && userId) {
+  if ((timePack.kind === 'denied' || timePack.kind === 'none') && userId) {
     try {
       const synced = await syncUserTimePackFromBalance(
         { findBalanceByUser, setUserTimePack },

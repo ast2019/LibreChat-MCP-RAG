@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.9] - 2026-11-26
+
+### Fixed
+- **ClaudeTime still reserved credits when the grant lived only on the Balance record.**
+  Agents admission synced `user.timePack*` from balance only after a `denied` result. When
+  packs also lacked `kind: time`, admission returned `none` with a stale user, skipped the
+  sync, and BaseClient charged the turn (debug on 0.40.8: Claude Opus 5.5 on ClaudeTime +
+  `Balance.check`, still no seat log). Chat and resume now sync from balance before the
+  first admit and retry after sync on `denied` or `none`.
+
 ## [0.40.8] - 2026-11-26
 
 ### Fixed
