@@ -15,8 +15,9 @@ LibreChat versions are tracked separately in `package.json`.
   `sendReservedMessage` while credit Claude still worked. Seat admit could resolve the
   agents route instead of the `timePack` modelSpec preset, leave `_timePackEntitlement`
   unset, then refuse the turn. Admit now reads the ClaudeTime preset from the selected
-  modelSpec; initializeAgent and BaseClient attach a live user entitlement if admit still
-  missed, so holders generate while non-holders still get `time_pack_required`.
+  modelSpec and **never returns `none` for a timePack turn** (holder → seat; no pack →
+  `time_pack_required`). initializeAgent and BaseClient attach a live user entitlement if
+  admit still missed. Credit Claude / OpenRouter stays on `Balance.check`.
 
 ## [0.40.9] - 2026-11-26
 

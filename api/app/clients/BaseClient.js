@@ -1057,17 +1057,14 @@ class BaseClient {
          * so generation does not false-deny with `time_pack_required`; credit Claude is
          * unchanged because this branch only runs for configured time-pack endpoints.
          */
-        const {
-          getActiveTimePackEntitlement,
-          isTimePackClaudeRequest,
-        } = require('librechat-data-provider');
+        const { getActiveTimePackEntitlement } = require('librechat-data-provider');
         const liveEntitlement = getActiveTimePackEntitlement(this.options.req?.user);
+        /** Endpoint match is enough for recovery: model allowlists were (or will be) enforced
+         *  on the admit path; requiring the model id here false-denied holders when
+         *  `modelOptions` was still empty at reservation time. */
         if (
-          isTimePackClaudeRequest({
-            entitlement: liveEntitlement,
-            endpoint: timePackBillingEndpoint,
-            model: this.modelOptions?.model ?? this.model,
-          })
+          liveEntitlement != null &&
+          timePackBillingEndpoint === liveEntitlement.timePackEndpoint
         ) {
           this.options.req._timePackEntitlement = liveEntitlement;
           this.offPackBalance = buildOffPackBalanceGate(liveEntitlement);

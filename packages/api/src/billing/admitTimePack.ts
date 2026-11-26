@@ -17,6 +17,7 @@ import { acquireTimePackRateSlot, getTimePackRatePool } from './timeRate';
 import {
   isConfiguredTimePackEndpoint,
   resolveTimePackRoute,
+  resolveTimePackSpecTarget,
   resolveTimePackTarget,
 } from './route';
 import { abortOwnedGeneration } from '~/user/generations';
@@ -307,12 +308,38 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
-  const { endpoint, model } = await resolveTimePackTarget({
+  let { endpoint, model } = await resolveTimePackTarget({
     endpointOption,
     body,
     config: req.config,
   });
+  /**
+   * Product rule: a `timePack` modelSpec is always the ClaudeTime gateway path. If target
+   * resolution still landed on the agents router (or another non-pack name), force the
+   * preset endpoint so holders seat and non-holders are denied — never `none` → credits.
+   */
+  const fromSpec = resolveTimePackSpecTarget({
+    endpointOption,
+    body,
+    config: req.config,
+  });
+  if (
+    fromSpec.timePack &&
+    fromSpec.endpoint &&
+    (endpoint == null ||
+      endpoint === '' ||
+      endpoint === 'agents' ||
+      endpoint === 'Agents' ||
+      !isConfiguredTimePackEndpoint(endpoint, req.config))
+  ) {
+    endpoint = fromSpec.endpoint;
+    if (model == null || model === '') {
+      model = fromSpec.model;
+    }
+  }
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
+  const timePackTarget =
+    isConfiguredTimePackEndpoint(endpoint, req.config) || fromSpec.timePack === true;
   /**
    * An active entitlement must still reach the seat path when the live pack list lost
    * `kind: time` (admin override). Otherwise ClaudeTime runs as a credited custom endpoint:
@@ -320,7 +347,7 @@ export async function admitAgentTimePack(
    */
   if (!hasTimePackConfig) {
     if (entitlement == null) {
-      if (isConfiguredTimePackEndpoint(endpoint, req.config)) {
+      if (timePackTarget) {
         return denyTimePackRequired(req);
       }
       req._timePackSeatHeld = false;
@@ -337,7 +364,22 @@ export async function admitAgentTimePack(
       },
     );
   }
-  return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool, ratePool });
+  const admission = await admitTimePackForRequest(req, {
+    endpoint,
+    model,
+    leaseId,
+    abortLease,
+    pool,
+    ratePool,
+  });
+  /**
+   * Scenario invariant: ClaudeTime / timePack turns never fall through as `none` (credits).
+   * Holder → seat (or rate/seat reject). No pack → `time_pack_required`.
+   */
+  if (admission.kind === 'none' && timePackTarget) {
+    return denyTimePackRequired(req);
+  }
+  return admission;
 }
 
 /** Stops exactly the generation an evicted lease held, checked against its owner. */

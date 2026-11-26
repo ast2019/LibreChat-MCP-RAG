@@ -398,6 +398,100 @@ describe('admitAgentTimePack when packs lost kind:time', () => {
   });
 });
 
+describe('admitAgentTimePack product scenario (menu + gateway)', () => {
+  const timePackConfig = {
+    balance,
+    modelSpecs: {
+      list: [
+        {
+          name: 'time-smart',
+          timePack: true,
+          group: 'ClaudeTime',
+          preset: { endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' },
+        },
+        {
+          name: 'smart',
+          group: 'Claude',
+          preset: { endpoint: 'OpenRouter', model: '~anthropic/claude-sonnet-latest' },
+        },
+      ],
+    },
+  };
+
+  it('holder + timePack spec on agents route → seats ClaudeTime (not credits)', async () => {
+    const req = {
+      user: entitled('holder'),
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-smart',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-sonnet-5-5' }),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        body: { spec: 'time-smart', endpoint: 'agents' },
+        leaseId: 's-holder',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req._timePackEntitlement).toMatchObject({ timePackEndpoint: 'ClaudeTime' });
+    expect(req._timePackSeatHeld).toBe(true);
+  });
+
+  it('no pack + timePack spec → time_pack_required (never none/credits)', async () => {
+    const req = {
+      user: { id: 'free' },
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-smart',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-sonnet-5-5' }),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        body: { spec: 'time-smart', endpoint: 'agents' },
+        leaseId: 's-free',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toMatchObject({
+      kind: 'denied',
+      body: { code: ErrorTypes.TIME_PACK_REQUIRED },
+    });
+    expect(req._timePackEntitlement).toBeNull();
+  });
+
+  it('OpenRouter Claude credit path stays none (Balance.check), even with a pack', async () => {
+    const req = {
+      user: entitled('holder'),
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'OpenRouter',
+          spec: 'smart',
+          agent: Promise.resolve({
+            provider: 'OpenRouter',
+            model: '~anthropic/claude-sonnet-latest',
+          }),
+          model_parameters: { model: '~anthropic/claude-sonnet-latest' },
+        },
+        body: { spec: 'smart', endpoint: 'OpenRouter' },
+        leaseId: 's-credit',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'none' });
+    expect(req._timePackEntitlement).toBeNull();
+  });
+});
+
 describe('resolveTimePackRoute when packs lost kind:time', () => {
   it('still seats an entitled user on their entitlement endpoint', () => {
     const user = entitled('u');
