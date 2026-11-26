@@ -242,3 +242,35 @@ export function formatTimeUntil(target: Date, now: number, locale?: string): str
   }
   return format.format(Math.ceil(remaining / DAY_MS), 'day');
 }
+
+/**
+ * How long is left, in the two largest units that still matter: "3 days and 4 hours",
+ * "5 hours and 20 minutes", "12 minutes".
+ *
+ * The plan runs for weeks, so "in 30 days" alone says nothing about whether it is worth
+ * renewing today or at the end of the month. Two units give the shape of the remaining time
+ * at a glance, and the pair always shrinks to what the moment still has: days with hours,
+ * hours with minutes, minutes alone.
+ */
+export function formatTimeUntilDetailed(target: Date, now: number, locale?: string): string | null {
+  const remaining = target.getTime() - now;
+  if (!(remaining > 0)) {
+    return null;
+  }
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'always' });
+  const days = Math.floor(remaining / DAY_MS);
+  const hours = Math.floor((remaining % DAY_MS) / HOUR_MS);
+  const minutes = Math.ceil((remaining % HOUR_MS) / MINUTE_MS);
+
+  if (days > 0) {
+    return hours > 0
+      ? `${format.format(days, 'day')} ${format.format(hours, 'hour')}`
+      : format.format(days, 'day');
+  }
+  if (remaining >= 2 * HOUR_MS) {
+    return minutes > 0
+      ? `${format.format(hours, 'hour')} ${format.format(minutes, 'minute')}`
+      : format.format(hours, 'hour');
+  }
+  return format.format(Math.max(1, minutes), 'minute');
+}

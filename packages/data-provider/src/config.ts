@@ -4119,6 +4119,25 @@ export const DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS = 5_000_000;
  * every third of this, so a process that dies mid-generation frees its seat within this time.
  */
 export const DEFAULT_TIME_PACK_LEASE_SECONDS = 120;
+
+/**
+ * The upstream gateway's own ceiling for the whole ClaudeTime key: 60 requests a minute,
+ * shared by every user of the plan. The limit belongs to the key, not to a person, so it is
+ * enforced globally and shared out between the entitled users.
+ */
+export const DEFAULT_TIME_PACK_REQUESTS_PER_MINUTE = 60;
+/**
+ * The share of the global allowance one user may take in the same window. The gateway's
+ * ceiling is a road with a fixed capacity: one user must not be able to use it all, and the
+ * rest must not be locked out either. With 60 a minute and 4 seats, 20 leaves room for the
+ * other three holders and for a retrying client.
+ */
+export const DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE = 20;
+/**
+ * How long a request waits for the shared capacity before it is refused, in milliseconds.
+ * The gateway queues, so a short wait here turns a refusal into a slightly slower answer.
+ */
+export const DEFAULT_TIME_PACK_RATE_WAIT_MS = 15_000;
 /**
  * What seat admission does when Redis errors: `memory` admits against this process's own pool
  * (exact for a single api instance, at most `maxSeats` per instance otherwise); `reject` refuses
@@ -4164,6 +4183,30 @@ export const timePackRuntimeSchema = z.object({
     .max(60 * 60)
     .optional()
     .default(DEFAULT_TIME_PACK_LEASE_SECONDS),
+  /** The gateway's ceiling for the whole key, in requests per minute, shared by every user. */
+  requestsPerMinute: z
+    .number()
+    .int()
+    .min(1)
+    .max(100_000)
+    .optional()
+    .default(DEFAULT_TIME_PACK_REQUESTS_PER_MINUTE),
+  /** The share of `requestsPerMinute` one user may take in the same window. */
+  userSharePerMinute: z
+    .number()
+    .int()
+    .min(1)
+    .max(100_000)
+    .optional()
+    .default(DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE),
+  /** How long a request waits for the shared capacity before it is refused. */
+  rateWaitMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(120_000)
+    .optional()
+    .default(DEFAULT_TIME_PACK_RATE_WAIT_MS),
   redisFailure: z
     .enum(TIME_PACK_REDIS_FAILURE_MODES)
     .optional()
@@ -5486,6 +5529,10 @@ export enum CacheKeys {
    */
   TIME_PACK_COOLDOWN = 'TIME_PACK_COOLDOWN',
   /**
+   * The shared request allowance for the whole ClaudeTime key, and each user's share of it.
+   */
+  TIME_PACK_RATE = 'TIME_PACK_RATE',
+  /**
    * Key for s3 check intervals per user
    */
   S3_EXPIRY_INTERVAL = 'S3_EXPIRY_INTERVAL',
@@ -5678,6 +5725,10 @@ export enum ErrorTypes {
    * The request targets a time-pack endpoint (e.g. `ClaudeTime`) without an active time pack.
    */
   TIME_PACK_REQUIRED = 'time_pack_required',
+  /**
+   * The shared request allowance of the time pack is exhausted for this window.
+   */
+  TIME_PACK_RATE_LIMITED = 'time_pack_rate_limited',
   /**
    * Missing model selection
    */

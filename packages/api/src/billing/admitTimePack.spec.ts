@@ -28,6 +28,9 @@ const balance: Partial<TBalanceConfig> = {
     usageWindowHours: 24,
     oversellMinMeteredCredits: 100,
     leaseSeconds: 60,
+    requestsPerMinute: 60,
+    userSharePerMinute: 20,
+    rateWaitMs: 15_000,
     redisFailure: 'memory',
   },
 };

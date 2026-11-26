@@ -11,6 +11,7 @@ jest.mock('~/hooks/useLocalize', () => ({
 }));
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: mockStartupConfig }),
+  useGetTimePackStatus: () => ({ data: undefined }),
 }));
 jest.mock('~/hooks/useBalanceSummary', () => ({
   __esModule: true,
@@ -19,6 +20,10 @@ jest.mock('~/hooks/useBalanceSummary', () => ({
 jest.mock('../Summary', () => ({
   __esModule: true,
   default: () => <div data-testid="balance-summary" />,
+}));
+jest.mock('../TimePackStatus', () => ({
+  __esModule: true,
+  default: () => <div data-testid="time-pack-status" />,
 }));
 
 const summary = (showPrices: boolean) => ({

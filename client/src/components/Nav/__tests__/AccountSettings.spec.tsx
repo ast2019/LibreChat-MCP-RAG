@@ -42,6 +42,22 @@ const withBalance = (fields: { tokenCredits: number; packAllotment?: number }): 
   };
 };
 
+const withTimePack = (): BalanceView => {
+  const balance: TBalanceResponse = {
+    autoRefillEnabled: false,
+    tokenCredits: 0,
+    timePackId: 'tp1',
+    timePackLabel: 'Claude month',
+    timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+    timePackEndpoint: 'ClaudeTime',
+  };
+  return {
+    enabled: true,
+    state: { status: 'success', summary: summarizeBalance(balance, { startBalance: 200_000 }) },
+    balance,
+  };
+};
+
 const renderAccount = (collapsed = true) =>
   render(
     <MemoryRouter>
@@ -120,6 +136,18 @@ describe('AccountSettings', () => {
     expect(screen.getByTestId('pack-ring')).toBeInTheDocument();
     expect(ringPercent()).toBe(75);
     expect(screen.getByTestId('nav-user')).toHaveAccessibleDescription('75% of your credit left');
+  });
+
+  it('burns the avatar while the time plan runs', () => {
+    mockBalanceView.mockReturnValue(withTimePack());
+    renderAccount();
+    expect(screen.getByTestId('time-pack-flame')).toBeInTheDocument();
+  });
+
+  it('does not burn the avatar without the time plan', () => {
+    mockBalanceView.mockReturnValue(withBalance({ tokenCredits: 150_000 }));
+    renderAccount();
+    expect(screen.queryByTestId('time-pack-flame')).not.toBeInTheDocument();
   });
 
   it.each([

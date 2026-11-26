@@ -372,6 +372,91 @@ html.high-contrast.dark .btn-neutral:hover {
   background-image: none;
 }
 
+/* Animated flame halo around the avatar of a user whose Claude time plan is active. The paint
+ * cannot be expressed with utilities: an animated conic gradient needs keyframes and a mask,
+ * and the sweep has to keep moving to read as fire. */
+.time-pack-flame-glow {
+  background-image: conic-gradient(
+    from 0deg,
+    rgb(var(--status-error)) 0deg,
+    rgb(var(--status-warning)) 40deg,
+    rgb(var(--status-error)) 90deg,
+    rgb(var(--status-warning)) 150deg,
+    rgb(var(--status-error)) 220deg,
+    rgb(var(--status-warning)) 290deg,
+    rgb(var(--status-error)) 360deg
+  );
+  -webkit-mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.5px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.5px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-repeat: no-repeat;
+  filter: drop-shadow(0 0 3px rgb(var(--status-warning) / 0.75));
+  animation: time-pack-flame-spin 1.6s linear infinite;
+}
+
+/* The halo burns unevenly: a second, counter-rotating layer under the first keeps the edge
+ * from looking like a plain rotating ring. */
+.time-pack-flame-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background-image: conic-gradient(
+    from 180deg,
+    rgb(var(--status-warning)) 0deg,
+    rgb(var(--status-error)) 60deg,
+    transparent 140deg,
+    rgb(var(--status-warning)) 240deg,
+    transparent 320deg
+  );
+  -webkit-mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.5px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-image: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.5px),
+    rgb(var(--text-primary)) calc(100% - 2px)
+  );
+  mask-repeat: no-repeat;
+  animation: time-pack-flame-flicker 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes time-pack-flame-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes time-pack-flame-flicker {
+  from {
+    opacity: 0.35;
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: rotate(180deg) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .time-pack-flame-glow,
+  .time-pack-flame-glow::after {
+    animation: none;
+  }
+}
+
 .ellipsis {
   overflow: hidden;
   white-space: nowrap;

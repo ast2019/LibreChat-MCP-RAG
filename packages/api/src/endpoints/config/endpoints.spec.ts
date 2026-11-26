@@ -633,3 +633,54 @@ describe('defaultAgentCapabilities', () => {
     expect(defaultAgentCapabilities).toContain(AgentCapabilities.skills);
   });
 });
+
+describe('time-pack endpoint visibility', () => {
+  const FUTURE = '2099-01-01T00:00:00.000Z';
+
+  const timePackConfig = () =>
+    appConfig({
+      endpoints: {},
+      balance: {
+        packs: [{ kind: 'time', id: 'tp1', durationDays: 30, endpoint: 'ClaudeTime' }],
+      },
+    });
+
+  const customEndpoints = {
+    ClaudeTime: { type: EModelEndpoint.custom, userProvide: false },
+    Other: { type: EModelEndpoint.custom, userProvide: false },
+  };
+
+  it('hides the plan endpoint from a user without the entitlement', async () => {
+    const deps = createMockDeps({
+      getAppConfig: jest.fn().mockResolvedValue(timePackConfig()),
+      loadCustomEndpointsConfig: jest.fn().mockReturnValue({ ...customEndpoints }),
+    });
+    const { getEndpointsConfig } = createEndpointsConfigService(deps);
+
+    const result = await getEndpointsConfig(fakeReq({ user: { id: 'user-1' } }));
+
+    expect(result).not.toHaveProperty('ClaudeTime');
+    expect(result).toHaveProperty('Other');
+  });
+
+  it('offers the plan endpoint to a holder of the entitlement', async () => {
+    const deps = createMockDeps({
+      getAppConfig: jest.fn().mockResolvedValue(timePackConfig()),
+      loadCustomEndpointsConfig: jest.fn().mockReturnValue({ ...customEndpoints }),
+    });
+    const { getEndpointsConfig } = createEndpointsConfigService(deps);
+
+    const result = await getEndpointsConfig(
+      fakeReq({
+        user: {
+          id: 'user-1',
+          timePackId: 'tp1',
+          timePackExpiresAt: FUTURE,
+          timePackEndpoint: 'ClaudeTime',
+        } as unknown as { id: string },
+      }),
+    );
+
+    expect(result).toHaveProperty('ClaudeTime');
+  });
+});

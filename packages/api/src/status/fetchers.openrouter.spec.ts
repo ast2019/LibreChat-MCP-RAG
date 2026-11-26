@@ -8,7 +8,7 @@ import {
 
 function http(routes: Record<string, { status: number; data: unknown }>): ChainHttp {
   return {
-    async request<T>(init) {
+    async request<T>(init: { url: string }) {
       const route = routes[init.url];
       if (!route) {
         throw Object.assign(new Error(`unexpected ${init.url}`), { code: 'unexpected_url' });

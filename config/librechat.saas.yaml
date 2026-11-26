@@ -167,6 +167,16 @@ balance:
     # On a Redis error: memory = admit against this process's pool (exact with one api
     # container); reject = refuse with reason "unavailable".
     redisFailure: memory
+    # The upstream gateway's own ceiling for the whole ClaudeTime key: 60 requests a minute,
+    # shared by every holder of the plan. Enforced per key, not per user, so the counter is
+    # global and each user may take only `userSharePerMinute` of it.
+    requestsPerMinute: 60
+    # With 60 a minute and 4 seats, 20 leaves room for the other three holders and for a
+    # client retrying a 429.
+    userSharePerMinute: 20
+    # How long a request waits for a slot of the shared allowance before it is refused.
+    # The gateway queues its own traffic, so waiting is better than refusing.
+    rateWaitMs: 15000
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'

@@ -12,6 +12,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { ServerRequest, TCustomEndpointsConfig } from '~/types';
 import type { GetAppConfigOptions } from '~/app/service';
 import { loadCustomEndpointsConfig as defaultLoadCustomEndpoints } from '~/endpoints/custom';
+import { hasActiveTimePack, timePackEndpointNames } from '~/app/timePack';
 import { isCodeEnvironmentSelectionEnabled } from '~/code/protocol';
 import { getAppConfigOptionsFromUser } from '~/app/service';
 import { getResponsesApiRouting } from './responses';
@@ -40,6 +41,19 @@ export function createEndpointsConfigService(deps: EndpointsConfigDeps): {
     const appConfig = req.config ?? (await getAppConfig(getAppConfigOptionsFromUser(req.user)));
     const defaultEndpointsConfig = await loadDefaultEndpointsConfig(appConfig);
     const customEndpointsConfig = loadCustomEndpointsConfig(appConfig?.endpoints?.custom);
+
+    /**
+     * The plan's endpoint is only in the menu for its holders. A user without the plan must not
+     * see it offered, so the endpoint is dropped from the list the client reads; the admission
+     * refuses such a call anyway, but a menu that offers it is a leak of the plan's shape.
+     */
+    const timePackEndpoints = new Set(timePackEndpointNames(appConfig));
+    const timePackActive = hasActiveTimePack(req.user);
+    if (!timePackActive && timePackEndpoints.size > 0) {
+      for (const name of timePackEndpoints) {
+        delete customEndpointsConfig?.[name];
+      }
+    }
 
     const mergedConfig: MutableEndpointsConfig = {
       ...defaultEndpointsConfig,

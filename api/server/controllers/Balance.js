@@ -2,9 +2,13 @@ const {
   syncUserTimePackFromBalance,
   applyGrantedTimePackToUser,
   grantedTimePackFromBalance,
+  readTimePackStatus,
+  getTimePackEntitlement,
+  getAppConfigOptionsFromUser,
 } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { findBalanceByUser, setUserTimePack } = require('~/models');
+const { getAppConfig } = require('~/server/services/Config');
 
 async function balanceController(req, res) {
   const balanceLocals = res.locals || {};
@@ -50,4 +54,28 @@ async function balanceController(req, res) {
   res.status(200).json(result);
 }
 
+/**
+ * The live capacity of the shared plan: how many seats are in use and how much of the shared
+ * request rate the key has spent this minute. Only a holder of the plan gets an answer; anyone
+ * else is told there is nothing to see, so the plan's internals stay invisible to them.
+ */
+async function timePackStatus(req, res) {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const appConfig = await getAppConfig(getAppConfigOptionsFromUser(req.user));
+  const balance = appConfig?.balance;
+  const entitlement = getTimePackEntitlement(req.user, balance?.packs);
+  if (entitlement == null) {
+    return res.status(200).json({ active: false });
+  }
+  const status = await readTimePackStatus({
+    userId,
+    runtime: balance?.timePack,
+  });
+  res.status(200).json({ active: true, ...status });
+}
+
 module.exports = balanceController;
+module.exports.timePackStatus = timePackStatus;

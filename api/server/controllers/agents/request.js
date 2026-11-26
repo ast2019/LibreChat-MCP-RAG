@@ -1582,6 +1582,13 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     startupTelemetry?.end('rejected');
     return sendGenerationJson(res, timePack.status, timePack.body, generationProtocolVersion);
   }
+  if (timePack.kind === 'rate_limited') {
+    await releaseOwnedClaim();
+    const retryAfterSeconds = Math.max(1, Math.ceil(timePack.body.retryAfterMs / 1000));
+    res.set('Retry-After', String(retryAfterSeconds));
+    startupTelemetry?.end('rejected');
+    return sendGenerationJson(res, 429, timePack.body, generationProtocolVersion);
+  }
   if (timePack.kind === 'rejected') {
     const { admission } = timePack;
     await releaseOwnedClaim();
