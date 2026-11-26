@@ -7,6 +7,7 @@ const {
   EModelEndpoint,
   ViolationTypes,
   PermissionBits,
+  getActiveTimePackEntitlement,
 } = require('librechat-data-provider');
 const {
   checkAccess,
@@ -118,6 +119,24 @@ const {
   negotiateNewGenerationProtocol,
   negotiateExistingGenerationProtocol,
 } = require('./protocol');
+
+async function syncUserTimePackEntitlementFromBalance(req, userId) {
+  if (!userId || getActiveTimePackEntitlement(req.user) != null) {
+    return;
+  }
+  try {
+    const synced = await syncUserTimePackFromBalance(
+      { findBalanceByUser, setUserTimePack },
+      userId,
+      req.user,
+    );
+    if (synced != null) {
+      applyGrantedTimePackToUser(req.user, synced);
+    }
+  } catch (error) {
+    logger.warn('[AgentController] Time-pack sync from balance before resume admit failed:', error);
+  }
+}
 
 function sendGenerationJson(res, status, body, generationProtocolVersion) {
   if (typeof res.set === 'function') {
@@ -1221,20 +1240,12 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
     leaseId: streamId,
     abortLease: abortTimePackLease(GenerationJobManager),
   };
+  await syncUserTimePackEntitlementFromBalance(req, userId);
   let timePack = await admitAgentTimePack(req, timePackTarget);
   if (timePack.kind === 'denied' && userId) {
-    try {
-      const synced = await syncUserTimePackFromBalance(
-        { findBalanceByUser, setUserTimePack },
-        userId,
-        req.user,
-      );
-      if (synced != null) {
-        applyGrantedTimePackToUser(req.user, synced);
-        timePack = await admitAgentTimePack(req, timePackTarget);
-      }
-    } catch (error) {
-      logger.warn('[AgentController] Time-pack sync from balance on resume failed:', error);
+    await syncUserTimePackEntitlementFromBalance(req, userId);
+    if (getActiveTimePackEntitlement(req.user) != null) {
+      timePack = await admitAgentTimePack(req, timePackTarget);
     }
   }
   if (timePack.kind === 'denied') {

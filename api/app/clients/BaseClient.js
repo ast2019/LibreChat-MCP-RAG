@@ -24,6 +24,7 @@ const {
   isToolOwnedAttachment,
   withBalanceReservations,
   createOffPackBalanceGate,
+  isConfiguredTimePackEndpoint,
   findCheckpointSummaryPart,
   getSummaryPartText,
   resolveCheckpointMessage,
@@ -1039,6 +1040,22 @@ class BaseClient {
     }
     let completionResult;
     try {
+      const timePackBillingEndpoint =
+        this.options.agent?.endpoint ??
+        (this.options.endpoint !== EModelEndpoint.agents ? this.options.endpoint : null);
+      if (
+        balanceConfig?.enabled &&
+        this.options.req?._timePackEntitlement == null &&
+        timePackBillingEndpoint != null &&
+        isConfiguredTimePackEndpoint(timePackBillingEndpoint, appConfig)
+      ) {
+        throw new Error(
+          JSON.stringify({
+            type: ErrorTypes.TIME_PACK_REQUIRED,
+            code: ErrorTypes.TIME_PACK_REQUIRED,
+          }),
+        );
+      }
       if (
         balanceConfig?.enabled &&
         this.options.req?._timePackEntitlement == null &&

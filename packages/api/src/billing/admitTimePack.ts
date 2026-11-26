@@ -14,7 +14,11 @@ import type { OwnedGenerationControl } from '~/user/generations';
 import type { TimePackRatePool } from './timeRate';
 import { getTimeSeatPool, startTimeSeatHeartbeat, timePackViolationType } from './timeSeats';
 import { acquireTimePackRateSlot, getTimePackRatePool } from './timeRate';
-import { resolveTimePackRoute, resolveTimePackTarget } from './route';
+import {
+  isConfiguredTimePackEndpoint,
+  resolveTimePackRoute,
+  resolveTimePackTarget,
+} from './route';
 import { abortOwnedGeneration } from '~/user/generations';
 
 /** Whether this agents request should use the Claude time-pack seat path. */
@@ -108,6 +112,21 @@ export type TimePackRequestLike = TimePackRequestState & {
   user?: (TimePackAdmitUser & { tenantId?: string }) | null;
   config?: { balance?: Partial<TBalanceConfig> | null } | null;
 };
+
+function denyTimePackRequired(req: TimePackRequestLike): {
+  kind: 'denied';
+  status: 403;
+  body: { type: ErrorTypes.TIME_PACK_REQUIRED; code: ErrorTypes.TIME_PACK_REQUIRED };
+} {
+  req._timePackSeatHeld = false;
+  req._timePackLease = null;
+  req._timePackEntitlement = null;
+  return {
+    kind: 'denied',
+    status: 403,
+    body: { type: ErrorTypes.TIME_PACK_REQUIRED, code: ErrorTypes.TIME_PACK_REQUIRED },
+  };
+}
 
 export type TimePackRequestAdmission =
   | { kind: 'none' }
@@ -288,14 +307,18 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
+  const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
+  const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
   /**
    * An active entitlement must still reach the seat path when the live pack list lost
    * `kind: time` (admin override). Otherwise ClaudeTime runs as a credited custom endpoint:
    * Balance.check reserves tokens, seats stay at 0, and debug shows no `[timePack]` lines.
    */
   if (!hasTimePackConfig) {
-    const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
     if (entitlement == null) {
+      if (isConfiguredTimePackEndpoint(endpoint, req.config)) {
+        return denyTimePackRequired(req);
+      }
       req._timePackSeatHeld = false;
       req._timePackLease = null;
       req._timePackEntitlement = null;
@@ -310,7 +333,6 @@ export async function admitAgentTimePack(
       },
     );
   }
-  const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
   return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool, ratePool });
 }
 
