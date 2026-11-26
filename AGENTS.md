@@ -1,5 +1,15 @@
 # LibreChat contributor and agent guidance
 
+## Scope discipline, test-first, evidence before claims
+
+Before starting any multi-feature task, read
+[`docs/plans/scope-discipline-prompt.md`](docs/plans/scope-discipline-prompt.md)
+(Persian: `docs/plans/scope-discipline-prompt-fa.md`). It governs how work in
+this repository is planned, sized, tested and reported: state the plan and a
+split before coding, write the spec before any limit/rate/failure contract,
+prove every status claim with a command, and never bypass a gate with
+`--no-verify`.
+
 `AGENTS.md` is the repository's contributor guidance. Backend code lives in `packages/api`
 (TypeScript) and `packages/data-schemas` (database methods); `api` is legacy Express wiring.
 Shared API types and services live in `packages/data-provider`, and the React app lives in
