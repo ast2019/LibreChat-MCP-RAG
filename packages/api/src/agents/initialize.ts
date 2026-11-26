@@ -1431,12 +1431,22 @@ export async function initializeAgent(
       `{ "type": "${ErrorTypes.INVALID_AGENT_PROVIDER}", "info": "${agent.provider}" }`,
     );
   }
+  /**
+   * Pin the configured endpoint name before any SDK provider swap. `getProviderConfig`
+   * rewrites `agent.provider` to the backing client (`anthropic` for ClaudeTime); time-pack
+   * routing and BaseClient billing must keep reading the gateway name from `agent.endpoint`.
+   * Prefer an endpoint already set (re-entry / post-swap agent) over provider.
+   */
+  if (agent.endpoint == null || agent.endpoint === '') {
+    agent.endpoint = agent.provider;
+  }
   /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs
    * the user's active entitlement; the controllers reject the primary one earlier. */
   {
+    const timePackEndpoint = agent.endpoint || agent.provider;
     const timePackRoute = resolveTimePackRoute({
       user,
-      endpoint: agent.provider,
+      endpoint: timePackEndpoint,
       model: agent.model ?? agent.model_parameters?.model,
       packs: appConfig?.balance?.packs,
     });
@@ -1459,7 +1469,7 @@ export async function initializeAgent(
           '[timePack] Attached entitlement during initializeAgent after missed admit; seat may be uncounted',
           {
             userId: user?.id,
-            endpoint: agent.provider,
+            endpoint: timePackEndpoint,
             timePackId: timePackRoute.entitlement.timePackId,
           },
         );
@@ -1618,8 +1628,13 @@ export async function initializeAgent(
   const effectiveToolNames =
     extraAllowedToolNames.length > 0 ? [...baseToolNames, ...extraAllowedToolNames] : baseToolNames;
   const requestedToolNames = effectiveToolNames;
-  const provider = agent.provider;
-  agent.endpoint = provider;
+  /** Configured gateway name (e.g. ClaudeTime) — already pinned above for time-pack routing.
+   * Do not overwrite with a post-swap SDK provider (`anthropic`); BaseClient fail-closed
+   * keys on `agent.endpoint` matching the pack's timePackEndpoint. */
+  const provider = agent.endpoint || agent.provider;
+  if (agent.endpoint == null || agent.endpoint === '') {
+    agent.endpoint = provider;
+  }
 
   /** Settle the provider and its client options before any attachment is judged. The file
    * policy reads the endpoint's own name, but the route each attachment takes also depends on
