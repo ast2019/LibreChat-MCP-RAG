@@ -17,7 +17,9 @@ import { evalScript } from '~/cache/redisScript';
  * All keys share the `{time_pack}` hash tag so the scripts stay on one Redis Cluster slot.
  */
 
-type RuntimeInput = Partial<TTimePackRuntime> | null | undefined;
+/** The runtime settings of the plan, as the config gives them: every field may be missing. */
+export type TimePackRuntimeInput = Partial<TTimePackRuntime> | null | undefined;
+type RuntimeInput = TimePackRuntimeInput;
 type Runtime = Required<TTimePackRuntime>;
 
 export type TimeSeatRejectReason = 'cooldown' | 'held' | 'full' | 'unavailable';
@@ -88,9 +90,21 @@ export interface TimeSeatPool {
   getMeteredCredits: (userId: string) => Promise<number>;
   /** Users holding at least one live lease. */
   listHolders: () => Promise<string[]>;
+  /** How full the shared pool is right now, for the holder's own view of the plan. */
+  readStatus: (runtime: RuntimeInput) => Promise<TimeSeatStatus>;
   /** Test-only: clears the in-memory pool. */
   resetMemory: () => void;
 }
+
+/** How much of the shared pool is in use, and how much of the request rate is spent. */
+export type TimeSeatStatus = {
+  /** Generations holding a seat right now. */
+  activeSeats: number;
+  /** The pool's seat ceiling. */
+  maxSeats: number;
+  /** How many of the ceiling the plan's own holders occupy. */
+  holders: number;
+};
 
 const MEMBER_SEPARATOR = '|';
 
@@ -533,6 +547,30 @@ export function createTimeSeatPool(deps: TimeSeatPoolDeps): TimeSeatPool {
       }
       pruneMemory(now());
       return [...new Set([...memoryLeases.keys()].map((member) => parseMember(member).userId))];
+    },
+
+    async readStatus(runtimeInput) {
+      const runtime = resolveTimePackRuntime(runtimeInput);
+      const at = now();
+      const redis = deps.redis();
+      if (redis != null) {
+        try {
+          const members = await redis.zrangebyscore(leasesKey(), `(${at}`, '+inf');
+          return {
+            activeSeats: members.length,
+            maxSeats: runtime.maxSeats,
+            holders: new Set(members.map((member) => parseMember(member).userId)).size,
+          };
+        } catch (error) {
+          logger.error('[timeSeats] status read failed; reporting the pool as empty', error);
+        }
+      }
+      pruneMemory(at);
+      return {
+        activeSeats: memoryLeases.size,
+        maxSeats: runtime.maxSeats,
+        holders: new Set([...memoryLeases.keys()].map((member) => parseMember(member).userId)).size,
+      };
     },
 
     resetMemory() {

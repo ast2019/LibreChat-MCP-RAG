@@ -45,6 +45,8 @@ export const user = () => `${BASE_URL}/api/user`;
 export const userPreferences = () => `${user()}/preferences`;
 
 export const balance = () => `${BASE_URL}/api/balance`;
+/** The live capacity of the shared time plan: seats in use and the request rate spent. */
+export const timePackStatus = () => `${balance()}/time-pack/status`;
 
 export const userPlugins = () => `${BASE_URL}/api/user/plugins`;
 

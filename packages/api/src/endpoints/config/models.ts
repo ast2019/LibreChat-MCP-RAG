@@ -11,6 +11,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { ServerRequest, GetUserKeyValuesFunction, UserKeyValues } from '~/types';
 import type { FetchModelsParams } from '~/endpoints/models';
 import type { GetAppConfigOptions } from '~/app/service';
+import { filterModelsForTimePack, hasActiveTimePack, timePackEndpointNames } from '~/app/timePack';
 import { fetchModels as defaultFetchModels } from '~/endpoints/models';
 import { getTokenConfigKey } from '~/endpoints/custom/initialize';
 import { getAppConfigOptionsFromUser } from '~/app/service';
@@ -93,6 +94,13 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
       return {};
     }
 
+    /**
+     * A holder of the plan sees the plan's Claude models, not the credit-path ones: the plan
+     * serves the same family without spending credit, and two menus with the same models in
+     * them invite the more expensive one. The plan's own endpoint keeps its full list.
+     */
+    const timePackEndpoints = new Set(timePackEndpointNames(appConfig));
+    const timePackActive = hasActiveTimePack(req.user);
     const modelsConfig: TModelsConfig = {};
     const azureConfig = appConfig.endpoints?.[EModelEndpoint.azureOpenAI];
     const { modelNames } = azureConfig ?? {};
@@ -326,6 +334,25 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
             }
           }
         }
+      }
+    }
+
+    /**
+     * A holder of the plan does not see the credit-path Claude models of the other endpoints:
+     * the plan serves the same family without spending credit, and two menus with the same
+     * models in them invite the more expensive one. The plan's own endpoint keeps its list.
+     */
+    if (timePackActive && timePackEndpoints.size > 0) {
+      for (const name of Object.keys(modelsConfig)) {
+        const models = modelsConfig[name];
+        if (!Array.isArray(models)) {
+          continue;
+        }
+        modelsConfig[name] = filterModelsForTimePack(models, {
+          endpointName: name,
+          timePackEndpoints,
+          active: true,
+        });
       }
     }
 

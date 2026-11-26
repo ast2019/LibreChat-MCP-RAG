@@ -5,6 +5,7 @@ export * from './overrides';
 export * from './invalidation';
 export * from './loader';
 export * from './config';
+export * from './timePack';
 export * from './metrics';
 export * from './permissions';
 export * from './cdn';

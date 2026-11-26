@@ -5,6 +5,7 @@ import {
   formatPackPrice,
   formatTimeUntil,
   formatBalanceAmount,
+  formatTimeUntilDetailed,
 } from '../balance';
 
 const refilling = (over: Partial<TBalanceResponse> = {}): TBalanceResponse => ({
@@ -157,6 +158,36 @@ describe('formatTimeUntil', () => {
   it('is null once the moment has passed', () => {
     expect(formatTimeUntil(at(0), now, 'en')).toBeNull();
     expect(formatTimeUntil(at(-1), now, 'en')).toBeNull();
+  });
+});
+
+describe('formatTimeUntilDetailed', () => {
+  const now = Date.parse('2026-10-05T00:00:00.000Z');
+  const at = (ms: number) => new Date(now + ms);
+
+  it('pairs the days with the hours that are left', () => {
+    expect(formatTimeUntilDetailed(at(3 * 86_400_000 + 4 * 3_600_000), now, 'en')).toBe(
+      'in 3 days in 4 hours',
+    );
+  });
+
+  it('drops the smaller unit when there is none of it', () => {
+    expect(formatTimeUntilDetailed(at(3 * 86_400_000), now, 'en')).toBe('in 3 days');
+  });
+
+  it('pairs the hours with the minutes when the plan runs for under a day', () => {
+    expect(formatTimeUntilDetailed(at(5 * 3_600_000 + 20 * 60_000), now, 'en')).toBe(
+      'in 5 hours in 20 minutes',
+    );
+  });
+
+  it('shows the minutes alone under two hours', () => {
+    expect(formatTimeUntilDetailed(at(12 * 60_000), now, 'en')).toBe('in 12 minutes');
+  });
+
+  it('is null once the moment has passed', () => {
+    expect(formatTimeUntilDetailed(at(0), now, 'en')).toBeNull();
+    expect(formatTimeUntilDetailed(at(-1), now, 'en')).toBeNull();
   });
 });
 

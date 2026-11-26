@@ -3,6 +3,9 @@ import {
   DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS,
   DEFAULT_TIME_PACK_MAX_SEATS_PER_USER,
   DEFAULT_TIME_PACK_USAGE_WINDOW_HOURS,
+  DEFAULT_TIME_PACK_REQUESTS_PER_MINUTE,
+  DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE,
+  DEFAULT_TIME_PACK_RATE_WAIT_MS,
   DEFAULT_TIME_PACK_REDIS_FAILURE,
   DEFAULT_TIME_PACK_LEASE_SECONDS,
   DEFAULT_TIME_PACK_REST_MINUTES,
@@ -41,6 +44,9 @@ export function resolveTimePackRuntime(
     oversellMinMeteredCredits:
       config?.oversellMinMeteredCredits ?? DEFAULT_TIME_PACK_OVERSELL_MIN_METERED_CREDITS,
     leaseSeconds: config?.leaseSeconds ?? DEFAULT_TIME_PACK_LEASE_SECONDS,
+    requestsPerMinute: config?.requestsPerMinute ?? DEFAULT_TIME_PACK_REQUESTS_PER_MINUTE,
+    userSharePerMinute: config?.userSharePerMinute ?? DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE,
+    rateWaitMs: config?.rateWaitMs ?? DEFAULT_TIME_PACK_RATE_WAIT_MS,
     redisFailure: config?.redisFailure ?? DEFAULT_TIME_PACK_REDIS_FAILURE,
   };
 }

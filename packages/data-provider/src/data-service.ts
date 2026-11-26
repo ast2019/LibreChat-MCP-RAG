@@ -51,17 +51,17 @@ import type {
   TTraceRecordParams,
   TTraceRecordDetail,
 } from './types/traces';
+import type {
+  TServiceStatusResponse,
+  TAdminHiggsfieldStatus,
+  TAdminHiggsfieldUpdate,
+} from './types/status';
 import type { TInsightsAccessResponse, TInsightsParams, TInsightsResponse } from './types/insights';
 import type { ScheduleMCPConsentView, ConfirmScheduleMCPConsent } from './types/scheduleConsent';
 import type { TPhoneCodeRequest, TPhoneCodeRequestResponse, TPhoneCodeVerify } from './phone';
 import type { CodeSetupAttempt, CodeSetupApprovalRequest } from './codeSetup';
 import type { TReferralInfo, TReferralClaimResponse } from './referral';
 import type { TMediaAvailability, TMediaJobView } from './media';
-import type {
-  TServiceStatusResponse,
-  TAdminHiggsfieldStatus,
-  TAdminHiggsfieldUpdate,
-} from './types/status';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
 import type * as b from './browser';
@@ -625,6 +625,11 @@ export function updateUserPreferences(
 
 export function getUserBalance(): Promise<t.TBalanceResponse> {
   return request.get(endpoints.balance());
+}
+
+/** The live capacity of the shared Claude time plan; `active: false` without the plan. */
+export function getTimePackStatus(): Promise<t.TTimePackStatusResponse> {
+  return request.get(endpoints.timePackStatus());
 }
 
 export const login = (payload: t.TLoginUser): Promise<t.TLoginResponse> => {

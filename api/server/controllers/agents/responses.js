@@ -94,6 +94,8 @@ const {
   isTemporaryTurn,
   getModelEndUsage,
   hasEntityEmbeddings,
+  admitTimePackForApi,
+  releaseAdmittedRequestSlot,
 } = require('@librechat/api');
 const { loadApiAgent, listApiModelSpecs } = require('./apiAgent');
 const {
@@ -674,6 +676,19 @@ const executeResponse = async (envelope, { req, res }) => {
           }),
         );
       }
+      /**
+       * The seat is held for the whole run and given back here, on every outcome: the response
+       * completed, the provider failed, or the client disconnected. A seat that outlived its
+       * run would shrink the plan for everyone else.
+       */
+      execution.track(
+        releaseAdmittedRequestSlot({
+          req,
+          userId: principal.userId,
+          /** The API path never took a legacy pending-request slot, only a seat. */
+          decrementPendingRequest: async () => undefined,
+        }),
+      );
     },
     onSettlementError: (error) => {
       logger.error('[Responses API] Failed to settle execution:', getSafeErrorMetadata(error));
@@ -732,6 +747,53 @@ const executeResponse = async (envelope, { req, res }) => {
           `Agent not found: ${agentId}`,
           'not_found',
           'model_not_found',
+        );
+      }
+
+      /**
+       * The Responses API runs the same models as the chat, so it answers to the same plan
+       * limits: a time-pack endpoint needs the entitlement, the shared 60-requests-a-minute
+       * allowance and a seat. Admitting here — after the agent is known, before any provider
+       * call — is what keeps the API from being a way around the chat path's limits.
+       */
+      const timePackAdmission = await admitTimePackForApi({
+        req,
+        endpoint: agent.provider,
+        model: agent.model,
+        leaseId: responseId,
+        /** The API path owns no generation to abort, so an evicted seat needs no stop signal. */
+        abortLease: async () => undefined,
+      });
+      if (timePackAdmission.kind === 'denied') {
+        return sendResponsesErrorResponse(
+          res,
+          403,
+          'This model requires an active time-pack plan.',
+          'invalid_request',
+          timePackAdmission.body.code,
+        );
+      }
+      if (timePackAdmission.kind === 'rate_limited') {
+        const retryAfterSeconds = Math.max(
+          1,
+          Math.ceil(timePackAdmission.body.retryAfterMs / 1000),
+        );
+        res.set('Retry-After', String(retryAfterSeconds));
+        return sendResponsesErrorResponse(
+          res,
+          429,
+          timePackAdmission.body.message,
+          'rate_limit',
+          timePackAdmission.body.code,
+        );
+      }
+      if (timePackAdmission.kind === 'rejected') {
+        return sendResponsesErrorResponse(
+          res,
+          429,
+          'The plan is at its seat limit. Try again shortly.',
+          'rate_limit',
+          'seat_limit',
         );
       }
 

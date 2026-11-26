@@ -1,11 +1,19 @@
 import { logger } from '@librechat/data-schemas';
-import { findPackGrants } from 'librechat-data-provider';
+import { findPackGrants, getActiveTimePackEntitlement } from 'librechat-data-provider';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { AppConfig } from '@librechat/data-schemas';
 import { getBalanceConfig } from '~/app/config';
 
 type ApiUserRequest = Request & {
-  user?: { id?: string; role?: string; apiAccess?: boolean | null; packId?: string | null };
+  user?: {
+    id?: string;
+    role?: string;
+    apiAccess?: boolean | null;
+    packId?: string | null;
+    timePackId?: string | null;
+    timePackExpiresAt?: Date | string | null;
+    timePackEndpoint?: string | null;
+  };
   config?: AppConfig;
 };
 
@@ -60,6 +68,11 @@ export interface RequireApiBalanceDeps {
 /**
  * Refuses an API call before it reaches a provider when balance is enabled and the user has no
  * credit left, as the chat composer does. Usage is still charged after the run as in chat.
+ *
+ * A holder of an active time pack is exempt: the plan is paid for by time, not by credits, so
+ * its holder has no credit balance to draw on and would be refused at the door for every call.
+ * Their calls are bounded by the plan's own limits instead (the shared request rate and the
+ * seat pool), which the time-pack admission applies.
  */
 export function createRequireApiBalance(deps: RequireApiBalanceDeps): RequestHandler {
   return async (baseReq: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -67,6 +80,10 @@ export function createRequireApiBalance(deps: RequireApiBalanceDeps): RequestHan
     const balanceConfig = getBalanceConfig(req.config);
     const userId = req.user?.id;
     if (balanceConfig?.enabled !== true || !userId) {
+      next();
+      return;
+    }
+    if (getActiveTimePackEntitlement(req.user) != null) {
       next();
       return;
     }

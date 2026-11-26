@@ -1,5 +1,6 @@
 import { isTimePack } from 'librechat-data-provider';
-import type { ErrorTypes, TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
+import { ErrorTypes } from 'librechat-data-provider';
+import type { TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
 import type {
   TimeSeatPool,
   TimeSeatLease,
@@ -9,7 +10,9 @@ import type {
 } from './timeSeats';
 import type { TimePackAdmitUser, TimePackRoutePack, TimePackTargetInput } from './route';
 import type { OwnedGenerationControl } from '~/user/generations';
+import type { TimePackRatePool } from './timeRate';
 import { getTimeSeatPool, startTimeSeatHeartbeat, timePackViolationType } from './timeSeats';
+import { acquireTimePackRateSlot, getTimePackRatePool } from './timeRate';
 import { resolveTimePackRoute, resolveTimePackTarget } from './route';
 import { abortOwnedGeneration } from '~/user/generations';
 
@@ -113,7 +116,17 @@ export type TimePackRequestAdmission =
       status: 403;
       body: { type: ErrorTypes.TIME_PACK_REQUIRED; code: ErrorTypes.TIME_PACK_REQUIRED };
     }
-  | { kind: 'rejected'; admission: Extract<TimePackAdmitResult, { ok: false }> };
+  | { kind: 'rejected'; admission: Extract<TimePackAdmitResult, { ok: false }> }
+  | {
+      kind: 'rate_limited';
+      status: 429;
+      body: {
+        type: ErrorTypes.TIME_PACK_RATE_LIMITED;
+        code: ErrorTypes.TIME_PACK_RATE_LIMITED;
+        message: string;
+        retryAfterMs: number;
+      };
+    };
 
 /**
  * The agents controllers' time-pack gate. Runs before any generation work: a time-pack endpoint
@@ -130,12 +143,14 @@ export async function admitTimePackForRequest(
     leaseId,
     abortLease,
     pool = getTimeSeatPool(),
+    ratePool = getTimePackRatePool(),
   }: {
     endpoint?: string | null;
     model?: string | null;
     leaseId: string;
     abortLease: (lease: TimeSeatEvictedLease) => Promise<void>;
     pool?: TimeSeatPool;
+    ratePool?: TimePackRatePool;
   },
 ): Promise<TimePackRequestAdmission> {
   req._timePackSeatHeld = false;
@@ -158,6 +173,32 @@ export async function admitTimePackForRequest(
   if (req._scheduleConcurrencyExempt === true || !userId) {
     return { kind: 'admitted' };
   }
+  /**
+   * The gateway's ceiling belongs to the whole key, so it is taken before the seat: a request
+   * that cannot be served must not hold a seat while it waits, and a request refused for the
+   * shared capacity must not consume one either.
+   */
+  const rate = await acquireTimePackRateSlot({
+    userId,
+    runtime: balance?.timePack,
+    pool: ratePool,
+  });
+  if (!rate.allowed) {
+    const retryAfterMs = Math.max(1, rate.retryAfterMs);
+    return {
+      kind: 'rate_limited',
+      status: 429,
+      body: {
+        type: ErrorTypes.TIME_PACK_RATE_LIMITED,
+        code: ErrorTypes.TIME_PACK_RATE_LIMITED,
+        message:
+          rate.reason === 'user_share'
+            ? 'درخواست‌های شما در این دقیقه به سقف مجاز رسیده است؛ کمی بعد دوباره تلاش کنید.'
+            : 'ظرفیت مشترک پلن در این دقیقه تکمیل است؛ کمی بعد دوباره تلاش کنید.',
+        retryAfterMs,
+      },
+    };
+  }
   const admission = await admitTimePackRequest({
     userId,
     leaseId,
@@ -167,6 +208,12 @@ export async function admitTimePackForRequest(
     pool,
   });
   if (!admission.ok) {
+    /**
+     * The rate slot was taken so a waiting request would not hold a seat. When the seat gate
+     * then refuses, give the slot back: otherwise seat contention would spend the shared
+     * minute's allowance on requests that never reached the gateway.
+     */
+    await ratePool.release(userId, rate.bucket);
     return { kind: 'rejected', admission };
   }
   req._timePackSeatHeld = true;
@@ -190,10 +237,12 @@ export async function admitAgentTimePack(
     leaseId,
     abortLease,
     pool,
+    ratePool,
   }: TimePackTargetInput & {
     leaseId: string;
     abortLease: (lease: TimeSeatEvictedLease) => Promise<void>;
     pool?: TimeSeatPool;
+    ratePool?: TimePackRatePool;
   },
 ): Promise<TimePackRequestAdmission> {
   if (!(req.config?.balance?.packs ?? []).some((pack) => isTimePack(pack))) {
@@ -203,7 +252,7 @@ export async function admitAgentTimePack(
     return { kind: 'none' };
   }
   const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
-  return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool });
+  return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool, ratePool });
 }
 
 /** Stops exactly the generation an evicted lease held, checked against its owner. */

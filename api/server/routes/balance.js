@@ -13,5 +13,6 @@ const setBalanceConfig = createSetBalanceConfig({
 });
 
 router.get('/', requireJwtAuth, setBalanceConfig, controller);
+router.get('/time-pack/status', requireJwtAuth, require('../controllers/Balance').timePackStatus);
 
 module.exports = router;

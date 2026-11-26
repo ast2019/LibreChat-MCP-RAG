@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Progress, Skeleton } from '@librechat/client';
 import type { BalanceSummary, BalanceTone, CurrencyConfig } from '~/utils';
 import type { BalanceState } from '~/hooks/useBalanceSummary';
-import { formatBalanceAmount, formatTimeUntil } from '~/utils/balance';
+import { formatBalanceAmount, formatTimeUntil, formatTimeUntilDetailed } from '~/utils/balance';
 import useTimeTick from '~/hooks/useTimeTick';
 import useLocalize from '~/hooks/useLocalize';
 import cn from '~/utils/cn';
@@ -43,9 +43,10 @@ function useRefillText(summary: BalanceSummary, currency?: CurrencyConfig): stri
   } = summary;
   if (refillAmount == null) {
     if (timePackLabel != null) {
+      /** The plan runs for weeks: days and hours together say how much is really left. */
       const until =
         timePackExpiresAt != null
-          ? formatTimeUntil(new Date(timePackExpiresAt), Date.now(), i18n.resolvedLanguage)
+          ? formatTimeUntilDetailed(new Date(timePackExpiresAt), Date.now(), i18n.resolvedLanguage)
           : null;
       return until != null
         ? localize('com_ui_balance_time_pack_expires', { 0: until })

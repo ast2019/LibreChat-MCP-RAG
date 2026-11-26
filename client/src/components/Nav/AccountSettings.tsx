@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   Wand2,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import { InviteDialog, InviteMenuItem } from '~/components/Referral';
@@ -26,6 +27,7 @@ import { openInNewTab, policyUrls, getPackRemaining } from '~/utils';
 import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
 import { InstallDialog, InstallMenuItem } from '~/components/Pwa';
 import { usePurchaseTarget } from '~/components/Balance/Purchase';
+import TimePackFlame from '~/components/Balance/TimePackFlame';
 import useBalanceSummary from '~/hooks/useBalanceSummary';
 import { MediaToolsDialog } from '~/components/Media';
 import { useGetStartupConfig } from '~/data-provider';
@@ -130,8 +132,36 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   );
   const packDescriptionId = useId();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
+  /** The time plan is running: the flame says so, and the plan hides the credit-path Claude. */
+  const timePackActive =
+    balanceState.status === 'success' && balanceState.summary.timePackExpiresAt != null;
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
+
+  /** The ring takes the avatar's place at the same outer size, so the button and the
+   *  rail do not move when a pack is granted or runs out. */
+  const avatarSize = collapsed ? 24 : 26;
+  const bareAvatarSize = collapsed ? 28 : 32;
+
+  let avatarNode: ReactNode = (
+    <div className={collapsed ? 'size-7 shrink-0' : 'h-8 w-8 shrink-0'}>
+      <div className="relative flex">
+        <Avatar user={user} size={bareAvatarSize} />
+      </div>
+    </div>
+  );
+  if (pack != null) {
+    avatarNode = (
+      <PackRing percent={pack.percent} tone={pack.tone}>
+        <Avatar user={user} size={avatarSize} />
+      </PackRing>
+    );
+  }
+  if (timePackActive) {
+    /** The flame says the time plan is running: its calls are on the shared time pool,
+     *  not on the user's credit. It wraps the ring, so a holder of both sees both. */
+    avatarNode = <TimePackFlame>{avatarNode}</TimePackFlame>;
+  }
 
   return (
     <Menu.MenuProvider placement={collapsed ? `${railSide}-end` : undefined}>
@@ -146,19 +176,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
             : 'hover:bg-surface-nav-hover aria-[expanded=true]:bg-surface-nav-selected flex h-auto w-full items-center gap-2 rounded-xl p-2 text-sm transition-all duration-200 ease-in-out'
         }
       >
-        {pack != null ? (
-          /** The ring takes the avatar's place at the same outer size, so the button and the
-           *  rail do not move when a pack is granted or runs out. */
-          <PackRing percent={pack.percent} tone={pack.tone}>
-            <Avatar user={user} size={collapsed ? 24 : 26} />
-          </PackRing>
-        ) : (
-          <div className={collapsed ? 'size-7 shrink-0' : 'h-8 w-8 shrink-0'}>
-            <div className="relative flex">
-              <Avatar user={user} size={collapsed ? 28 : 32} />
-            </div>
-          </div>
-        )}
+        {avatarNode}
         {pack != null && (
           <span id={packDescriptionId} className="sr-only">
             {localize('com_ui_balance_pack_remaining', { 0: String(pack.percent) })}

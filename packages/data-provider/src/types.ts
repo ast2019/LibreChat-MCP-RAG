@@ -1368,6 +1368,32 @@ export type TBalanceResponse = {
   timePackEndpoint?: string;
 };
 
+/**
+ * The live capacity of the shared Claude time plan.
+ *
+ * `active: false` is the answer for anyone without the plan, so the plan's internals stay
+ * invisible to other users.
+ */
+export type TTimePackStatusResponse = {
+  active: boolean;
+  /** Generations holding a shared seat right now. */
+  activeSeats?: number;
+  /** The pool's seat ceiling. */
+  maxSeats?: number;
+  /** How many of the ceiling the plan's holders occupy. */
+  holders?: number;
+  /** Requests taken from the shared allowance in the current minute. */
+  globalRequests?: number;
+  /** The gateway's ceiling for the whole key. */
+  requestsPerMinute?: number;
+  /** The requester's own requests in the current minute. */
+  userRequests?: number;
+  /** The requester's own share of the allowance. */
+  userSharePerMinute?: number;
+  /** How long until the current minute's allowance is refreshed, in milliseconds. */
+  windowResetsInMs?: number;
+};
+
 /* -------------------------------------------------------------------------- */
 /* Skill UI extensions (not yet persisted — phase 2 backend will fill these)  */
 /* -------------------------------------------------------------------------- */

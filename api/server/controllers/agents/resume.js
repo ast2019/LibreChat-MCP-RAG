@@ -1240,6 +1240,11 @@ const ResumeAgentController = async (req, res, next, initializeClient, addTitle)
   if (timePack.kind === 'denied') {
     return sendGenerationJson(res, timePack.status, timePack.body, generationProtocolVersion);
   }
+  if (timePack.kind === 'rate_limited') {
+    const retryAfterSeconds = Math.max(1, Math.ceil(timePack.body.retryAfterMs / 1000));
+    res.set('Retry-After', String(retryAfterSeconds));
+    return sendGenerationJson(res, 429, timePack.body, generationProtocolVersion);
+  }
   if (timePack.kind === 'rejected') {
     const { admission } = timePack;
     return sendGenerationJson(
