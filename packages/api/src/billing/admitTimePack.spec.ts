@@ -507,6 +507,52 @@ describe('admitAgentTimePack product scenario (menu + gateway)', () => {
     expect(req._timePackSeatHeld).toBe(false);
     expect(acquire).not.toHaveBeenCalled();
   });
+
+  it('holder + ClaudeTime agent seats even when timePack spec is missing from body', async () => {
+    const req = {
+      user: entitled('holder'),
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          agent: Promise.resolve({
+            endpoint: 'ClaudeTime',
+            provider: 'anthropic',
+            model: 'claude-sonnet-5-5',
+          }),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        body: { endpoint: 'agents' },
+        leaseId: 's-nospec',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req._timePackEntitlement).toMatchObject({ timePackEndpoint: 'ClaudeTime' });
+  });
+
+  it('timePack spec on agents without a loadable agent still forces ClaudeTime (not none)', async () => {
+    const req = {
+      user: entitled('holder'),
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-smart',
+          agent: Promise.resolve(null),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        body: { spec: 'time-smart', endpoint: 'agents' },
+        leaseId: 's-spec-only',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+  });
 });
 
 describe('resolveTimePackRoute when packs lost kind:time', () => {
@@ -528,7 +574,7 @@ describe('resolveTimePackRoute when packs lost kind:time', () => {
         user: entitled('u'),
         endpoint: 'OpenRouter',
         model: 'x',
-        packs: [{ id: 'starter', kind: 'credits', credits: 100 }],
+        packs: [{ id: 'starter', kind: 'credits' }],
       }),
     ).toEqual({ kind: 'none' });
   });

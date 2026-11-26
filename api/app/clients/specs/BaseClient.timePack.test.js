@@ -249,3 +249,64 @@ describe('BaseClient on a time-pack turn with balance enabled', () => {
     });
   });
 });
+
+describe('BaseClient time-pack fail-closed recovery', () => {
+  const packs = [
+    { id: 'claude-time', label: 'Claude', kind: 'time', durationDays: 30, endpoint: 'ClaudeTime' },
+  ];
+
+  let client;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    client = initializeFakeClient('key', { modelOptions: { model: 'claude-sonnet-5-5' } }, []);
+    client.options.endpoint = EModelEndpoint.agents;
+    client.options.agent = {
+      id: 'main',
+      endpoint: 'ClaudeTime',
+      provider: 'anthropic',
+      model_parameters: { model: 'claude-sonnet-5-5' },
+    };
+    client.options.req = {
+      user: {
+        id: 'user-1',
+        role: 'USER',
+        timePackId: 'claude-time',
+        timePackEndpoint: 'ClaudeTime',
+        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      body: {},
+      _timePackEntitlement: null,
+      config: {
+        balance: { enabled: true, packs },
+      },
+    };
+    client.options.res = {};
+    client.buildMessages.mockReturnValue({ prompt: [], tokenCountMap: { res: 50 } });
+    client.getTokenCountForResponse = jest.fn().mockReturnValue(50);
+    client.recordTokenUsage = jest.fn().mockResolvedValue(undefined);
+    client.sendCompletion.mockResolvedValue({ completion: 'ok', metadata: undefined });
+  });
+
+  it('attaches a live entitlement when admit missed and agent.endpoint is ClaudeTime', async () => {
+    await client.sendMessage('Hello', {});
+    expect(client.options.req._timePackEntitlement).toMatchObject({
+      timePackEndpoint: 'ClaudeTime',
+    });
+    expect(reserveBalance).not.toHaveBeenCalled();
+  });
+
+  it('throws time_pack_required when ClaudeTime has no live entitlement', async () => {
+    client.options.req.user = { id: 'user-1', role: 'USER' };
+    await expect(client.sendMessage('Hello', {})).rejects.toThrow('time_pack_required');
+  });
+
+  it('does not fail-closed when agent.endpoint is missing and options.endpoint is agents', async () => {
+    /** Without a billing endpoint, recovery cannot run; credits path is used instead. */
+    delete client.options.agent.endpoint;
+    client.options.req.user = { id: 'user-1', role: 'USER' };
+    reserveBalance.mockResolvedValue({ reserved: true, balance: 1000 });
+    await expect(client.sendMessage('Hello', {})).resolves.toBeDefined();
+    expect(client.options.req._timePackEntitlement).toBeNull();
+  });
+});

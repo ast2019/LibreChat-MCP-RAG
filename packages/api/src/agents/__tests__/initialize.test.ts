@@ -531,44 +531,82 @@ describe('initializeAgent: time-pack endpoint', () => {
   const packs = [
     { id: 'claude-time', label: 'Claude', kind: 'time', durationDays: 30, endpoint: 'ClaudeTime' },
   ];
+  const entitledUser = {
+    id: 'user-1',
+    timePackId: 'claude-time',
+    timePackEndpoint: 'ClaudeTime',
+    timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  const initialize = (user: Record<string, unknown>) => {
+  const initialize = (user: Record<string, unknown>, agentOverrides?: Partial<Agent>) => {
     const { agent, req, res, loadTools, db } = createMocks({
       provider: 'ClaudeTime',
       overrideProvider: Providers.ANTHROPIC,
     });
+    Object.assign(agent, agentOverrides);
     Object.assign(req, { user, config: { balance: { enabled: true, packs } } });
-    return initializeAgent(
-      {
-        req,
-        res,
-        agent,
-        loadTools,
-        endpointOption: { endpoint: EModelEndpoint.agents },
-        allowedProviders: new Set(),
-        isInitialAgent: true,
-      },
-      db,
-    );
+    return {
+      req,
+      result: initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set(),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    };
   };
 
   it('rejects a saved agent on the time-pack endpoint without an active time pack (F2)', async () => {
-    await expect(initialize({ id: 'user-1' })).rejects.toThrow(ErrorTypes.TIME_PACK_REQUIRED);
+    await expect(initialize({ id: 'user-1' }).result).rejects.toThrow(
+      ErrorTypes.TIME_PACK_REQUIRED,
+    );
   });
 
   it('initializes it for a user with an active time pack', async () => {
-    await expect(
-      initialize({
-        id: 'user-1',
-        timePackId: 'claude-time',
-        timePackEndpoint: 'ClaudeTime',
-        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
-      }),
-    ).resolves.toBeDefined();
+    const { result } = initialize(entitledUser);
+    await expect(result).resolves.toBeDefined();
+    const agent = await result;
+    expect(agent.endpoint).toBe('ClaudeTime');
+    expect(agent.provider).toBe(Providers.ANTHROPIC);
+  });
+
+  it('routes time-pack via agent.endpoint when provider is already the SDK name', async () => {
+    /**
+     * Post-swap / re-entry shape: ClaudeTime stays on `endpoint` while `provider` is
+     * `anthropic`. Using provider for resolveTimePackRoute returned `none`, left
+     * `_timePackEntitlement` unset, then BaseClient fail-closed with time_pack_required.
+     */
+    const { req, result } = initialize(entitledUser, {
+      endpoint: 'ClaudeTime',
+      provider: Providers.ANTHROPIC,
+    } as Partial<Agent>);
+    await expect(result).resolves.toMatchObject({
+      endpoint: 'ClaudeTime',
+      provider: Providers.ANTHROPIC,
+    });
+    expect(
+      (req as ServerRequest & { _timePackEntitlement?: { timePackEndpoint?: string } | null })
+        ._timePackEntitlement,
+    ).toMatchObject({ timePackEndpoint: 'ClaudeTime' });
+  });
+
+  it('does not overwrite a ClaudeTime endpoint with the anthropic provider on re-entry', async () => {
+    const { result } = initialize(entitledUser, {
+      endpoint: 'ClaudeTime',
+      provider: Providers.ANTHROPIC,
+    } as Partial<Agent>);
+    const agent = await result;
+    expect(agent.endpoint).toBe('ClaudeTime');
   });
 });
 

@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.11] - 2026-11-26
+
+### Fixed
+- **ClaudeTime time-pack routing prefers `agent.endpoint` over the SDK `provider`.**
+  After initialize swaps `provider` to `anthropic`, using `provider` for
+  `resolveTimePackRoute` returned `none`, left `_timePackEntitlement` unset, and
+  BaseClient still threw `time_pack_required` for holders. initializeAgent now pins
+  the configured gateway name on `agent.endpoint` before the check and before the
+  provider swap, and keeps that name through re-entry.
+
 ## [0.40.10] - 2026-11-27
 
 ### Fixed
