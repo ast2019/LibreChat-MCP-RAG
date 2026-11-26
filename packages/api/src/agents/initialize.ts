@@ -1433,15 +1433,38 @@ export async function initializeAgent(
   }
   /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs
    * the user's active entitlement; the controllers reject the primary one earlier. */
-  if (
-    resolveTimePackRoute({
+  {
+    const timePackRoute = resolveTimePackRoute({
       user,
       endpoint: agent.provider,
       model: agent.model ?? agent.model_parameters?.model,
       packs: appConfig?.balance?.packs,
-    }).kind === 'denied'
-  ) {
-    throw new Error(`{ "type": "${ErrorTypes.TIME_PACK_REQUIRED}" }`);
+    });
+    if (timePackRoute.kind === 'denied') {
+      throw new Error(`{ "type": "${ErrorTypes.TIME_PACK_REQUIRED}" }`);
+    }
+    /**
+     * When seat admission missed the real ClaudeTime target (agents route / late agent
+     * load) BaseClient fail-closed with `time_pack_required` even for holders. Attach the
+     * entitlement here so generation can proceed; seat accounting may already have been
+     * skipped — the next turn's admit path is the durable fix.
+     */
+    if (timePackRoute.kind === 'seat' && params.req != null) {
+      const admitReq = params.req as typeof params.req & {
+        _timePackEntitlement?: (typeof timePackRoute)['entitlement'] | null;
+      };
+      if (admitReq._timePackEntitlement == null) {
+        admitReq._timePackEntitlement = timePackRoute.entitlement;
+        logger.error(
+          '[timePack] Attached entitlement during initializeAgent after missed admit; seat may be uncounted',
+          {
+            userId: user?.id,
+            endpoint: agent.provider,
+            timePackId: timePackRoute.entitlement.timePackId,
+          },
+        );
+      }
+    }
   }
 
   /**

@@ -1022,18 +1022,20 @@ class BaseClient {
       renewBalanceReservation: db.renewBalanceReservation,
       releaseBalanceReservation: db.releaseBalanceReservation,
     };
+    const buildOffPackBalanceGate = (entitlement) =>
+      createOffPackBalanceGate({
+        req: this.options.req,
+        res: this.options.res,
+        user: this.user,
+        entitlement,
+        balanceConfig,
+        reservations: balanceReservations,
+        deps: balanceDeps,
+        countTokens,
+        promptTokens,
+      });
     /** A time-pack turn skips the reservation below; its other model calls admit through this. */
-    this.offPackBalance = createOffPackBalanceGate({
-      req: this.options.req,
-      res: this.options.res,
-      user: this.user,
-      entitlement: this.options.req?._timePackEntitlement,
-      balanceConfig,
-      reservations: balanceReservations,
-      deps: balanceDeps,
-      countTokens,
-      promptTokens,
-    });
+    this.offPackBalance = buildOffPackBalanceGate(this.options.req?._timePackEntitlement);
     /** Tools that call a model themselves read the turn's gate from the request. */
     if (this.options.req != null) {
       this.options.req._offPackBalance = this.offPackBalance;
@@ -1049,12 +1051,40 @@ class BaseClient {
         timePackBillingEndpoint != null &&
         isConfiguredTimePackEndpoint(timePackBillingEndpoint, appConfig)
       ) {
-        throw new Error(
-          JSON.stringify({
-            type: ErrorTypes.TIME_PACK_REQUIRED,
-            code: ErrorTypes.TIME_PACK_REQUIRED,
-          }),
-        );
+        /**
+         * Holders whose seat admit missed the ClaudeTime target (agents route / late
+         * agent load) still reach here with a live entitlement on `req.user`. Attach it
+         * so generation does not false-deny with `time_pack_required`; credit Claude is
+         * unchanged because this branch only runs for configured time-pack endpoints.
+         */
+        const { getActiveTimePackEntitlement } = require('librechat-data-provider');
+        const liveEntitlement = getActiveTimePackEntitlement(this.options.req?.user);
+        /** Endpoint match is enough for recovery: model allowlists were (or will be) enforced
+         *  on the admit path; requiring the model id here false-denied holders when
+         *  `modelOptions` was still empty at reservation time. */
+        if (
+          liveEntitlement != null &&
+          timePackBillingEndpoint === liveEntitlement.timePackEndpoint
+        ) {
+          this.options.req._timePackEntitlement = liveEntitlement;
+          this.offPackBalance = buildOffPackBalanceGate(liveEntitlement);
+          this.options.req._offPackBalance = this.offPackBalance;
+          logger.error(
+            '[timePack] BaseClient attached live entitlement after missed admit; seat may be uncounted',
+            {
+              userId: this.options.req?.user?.id,
+              endpoint: timePackBillingEndpoint,
+              timePackId: liveEntitlement.timePackId,
+            },
+          );
+        } else {
+          throw new Error(
+            JSON.stringify({
+              type: ErrorTypes.TIME_PACK_REQUIRED,
+              code: ErrorTypes.TIME_PACK_REQUIRED,
+            }),
+          );
+        }
       }
       if (
         balanceConfig?.enabled &&

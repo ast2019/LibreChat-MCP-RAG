@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.10] - 2026-11-27
+
+### Fixed
+- **ClaudeTime holders no longer get `time_pack_required` when admit misses the gateway.**
+  Debug share `cr52fxNEMS4SqmimYeE5z9f52ZU7kCRG` showed BaseClient fail-closed at
+  `sendReservedMessage` while credit Claude still worked. Seat admit could resolve the
+  agents route instead of the `timePack` modelSpec preset, leave `_timePackEntitlement`
+  unset, then refuse the turn. Admit now reads the ClaudeTime preset from the selected
+  modelSpec and **never returns `none` for a timePack turn** (holder → seat; no pack →
+  `time_pack_required`). initializeAgent and BaseClient attach a live user entitlement if
+  admit still missed. Credit Claude / OpenRouter stays on `Balance.check`.
+
 ## [0.40.9] - 2026-11-26
 
 ### Fixed
