@@ -2,6 +2,7 @@ const { EModelEndpoint, Providers, ViolationTypes } = require('librechat-data-pr
 
 jest.mock('@librechat/api', () => ({
   handleError: jest.fn(),
+  isModelAllowedBySpecs: jest.requireActual('@librechat/api').isModelAllowedBySpecs,
 }));
 
 jest.mock('~/server/controllers/ModelController', () => ({

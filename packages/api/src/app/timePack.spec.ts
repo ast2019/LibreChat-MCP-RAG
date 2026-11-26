@@ -30,6 +30,23 @@ describe('timePackEndpointNames', () => {
 
     expect(timePackEndpointNames(config)).toEqual([]);
   });
+
+  it('also collects endpoints named by timePack modelSpecs', () => {
+    const config = {
+      balance: { packs: [{ kind: 'time', id: 'tp1', durationDays: 30 }] },
+      modelSpecs: {
+        list: [
+          {
+            name: 'time-pro',
+            timePack: true,
+            preset: { endpoint: 'ClaudeTime', model: 'claude-opus-5-5' },
+          },
+        ],
+      },
+    } as unknown as AppConfig;
+
+    expect(timePackEndpointNames(config)).toEqual(['ClaudeTime']);
+  });
 });
 
 describe('hasActiveTimePack', () => {

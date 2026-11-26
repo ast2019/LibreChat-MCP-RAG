@@ -601,4 +601,31 @@ describe('validateAgentModel', () => {
     expect(result.error?.message).toContain('illegal_model_request');
     expect(logViolation).toHaveBeenCalledTimes(1);
   });
+
+  it('allows a ClaudeTime model named by an enforced modelSpec even when the catalog is empty', async () => {
+    const req = {
+      config: {
+        modelSpecs: {
+          list: [
+            {
+              name: 'time-pro',
+              timePack: true,
+              preset: { endpoint: 'ClaudeTime', model: 'claude-opus-5-5' },
+            },
+          ],
+        },
+      },
+    } as unknown as Request<unknown, unknown, unknown>;
+
+    const result = await validateAgentModel({
+      req,
+      res: response,
+      agent: { provider: 'ClaudeTime', model: 'claude-opus-5-5' } as Agent,
+      modelsConfig: { ClaudeTime: [] },
+      logViolation,
+    });
+
+    expect(result).toEqual({ isValid: true });
+    expect(logViolation).not.toHaveBeenCalled();
+  });
 });
