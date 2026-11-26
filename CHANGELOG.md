@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.9] - 2026-11-26
+
+### Fixed
+- **ClaudeTime no longer silently bills credits when seat admission misses.** The unlimited
+  models already called the ClaudeTime gateway, but when admission returned `none`
+  (balance-only grant, or `balance.packs` without `kind: time`) BaseClient still ran
+  `Balance.check` — so the turn looked unlimited while burning the credit balance. Time-pack
+  endpoints are now fail-closed: sync entitlement from balance before admit; deny
+  `time_pack_required` instead of falling through to credits; BaseClient refuses generation
+  on a configured time-pack endpoint without `_timePackEntitlement`. OpenRouter credit models
+  are unchanged.
+
 ## [0.40.8] - 2026-11-26
 
 ### Fixed
