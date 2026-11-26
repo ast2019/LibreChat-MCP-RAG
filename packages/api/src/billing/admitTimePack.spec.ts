@@ -317,6 +317,30 @@ describe('resolveTimePackTarget (F2)', () => {
       }),
     ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' });
   });
+
+  it('uses a timePack modelSpec when the agents route would otherwise miss ClaudeTime', async () => {
+    await expect(
+      resolveTimePackTarget({
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-smart',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-sonnet-5-5' }),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        config: {
+          modelSpecs: {
+            list: [
+              {
+                name: 'time-smart',
+                timePack: true,
+                preset: { endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' },
+              },
+            ],
+          },
+        },
+      }),
+    ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' });
+  });
 });
 
 describe('isConfiguredTimePackEndpoint', () => {

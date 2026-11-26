@@ -80,7 +80,11 @@ export function isTimePackRouteEndpoint({
 export type TimePackConfigLike = {
   balance?: { packs?: readonly TimePackRoutePack[] | null } | null;
   modelSpecs?: {
-    list?: readonly { timePack?: boolean; preset?: { endpoint?: string | null } | null }[] | null;
+    list?: readonly {
+      name?: string | null;
+      timePack?: boolean;
+      preset?: { endpoint?: string | null; model?: string | null } | null;
+    }[] | null;
   } | null;
 };
 
@@ -159,21 +163,66 @@ export type TimePackTargetInput = {
   endpointOption?: {
     endpoint?: string | null;
     endpointType?: string | null;
+    spec?: string | null;
     agent?: TargetAgent | Promise<TargetAgent>;
     modelOptions?: { model?: string | null } | null;
     model_parameters?: { model?: string | null } | null;
   } | null;
-  body?: { endpoint?: string | null; model?: string | null } | null;
+  body?: { endpoint?: string | null; model?: string | null; spec?: string | null } | null;
+  /** Live app config — used to resolve `timePack` modelSpec presets when the agent is still
+   *  on the agents route name. */
+  config?: TimePackConfigLike | null;
 };
+
+type TimePackModelSpec = {
+  name?: string | null;
+  timePack?: boolean;
+  preset?: { endpoint?: string | null; model?: string | null } | null;
+};
+
+/**
+ * When the selected modelSpec is a time-pack preset, its `preset.endpoint` / `model` are the
+ * real gateway target — even if the agents route still says `agents` on the wire.
+ */
+export function resolveTimePackSpecTarget({
+  endpointOption,
+  body,
+  config,
+}: Pick<TimePackTargetInput, 'endpointOption' | 'body' | 'config'>): {
+  endpoint: string | null;
+  model: string | null;
+  timePack: boolean;
+} {
+  const specName = endpointOption?.spec ?? body?.spec;
+  if (typeof specName !== 'string' || specName === '') {
+    return { endpoint: null, model: null, timePack: false };
+  }
+  const list = (config?.modelSpecs?.list ?? []) as TimePackModelSpec[];
+  const modelSpec = list.find((entry) => entry?.name === specName);
+  if (modelSpec == null) {
+    return { endpoint: null, model: null, timePack: false };
+  }
+  const endpoint =
+    typeof modelSpec.preset?.endpoint === 'string' && modelSpec.preset.endpoint.trim() !== ''
+      ? modelSpec.preset.endpoint.trim()
+      : null;
+  const model =
+    typeof modelSpec.preset?.model === 'string' && modelSpec.preset.model.trim() !== ''
+      ? modelSpec.preset.model.trim()
+      : null;
+  return { endpoint, model, timePack: modelSpec.timePack === true };
+}
 
 /**
  * The endpoint and model a request really runs on. Prefer `agent.endpoint` (ClaudeTime) over
  * `agent.provider` — initialize swaps provider to the SDK name (`anthropic`) while keeping the
- * configured endpoint on `endpoint`. Fall back to the route / body for ephemeral chats.
+ * configured endpoint on `endpoint`. Fall back to a `timePack` modelSpec preset, then the
+ * route / body for ephemeral chats.
  */
 export async function resolveTimePackTarget({
   endpointOption,
   body,
+  config,
 }: TimePackTargetInput): Promise<{ endpoint: string | null; model: string | null }> {
   let agent: TargetAgent;
   try {
@@ -182,19 +231,31 @@ export async function resolveTimePackTarget({
     /** The controller reports a failed agent load itself; route on the request fields. */
     agent = undefined;
   }
+  const fromSpec = resolveTimePackSpecTarget({ endpointOption, body, config });
+  const endpoint =
+    agent?.endpoint ||
+    agent?.provider ||
+    (fromSpec.timePack ? fromSpec.endpoint : null) ||
+    endpointOption?.endpoint ||
+    endpointOption?.endpointType ||
+    body?.endpoint ||
+    fromSpec.endpoint ||
+    null;
+  /** Never treat the agents router name as the time-pack gateway when a timePack spec
+   *  already named ClaudeTime — that miss left `_timePackEntitlement` unset and BaseClient
+   *  fail-closed with `time_pack_required` for holders. */
+  const resolvedEndpoint =
+    (endpoint === 'agents' || endpoint === 'Agents') && fromSpec.timePack && fromSpec.endpoint
+      ? fromSpec.endpoint
+      : endpoint;
   return {
-    endpoint:
-      agent?.endpoint ||
-      agent?.provider ||
-      endpointOption?.endpoint ||
-      endpointOption?.endpointType ||
-      body?.endpoint ||
-      null,
+    endpoint: resolvedEndpoint,
     model:
       agent?.model ||
       endpointOption?.modelOptions?.model ||
       endpointOption?.model_parameters?.model ||
       body?.model ||
+      fromSpec.model ||
       null,
   };
 }

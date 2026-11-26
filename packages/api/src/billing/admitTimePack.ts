@@ -307,7 +307,11 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
-  const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
+  const { endpoint, model } = await resolveTimePackTarget({
+    endpointOption,
+    body,
+    config: req.config,
+  });
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
   /**
    * An active entitlement must still reach the seat path when the live pack list lost
