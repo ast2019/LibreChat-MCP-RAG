@@ -64,6 +64,24 @@ async function timePackStatus(req, res) {
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  /**
+   * Same sync as `/api/balance` and `/api/config`: the badge can light from the Balance
+   * record while this route only read `user.timePack*`, so a grant that had not yet been
+   * copied left holders looking at `{ active: false }` (or stale zeros) until another
+   * endpoint synced them.
+   */
+  try {
+    const synced = await syncUserTimePackFromBalance(
+      { findBalanceByUser, setUserTimePack },
+      userId,
+      req.user,
+    );
+    if (synced != null) {
+      applyGrantedTimePackToUser(req.user, synced);
+    }
+  } catch (error) {
+    logger.warn('[balance] Time-pack status sync from balance failed:', error);
+  }
   const appConfig = await getAppConfig(getAppConfigOptionsFromUser(req.user));
   const balance = appConfig?.balance;
   const entitlement = getTimePackEntitlement(req.user, balance?.packs);

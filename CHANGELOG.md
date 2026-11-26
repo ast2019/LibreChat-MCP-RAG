@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.6] - 2026-11-26
+
+### Fixed
+- **Time-pack capacity counters no longer look permanently empty for holders.**
+  `GET /api/balance/time-pack/status` now syncs a balance-only Claude time grant onto
+  `user.timePack*` before reading entitlement (same repair as `/api/balance` and
+  `/api/config`), so a grant that had not yet been copied no longer answers
+  `{ active: false }` while the flame is lit. The holders label now says how many people
+  are using a seat right now, not “on the plan”, and the status poll runs every 3s so a
+  short ClaudeTime generation is not missed between 15s ticks. Counters still only move
+  on the ClaudeTime path (`time-*` specs); OpenRouter / Gemini turns correctly stay at zero.
+
 ## [0.40.5] - 2026-11-25
 
 ### Fixed
