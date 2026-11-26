@@ -1,5 +1,5 @@
 import { logger } from '@librechat/data-schemas';
-import { isTimePack } from 'librechat-data-provider';
+import { isTimePack, getActiveTimePackEntitlement } from 'librechat-data-provider';
 import { ErrorTypes } from 'librechat-data-provider';
 import type { TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
 import type {
@@ -286,11 +286,29 @@ export async function admitAgentTimePack(
     ratePool?: TimePackRatePool;
   },
 ): Promise<TimePackRequestAdmission> {
-  if (!(req.config?.balance?.packs ?? []).some((pack) => isTimePack(pack))) {
-    req._timePackSeatHeld = false;
-    req._timePackLease = null;
-    req._timePackEntitlement = null;
-    return { kind: 'none' };
+  const packs = req.config?.balance?.packs ?? [];
+  const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
+  /**
+   * An active entitlement must still reach the seat path when the live pack list lost
+   * `kind: time` (admin override). Otherwise ClaudeTime runs as a credited custom endpoint:
+   * Balance.check reserves tokens, seats stay at 0, and debug shows no `[timePack]` lines.
+   */
+  if (!hasTimePackConfig) {
+    const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
+    if (entitlement == null) {
+      req._timePackSeatHeld = false;
+      req._timePackLease = null;
+      req._timePackEntitlement = null;
+      return { kind: 'none' };
+    }
+    logger.warn(
+      '[timePack] balance.packs has no kind:time row; admitting from user entitlement only',
+      {
+        userId: req.user?.id,
+        timePackId: entitlement.timePackId,
+        timePackEndpoint: entitlement.timePackEndpoint,
+      },
+    );
   }
   const { endpoint, model } = await resolveTimePackTarget({ endpointOption, body });
   return admitTimePackForRequest(req, { endpoint, model, leaseId, abortLease, pool, ratePool });

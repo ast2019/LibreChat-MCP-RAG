@@ -286,6 +286,21 @@ describe('resolveTimePackTarget (F2)', () => {
     ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-opus-5-5' });
   });
 
+  it('prefers agent.endpoint after initialize swaps provider to the SDK name', async () => {
+    await expect(
+      resolveTimePackTarget({
+        endpointOption: {
+          endpoint: 'agents',
+          agent: Promise.resolve({
+            endpoint: 'ClaudeTime',
+            provider: 'anthropic',
+            model: 'claude-fable-5-1',
+          }),
+        },
+      }),
+    ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-fable-5-1' });
+  });
+
   it('falls back to the route fields when the agent load fails', async () => {
     await expect(
       resolveTimePackTarget({
@@ -296,5 +311,30 @@ describe('resolveTimePackTarget (F2)', () => {
         },
       }),
     ).resolves.toEqual({ endpoint: 'ClaudeTime', model: 'claude-sonnet-5-5' });
+  });
+});
+
+describe('resolveTimePackRoute when packs lost kind:time', () => {
+  it('still seats an entitled user on their entitlement endpoint', () => {
+    const user = entitled('u');
+    expect(
+      resolveTimePackRoute({
+        user,
+        endpoint: 'ClaudeTime',
+        model: 'claude-fable-5-1',
+        packs: [{ id: 'claude-time', kind: 'credits', endpoint: 'ClaudeTime' }],
+      }),
+    ).toMatchObject({ kind: 'seat', entitlement: { timePackId: 'claude-time' } });
+  });
+
+  it('leaves unrelated endpoints alone without a kind:time pack', () => {
+    expect(
+      resolveTimePackRoute({
+        user: entitled('u'),
+        endpoint: 'OpenRouter',
+        model: 'x',
+        packs: [{ id: 'starter', kind: 'credits', credits: 100 }],
+      }),
+    ).toEqual({ kind: 'none' });
   });
 });
