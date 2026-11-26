@@ -139,4 +139,29 @@ describe('Balance time-pack status route', () => {
     );
     expect(entitlement?.timePackEndpoint).toBe('ClaudeTime');
   });
+
+  it('syncs a balance-only grant onto the user before reporting capacity', async () => {
+    const { findBalanceByUser, setUserTimePack } = require('~/models');
+    findBalanceByUser.mockResolvedValue({
+      user: 'user-1',
+      timePackId: 'claude-time',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: FUTURE,
+      timePackGrantedAt: new Date().toISOString(),
+      timePackLabel: 'Claude Time',
+      timePackRevision: 1,
+    });
+    setUserTimePack.mockResolvedValue({ ok: true });
+
+    const plain = buildApp({ id: 'user-1', role: 'USER' });
+    const response = await request(plain).get('/api/balance/time-pack/status');
+
+    expect(setUserTimePack).toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      active: true,
+      activeSeats: 2,
+      maxSeats: 4,
+    });
+  });
 });

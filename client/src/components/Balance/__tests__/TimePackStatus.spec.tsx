@@ -20,7 +20,7 @@ describe('TimePackStatus', () => {
 
     expect(screen.getByTestId('time-pack-status')).toBeInTheDocument();
     expect(screen.getByText('Seats in use: 2 of 4')).toBeInTheDocument();
-    expect(screen.getByTestId('time-pack-seats')).toHaveTextContent('3 on the plan');
+    expect(screen.getByTestId('time-pack-seats')).toHaveTextContent('3 using a seat now');
     expect(screen.getByText('Requests this minute: 30 of 60')).toBeInTheDocument();
     expect(screen.getByTestId('time-pack-rate')).toHaveTextContent('Yours: 5 of 20');
   });

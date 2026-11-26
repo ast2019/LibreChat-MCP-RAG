@@ -49,7 +49,9 @@ export const useGetTimePackStatus = (
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchOnMount: true,
-      refetchInterval: 15_000,
+      // Seats are only held while a ClaudeTime generation runs; 15s often missed the
+      // whole turn. Rate counters still stick for the minute, but seats need a faster poll.
+      refetchInterval: 3_000,
       ...config,
       enabled: (config?.enabled ?? true) === true && queriesEnabled,
     },

@@ -131,7 +131,7 @@
   "com_ui_balance_time_pack_expires": "Active until {{0}}",
   "com_ui_balance_time_pack_capacity": "Claude time plan capacity",
   "com_ui_balance_time_pack_seats": "Seats in use: {{0}} of {{1}}",
-  "com_ui_balance_time_pack_holders": "{{0}} on the plan",
+  "com_ui_balance_time_pack_holders": "{{0}} using a seat now",
   "com_ui_balance_time_pack_rate": "Requests this minute: {{0}} of {{1}}",
   "com_ui_balance_time_pack_rate_mine": "Yours: {{0}} of {{1}}",
   "com_ui_balance_time_pack_rate_label": "Share of the shared request rate used",
