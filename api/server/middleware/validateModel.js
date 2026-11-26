@@ -1,4 +1,4 @@
-const { handleError } = require('@librechat/api');
+const { handleError, isModelAllowedBySpecs } = require('@librechat/api');
 const { resolveModelCatalogKey, ViolationTypes, ErrorTypes } = require('librechat-data-provider');
 const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { getEndpointsConfig } = require('~/server/services/Config');
@@ -61,18 +61,20 @@ const validateModel = async (req, res, next) => {
   }
 
   const availableModels = modelsConfig[resolveModelCatalogKey(endpoint, modelsConfig)];
-  if (!availableModels) {
+  const inCatalog =
+    Array.isArray(availableModels) &&
+    availableModels.some((availableModel) => availableModel === model);
+  /** Enforced modelSpecs are the access list; an empty/stale endpoint catalog must not refuse them. */
+  if (inCatalog || isModelAllowedBySpecs(req.config?.modelSpecs?.list, endpoint, model)) {
+    return next();
+  }
+
+  if (!Array.isArray(availableModels)) {
     return refuse(res, {
       type: ErrorTypes.ENDPOINT_MODELS_NOT_LOADED,
       info: endpoint,
       message: 'Endpoint models not loaded',
     });
-  }
-
-  let validModel = !!availableModels.find((availableModel) => availableModel === model);
-
-  if (validModel) {
-    return next();
   }
 
   const { ILLEGAL_MODEL_REQ_SCORE: score = 1 } = process.env ?? {};

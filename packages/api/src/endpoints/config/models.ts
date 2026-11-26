@@ -338,6 +338,28 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
     }
 
     /**
+     * Seed each endpoint's catalog from the modelSpecs that target it. Enforced specs (ClaudeTime
+     * included) are what the user is allowed to pick; if a custom endpoint's fetch/default list
+     * is empty or stale, those preset models must still validate.
+     */
+    for (const spec of appConfig.modelSpecs?.list ?? []) {
+      const endpoint =
+        typeof spec?.preset?.endpoint === 'string'
+          ? normalizeEndpointName(spec.preset.endpoint.trim())
+          : '';
+      const model = typeof spec?.preset?.model === 'string' ? spec.preset.model : '';
+      if (!endpoint || !model) {
+        continue;
+      }
+      const existing = modelsConfig[endpoint];
+      if (!Array.isArray(existing)) {
+        modelsConfig[endpoint] = [model];
+      } else if (!existing.includes(model)) {
+        modelsConfig[endpoint] = [...existing, model];
+      }
+    }
+
+    /**
      * A holder of the plan does not see the credit-path Claude models of the other endpoints:
      * the plan serves the same family without spending credit, and two menus with the same
      * models in them invite the more expensive one. The plan's own endpoint keeps its list.

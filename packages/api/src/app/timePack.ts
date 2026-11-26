@@ -34,6 +34,22 @@ export function timePackEndpointNames(config?: AppConfig | null): string[] {
       names.add(normalizeEndpointName(endpoint));
     }
   }
+  /**
+   * Specs with `timePack: true` name the plan's endpoint too. When a pack row omits `endpoint`
+   * (or an older config only tagged the specs), the model filter must still leave that endpoint's
+   * catalog alone — otherwise every Claude id on it is stripped and chat fails with
+   * `illegal_model_request`.
+   */
+  for (const spec of config?.modelSpecs?.list ?? []) {
+    if (spec?.timePack !== true) {
+      continue;
+    }
+    const endpoint =
+      typeof spec.preset?.endpoint === 'string' ? spec.preset.endpoint.trim() : '';
+    if (endpoint) {
+      names.add(normalizeEndpointName(endpoint));
+    }
+  }
   return [...names];
 }
 

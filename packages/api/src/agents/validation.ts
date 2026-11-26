@@ -8,6 +8,7 @@ import {
   getMaxSubagents,
   agentGitIdentitySchema,
   resolveModelCatalogKey,
+  normalizeEndpointName,
   ViolationTypes,
   ErrorTypes,
   MAX_SUBAGENT_GRAPH_NODES,
@@ -19,6 +20,7 @@ import type {
   TModelsConfig,
   AgentSubagentsConfig,
   AgentInstructionsPrompt,
+  TModelSpec,
 } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 
@@ -956,6 +958,35 @@ interface ValidateAgentModelResult {
 }
 
 /**
+ * Whether the request's already-filtered modelSpecs name this endpoint+model.
+ *
+ * With `modelSpecs.enforce`, the selector offers presets (e.g. ClaudeTime) that are not always
+ * mirrored in the fetched model catalog: a custom endpoint can land with an empty list while its
+ * specs still name concrete models. Those specs are the access decision — `applyTimePackSpecs`
+ * and privacy filters already dropped what this user must not see — so a listed preset must pass.
+ */
+export function isModelAllowedBySpecs(
+  specs: Array<Pick<TModelSpec, 'preset'> | null | undefined> | null | undefined,
+  endpoint: string | null | undefined,
+  model: string,
+): boolean {
+  if (!Array.isArray(specs) || !endpoint) {
+    return false;
+  }
+  const target = normalizeEndpointName(endpoint);
+  return specs.some((spec) => {
+    const preset = spec?.preset;
+    if (preset == null || typeof preset.model !== 'string') {
+      return false;
+    }
+    if (preset.model !== model) {
+      return false;
+    }
+    return normalizeEndpointName(String(preset.endpoint ?? '')) === target;
+  });
+}
+
+/**
  * Validates an agent's model against the available models configuration.
  * This is a non-middleware version of validateModel that can be used
  * in service initialization flows.
@@ -988,19 +1019,22 @@ export async function validateAgentModel(
   }
 
   const availableModels = modelsConfig[resolveModelCatalogKey(endpoint, modelsConfig)];
-  if (!availableModels) {
+  const inCatalog =
+    Array.isArray(availableModels) && availableModels.some((availableModel) => availableModel === model);
+  const specs = (
+    req as LooseRequest & { config?: { modelSpecs?: { list?: TModelSpec[] } } }
+  ).config?.modelSpecs?.list;
+  if (inCatalog || isModelAllowedBySpecs(specs, endpoint, model)) {
+    return { isValid: true };
+  }
+
+  if (!Array.isArray(availableModels)) {
     return {
       isValid: false,
       error: {
         message: `{ "type": "${ErrorTypes.ENDPOINT_MODELS_NOT_LOADED}", "info": "${endpoint}" }`,
       },
     };
-  }
-
-  const validModel = !!availableModels.find((availableModel) => availableModel === model);
-
-  if (validModel) {
-    return { isValid: true };
   }
 
   const { ILLEGAL_MODEL_REQ_SCORE: score = 1 } = process.env ?? {};

@@ -3,7 +3,7 @@ import { useSetAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
 import { useNavigate } from 'react-router-dom';
-import { isAdminPanelRole } from 'librechat-data-provider';
+import { getActiveTimePackEntitlement, isAdminPanelRole } from 'librechat-data-provider';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
@@ -132,9 +132,10 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   );
   const packDescriptionId = useId();
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
-  /** The time plan is running: the flame says so, and the plan hides the credit-path Claude. */
+  /** The time plan is running: balance badge or the signed-in user entitlement (either is enough). */
   const timePackActive =
-    balanceState.status === 'success' && balanceState.summary.timePackExpiresAt != null;
+    (balanceState.status === 'success' && balanceState.summary.timePackExpiresAt != null) ||
+    getActiveTimePackEntitlement(user) != null;
   /** The collapsed rail opens the menu beside it, toward the content. */
   const railSide = inlineSide(useDirection(), 'end');
 

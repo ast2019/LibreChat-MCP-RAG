@@ -9,6 +9,14 @@ import AccountSettings from '../AccountSettings';
 import { summarizeBalance } from '~/utils';
 
 const mockBalanceView = jest.fn<BalanceView, []>();
+const mockAuthUser = jest.fn(() => ({
+  name: 'Sara',
+  email: 'sara@example.com',
+  avatar: '',
+  timePackId: undefined as string | undefined,
+  timePackEndpoint: undefined as string | undefined,
+  timePackExpiresAt: undefined as string | undefined,
+}));
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => ({ data: {} }),
@@ -16,7 +24,7 @@ jest.mock('~/data-provider', () => ({
 
 jest.mock('~/hooks/AuthContext', () => ({
   useAuthContext: () => ({
-    user: { name: 'Sara', email: 'sara@example.com', avatar: '' },
+    user: mockAuthUser(),
     logout: jest.fn(),
   }),
 }));
@@ -140,6 +148,20 @@ describe('AccountSettings', () => {
 
   it('burns the avatar while the time plan runs', () => {
     mockBalanceView.mockReturnValue(withTimePack());
+    renderAccount();
+    expect(screen.getByTestId('time-pack-flame')).toBeInTheDocument();
+  });
+
+  it('burns the avatar from the signed-in user entitlement when balance has no time pack', () => {
+    mockAuthUser.mockReturnValueOnce({
+      name: 'Sara',
+      email: 'sara@example.com',
+      avatar: '',
+      timePackId: 'tp1',
+      timePackEndpoint: 'ClaudeTime',
+      timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    mockBalanceView.mockReturnValue(withBalance({ tokenCredits: 150_000 }));
     renderAccount();
     expect(screen.getByTestId('time-pack-flame')).toBeInTheDocument();
   });

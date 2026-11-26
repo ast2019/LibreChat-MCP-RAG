@@ -374,7 +374,8 @@ html.high-contrast.dark .btn-neutral:hover {
 
 /* Animated flame halo around the avatar of a user whose Claude time plan is active. The paint
  * cannot be expressed with utilities: an animated conic gradient needs keyframes and a mask,
- * and the sweep has to keep moving to read as fire. */
+ * and the sweep has to keep moving to read as fire. Sized larger than the avatar so the fire
+ * reads outside the pack ring rather than under it. */
 .time-pack-flame-glow {
   background-image: conic-gradient(
     from 0deg,
@@ -388,16 +389,16 @@ html.high-contrast.dark .btn-neutral:hover {
   );
   -webkit-mask-image: radial-gradient(
     farthest-side,
-    transparent calc(100% - 2.5px),
-    rgb(var(--text-primary)) calc(100% - 2px)
+    transparent calc(100% - 4px),
+    rgb(var(--text-primary)) calc(100% - 1.5px)
   );
   mask-image: radial-gradient(
     farthest-side,
-    transparent calc(100% - 2.5px),
-    rgb(var(--text-primary)) calc(100% - 2px)
+    transparent calc(100% - 4px),
+    rgb(var(--text-primary)) calc(100% - 1.5px)
   );
   mask-repeat: no-repeat;
-  filter: drop-shadow(0 0 3px rgb(var(--status-warning) / 0.75));
+  filter: drop-shadow(0 0 4px rgb(var(--status-warning) / 0.9));
   animation: time-pack-flame-spin 1.6s linear infinite;
 }
 
@@ -418,13 +419,13 @@ html.high-contrast.dark .btn-neutral:hover {
   );
   -webkit-mask-image: radial-gradient(
     farthest-side,
-    transparent calc(100% - 2.5px),
-    rgb(var(--text-primary)) calc(100% - 2px)
+    transparent calc(100% - 4px),
+    rgb(var(--text-primary)) calc(100% - 1.5px)
   );
   mask-image: radial-gradient(
     farthest-side,
-    transparent calc(100% - 2.5px),
-    rgb(var(--text-primary)) calc(100% - 2px)
+    transparent calc(100% - 4px),
+    rgb(var(--text-primary)) calc(100% - 1.5px)
   );
   mask-repeat: no-repeat;
   animation: time-pack-flame-flicker 0.9s ease-in-out infinite alternate;
@@ -441,12 +442,12 @@ html.high-contrast.dark .btn-neutral:hover {
 
 @keyframes time-pack-flame-flicker {
   from {
-    opacity: 0.35;
+    opacity: 0.45;
     transform: rotate(0deg) scale(1);
   }
   to {
-    opacity: 0.9;
-    transform: rotate(180deg) scale(1.08);
+    opacity: 1;
+    transform: rotate(180deg) scale(1.1);
   }
 }
 
