@@ -17,6 +17,7 @@ import {
   replaceSpecialVars,
   providerEndpointMap,
   normalizeEndpointName,
+  isTimePack,
 } from 'librechat-data-provider';
 import type {
   AgentToolResources,
@@ -1439,6 +1440,32 @@ export async function initializeAgent(
    */
   if (agent.endpoint == null || agent.endpoint === '') {
     agent.endpoint = agent.provider;
+  }
+  /**
+   * Time packs always enter/exit the configured gateway (ClaudeTime). If the user document
+   * still names a renamed gateway (ClaudeTime3D), rewrite it to the pack row endpoint so
+   * routing matches agent.endpoint from time-* modelSpecs — do not divert the agent off
+   * ClaudeTime onto the stale name.
+   */
+  {
+    const packs = appConfig?.balance?.packs ?? [];
+    const packId = typeof user?.timePackId === 'string' ? user.timePackId.trim() : '';
+    const pack = packs.find((entry) => entry.id === packId && isTimePack(entry));
+    const canonical =
+      typeof pack?.endpoint === 'string' && pack.endpoint.trim() !== ''
+        ? pack.endpoint.trim()
+        : null;
+    const current =
+      typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
+    if (user != null && canonical != null && current !== canonical) {
+      logger.warn('[timePack] normalized user.timePackEndpoint to configured pack gateway', {
+        userId: user?.id,
+        from: current || null,
+        to: canonical,
+        timePackId: packId || null,
+      });
+      user.timePackEndpoint = canonical;
+    }
   }
   /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs
    * the user's active entitlement; the controllers reject the primary one earlier. */

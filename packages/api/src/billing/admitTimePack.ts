@@ -1,6 +1,6 @@
 import { logger } from '@librechat/data-schemas';
-import { isTimePack, getActiveTimePackEntitlement } from 'librechat-data-provider';
 import { ErrorTypes } from 'librechat-data-provider';
+import { isTimePack, getActiveTimePackEntitlement } from 'librechat-data-provider';
 import type { TBalanceConfig, TimePackEntitlement } from 'librechat-data-provider';
 import type {
   TimeSeatPool,
@@ -12,14 +12,14 @@ import type {
 import type { TimePackAdmitUser, TimePackRoutePack, TimePackTargetInput } from './route';
 import type { OwnedGenerationControl } from '~/user/generations';
 import type { TimePackRatePool } from './timeRate';
-import { getTimeSeatPool, startTimeSeatHeartbeat, timePackViolationType } from './timeSeats';
-import { acquireTimePackRateSlot, getTimePackRatePool } from './timeRate';
 import {
   isConfiguredTimePackEndpoint,
   resolveTimePackRoute,
   resolveTimePackSpecTarget,
   resolveTimePackTarget,
 } from './route';
+import { getTimeSeatPool, startTimeSeatHeartbeat, timePackViolationType } from './timeSeats';
+import { acquireTimePackRateSlot, getTimePackRatePool } from './timeRate';
 import { abortOwnedGeneration } from '~/user/generations';
 
 /** Whether this agents request should use the Claude time-pack seat path. */
@@ -171,18 +171,19 @@ function denyTimePackRequired(
   };
 }
 
-/** When the user has id+expiry but a blank endpoint, fill it from the matching kind:time pack. */
+/**
+ * Time packs always use the configured pack gateway (ClaudeTime), not a stale rename on the
+ * user (ClaudeTime3D). Blank or divergent `timePackEndpoint` is overwritten from packs.
+ */
 function repairUserTimePackEndpointFromPacks(
   user: TimePackRequestLike['user'],
   packs: readonly TimePackRoutePack[] | null | undefined,
 ): boolean {
-  if (user == null || getActiveTimePackEntitlement(user) != null) {
+  if (user == null) {
     return false;
   }
   const id = typeof user.timePackId === 'string' ? user.timePackId.trim() : '';
-  const endpoint =
-    typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
-  if (!id || endpoint) {
+  if (!id) {
     return false;
   }
   const pack = packs?.find((entry) => entry.id === id && isTimePack(entry));
@@ -190,8 +191,13 @@ function repairUserTimePackEndpointFromPacks(
   if (!fromPack) {
     return false;
   }
+  const current =
+    typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
+  if (current === fromPack) {
+    return false;
+  }
   user.timePackEndpoint = fromPack;
-  return getActiveTimePackEntitlement(user) != null;
+  return true;
 }
 
 export type TimePackRequestAdmission =
@@ -372,9 +378,9 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
-  /** Repair blank timePackEndpoint on the request user before any routing decision. */
+  /** Align user.timePackEndpoint to the configured pack gateway before routing. */
   if (repairUserTimePackEndpointFromPacks(req.user, packs)) {
-    logger.warn('[timePack] repaired blank user.timePackEndpoint from balance.packs', {
+    logger.warn('[timePack] normalized user.timePackEndpoint to configured pack gateway', {
       userId: req.user?.id,
       timePackId: req.user?.timePackId,
       timePackEndpoint: req.user?.timePackEndpoint,
@@ -386,26 +392,34 @@ export async function admitAgentTimePack(
     config: req.config,
   });
   /**
-   * Product rule: a `timePack` modelSpec is always the ClaudeTime gateway path. If target
-   * resolution still landed on the agents router (or another non-pack name), force the
-   * preset endpoint so holders seat and non-holders are denied — never `none` → credits.
+   * Product rule: every time-pack turn uses the configured gateway (ClaudeTime) — the same
+   * custom endpoint for ingress and egress. Only force when this request is a timePack
+   * modelSpec; OpenRouter / credit Claude must stay on the credit path.
    */
   const fromSpec = resolveTimePackSpecTarget({
     endpointOption,
     body,
     config: req.config,
   });
-  if (
-    fromSpec.timePack &&
-    fromSpec.endpoint &&
-    (endpoint == null ||
-      endpoint === '' ||
-      endpoint === 'agents' ||
-      endpoint === 'Agents' ||
-      !isConfiguredTimePackEndpoint(endpoint, req.config))
-  ) {
-    endpoint = fromSpec.endpoint;
-    if (model == null || model === '') {
+  const packGateway =
+    (typeof req.user?.timePackId === 'string'
+      ? packs.find((entry) => entry.id === req.user?.timePackId && isTimePack(entry))?.endpoint?.trim()
+      : '') ||
+    packs.find((entry) => isTimePack(entry))?.endpoint?.trim() ||
+    null;
+  const canonicalGateway =
+    (fromSpec.timePack && fromSpec.endpoint) || packGateway || null;
+  if (canonicalGateway && fromSpec.timePack === true) {
+    if (endpoint !== canonicalGateway) {
+      logger.warn('[timePack] forcing time-pack turn onto configured gateway', {
+        userId: req.user?.id,
+        from: endpoint,
+        to: canonicalGateway,
+        spec: endpointOption?.spec ?? body?.spec ?? null,
+      });
+    }
+    endpoint = canonicalGateway;
+    if ((model == null || model === '') && fromSpec.model) {
       model = fromSpec.model;
     }
   }
