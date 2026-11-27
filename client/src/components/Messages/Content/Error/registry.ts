@@ -8,6 +8,7 @@ import UserKeyError from './UserKeyError';
 import BalanceError from './BalanceError';
 import ContextError from './ContextError';
 import ModelError from './ModelError';
+import TimePackError from './TimePackError';
 import LimitError from './LimitError';
 import AgentError from './AgentError';
 
@@ -81,6 +82,7 @@ export const errorRenderers: Record<string, ComponentType<ErrorRendererProps>> =
   [ErrorTypes.EMPTY_MESSAGES]: ContextError,
   [ErrorTypes.FINAL_CONTEXT_OVERFLOW]: ContextError,
   [ErrorTypes.COMPACTION_SKIPPED]: ContextError,
+  [ErrorTypes.TIME_PACK_REQUIRED]: TimePackError,
   [ViolationTypes.TOKEN_BALANCE]: BalanceError,
   [ViolationTypes.MESSAGE_LIMIT]: LimitError,
   [ViolationTypes.CONCURRENT]: LimitError,

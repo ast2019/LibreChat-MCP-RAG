@@ -15,6 +15,20 @@ LibreChat versions are tracked separately in `package.json`.
   `reason: none_fail_closed` when `user.timePackEndpoint` and/or `balance.packs.endpoint`
   were `ClaudeTime3D` while time-* presets name `ClaudeTime`. Routing now resolves one
   gateway from modelSpecs first, normalizes the user field to it, and seats on that path.
+- **Time-pack holders with a stale `timePackEndpoint` are seated everywhere.** The entitlement
+  read by `getTimePackEntitlement` and the BaseClient recovery path now use the same derived
+  gateway, so a rename no longer turns an active plan into `time_pack_required`.
+- **Several time packs keep their own gateways.** A holder's own pack endpoint wins when a
+  `timePack` spec serves it; only a row no spec serves (a rename) yields to the specs.
+- **A refusal for an active plan no longer says "activate the plan".** The 403 body now carries
+  `reason: plan_mismatch` when the user holds an active plan that does not cover the request,
+  and the client shows a matching message. Time-pack requests never fall back to OpenRouter or
+  token billing: they are seated or refused.
+
+### Added
+- `npm run migrate:time-pack-endpoint -- --from=ClaudeTime3D --to=ClaudeTime [--apply]` renames
+  the stored gateway on users and balances (dry run by default). Optional: requests derive the
+  gateway from the config regardless.
 
 ## [0.40.14] - 2026-11-27
 
