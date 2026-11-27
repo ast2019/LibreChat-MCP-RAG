@@ -390,4 +390,68 @@ describe('terminal agent-run error logging', () => {
       errorType: '_OTHER',
     });
   });
+
+  it('names ClaudeTime credential rejection on upstream 401 (not time_pack_required)', () => {
+    const originalEnv = process.env;
+    process.env = {
+      ...originalEnv,
+      CLAUDE_TIME_KEY: 'sk-ant-rejected-by-gateway',
+      CLAUDE_TIME_BASE_URL: 'https://claudetime.gateway.example/v1',
+    };
+    try {
+      const logger = { error: jest.fn() };
+      const appConfig = {
+        endpoints: {
+          custom: [
+            {
+              name: 'ClaudeTime',
+              provider: 'anthropic',
+              apiKey: '${CLAUDE_TIME_KEY}',
+              baseURL: '${CLAUDE_TIME_BASE_URL}',
+            },
+          ],
+        },
+      };
+      const observer = createTerminalRunErrorObserver({
+        logger,
+        source: '[Agent API]',
+        protectionEnabled: true,
+        endpointAuth: { endpoint: 'ClaudeTime', appConfig: appConfig as never },
+      });
+      const providerError = Object.assign(new Error('Unauthorized'), { status: 401 });
+      observer.modelCallback.handleLLMError(providerError);
+      observer.log(providerError);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /Upstream model error — \[ClaudeTime\] Upstream 401:.*NOT time_pack_required/,
+        ),
+        expect.objectContaining({
+          status: 401,
+          endpoint: 'ClaudeTime',
+          failureKind: 'endpoint_credential_rejected',
+          notTimePackRequired: true,
+          apiKey: expect.objectContaining({
+            present: true,
+            env: 'CLAUDE_TIME_KEY',
+            length: 'sk-ant-rejected-by-gateway'.length,
+          }),
+          baseURL: expect.objectContaining({
+            present: true,
+            host: 'claudetime.gateway.example',
+            env: 'CLAUDE_TIME_BASE_URL',
+          }),
+        }),
+      );
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain('sk-ant-rejected-by-gateway');
+      expect(
+        observer.getUserFacingError(providerError, () => 'fallback'),
+      ).toContain('"notTimePackRequired":true');
+      expect(observer.getUserFacingError(providerError, () => 'fallback')).toContain(
+        '"endpoint":"ClaudeTime"',
+      );
+    } finally {
+      process.env = originalEnv;
+    }
+  });
 });

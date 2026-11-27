@@ -1128,9 +1128,12 @@ const initializeClientWithProvider = async ({
   };
 
   const getIncludeReasoningHistory = (agent) => {
-    if (!agent.provider) return undefined;
+    /** Prefer the configured gateway name (`ClaudeTime`) over the post-swap SDK
+     *  provider (`anthropic`); only the former has `customEndpointConfig`. */
+    const endpointName = agent.endpoint || agent.provider;
+    if (!endpointName) return undefined;
     try {
-      return getProviderConfig({ provider: agent.provider, appConfig }).customEndpointConfig
+      return getProviderConfig({ provider: endpointName, appConfig }).customEndpointConfig
         ?.customParams?.includeReasoningHistory;
     } catch {
       return undefined;

@@ -349,6 +349,52 @@ export function checkInterfaceConfig(appConfig: AppConfig): void {
 }
 
 /**
+ * Fail-loud when a custom endpoint's admin `apiKey` / `baseURL` still looks like an
+ * unresolved `${ENV}` placeholder. Request-time `initializeCustom` would throw
+ * "Missing API Key" / "Missing Base URL", but a gateway 401 from a wrong *set*
+ * key is easy to misread as a code bug (e.g. after the Anthropic provider swap).
+ * Skip `user_provided` — those keys are entered per user, not from Coolify.
+ */
+export function checkCustomEndpointCredentials(appConfig?: AppConfig): void {
+  const customEndpoints = appConfig?.endpoints?.custom;
+  if (!Array.isArray(customEndpoints) || customEndpoints.length === 0) {
+    return;
+  }
+
+  for (const endpoint of customEndpoints) {
+    const name = endpoint?.name?.trim();
+    if (!name) {
+      continue;
+    }
+    for (const field of ['apiKey', 'baseURL'] as const) {
+      const raw = endpoint[field];
+      if (typeof raw !== 'string' || raw.trim() === '') {
+        logger.error(
+          `[startup] Custom endpoint "${name}" is missing ${field}. Requests to it will fail.`,
+        );
+        continue;
+      }
+      const varName = extractVariableName(raw);
+      if (!varName) {
+        continue;
+      }
+      const envValue = process.env[varName];
+      if (envValue === AuthType.USER_PROVIDED || envValue?.trim() === AuthType.USER_PROVIDED) {
+        continue;
+      }
+      if (envValue != null && envValue.trim() !== '') {
+        continue;
+      }
+      logger.error(
+        `[startup] Custom endpoint "${name}" ${field} references \${${varName}} but that environment variable is unset or empty. ` +
+          `Set it in the deployment environment (e.g. Coolify) or every request will fail before/at the model gateway ` +
+          `(Missing ${field === 'apiKey' ? 'API Key' : 'Base URL'}, or upstream 401).`,
+      );
+    }
+  }
+}
+
+/**
  * Performs startup checks including environment variable validation and health checks.
  * This should be called during application startup before initializing services.
  * @param [appConfig] - The application configuration object.
@@ -361,6 +407,7 @@ export async function performStartupChecks(appConfig?: AppConfig): Promise<void>
   }
   if (appConfig) {
     checkInterfaceConfig(appConfig);
+    checkCustomEndpointCredentials(appConfig);
   }
   if (appConfig?.config) {
     checkConfig(appConfig.config);

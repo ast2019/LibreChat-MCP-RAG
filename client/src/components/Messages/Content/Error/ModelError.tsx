@@ -62,12 +62,16 @@ export default function ModelError({ json, message }: ErrorRendererProps) {
    * Provider-neutral headline, matching the sentence the server persists as the failure's own
    * text. The provider's own message rides along in `message` when the deployment lets provider
    * text through: a gateway or proxy rejection explains itself there, and nothing generic can.
+   * HTTP 401 almost always means the deployment's endpoint key/URL is wrong — surface that
+   * instead of a status-only line that looks like an app bug.
    */
   const status = readNumber(json, 'status');
   const headline =
-    status != null
-      ? localize('com_error_upstream_model_status', { 0: status })
-      : localize('com_error_upstream_model');
+    status === 401
+      ? localize('com_error_upstream_model_auth')
+      : status != null
+        ? localize('com_error_upstream_model_status', { 0: status })
+        : localize('com_error_upstream_model');
   return (
     <ErrorWithDetail
       headline={headline}

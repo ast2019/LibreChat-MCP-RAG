@@ -213,6 +213,32 @@ describe('grantedTimePackFromBalance', () => {
     ).toBe(1);
   });
 
+  it('fills a blank timePackEndpoint from the matching kind:time pack', () => {
+    expect(
+      grantedTimePackFromBalance(
+        {
+          timePackId: 'claude-time',
+          timePackExpiresAt: granted.timePackExpiresAt,
+          timePackRevision: 1,
+        },
+        now,
+        [
+          {
+            id: 'claude-time',
+            kind: 'time',
+            label: 'Claude',
+            durationDays: 30,
+            endpoint: 'ClaudeTime',
+          },
+        ],
+      ),
+    ).toMatchObject({
+      timePackId: 'claude-time',
+      timePackEndpoint: 'ClaudeTime',
+      timePackRevision: 1,
+    });
+  });
+
   it('returns null when the pack is expired', () => {
     expect(
       grantedTimePackFromBalance(

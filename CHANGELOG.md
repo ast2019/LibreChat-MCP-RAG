@@ -7,6 +7,35 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.13] - 2026-11-27
+
+### Fixed
+- **`time_pack_required` with `generationProtocolVersion` is now visible in debug shares.**
+  Admit denies previously logged at `debug` or not at all, so shares with debug mode off
+  looked like a key/401 problem or showed nothing. Every deny now WARNs with reason,
+  endpoint, model, spec, and the user's timePack fields.
+- **Blank `timePackEndpoint` on Balance/user no longer false-denies holders.** Sync and
+  admit repair the endpoint from the matching `kind: time` pack (`claude-time` →
+  `ClaudeTime`) so menu/badge expiry alone cannot leave ClaudeTime clicks returning
+  `time_pack_required`.
+
+## [0.40.12] - 2026-11-27
+
+### Fixed
+- **ClaudeTime upstream 401 is an ops/credential failure, not a post-#135 key swap.**
+  After admit succeeds, `initializeAgent` still calls `getProviderConfig` /
+  `initializeCustom` with `agent.endpoint` (`ClaudeTime`), so the Anthropic client
+  receives `CLAUDE_TIME_KEY` + `CLAUDE_TIME_BASE_URL` — not empty
+  `ANTHROPIC_API_KEY`. titleConvo uses the same `agent.endpoint` path. A gateway
+  401 means those Coolify env values are wrong or rejected. Startup now errors
+  loudly when custom-endpoint `${ENV}` placeholders are unset; missing-key throws
+  name the env var; UI 401 copy tells admins to verify endpoint credentials.
+  `includeReasoningHistory` lookup also prefers `agent.endpoint` after the SDK swap.
+  Runtime ERROR / debug-share lines for sendCompletion, resumeCompletion and
+  titleConvo 401s now name `ClaudeTime`, safe key present/length/fingerprint,
+  baseURL host, and `NOT time_pack_required` so they cannot be misread as pack
+  admit failures.
+
 ## [0.40.11] - 2026-11-26
 
 ### Fixed

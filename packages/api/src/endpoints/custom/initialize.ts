@@ -1,10 +1,12 @@
 import { Providers } from '@librechat/agents';
+import { logger } from '@librechat/data-schemas';
 import {
   ErrorTypes,
   envVarRegex,
   EModelEndpoint,
   FetchTokenConfig,
   extractEnvVariable,
+  extractVariableName,
 } from 'librechat-data-provider';
 import type { AppConfig, IUser } from '@librechat/data-schemas';
 import type { TEndpoint } from 'librechat-data-provider';
@@ -16,6 +18,7 @@ import type {
 } from '~/types';
 import { getLLMConfig as getAnthropicLLMConfig } from '~/endpoints/anthropic/llm';
 import { resolveCustomEndpointParameters, isOpenRouterEndpoint } from './config';
+import { describeSecretValue, describeBaseUrlHost } from './authDiagnostics';
 import { resolveModelTransportTimeouts } from '~/agents/config';
 import { extractDefaultParams } from '~/endpoints/openai/llm';
 import { isUserProvided, checkUserKeyExpiry } from '~/utils';
@@ -289,15 +292,27 @@ export async function initializeCustom(
     throw new Error(`Config not found for the ${endpoint} custom endpoint.`);
   }
 
-  const CUSTOM_API_KEY = extractEnvVariable(configuredEndpoint.apiKey ?? '');
-  const CUSTOM_BASE_URL = extractEnvVariable(configuredEndpoint.baseURL ?? '');
+  const rawApiKey = configuredEndpoint.apiKey ?? '';
+  const rawBaseURL = configuredEndpoint.baseURL ?? '';
+  const CUSTOM_API_KEY = extractEnvVariable(rawApiKey);
+  const CUSTOM_BASE_URL = extractEnvVariable(rawBaseURL);
 
   if (CUSTOM_API_KEY.match(envVarRegex)) {
-    throw new Error(`Missing API Key for ${endpoint}.`);
+    const varName = rawApiKey.trim().match(envVarRegex)?.[1];
+    throw new Error(
+      varName
+        ? `Missing API Key for ${endpoint}: environment variable ${varName} is unset or empty.`
+        : `Missing API Key for ${endpoint}.`,
+    );
   }
 
   if (CUSTOM_BASE_URL.match(envVarRegex)) {
-    throw new Error(`Missing Base URL for ${endpoint}.`);
+    const varName = rawBaseURL.trim().match(envVarRegex)?.[1];
+    throw new Error(
+      varName
+        ? `Missing Base URL for ${endpoint}: environment variable ${varName} is unset or empty.`
+        : `Missing Base URL for ${endpoint}.`,
+    );
   }
 
   const endpointConfig = {
@@ -400,6 +415,39 @@ export async function initializeCustom(
     /** Native Anthropic `/v1/messages` client against the custom baseURL/apiKey.
      *  `useLegacyContent` is intentionally left unset (matches the built-in
      *  Anthropic endpoint, which uses native content formatting). */
+    const keyEnv = extractVariableName(rawApiKey);
+    const urlEnv = extractVariableName(rawBaseURL);
+    const builtinAnthropicKey = process.env.ANTHROPIC_API_KEY?.trim() ?? '';
+    const configuredKeyEnvValue = keyEnv ? (process.env[keyEnv]?.trim() ?? '') : '';
+    /** Fail-loud regression signal: the custom endpoint must use its own `${ENV}` value.
+     *  Matching ANTHROPIC_API_KEY only alarms when that env's value is not what we resolved
+     *  (intentional shared secrets stay quiet). */
+    if (
+      keyEnv != null &&
+      keyEnv !== 'ANTHROPIC_API_KEY' &&
+      builtinAnthropicKey !== '' &&
+      apiKey === builtinAnthropicKey &&
+      configuredKeyEnvValue !== apiKey
+    ) {
+      logger.error(
+        `[${endpoint}] Custom anthropic endpoint resolved apiKey equals ANTHROPIC_API_KEY while \${${keyEnv}} does not match. ` +
+          `Check Coolify env wiring — this is NOT time_pack_required.`,
+        {
+          endpoint,
+          failureKind: 'endpoint_credential_miswired',
+          notTimePackRequired: true,
+          apiKey: describeSecretValue(apiKey, keyEnv),
+          baseURL: describeBaseUrlHost(baseURL, urlEnv),
+        },
+      );
+    } else {
+      logger.debug(`[${endpoint}] Custom anthropic client credentials resolved`, {
+        endpoint,
+        notTimePackRequired: true,
+        apiKey: describeSecretValue(apiKey, keyEnv),
+        baseURL: describeBaseUrlHost(baseURL, urlEnv),
+      });
+    }
     options = buildAnthropicCustomConfig({
       apiKey,
       baseURL,

@@ -1,4 +1,10 @@
 import { ErrorTypes } from 'librechat-data-provider';
+import type { AppConfig } from '@librechat/data-schemas';
+import type {
+  BaseUrlPresence,
+  CustomEndpointAuthDiagnostics,
+  SecretPresence,
+} from '../../endpoints/custom/authDiagnostics';
 import type { SafeErrorMetadata } from '../../utils/errors';
 import type { ModelErrorTrackerCallback } from './tracker';
 import {
@@ -8,6 +14,10 @@ import {
   resolveEmptyProviderResponse,
   getProviderErrorMessage,
 } from '../errors';
+import {
+  buildCustomEndpointAuthDiagnostics,
+  formatEndpointAuthRejectionMessage,
+} from '../../endpoints/custom/authDiagnostics';
 import { getSafeErrorMetadata, isOwnedAbortError } from '../../utils/errors';
 import { traceIdForMessage } from '../../langfuse/trace';
 import { createModelErrorTracker } from './tracker';
@@ -16,6 +26,12 @@ const UPSTREAM_MODEL_ERROR_CODE = 'UPSTREAM_MODEL_ERROR';
 const UPSTREAM_MODEL_ERROR_ORIGIN = 'model_provider';
 const UNKNOWN_UPSTREAM_MODEL_ERROR_TYPE = '_OTHER';
 const UPSTREAM_MODEL_ERROR_FALLBACK = 'The model provider could not complete this request.';
+
+/** Optional endpoint identity so a gateway 401 can name credentials, not time-pack. */
+export type TerminalEndpointAuthContext = {
+  endpoint?: string | null;
+  appConfig?: AppConfig;
+};
 
 function safelyResolveLangChainError(error: unknown): string | undefined {
   try {
@@ -30,6 +46,12 @@ export interface UpstreamModelErrorMetadata extends SafeErrorMetadata {
   readonly errorOrigin: typeof UPSTREAM_MODEL_ERROR_ORIGIN;
   readonly errorType: string;
   readonly traceId?: string;
+  readonly endpoint?: string;
+  readonly failureKind?: CustomEndpointAuthDiagnostics['failureKind'];
+  readonly notTimePackRequired?: true;
+  readonly apiKey?: SecretPresence;
+  readonly baseURL?: BaseUrlPresence;
+  readonly sdkProvider?: string;
 }
 
 export interface TerminalRunErrorLogger {
@@ -59,11 +81,26 @@ function getUpstreamErrorType(error: unknown, status?: number): string {
   return status == null ? UNKNOWN_UPSTREAM_MODEL_ERROR_TYPE : String(status);
 }
 
+function resolveAuthDiagnostics(
+  status: number | undefined,
+  endpointAuth?: TerminalEndpointAuthContext,
+): CustomEndpointAuthDiagnostics | null {
+  if (status !== 401 || endpointAuth == null) {
+    return null;
+  }
+  return buildCustomEndpointAuthDiagnostics({
+    endpoint: endpointAuth.endpoint,
+    appConfig: endpointAuth.appConfig,
+  });
+}
+
 export function getUpstreamModelErrorMetadata(
   error: unknown,
   responseMessageId?: string,
+  endpointAuth?: TerminalEndpointAuthContext,
 ): UpstreamModelErrorMetadata {
   const safeMetadata = getSafeErrorMetadata(error);
+  const auth = resolveAuthDiagnostics(safeMetadata.status, endpointAuth);
   return {
     ...safeMetadata,
     errorCode: UPSTREAM_MODEL_ERROR_CODE,
@@ -71,6 +108,16 @@ export function getUpstreamModelErrorMetadata(
     errorType: getUpstreamErrorType(error, safeMetadata.status),
     ...(typeof responseMessageId === 'string' && responseMessageId !== ''
       ? { traceId: traceIdForMessage(responseMessageId) }
+      : {}),
+    ...(auth != null
+      ? {
+          endpoint: auth.endpoint,
+          failureKind: auth.failureKind,
+          notTimePackRequired: auth.notTimePackRequired,
+          apiKey: auth.apiKey,
+          baseURL: auth.baseURL,
+          ...(auth.sdkProvider != null ? { sdkProvider: auth.sdkProvider } : {}),
+        }
       : {}),
   };
 }
@@ -83,6 +130,7 @@ export function createTerminalRunErrorObserver({
   protectionEnabled,
   maxProviderErrorChars,
   genericMessage = `${source} Error:`,
+  endpointAuth,
 }: {
   logger: TerminalRunErrorLogger;
   responseMessageId?: string;
@@ -96,6 +144,8 @@ export function createTerminalRunErrorObserver({
   protectionEnabled?: boolean;
   maxProviderErrorChars?: number;
   genericMessage?: string;
+  /** When set, a gateway 401 log names the custom endpoint credentials (not time_pack_required). */
+  endpointAuth?: TerminalEndpointAuthContext;
 }): TerminalRunErrorObserver {
   const modelErrorTracker = createModelErrorTracker();
   return Object.freeze({
@@ -127,10 +177,18 @@ export function createTerminalRunErrorObserver({
           ? undefined
           : (getProviderErrorMessage(upstreamModelError, maxProviderErrorChars) ??
             getProviderErrorMessage(error, maxProviderErrorChars));
+      const auth = resolveAuthDiagnostics(status, endpointAuth);
       return `${UPSTREAM_MODEL_ERROR_FALLBACK}\n${JSON.stringify({
         type: ErrorTypes.UPSTREAM_MODEL_ERROR,
         ...(status != null ? { status } : {}),
         ...(providerMessage != null ? { message: providerMessage } : {}),
+        ...(auth != null
+          ? {
+              endpoint: auth.endpoint,
+              failureKind: auth.failureKind,
+              notTimePackRequired: auth.notTimePackRequired,
+            }
+          : {}),
       })}`;
     },
     log(error: unknown, signal?: AbortSignal) {
@@ -144,9 +202,31 @@ export function createTerminalRunErrorObserver({
         return;
       }
 
+      const metadata = getUpstreamModelErrorMetadata(
+        upstreamModelError,
+        responseMessageId,
+        endpointAuth,
+      );
+      const authMessage =
+        metadata.status === 401 && metadata.endpoint != null
+          ? formatEndpointAuthRejectionMessage(
+              {
+                endpoint: metadata.endpoint,
+                failureKind: 'endpoint_credential_rejected',
+                notTimePackRequired: true,
+                apiKey: metadata.apiKey ?? { present: false, length: 0, fingerprint: '' },
+                baseURL: metadata.baseURL ?? { present: false, host: null },
+                ...(metadata.sdkProvider != null ? { sdkProvider: metadata.sdkProvider } : {}),
+              },
+              metadata.status,
+            )
+          : null;
+
       logger.error(
-        `${source} Upstream model error`,
-        getUpstreamModelErrorMetadata(upstreamModelError, responseMessageId),
+        authMessage != null
+          ? `${source} Upstream model error — ${authMessage}`
+          : `${source} Upstream model error`,
+        metadata,
       );
     },
   });

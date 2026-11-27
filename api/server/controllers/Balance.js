@@ -26,11 +26,13 @@ async function balanceController(req, res) {
   /**
    * When the balance holds an active time pack the user document does not, copy it so the
    * next `/api/config` (and seat admission) see ClaudeTime instead of OpenRouter Claude.
+   * Pass packs so a Balance row missing `timePackEndpoint` can still repair from config.
    */
-  if (req.user?.id && grantedTimePackFromBalance(balanceData) != null) {
+  const packsForSync = req.config?.balance?.packs;
+  if (req.user?.id && grantedTimePackFromBalance(balanceData, new Date(), packsForSync) != null) {
     try {
       const synced = await syncUserTimePackFromBalance(
-        { findBalanceByUser, setUserTimePack },
+        { findBalanceByUser, setUserTimePack, packs: packsForSync },
         req.user.id,
         req.user,
       );
@@ -72,7 +74,11 @@ async function timePackStatus(req, res) {
    */
   try {
     const synced = await syncUserTimePackFromBalance(
-      { findBalanceByUser, setUserTimePack },
+      {
+        findBalanceByUser,
+        setUserTimePack,
+        packs: req.config?.balance?.packs,
+      },
       userId,
       req.user,
     );

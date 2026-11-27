@@ -220,6 +220,8 @@ const {
   selectRunContextMetaToPublish,
   resolveToolRoleGrants,
   createTerminalRunErrorObserver,
+  buildCustomEndpointAuthDiagnostics,
+  formatEndpointAuthRejectionMessage,
   isAgentRunCancellation,
   markCompactionOutcome,
   resolvePersistableCodeEnvironmentDecision,
@@ -4684,6 +4686,11 @@ class AgentClient extends BaseClient {
         appConfig?.filters,
         appConfig?.messageFilter?.pii,
       ),
+      /** Prefer configured gateway name (ClaudeTime) over post-swap SDK provider (anthropic). */
+      endpointAuth: {
+        endpoint: this.options.agent?.endpoint || this.options.agent?.provider,
+        appConfig,
+      },
     });
     const balanceConfig = getBalanceConfig(appConfig);
     const transactionsConfig = getTransactionsConfig(appConfig);
@@ -5574,6 +5581,10 @@ class AgentClient extends BaseClient {
         appConfig?.filters,
         appConfig?.messageFilter?.pii,
       ),
+      endpointAuth: {
+        endpoint: this.options.agent?.endpoint || this.options.agent?.provider,
+        appConfig,
+      },
     });
     const balanceConfig = getBalanceConfig(appConfig);
     const transactionsConfig = getTransactionsConfig(appConfig);
@@ -6467,10 +6478,30 @@ class AgentClient extends BaseClient {
 
       return sanitizeTitle(titleResult.title);
     } catch (err) {
-      logger.error(
-        '[api/server/controllers/agents/client.js #titleConvo] Error',
-        getSafeErrorMetadata(err),
-      );
+      const safe = getSafeErrorMetadata(err);
+      const auth =
+        safe.status === 401
+          ? buildCustomEndpointAuthDiagnostics({ endpoint, appConfig })
+          : null;
+      if (auth != null) {
+        logger.error(
+          `[api/server/controllers/agents/client.js #titleConvo] Upstream model error — ${formatEndpointAuthRejectionMessage(auth, safe.status)}`,
+          {
+            ...safe,
+            endpoint: auth.endpoint,
+            failureKind: auth.failureKind,
+            notTimePackRequired: auth.notTimePackRequired,
+            apiKey: auth.apiKey,
+            baseURL: auth.baseURL,
+            ...(auth.sdkProvider != null ? { sdkProvider: auth.sdkProvider } : {}),
+          },
+        );
+      } else {
+        logger.error(
+          '[api/server/controllers/agents/client.js #titleConvo] Error',
+          safe,
+        );
+      }
       return;
     }
   }

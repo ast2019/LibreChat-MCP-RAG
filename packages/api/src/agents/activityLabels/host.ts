@@ -122,12 +122,13 @@ function pickEndpointField<K extends keyof ActivityEndpoint>(
     | undefined;
   const all = endpoints?.all as Partial<ActivityEndpoint> | undefined;
   /** The PUBLIC endpoint the request came in on, when it differs from the
-   *  backing provider. `initializeAgent` rewrites `agent.endpoint` to the
-   *  provider (an agents-endpoint run backed by OpenAI reads `openAI`), so
-   *  without this an admin's `endpoints.agents.activityLabel: true` — valid
-   *  config, since `agentsEndpointSchema` inherits every activity field —
-   *  is silently ignored. Public wins per field over the backing provider,
-   *  mirroring how request-path options resolve. */
+   *  configured gateway / backing provider on `agent.endpoint` (an
+   *  agents-endpoint run backed by OpenAI may still read `openAI` there; a
+   *  ClaudeTime run keeps `ClaudeTime`). Without this an admin's
+   *  `endpoints.agents.activityLabel: true` — valid config, since
+   *  `agentsEndpointSchema` inherits every activity field — is silently
+   *  ignored. Public wins per field over the agent endpoint, mirroring how
+   *  request-path options resolve. */
   const publicBlock =
     publicEndpoint != null && publicEndpoint !== endpoint
       ? (endpoints?.[publicEndpoint] as Partial<ActivityEndpoint> | undefined)
