@@ -17,6 +17,7 @@ import {
   replaceSpecialVars,
   providerEndpointMap,
   normalizeEndpointName,
+  getActiveTimePackEntitlement,
 } from 'librechat-data-provider';
 import type {
   AgentToolResources,
@@ -148,7 +149,7 @@ import { hasActiveFileFieldPolicy } from '~/protection';
 import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
-import { resolveTimePackRoute } from '~/billing/route';
+import { isConfiguredTimePackEndpoint, resolveTimePackRoute } from '~/billing/route';
 import { getSkillOfficeTools } from '~/office/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
@@ -1439,6 +1440,35 @@ export async function initializeAgent(
    */
   if (agent.endpoint == null || agent.endpoint === '') {
     agent.endpoint = agent.provider;
+  }
+  /**
+   * Holders may carry `timePackEndpoint` from a renamed gateway (e.g. ClaudeTime3D) while
+   * timePack modelSpecs still name ClaudeTime. Align agent.endpoint to the grant so
+   * routing and getProviderConfig hit the real custom endpoint.
+   */
+  {
+    const liveEntitlement = getActiveTimePackEntitlement(user);
+    const pinned = agent.endpoint || agent.provider;
+    if (
+      liveEntitlement != null &&
+      liveEntitlement.timePackEndpoint !== '' &&
+      pinned != null &&
+      pinned !== '' &&
+      pinned !== liveEntitlement.timePackEndpoint &&
+      (isConfiguredTimePackEndpoint(pinned, appConfig) ||
+        isConfiguredTimePackEndpoint(liveEntitlement.timePackEndpoint, appConfig))
+    ) {
+      logger.warn('[timePack] remapping agent endpoint to entitlement gateway', {
+        userId: user?.id,
+        from: pinned,
+        to: liveEntitlement.timePackEndpoint,
+        timePackId: liveEntitlement.timePackId,
+      });
+      agent.endpoint = liveEntitlement.timePackEndpoint;
+      if (agent.provider === pinned) {
+        agent.provider = liveEntitlement.timePackEndpoint;
+      }
+    }
   }
   /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs
    * the user's active entitlement; the controllers reject the primary one earlier. */

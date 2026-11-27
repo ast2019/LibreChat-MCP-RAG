@@ -410,6 +410,27 @@ export async function admitAgentTimePack(
     }
   }
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
+  /**
+   * Live debug (0.40.13 share n57GWX…): holders had `userTimePackEndpoint: ClaudeTime3D`
+   * (grant / admin rename) while time-* modelSpecs still preset `ClaudeTime`. Routing on the
+   * preset returned `none` → fail-closed `time_pack_required` despite an active entitlement.
+   * A timePack spec for a holder always seats on the granted gateway name.
+   */
+  if (
+    fromSpec.timePack === true &&
+    entitlement != null &&
+    entitlement.timePackEndpoint !== '' &&
+    endpoint !== entitlement.timePackEndpoint
+  ) {
+    logger.warn('[timePack] remapping timePack spec endpoint to entitlement gateway', {
+      userId: req.user?.id,
+      from: endpoint,
+      to: entitlement.timePackEndpoint,
+      spec: endpointOption?.spec ?? body?.spec ?? null,
+      timePackId: entitlement.timePackId,
+    });
+    endpoint = entitlement.timePackEndpoint;
+  }
   const timePackTarget =
     isConfiguredTimePackEndpoint(endpoint, req.config) || fromSpec.timePack === true;
   const specName = endpointOption?.spec ?? body?.spec ?? null;

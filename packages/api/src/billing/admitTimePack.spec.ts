@@ -482,6 +482,49 @@ describe('admitAgentTimePack product scenario (menu + gateway)', () => {
     expect(req._timePackEntitlement).toBeNull();
   });
 
+  it('holder with renamed gateway (ClaudeTime3D) + timePack spec ClaudeTime → seats', async () => {
+    const req = {
+      user: {
+        id: 'holder',
+        timePackId: 'claude-time',
+        timePackEndpoint: 'ClaudeTime3D',
+        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      config: {
+        balance: {
+          ...balance,
+          packs: [{ ...timePack, endpoint: 'ClaudeTime3D' }],
+        },
+        modelSpecs: {
+          list: [
+            {
+              name: 'time-fable',
+              timePack: true,
+              group: 'ClaudeTime',
+              preset: { endpoint: 'ClaudeTime', model: 'claude-fable-5-1' },
+            },
+          ],
+        },
+      },
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-fable',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-fable-5-1' }),
+          model_parameters: { model: 'claude-fable-5-1' },
+        },
+        body: { spec: 'time-fable', endpoint: 'agents' },
+        leaseId: 's-3d',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req._timePackEntitlement).toMatchObject({ timePackEndpoint: 'ClaudeTime3D' });
+    expect(req._timePackSeatHeld).toBe(true);
+  });
+
   it('repairs blank user.timePackEndpoint from packs and seats ClaudeTime', async () => {
     const req = {
       user: {

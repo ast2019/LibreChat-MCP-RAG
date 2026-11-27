@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.14] - 2026-11-27
+
+### Fixed
+- **Holders granted on a renamed ClaudeTime gateway are no longer false-denied.**
+  Live debug share `n57GWXj90…` on 0.40.13 showed `reason: none_fail_closed` with
+  `userTimePackEndpoint: ClaudeTime3D` while time-* specs still preset `ClaudeTime`.
+  Admit and initializeAgent now remap timePack turns onto the entitlement gateway so
+  seats and `getProviderConfig` use the real custom endpoint.
+
 ## [0.40.13] - 2026-11-27
 
 ### Fixed
