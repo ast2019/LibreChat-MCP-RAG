@@ -16,7 +16,7 @@ export const SAMPLE_TEXT: Record<'fa' | 'en', string> = {
 type Sample = { mime: string; base64: string };
 
 /** How long a made sample is served; a changed voice or model config shows up within a day. */
-export const SAMPLE_TTL_MS = 24 * 60 * 60 * 1000;
+export const SAMPLE_TTL_MS: number = 24 * 60 * 60 * 1000;
 
 /**
  * Voice samples. The first sample of a voice is paid for by the user who asked and kept in

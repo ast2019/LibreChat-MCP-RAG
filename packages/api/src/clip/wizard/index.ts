@@ -1,13 +1,16 @@
 import type {
+  TClipWizardChatResponse,
   TClipWizardConfigResponse,
+  TClipWizardDraftResponse,
+  TClipWizardEstimateResponse,
   TClipWizardRenderResponse,
   TClipWizardValidateResponse,
   TClipWizardVoiceSampleResponse,
 } from 'librechat-data-provider';
 import type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 import type { ServerRequest } from '~/types';
-import { validateWizardStoryboard } from './validate';
 import { draftStoryboard, chatStoryboard } from './draft';
+import { validateWizardStoryboard } from './validate';
 import { estimateStoryboard } from './estimate';
 import { createVoiceSampler } from './sample';
 import { startWizardRender } from './render';
@@ -17,6 +20,7 @@ export type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 export { createWizardLlm } from './llm';
 export type { WizardLlm, WizardLlmDeps } from './llm';
 
+/** The clip wizard's endpoint handlers, bound to the host's storage, jobs and billing. */
 export interface ClipWizard {
   config: (req: ServerRequest) => Promise<WizardReply<TClipWizardConfigResponse | WizardErrorBody>>;
   validate: (req: ServerRequest) => Promise<WizardReply<TClipWizardValidateResponse | WizardErrorBody>>;
@@ -24,9 +28,13 @@ export interface ClipWizard {
     req: ServerRequest,
   ) => Promise<WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>>;
   render: (req: ServerRequest) => Promise<WizardReply<TClipWizardRenderResponse | WizardErrorBody>>;
+  draft: (req: ServerRequest) => Promise<WizardReply<TClipWizardDraftResponse | WizardErrorBody>>;
+  chat: (req: ServerRequest) => Promise<WizardReply<TClipWizardChatResponse | WizardErrorBody>>;
+  estimate: (
+    req: ServerRequest,
+  ) => Promise<WizardReply<TClipWizardEstimateResponse | WizardErrorBody>>;
 }
 
-/** The clip wizard's endpoint handlers, bound to the host's storage, jobs and billing. */
 export function createClipWizard(deps: ClipWizardDeps): ClipWizard {
   const sample = createVoiceSampler();
   return {
