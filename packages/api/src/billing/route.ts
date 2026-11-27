@@ -46,10 +46,29 @@ export function getTimePackEntitlement(
   if (entitlement == null) {
     return null;
   }
+  const timePacks = (packs ?? []).filter((entry) => isTimePack(entry));
   const pack = packs?.find((entry) => entry.id === entitlement.timePackId);
+  /**
+   * The configured pack endpoint is the canonical gateway. A user document may still carry a
+   * stale name (ClaudeTime3D) or a pack id that no longer matches a row; without this the
+   * holder's entitlement never matches the real endpoint and routing falls to `none`.
+   */
+  const configuredEndpoints = timePacks
+    .map((entry) => entry.endpoint?.trim())
+    .filter((name): name is string => typeof name === 'string' && name !== '');
+  const canonical =
+    (typeof pack?.endpoint === 'string' && pack.endpoint.trim() !== ''
+      ? pack.endpoint.trim()
+      : null) ??
+    (configuredEndpoints.includes(entitlement.timePackEndpoint) ? null : configuredEndpoints[0]) ??
+    null;
+  const resolved =
+    canonical != null && canonical !== entitlement.timePackEndpoint
+      ? { ...entitlement, timePackEndpoint: canonical }
+      : entitlement;
   return pack?.models != null && pack.models.length > 0
-    ? { ...entitlement, models: [...pack.models] }
-    : entitlement;
+    ? { ...resolved, models: [...pack.models] }
+    : resolved;
 }
 
 /**

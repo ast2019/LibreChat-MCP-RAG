@@ -431,6 +431,25 @@ export async function admitAgentTimePack(
       model = fromSpec.model;
     }
   }
+  /**
+   * A timePack modelSpec names the real gateway. When no pack row could repair the user's
+   * stale endpoint (missing `kind: time` row or id mismatch), align it to the spec so the
+   * holder is not denied with `time_pack_required` while holding an active plan.
+   */
+  if (
+    fromSpec.timePack === true &&
+    canonicalGateway &&
+    req.user != null &&
+    getActiveTimePackEntitlement(req.user) != null &&
+    (req.user.timePackEndpoint ?? '').trim() !== canonicalGateway
+  ) {
+    logger.warn('[timePack] aligned user.timePackEndpoint to time-pack modelSpec gateway', {
+      userId: req.user.id,
+      from: req.user.timePackEndpoint ?? null,
+      to: canonicalGateway,
+    });
+    req.user.timePackEndpoint = canonicalGateway;
+  }
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
   const timePackTarget =
     isConfiguredTimePackEndpoint(endpoint, req.config) || fromSpec.timePack === true;
