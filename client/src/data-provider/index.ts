@@ -6,6 +6,7 @@ export * from './Files';
 export * from './Insights';
 export * from './Billing';
 export * from './Media';
+export * from './ClipWizard';
 export * from './Status';
 export * from './Server';
 export * from './Debug';

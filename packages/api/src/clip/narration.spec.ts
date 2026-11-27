@@ -241,4 +241,10 @@ describe('clip narration service', () => {
       90_000,
     );
   });
+
+  it('refund charges under the model the lines were charged with', async () => {
+    const { service, billing } = setup();
+    await service.refund(req, 90_000, 'c1', 'eleven/v3');
+    expect(billing.refund).toHaveBeenCalledWith(req, expect.objectContaining({ model: 'eleven/v3' }), 90_000);
+  });
 });

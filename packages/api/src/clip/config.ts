@@ -54,6 +54,10 @@ export function getClipStartupConfig(
 ): TClipToolsStartupConfig {
   return {
     clip: getClipConfig(appConfig).clip && getRemotionServiceTarget(env) != null,
+    wizard:
+      getClipConfig(appConfig).clip &&
+      getClipConfig(appConfig).wizard.enabled &&
+      getRemotionServiceTarget(env) != null,
   };
 }
 

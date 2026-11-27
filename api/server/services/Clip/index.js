@@ -4,6 +4,7 @@ const {
   createClipJobRunner,
   createClipImageService,
   createClipNarrationService,
+  createClipWizard,
   getRemotionServiceTarget,
   createRemotionServiceClient,
   getAppConfigOptionsFromUser,
@@ -57,6 +58,17 @@ const loadClipTools = (req, toolNames) =>
     },
   );
 
+/** The clip wizard's endpoints on the same storage, jobs and billing as the chat tool. */
+const clipWizard = createClipWizard({
+  createMediaJob: db.createMediaJob,
+  countPendingMediaJobs: db.countPendingMediaJobs,
+  findBalanceByUser: db.findBalanceByUser,
+  loadImage,
+  loadAudio,
+  images,
+  narration,
+});
+
 /** The job owner as a request, for loading their files and saving the clip. */
 const loadOwnerRequest = async (job) => {
   const user = await db.getUserById(job.user, '-password -__v -totpSecret -backupCodes');
@@ -108,4 +120,4 @@ const startClipJobWorker = () => {
   return worker;
 };
 
-module.exports = { loadClipTools, startClipJobWorker };
+module.exports = { loadClipTools, startClipJobWorker, clipWizard };

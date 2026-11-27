@@ -103,3 +103,5 @@ file, the repository or a chat.
     (`clip/scene.ts`) must stay in sync; `themeDrift.spec.ts` checks the shared lists.
   - Worker tests: `node --test test/*.test.mjs` in `deploy/remotion`; real Chromium gates with
     `REMOTION_E2E=1` (and `REMOTION_E2E_TTS=1` for Edge TTS, which needs network).
+  - The `/clip` wizard page (phase 2a, `clipTools.wizard`, `packages/api/src/clip/wizard`): design,
+    endpoints, credit rules and the 2b list in `docs/saas/clip-wizard-fa.md`.

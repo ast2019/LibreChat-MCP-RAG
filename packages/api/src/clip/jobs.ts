@@ -81,6 +81,14 @@ export interface ClipJobPayload {
   narrationFiles?: Record<string, string>;
   /** Credits charged for the narration so far */
   narrationCredits?: number;
+  /**
+   * Set (and saved) before a provider-failure refund is attempted. A retry that finds it set
+   * never refunds again: a missed refund stays visible in `chargedCredits` and `refundOwed`,
+   * where a double refund would be silent.
+   */
+  refundStarted?: boolean;
+  /** What a failed refund still owes the user; kept on the failed job for reconciliation */
+  refundOwed?: { aiCredits?: number; narrationCredits?: number };
   /** Failed submits so far (worker 5xx or network), capped by `clipTools.submitRetries` */
   submitFailures?: number;
 }
@@ -180,7 +188,12 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
       const results = await Promise.all([
         payload.aiCredits ? deps.images?.refund(req, payload.aiCredits, job.conversationId) : true,
         payload.narrationCredits
-          ? deps.narration?.refund(req, payload.narrationCredits, job.conversationId)
+          ? deps.narration?.refund(
+              req,
+              payload.narrationCredits,
+              job.conversationId,
+              payload.request.audio.narration?.model,
+            )
           : true,
       ]);
       if (results.every((ok) => ok === true)) {
@@ -201,15 +214,32 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   async function fail(job: MediaJobRecord, code: ClipJobErrorCode, reason?: string): Promise<void> {
     const payload = job.payload ? payloadOf(job) : undefined;
     const refundable = code === 'narration_failed' || code === 'image_failed';
-    const charged = payload
-      ? refundable
-        ? await refundProviderFailure(job, payload)
-        : spentCredits(payload)
-      : undefined;
+    let charged: number | undefined;
+    if (payload) {
+      charged = spentCredits(payload);
+      if (refundable && charged > 0) {
+        if (payload.refundStarted) {
+          logger.error(`[clip] refund not repeated job=${job.id} credits=${charged}`);
+        } else {
+          /** Saved first: if the final write below fails, the retry sees this and does not refund twice. */
+          job.payload = { ...payload, refundStarted: true } as unknown as Record<string, unknown>;
+          await deps.updateMediaJob(job.id, { payload: job.payload });
+          charged = await refundProviderFailure(job, payload);
+        }
+      }
+    }
+    const owed = charged && payload && refundable ? charged : 0;
     await deps.updateMediaJob(job.id, {
       status: 'failed',
       errorCode: code,
-      payload: null,
+      payload: owed
+        ? {
+            refundOwed: {
+              ...(payload?.aiCredits ? { aiCredits: payload.aiCredits } : {}),
+              ...(payload?.narrationCredits ? { narrationCredits: payload.narrationCredits } : {}),
+            },
+          }
+        : null,
       ...(charged || (refundable && payload && spentCredits(payload) > 0) ? { chargedCredits: charged } : {}),
     });
     await deps.images?.release(job.id);

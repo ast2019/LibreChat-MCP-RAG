@@ -471,6 +471,7 @@ const startServer = async () => {
   app.use('/api/keys', routes.keys);
   app.use('/api/api-keys', routes.apiKeys);
   app.use('/api/media', routes.media);
+  app.use('/api/clip', routes.clip);
   app.use('/api/user', routes.user);
   app.use('/api/search', routes.search);
   app.use('/api/messages', routes.messages);
