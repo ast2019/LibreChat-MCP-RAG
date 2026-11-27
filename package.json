@@ -18,6 +18,7 @@
     "set-balance": "node config/set-balance.js",
     "grant-pack": "node config/grant-pack.js",
     "sync-user-packs": "node config/sync-user-packs.js",
+    "migrate:time-pack-endpoint": "node config/migrate-time-pack-endpoint.js",
     "list-balances": "node config/list-balances.js",
     "user-stats": "node config/user-stats.js",
     "rebuild:package-lock": "node config/packages",

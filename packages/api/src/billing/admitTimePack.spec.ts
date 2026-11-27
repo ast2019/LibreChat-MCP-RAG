@@ -62,7 +62,11 @@ describe('resolveTimePackRoute (F2)', () => {
     for (const user of [{ id: 'u' }, expired, null]) {
       expect(
         resolveTimePackRoute({ user, endpoint: 'ClaudeTime', model: 'x', packs: [timePack] }),
-      ).toEqual({ kind: 'denied', code: ErrorTypes.TIME_PACK_REQUIRED });
+      ).toEqual({
+        kind: 'denied',
+        code: ErrorTypes.TIME_PACK_REQUIRED,
+        reason: 'no_entitlement',
+      });
     }
   });
 
@@ -184,7 +188,7 @@ describe('admitTimePackForRequest', () => {
         body: {
           type: ErrorTypes.TIME_PACK_REQUIRED,
           code: ErrorTypes.TIME_PACK_REQUIRED,
-          reason: 'route_denied',
+          reason: 'no_entitlement',
         },
       });
       expect(req._timePackSeatHeld).toBe(false);

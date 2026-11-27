@@ -122,6 +122,7 @@ export type TimePackRequestLike = TimePackRequestState & {
 
 export type TimePackDenyReason =
   | 'no_entitlement'
+  | 'plan_mismatch'
   | 'route_denied'
   | 'none_fail_closed'
   | 'missing_pack_config';
@@ -161,8 +162,7 @@ function denyTimePackRequired(
     fromSpecTimePack: context.fromSpecTimePack === true,
     admissionKind: context.admissionKind ?? null,
     userTimePackId: typeof user?.timePackId === 'string' ? user.timePackId : null,
-    userTimePackEndpoint:
-      typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint : null,
+    userTimePackEndpoint: typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint : null,
     userTimePackExpiresAt: user?.timePackExpiresAt ?? null,
     hasActiveEntitlement: getActiveTimePackEntitlement(user ?? undefined) != null,
   });
@@ -195,8 +195,7 @@ function repairUserTimePackEndpointToCanonical(
   if (!canonical) {
     return false;
   }
-  const current =
-    typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
+  const current = typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
   if (current === canonical) {
     return false;
   }
@@ -269,7 +268,7 @@ export async function admitTimePackForRequest(
   }
   if (route.kind === 'denied') {
     return denyTimePackRequired(req, {
-      reason: 'route_denied',
+      reason: route.reason,
       endpoint,
       model,
       admissionKind: 'route_denied',
@@ -415,8 +414,7 @@ export async function admitAgentTimePack(
     resolveCanonicalTimePackGateway({
       config: req.config,
       packId: typeof req.user?.timePackId === 'string' ? req.user.timePackId : null,
-    }) ||
-    (fromSpec.timePack ? fromSpec.endpoint : null);
+    }) || (fromSpec.timePack ? fromSpec.endpoint : null);
   if (canonicalGateway && fromSpec.timePack === true) {
     if (endpoint !== canonicalGateway) {
       logger.warn('[timePack] forcing time-pack turn onto configured gateway', {
@@ -430,25 +428,6 @@ export async function admitAgentTimePack(
     if ((model == null || model === '') && fromSpec.model) {
       model = fromSpec.model;
     }
-  }
-  /**
-   * A timePack modelSpec names the real gateway. When no pack row could repair the user's
-   * stale endpoint (missing `kind: time` row or id mismatch), align it to the spec so the
-   * holder is not denied with `time_pack_required` while holding an active plan.
-   */
-  if (
-    fromSpec.timePack === true &&
-    canonicalGateway &&
-    req.user != null &&
-    getActiveTimePackEntitlement(req.user) != null &&
-    (req.user.timePackEndpoint ?? '').trim() !== canonicalGateway
-  ) {
-    logger.warn('[timePack] aligned user.timePackEndpoint to time-pack modelSpec gateway', {
-      userId: req.user.id,
-      from: req.user.timePackEndpoint ?? null,
-      to: canonicalGateway,
-    });
-    req.user.timePackEndpoint = canonicalGateway;
   }
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
   const timePackTarget =
@@ -499,7 +478,7 @@ export async function admitAgentTimePack(
    */
   if (admission.kind === 'none' && timePackTarget) {
     return denyTimePackRequired(req, {
-      reason: entitlement == null ? 'no_entitlement' : 'none_fail_closed',
+      reason: entitlement == null ? 'no_entitlement' : 'plan_mismatch',
       endpoint,
       model,
       spec: specName,

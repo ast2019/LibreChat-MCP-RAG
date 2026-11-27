@@ -1367,6 +1367,7 @@ describe('Error — unlimited Claude plan', () => {
     'com_error_time_pack_busy',
     'com_error_time_pack_rest',
     'com_error_time_pack_required',
+    'com_error_time_pack_mismatch',
     'com_ui_balance_time_pack',
     'com_ui_balance_time_pack_expires',
     'com_admin_packs_kind',
@@ -1384,6 +1385,13 @@ describe('Error — unlimited Claude plan', () => {
 
     expect(screen.getByText(catalog.com_error_time_pack_required)).toBeInTheDocument();
     expectReadable();
+  });
+
+  it('does not tell a holder of an active plan to activate it', () => {
+    renderError({ type: ErrorTypes.TIME_PACK_REQUIRED, reason: 'plan_mismatch' }, providerMessage);
+
+    expect(screen.getByText(catalog.com_error_time_pack_mismatch)).toBeInTheDocument();
+    expect(screen.queryByText(catalog.com_error_time_pack_required)).not.toBeInTheDocument();
   });
 
   it.each(keys)('has Persian copy without vowel marks for %s', (key) => {

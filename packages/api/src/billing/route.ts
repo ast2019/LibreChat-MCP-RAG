@@ -34,7 +34,13 @@ export type TimePackAdmitUser = {
 export type TimePackRoute =
   | { kind: 'none' }
   | { kind: 'seat'; entitlement: TimePackEntitlement }
-  | { kind: 'denied'; code: ErrorTypes.TIME_PACK_REQUIRED };
+  | {
+      kind: 'denied';
+      code: ErrorTypes.TIME_PACK_REQUIRED;
+      /** `plan_mismatch`: the user holds an active plan that does not cover this endpoint or
+       *  model, so "activate the plan" would be the wrong advice. */
+      reason: 'no_entitlement' | 'plan_mismatch';
+    };
 
 /** The entitlement with its pack's model allowlist, or null when the user has none active. */
 export function getTimePackEntitlement(
@@ -99,18 +105,18 @@ export function isTimePackRouteEndpoint({
 export type TimePackConfigLike = {
   balance?: { packs?: readonly TimePackRoutePack[] | null } | null;
   modelSpecs?: {
-    list?: readonly {
-      name?: string | null;
-      timePack?: boolean;
-      preset?: { endpoint?: string | null; model?: string | null } | null;
-    }[] | null;
+    list?:
+      | readonly {
+          name?: string | null;
+          timePack?: boolean;
+          preset?: { endpoint?: string | null; model?: string | null } | null;
+        }[]
+      | null;
   } | null;
 };
 
 /** Endpoint names declared by `kind: time` packs and `timePack` model specs. */
-export function listConfiguredTimePackEndpoints(
-  config?: TimePackConfigLike | null,
-): string[] {
+export function listConfiguredTimePackEndpoints(config?: TimePackConfigLike | null): string[] {
   const names = new Set<string>();
   for (const pack of config?.balance?.packs ?? []) {
     if (!isTimePack(pack)) {
@@ -125,8 +131,7 @@ export function listConfiguredTimePackEndpoints(
     if (spec?.timePack !== true) {
       continue;
     }
-    const endpoint =
-      typeof spec.preset?.endpoint === 'string' ? spec.preset.endpoint.trim() : '';
+    const endpoint = typeof spec.preset?.endpoint === 'string' ? spec.preset.endpoint.trim() : '';
     if (endpoint) {
       names.add(normalizeEndpointName(endpoint));
     }
@@ -167,17 +172,20 @@ export function resolveCanonicalTimePackGateway({
         .filter((endpoint) => endpoint !== ''),
     ),
   ];
+  const packs = config?.balance?.packs ?? [];
+  const id = typeof packId === 'string' ? packId.trim() : '';
+  const holderPack = id ? packs.find((entry) => entry.id === id && isTimePack(entry)) : undefined;
+  const fromPack = typeof holderPack?.endpoint === 'string' ? holderPack.endpoint.trim() : '';
+  /** The holder's own pack row wins when a spec serves it, so several packs can each keep
+   *  their gateway; a row no spec serves is the stale-rename case and yields to the specs. */
+  if (fromPack && (fromSpecs.length === 0 || fromSpecs.includes(fromPack))) {
+    return fromPack;
+  }
   if (fromSpecs.length === 1) {
     return fromSpecs[0];
   }
-  const packs = config?.balance?.packs ?? [];
-  const id = typeof packId === 'string' ? packId.trim() : '';
-  if (id) {
-    const pack = packs.find((entry) => entry.id === id && isTimePack(entry));
-    const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
-    if (fromPack) {
-      return fromPack;
-    }
+  if (fromPack) {
+    return fromPack;
   }
   if (fromSpecs[0]) {
     return fromSpecs[0];
@@ -192,6 +200,27 @@ export function resolveCanonicalTimePackGateway({
     }
   }
   return null;
+}
+
+/**
+ * The entitlement with `timePackEndpoint` replaced by the configured gateway. Grants copy the
+ * endpoint name onto the user once, so a rename leaves holders on a name no request carries;
+ * deriving it at request time heals existing and new holders without a data migration.
+ */
+export function canonicalizeTimePackEntitlement(
+  entitlement: TimePackEntitlement | null,
+  config?: TimePackConfigLike | null,
+): TimePackEntitlement | null {
+  if (entitlement == null) {
+    return null;
+  }
+  const canonical = resolveCanonicalTimePackGateway({
+    config,
+    packId: entitlement.timePackId,
+  });
+  return canonical != null && canonical !== entitlement.timePackEndpoint
+    ? { ...entitlement, timePackEndpoint: canonical }
+    : entitlement;
 }
 
 /** Classifies a request (or one agent of it) by its real endpoint and model. */
@@ -217,7 +246,8 @@ export function resolveTimePackRoute({
   let entitlement = getTimePackEntitlement(user, packList, now);
   const canonical = resolveCanonicalTimePackGateway({
     config: routeConfig,
-    packId: entitlement?.timePackId ?? (typeof user?.timePackId === 'string' ? user.timePackId : null),
+    packId:
+      entitlement?.timePackId ?? (typeof user?.timePackId === 'string' ? user.timePackId : null),
   });
   /**
    * Stale grant/pack names (ClaudeTime3D) must not block the configured pipe (ClaudeTime).
@@ -235,15 +265,22 @@ export function resolveTimePackRoute({
   if (isTimePackClaudeRequest({ entitlement, endpoint, model })) {
     return { kind: 'seat', entitlement: entitlement as TimePackEntitlement };
   }
-  return { kind: 'denied', code: ErrorTypes.TIME_PACK_REQUIRED };
+  return {
+    kind: 'denied',
+    code: ErrorTypes.TIME_PACK_REQUIRED,
+    reason: entitlement == null ? 'no_entitlement' : 'plan_mismatch',
+  };
 }
 
-type TargetAgent = {
-  /** Configured endpoint name (survives the SDK provider swap in initializeAgent). */
-  endpoint?: string | null;
-  provider?: string | null;
-  model?: string | null;
-} | null | undefined;
+type TargetAgent =
+  | {
+      /** Configured endpoint name (survives the SDK provider swap in initializeAgent). */
+      endpoint?: string | null;
+      provider?: string | null;
+      model?: string | null;
+    }
+  | null
+  | undefined;
 
 export type TimePackTargetInput = {
   /** `endpointOption` from the agents route; `agent` is the agent being loaded (a promise). */

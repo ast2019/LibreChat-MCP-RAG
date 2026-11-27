@@ -25,6 +25,7 @@ const {
   withBalanceReservations,
   createOffPackBalanceGate,
   isConfiguredTimePackEndpoint,
+  canonicalizeTimePackEntitlement,
   findCheckpointSummaryPart,
   getSummaryPartText,
   resolveCheckpointMessage,
@@ -1058,7 +1059,10 @@ class BaseClient {
          * unchanged because this branch only runs for configured time-pack endpoints.
          */
         const { getActiveTimePackEntitlement } = require('librechat-data-provider');
-        const liveEntitlement = getActiveTimePackEntitlement(this.options.req?.user);
+        const liveEntitlement = canonicalizeTimePackEntitlement(
+          getActiveTimePackEntitlement(this.options.req?.user),
+          appConfig,
+        );
         /** Endpoint match is enough for recovery: model allowlists were (or will be) enforced
          *  on the admit path; requiring the model id here false-denied holders when
          *  `modelOptions` was still empty at reservation time. */
