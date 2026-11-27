@@ -114,19 +114,84 @@ export type TimePackRequestLike = TimePackRequestState & {
   config?: { balance?: Partial<TBalanceConfig> | null } | null;
 };
 
-function denyTimePackRequired(req: TimePackRequestLike): {
+export type TimePackDenyReason =
+  | 'no_entitlement'
+  | 'route_denied'
+  | 'none_fail_closed'
+  | 'missing_pack_config';
+
+function denyTimePackRequired(
+  req: TimePackRequestLike,
+  context: {
+    reason: TimePackDenyReason;
+    endpoint?: string | null;
+    model?: string | null;
+    spec?: string | null;
+    timePackTarget?: boolean;
+    fromSpecTimePack?: boolean;
+    admissionKind?: string;
+  },
+): {
   kind: 'denied';
   status: 403;
-  body: { type: ErrorTypes.TIME_PACK_REQUIRED; code: ErrorTypes.TIME_PACK_REQUIRED };
+  body: {
+    type: ErrorTypes.TIME_PACK_REQUIRED;
+    code: ErrorTypes.TIME_PACK_REQUIRED;
+    reason: TimePackDenyReason;
+  };
 } {
   req._timePackSeatHeld = false;
   req._timePackLease = null;
   req._timePackEntitlement = null;
+  const user = req.user;
+  /** Always WARN: debug-share with debug mode off previously hid these denies entirely. */
+  logger.warn('[timePack] time_pack_required (admit denied)', {
+    reason: context.reason,
+    userId: user?.id,
+    endpoint: context.endpoint ?? null,
+    model: context.model ?? null,
+    spec: context.spec ?? null,
+    timePackTarget: context.timePackTarget === true,
+    fromSpecTimePack: context.fromSpecTimePack === true,
+    admissionKind: context.admissionKind ?? null,
+    userTimePackId: typeof user?.timePackId === 'string' ? user.timePackId : null,
+    userTimePackEndpoint:
+      typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint : null,
+    userTimePackExpiresAt: user?.timePackExpiresAt ?? null,
+    hasActiveEntitlement: getActiveTimePackEntitlement(user ?? undefined) != null,
+  });
   return {
     kind: 'denied',
     status: 403,
-    body: { type: ErrorTypes.TIME_PACK_REQUIRED, code: ErrorTypes.TIME_PACK_REQUIRED },
+    body: {
+      type: ErrorTypes.TIME_PACK_REQUIRED,
+      code: ErrorTypes.TIME_PACK_REQUIRED,
+      reason: context.reason,
+    },
   };
+}
+
+/** When the user has id+expiry but a blank endpoint, fill it from the matching kind:time pack. */
+function repairUserTimePackEndpointFromPacks(
+  user: TimePackRequestLike['user'],
+  packs: readonly TimePackRoutePack[] | null | undefined,
+): boolean {
+  if (user == null || getActiveTimePackEntitlement(user) != null) {
+    return false;
+  }
+  const id = typeof user.timePackId === 'string' ? user.timePackId.trim() : '';
+  const endpoint =
+    typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
+  if (!id || endpoint) {
+    return false;
+  }
+  const pack = packs?.find((entry) => entry.id === id && isTimePack(entry));
+  const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
+  if (!fromPack) {
+    return false;
+  }
+  user.timePackEndpoint = fromPack;
+  return getActiveTimePackEntitlement(user) != null;
 }
 
 export type TimePackRequestAdmission =
@@ -135,7 +200,11 @@ export type TimePackRequestAdmission =
   | {
       kind: 'denied';
       status: 403;
-      body: { type: ErrorTypes.TIME_PACK_REQUIRED; code: ErrorTypes.TIME_PACK_REQUIRED };
+      body: {
+        type: ErrorTypes.TIME_PACK_REQUIRED;
+        code: ErrorTypes.TIME_PACK_REQUIRED;
+        reason?: TimePackDenyReason;
+      };
     }
   | { kind: 'rejected'; admission: Extract<TimePackAdmitResult, { ok: false }> }
   | {
@@ -183,17 +252,12 @@ export async function admitTimePackForRequest(
     return { kind: 'none' };
   }
   if (route.kind === 'denied') {
-    logger.debug('[timePack] admission denied', {
-      userId: req.user?.id,
+    return denyTimePackRequired(req, {
+      reason: 'route_denied',
       endpoint,
       model,
-      code: route.code,
+      admissionKind: 'route_denied',
     });
-    return {
-      kind: 'denied',
-      status: 403,
-      body: { type: route.code, code: route.code },
-    };
   }
   req._timePackEntitlement = route.entitlement;
   const userId = req.user?.id;
@@ -308,6 +372,14 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
+  /** Repair blank timePackEndpoint on the request user before any routing decision. */
+  if (repairUserTimePackEndpointFromPacks(req.user, packs)) {
+    logger.warn('[timePack] repaired blank user.timePackEndpoint from balance.packs', {
+      userId: req.user?.id,
+      timePackId: req.user?.timePackId,
+      timePackEndpoint: req.user?.timePackEndpoint,
+    });
+  }
   let { endpoint, model } = await resolveTimePackTarget({
     endpointOption,
     body,
@@ -340,6 +412,7 @@ export async function admitAgentTimePack(
   const entitlement = getActiveTimePackEntitlement(req.user ?? undefined);
   const timePackTarget =
     isConfiguredTimePackEndpoint(endpoint, req.config) || fromSpec.timePack === true;
+  const specName = endpointOption?.spec ?? body?.spec ?? null;
   /**
    * An active entitlement must still reach the seat path when the live pack list lost
    * `kind: time` (admin override). Otherwise ClaudeTime runs as a credited custom endpoint:
@@ -348,7 +421,14 @@ export async function admitAgentTimePack(
   if (!hasTimePackConfig) {
     if (entitlement == null) {
       if (timePackTarget) {
-        return denyTimePackRequired(req);
+        return denyTimePackRequired(req, {
+          reason: 'missing_pack_config',
+          endpoint,
+          model,
+          spec: specName,
+          timePackTarget: true,
+          fromSpecTimePack: fromSpec.timePack === true,
+        });
       }
       req._timePackSeatHeld = false;
       req._timePackLease = null;
@@ -377,7 +457,15 @@ export async function admitAgentTimePack(
    * Holder → seat (or rate/seat reject). No pack → `time_pack_required`.
    */
   if (admission.kind === 'none' && timePackTarget) {
-    return denyTimePackRequired(req);
+    return denyTimePackRequired(req, {
+      reason: entitlement == null ? 'no_entitlement' : 'none_fail_closed',
+      endpoint,
+      model,
+      spec: specName,
+      timePackTarget: true,
+      fromSpecTimePack: fromSpec.timePack === true,
+      admissionKind: 'none',
+    });
   }
   return admission;
 }

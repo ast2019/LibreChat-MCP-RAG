@@ -285,10 +285,14 @@ router.get('/', async function (req, res) {
      * filtered config is built so the selector offers ClaudeTime instead of OpenRouter Claude.
      */
     try {
+      const packsForSync =
+        req.config?.balance?.packs ??
+        (await getAppConfig({ baseOnly: true }).catch(() => null))?.balance?.packs;
       const synced = await syncUserTimePackFromBalance(
         {
           findBalanceByUser: db.findBalanceByUser,
           setUserTimePack: db.setUserTimePack,
+          packs: packsForSync,
         },
         req.user.id,
         req.user,

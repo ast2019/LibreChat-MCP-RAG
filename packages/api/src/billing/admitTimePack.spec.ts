@@ -178,10 +178,14 @@ describe('admitTimePackForRequest', () => {
           abortLease: jest.fn(),
           pool,
         }),
-      ).resolves.toEqual({
+      ).resolves.toMatchObject({
         kind: 'denied',
         status: 403,
-        body: { type: ErrorTypes.TIME_PACK_REQUIRED, code: ErrorTypes.TIME_PACK_REQUIRED },
+        body: {
+          type: ErrorTypes.TIME_PACK_REQUIRED,
+          code: ErrorTypes.TIME_PACK_REQUIRED,
+          reason: 'route_denied',
+        },
       });
       expect(req._timePackSeatHeld).toBe(false);
       expect(req._timePackEntitlement).toBeNull();
@@ -476,6 +480,34 @@ describe('admitAgentTimePack product scenario (menu + gateway)', () => {
       body: { code: ErrorTypes.TIME_PACK_REQUIRED },
     });
     expect(req._timePackEntitlement).toBeNull();
+  });
+
+  it('repairs blank user.timePackEndpoint from packs and seats ClaudeTime', async () => {
+    const req = {
+      user: {
+        id: 'holder',
+        timePackId: 'claude-time',
+        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+        timePackEndpoint: '',
+      },
+      config: timePackConfig,
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-smart',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-sonnet-5-5' }),
+          model_parameters: { model: 'claude-sonnet-5-5' },
+        },
+        body: { spec: 'time-smart', endpoint: 'agents' },
+        leaseId: 's-repair',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req.user?.timePackEndpoint).toBe('ClaudeTime');
+    expect(req._timePackSeatHeld).toBe(true);
   });
 
   it('OpenRouter Claude credit path stays none (Balance.check), even with a pack', async () => {

@@ -135,6 +135,8 @@ export interface SyncUserTimePackDeps {
     fields: GrantedTimePackFields,
     options?: SetUserTimePackOptions,
   ) => Promise<unknown>;
+  /** Live `balance.packs` — used to repair a missing `timePackEndpoint` on the Balance row. */
+  packs?: readonly TBalancePack[] | null;
   now?: () => Date;
 }
 
@@ -159,6 +161,7 @@ function copyRefused(result: unknown): boolean {
 export function grantedTimePackFromBalance(
   balance: TimePackBalanceRecord | null | undefined,
   now: Date = new Date(),
+  packs?: readonly TBalancePack[] | null,
 ): GrantedTimePackFields | null {
   if (balance == null) {
     return null;
@@ -169,8 +172,21 @@ export function grantedTimePackFromBalance(
       ? rawRevision
       : 1;
   const timePackId = typeof balance.timePackId === 'string' ? balance.timePackId.trim() : '';
-  const timePackEndpoint =
+  let timePackEndpoint =
     typeof balance.timePackEndpoint === 'string' ? balance.timePackEndpoint.trim() : '';
+  /**
+   * Legacy / partial Balance rows sometimes keep id+expiry but drop `timePackEndpoint`.
+   * Without it `getActiveTimePackEntitlement` is null and admit returns
+   * `time_pack_required` while the UI still shows an active pack from expiry alone.
+   * Fill the endpoint from the configured `kind: time` pack with the same id.
+   */
+  if (!timePackEndpoint && timePackId) {
+    const pack = packs?.find((entry) => entry.id === timePackId && isTimePack(entry));
+    const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
+    if (fromPack) {
+      timePackEndpoint = fromPack;
+    }
+  }
   const timePackExpiresAt = asDate(balance.timePackExpiresAt);
   const timePackGrantedAt = asDate(balance.timePackGrantedAt) ?? now;
   const timePackLabel =
@@ -223,7 +239,7 @@ export async function syncUserTimePackFromBalance(
     return null;
   }
   const balance = await deps.findBalanceByUser(userId);
-  const granted = grantedTimePackFromBalance(balance, now);
+  const granted = grantedTimePackFromBalance(balance, now, deps.packs);
   if (granted == null) {
     return null;
   }

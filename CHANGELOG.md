@@ -7,6 +7,18 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.13] - 2026-11-27
+
+### Fixed
+- **`time_pack_required` with `generationProtocolVersion` is now visible in debug shares.**
+  Admit denies previously logged at `debug` or not at all, so shares with debug mode off
+  looked like a key/401 problem or showed nothing. Every deny now WARNs with reason,
+  endpoint, model, spec, and the user's timePack fields.
+- **Blank `timePackEndpoint` on Balance/user no longer false-denies holders.** Sync and
+  admit repair the endpoint from the matching `kind: time` pack (`claude-time` →
+  `ClaudeTime`) so menu/badge expiry alone cannot leave ClaudeTime clicks returning
+  `time_pack_required`.
+
 ## [0.40.12] - 2026-11-27
 
 ### Fixed

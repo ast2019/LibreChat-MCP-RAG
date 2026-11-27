@@ -128,7 +128,11 @@ async function syncUserTimePackEntitlementFromBalance(req, userId) {
   }
   try {
     const synced = await syncUserTimePackFromBalance(
-      { findBalanceByUser, setUserTimePack },
+      {
+        findBalanceByUser,
+        setUserTimePack,
+        packs: req.config?.balance?.packs,
+      },
       userId,
       req.user,
     );
