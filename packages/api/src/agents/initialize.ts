@@ -17,7 +17,6 @@ import {
   replaceSpecialVars,
   providerEndpointMap,
   normalizeEndpointName,
-  isTimePack,
 } from 'librechat-data-provider';
 import type {
   AgentToolResources,
@@ -129,6 +128,7 @@ import { assertChatProjectInstructions, ChatProjectResourcesChangedError } from 
 import { extractAgentContent, extractSkillContent } from '../protection/adapters/submissions';
 import { createConfiguredContentInspector, inspectContent } from '../protection/runtime';
 import { assertAgentAttachmentLimits, isModelBoundAttachmentFile } from './attachments';
+import { resolveCanonicalTimePackGateway, resolveTimePackRoute } from '~/billing/route';
 import { assertModelBoundContent } from '../middleware/modelBoundContent';
 import { resolveAttachedWorkspaceReadFileLines } from '~/code/workspace';
 import { isValidInstructionsPromptLink } from './instructions/linked';
@@ -149,7 +149,6 @@ import { hasActiveFileFieldPolicy } from '~/protection';
 import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
-import { resolveTimePackRoute } from '~/billing/route';
 import { getSkillOfficeTools } from '~/office/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
@@ -1442,19 +1441,16 @@ export async function initializeAgent(
     agent.endpoint = agent.provider;
   }
   /**
-   * Time packs always enter/exit the configured gateway (ClaudeTime). If the user document
-   * still names a renamed gateway (ClaudeTime3D), rewrite it to the pack row endpoint so
-   * routing matches agent.endpoint from time-* modelSpecs — do not divert the agent off
+   * Time packs always enter/exit the configured gateway (ClaudeTime from timePack specs).
+   * Stale user/pack renames (ClaudeTime3D) are rewritten — do not divert the agent off
    * ClaudeTime onto the stale name.
    */
   {
-    const packs = appConfig?.balance?.packs ?? [];
     const packId = typeof user?.timePackId === 'string' ? user.timePackId.trim() : '';
-    const pack = packs.find((entry) => entry.id === packId && isTimePack(entry));
-    const canonical =
-      typeof pack?.endpoint === 'string' && pack.endpoint.trim() !== ''
-        ? pack.endpoint.trim()
-        : null;
+    const canonical = resolveCanonicalTimePackGateway({
+      config: appConfig,
+      packId: packId || null,
+    });
     const current =
       typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
     if (user != null && canonical != null && current !== canonical) {
@@ -1476,6 +1472,7 @@ export async function initializeAgent(
       endpoint: timePackEndpoint,
       model: agent.model ?? agent.model_parameters?.model,
       packs: appConfig?.balance?.packs,
+      config: appConfig,
     });
     if (timePackRoute.kind === 'denied') {
       throw new Error(`{ "type": "${ErrorTypes.TIME_PACK_REQUIRED}" }`);

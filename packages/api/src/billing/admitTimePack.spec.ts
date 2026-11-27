@@ -62,7 +62,11 @@ describe('resolveTimePackRoute (F2)', () => {
     for (const user of [{ id: 'u' }, expired, null]) {
       expect(
         resolveTimePackRoute({ user, endpoint: 'ClaudeTime', model: 'x', packs: [timePack] }),
-      ).toEqual({ kind: 'denied', code: ErrorTypes.TIME_PACK_REQUIRED });
+      ).toEqual({
+        kind: 'denied',
+        code: ErrorTypes.TIME_PACK_REQUIRED,
+        reason: 'no_entitlement',
+      });
     }
   });
 
@@ -184,7 +188,7 @@ describe('admitTimePackForRequest', () => {
         body: {
           type: ErrorTypes.TIME_PACK_REQUIRED,
           code: ErrorTypes.TIME_PACK_REQUIRED,
-          reason: 'route_denied',
+          reason: 'no_entitlement',
         },
       });
       expect(req._timePackSeatHeld).toBe(false);
@@ -502,6 +506,49 @@ describe('admitAgentTimePack product scenario (menu + gateway)', () => {
         },
         body: { spec: 'time-smart', endpoint: 'agents' },
         leaseId: 's-3d',
+        abortLease: jest.fn(),
+        pool: memoryPool(),
+      }),
+    ).resolves.toEqual({ kind: 'admitted' });
+    expect(req.user?.timePackEndpoint).toBe('ClaudeTime');
+    expect(req._timePackEntitlement).toMatchObject({ timePackEndpoint: 'ClaudeTime' });
+    expect(req._timePackSeatHeld).toBe(true);
+  });
+
+  it('stale packs.endpoint ClaudeTime3D still seats on modelSpec ClaudeTime (pkWK6)', async () => {
+    const req = {
+      user: {
+        id: 'holder',
+        timePackId: 'claude-time',
+        timePackEndpoint: 'ClaudeTime3D',
+        timePackExpiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      config: {
+        balance: {
+          ...balance,
+          packs: [{ ...timePack, endpoint: 'ClaudeTime3D' }],
+        },
+        modelSpecs: {
+          list: [
+            {
+              name: 'time-pro',
+              timePack: true,
+              preset: { endpoint: 'ClaudeTime', model: 'claude-opus-5-5' },
+            },
+          ],
+        },
+      },
+    } as TimePackRequestLike;
+    await expect(
+      admitAgentTimePack(req, {
+        endpointOption: {
+          endpoint: 'agents',
+          spec: 'time-pro',
+          agent: Promise.resolve({ provider: 'agents', model: 'claude-opus-5-5' }),
+          model_parameters: { model: 'claude-opus-5-5' },
+        },
+        body: { spec: 'time-pro', endpoint: 'agents' },
+        leaseId: 's-pack-3d',
         abortLease: jest.fn(),
         pool: memoryPool(),
       }),
