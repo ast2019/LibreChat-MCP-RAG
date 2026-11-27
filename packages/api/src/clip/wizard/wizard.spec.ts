@@ -5,11 +5,13 @@ import type { ServerRequest } from '~/types';
 import { createClipNarrationService } from '../narration';
 import { RemotionServiceError } from '../client';
 import { createClipWizard } from './index';
+import { SAMPLE_TEXT, SAMPLE_TTL_MS } from './sample';
 
 const ENV = { REMOTION_SERVICE_URL: 'http://remotion:3200', REMOTION_SERVICE_TOKEN: 't'.repeat(40) };
 
 const VOICES = [
   { id: 'eleven-sarah', label: 'سارا', lang: 'fa', provider: 'openrouter', voice: 'sarah', model: 'eleven/v3', format: 'mp3', estimateUsdPerKChar: 0.08 },
+  { id: 'eleven-sarah-en', label: 'Sarah', lang: 'en', provider: 'openrouter', voice: 'sarah', model: 'eleven/v3', format: 'mp3', estimateUsdPerKChar: 0.08 },
   { id: 'fa-IR-DilaraNeural', label: 'دیلارا', lang: 'fa', provider: 'edge', voice: 'fa-IR-DilaraNeural' },
 ];
 
@@ -121,6 +123,7 @@ describe('wizard config', () => {
     const body = reply.body as { voices: { id: string; priceHint: string; hasSample: boolean }[]; limits: { maxScenes: number }; imageSources: { higgsfield: boolean } };
     expect(body.voices.map((v) => [v.id, v.priceHint, v.hasSample])).toEqual([
       ['eleven-sarah', 'paid', true],
+      ['eleven-sarah-en', 'paid', true],
       ['fa-IR-DilaraNeural', 'free', false],
     ]);
     expect(body.limits.maxScenes).toBe(20);
@@ -166,6 +169,55 @@ describe('wizard voice sample', () => {
     expect(billing.record).toHaveBeenCalledTimes(1);
     expect(billing.hold).toHaveBeenCalledTimes(1);
     expect(spent()).toBe(charged);
+  });
+
+  it('keeps one sample per language for the same model and voice', async () => {
+    const { wizard, speechClient } = setup();
+    const fa = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
+    const en = await wizard.voiceSample(request({ voiceId: 'eleven-sarah-en' }));
+    expect([fa.body, en.body]).toEqual([expect.objectContaining({ cached: false }), expect.objectContaining({ cached: false })]);
+    const inputs = (speechClient.synthesize as jest.Mock).mock.calls.map((c) => (c[0] as { input: string }).input);
+    expect(inputs).toEqual([SAMPLE_TEXT.fa, SAMPLE_TEXT.en]);
+  });
+
+  it('after a failed pending call, waiters run one call at a time and share its sample', async () => {
+    const { wizard, speechClient, billing } = setup();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const synth = speechClient.synthesize as jest.Mock;
+    synth.mockImplementationOnce(async () => {
+      await gate;
+      throw new Error('provider down');
+    });
+    const first = wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), 'u1'));
+    const waiters = [2, 3, 4].map((n) => wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), `u${n}`)));
+    await new Promise((resolve) => setImmediate(resolve));
+    release();
+    const replies = await Promise.all([first, ...waiters]);
+    expect(code(replies[0])).toBe('provider_failed');
+    expect(replies.slice(1).map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(replies.slice(1).filter((r) => (r.body as { cached: boolean }).cached === false)).toHaveLength(1);
+    expect(synth).toHaveBeenCalledTimes(2);
+    expect(billing.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the sample again once the cached one is older than the TTL', async () => {
+    const { wizard, speechClient } = setup();
+    const realNow = Date.now;
+    let at = realNow();
+    Date.now = () => at;
+    try {
+      await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
+      at += SAMPLE_TTL_MS - 1000;
+      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({ cached: true });
+      at += 2000;
+      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({ cached: false });
+      expect(speechClient.synthesize).toHaveBeenCalledTimes(2);
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it('answers no_sample for an Edge voice and invalid_request for an unknown voice', async () => {

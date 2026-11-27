@@ -15,13 +15,20 @@ export const SAMPLE_TEXT: Record<'fa' | 'en', string> = {
 
 type Sample = { mime: string; base64: string };
 
+/** How long a made sample is served; a changed voice or model config shows up within a day. */
+export const SAMPLE_TTL_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Voice samples. The first sample of a voice is paid for by the user who asked and kept in
  * memory; everyone after gets it free. Provider failures charge nothing (the narration service
  * gives back what it recorded and releases its hold).
+ *
+ * The cache is per process (each instance charges one more user for its own copy) and entries
+ * expire after {@link SAMPLE_TTL_MS}. The key holds model, voice and language, so a changed
+ * config makes a new sample. Charging samples to the platform is not done here.
  */
-export function createVoiceSampler() {
-  const cache = new Map<string, Sample>();
+export function createVoiceSampler(now: () => number = () => Date.now()) {
+  const cache = new Map<string, Sample & { at: number }>();
   const inflight = new Map<string, Promise<unknown>>();
 
   return async function sample(
@@ -46,21 +53,29 @@ export function createVoiceSampler() {
       return fail('no_sample');
     }
     const choice = resolved.choice;
-    const key = `${choice.model}|${choice.voice}`;
+    const key = `${choice.model}|${choice.voice}|${entry.lang}`;
     const served = (cached: boolean, hit: Sample): WizardReply<TClipWizardVoiceSampleResponse> => ({
       status: 200,
       body: { voiceId, ...hit, cached },
     });
 
-    /** Another request is making this sample: wait, then use its result if it made one. */
-    const pending = inflight.get(key);
-    if (pending) {
+    /**
+     * Another request is making this sample: wait, then use its result if it made one. The call
+     * removes itself from `inflight` before it settles, so after a failure the first waiter to
+     * wake starts the next call and the others wait on that one.
+     */
+    for (let pending = inflight.get(key); pending; pending = inflight.get(key)) {
       await pending.catch(() => undefined);
+      const made = cache.get(key);
+      if (made && now() - made.at < SAMPLE_TTL_MS) {
+        return served(true, made);
+      }
     }
     const hit = cache.get(key);
-    if (hit) {
+    if (hit && now() - hit.at < SAMPLE_TTL_MS) {
       return served(true, hit);
     }
+    cache.delete(key);
     if (!deps.narration) {
       return fail('unavailable');
     }
@@ -78,18 +93,16 @@ export function createVoiceSampler() {
           );
         }
         const stored = { mime: made.type, base64: made.buffer.toString('base64') };
-        cache.set(key, stored);
+        cache.set(key, { ...stored, at: now() });
         return served(false, stored);
       } catch (error) {
         logger.error(`[clip] wizard voice sample failed voice=${voiceId}`, error);
         return fail('provider_failed');
+      } finally {
+        inflight.delete(key);
       }
     })();
     inflight.set(key, work);
-    try {
-      return await work;
-    } finally {
-      inflight.delete(key);
-    }
+    return work;
   };
 }

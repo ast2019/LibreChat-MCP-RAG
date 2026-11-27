@@ -66,7 +66,12 @@ export interface ClipNarrationService {
    * Gives back narration credits already recorded (the clip failed on the provider's side).
    * Resolves `false` when the ledger write failed, so the caller keeps its own record.
    */
-  refund(req: ServerRequest, credits: number, conversationId?: string): Promise<boolean>;
+  refund(
+    req: ServerRequest,
+    credits: number,
+    conversationId?: string,
+    model?: string,
+  ): Promise<boolean>;
 }
 
 export interface ClipNarrationServiceDeps {
@@ -297,14 +302,15 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       };
     },
 
-    async refund(req, credits, conversationId) {
+    async refund(req, credits, conversationId, model) {
       const s = setup(req);
       if (!s) {
         return false;
       }
+      /** The model the lines were charged under, so refund and charge rows reconcile by model. */
       return deps.billing.refund(
         req,
-        charge(s.speech.model, s.config.endpoint, conversationId),
+        charge(model ?? s.speech.model, s.config.endpoint, conversationId),
         credits,
       );
     },

@@ -5,6 +5,7 @@ const loginLimiter = require('./loginLimiter');
 const passkeyLimiter = require('./passkeyLimiter');
 const importLimiters = require('./importLimiters');
 const uploadLimiters = require('./uploadLimiters');
+const clipWizardLimiters = require('./clipWizardLimiters');
 const forkLimiters = require('./forkLimiters');
 const shareLimiters = require('./shareLimiters');
 const registerLimiter = require('./registerLimiter');
@@ -30,6 +31,7 @@ module.exports = {
   ...messageLimiters,
   ...apiLimiter,
   ...forkLimiters,
+  ...clipWizardLimiters,
   ...shareLimiters,
   ...promptUsageLimiter,
   loginLimiter,
