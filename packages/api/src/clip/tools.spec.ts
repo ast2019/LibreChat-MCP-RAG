@@ -179,4 +179,93 @@ describe('create_remotion_clip (background job)', () => {
     const { clip } = build({ env: {} });
     expect(await run(clip)).toContain('not available');
   });
+
+  describe('narration voices', () => {
+    const spoken = {
+      title: 'Energy',
+      lang: 'fa',
+      scenes: [
+        { type: 'hook', duration_sec: 3, headline: 'H', narration: 'سلام دنیا' },
+        { type: 'stat', duration_sec: 3, value: 30, label: 'x', narration: 'سی درصد' },
+      ],
+    };
+    const voices = [
+      { id: 'dilara', label: 'دیلارا', lang: 'fa', provider: 'edge', voice: 'fa-IR-DilaraNeural' },
+      { id: 'farid', label: 'فرید', lang: 'fa', provider: 'edge', voice: 'fa-IR-FaridNeural' },
+      { id: 'gemini-kore', label: 'Kore', lang: 'fa', provider: 'openrouter', voice: 'Kore', model: 'google/gemini-3.8-flash-tts' },
+    ];
+    const narrationService = (reserve?: jest.Mock) => ({
+      reserve: reserve ?? jest.fn(async () => ({ ok: true as const, hold: { keep: jest.fn(), release: jest.fn(async () => undefined) } })),
+      generate: jest.fn(),
+      refund: jest.fn(async () => true),
+      release: jest.fn(),
+    });
+    const audioOf = (create: jest.Mock) =>
+      ((create.mock.calls[0][0] as { payload: { request: { audio: unknown } } }).payload.request.audio);
+
+    it('with no voice id the default Edge request is unchanged (no voice sent)', async () => {
+      const { clip, createMediaJob } = build({}, '64b000000000000000000031');
+      await run(clip, { ...spoken, audio: { mode: 'tts' } });
+      expect(audioOf(createMediaJob)).toEqual({ mode: 'tts' });
+    });
+
+    it('a bare Edge voice name still works without a catalogue entry', async () => {
+      const { clip, createMediaJob } = build({}, '64b000000000000000000032');
+      await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'fa-IR-FaridNeural' } });
+      expect(audioOf(createMediaJob)).toEqual({ mode: 'tts', voice: 'fa-IR-FaridNeural' });
+    });
+
+    it('the first catalogue entry of the language is the default, and an id picks its Edge voice', async () => {
+      const first = build({}, '64b000000000000000000033', { voices: [voices[1], voices[0]] });
+      await run(first.clip, { ...spoken, audio: { mode: 'tts' } });
+      expect(audioOf(first.createMediaJob)).toEqual({ mode: 'tts', voice: 'fa-IR-FaridNeural' });
+      const picked = build({}, '64b000000000000000000034', { voices });
+      await run(picked.clip, { ...spoken, audio: { mode: 'tts', voice: 'dilara' } });
+      expect(audioOf(picked.createMediaJob)).toEqual({ mode: 'tts', voice: 'fa-IR-DilaraNeural' });
+    });
+
+    it('an unknown id is refused with the valid ids and no job', async () => {
+      const { clip, createMediaJob } = build({}, '64b000000000000000000035', { voices });
+      const out = await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'robot' } });
+      expect(out).toContain('audio.voice');
+      expect(out).toContain('dilara, farid, gemini-kore');
+      expect(createMediaJob).not.toHaveBeenCalled();
+    });
+
+    it('an openrouter voice reserves the lines and stores the voice on the job', async () => {
+      const narration = narrationService();
+      const { clip, createMediaJob } = build({ narration }, '64b000000000000000000036', { voices });
+      await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'gemini-kore' } });
+      expect(narration.reserve).toHaveBeenCalledWith(expect.anything(), ['سلام دنیا', 'سی درصد'], expect.objectContaining({ voice: 'Kore' }), undefined);
+      expect(audioOf(createMediaJob)).toEqual({
+        mode: 'tts',
+        narration: { provider: 'openrouter', voice: 'Kore', model: 'google/gemini-3.8-flash-tts' },
+      });
+    });
+
+    it('refused credit or access returns a model-facing message and creates no job', async () => {
+      const reserve = jest.fn(async () => ({ ok: false as const, message: "The user's credit does not cover the AI narration." }));
+      const { clip, createMediaJob } = build({ narration: narrationService(reserve) }, '64b000000000000000000037', { voices });
+      const out = await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'gemini-kore' } });
+      expect(out).toContain('Nothing was built or charged');
+      expect(out).toContain('credit does not cover');
+      expect(createMediaJob).not.toHaveBeenCalled();
+    });
+
+    it('an openrouter voice without the service wired is refused', async () => {
+      const { clip, createMediaJob } = build({}, '64b000000000000000000038', { voices });
+      const out = await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'gemini-kore' } });
+      expect(out).toContain('AI narration is not available');
+      expect(createMediaJob).not.toHaveBeenCalled();
+    });
+
+    it('releases the narration hold when the job is not recorded', async () => {
+      const release = jest.fn(async () => undefined);
+      const reserve = jest.fn(async () => ({ ok: true as const, hold: { keep: jest.fn(), release } }));
+      const createMediaJob = jest.fn(async () => { throw new Error('db down'); });
+      const { clip } = build({ narration: narrationService(reserve), createMediaJob: createMediaJob as never }, '64b000000000000000000039', { voices });
+      await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'gemini-kore' } });
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+  });
 });

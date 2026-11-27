@@ -4,6 +4,7 @@ import type { MediaJobKind, MediaJobRecord, MediaJobUpdate } from '@librechat/da
 import type { ClipImageRef, ClipRequest, WorkerJobRequest } from './scene';
 import type { RemotionServiceClient, WorkerJobView } from './client';
 import type { TClipToolsConfig } from 'librechat-data-provider';
+import type { ClipNarrationService } from './narration';
 import type { ClipImageService } from './images';
 import type { MediaFetch } from '~/media/types';
 import type { ClipFile } from './tools';
@@ -31,6 +32,7 @@ export type ClipJobErrorCode =
   | 'invalid_storyboard'
   | 'narration_too_long'
   | 'image_failed'
+  | 'narration_failed'
   | 'insufficient_credit'
   | 'assets_too_large'
   | 'audio_missing'
@@ -56,6 +58,8 @@ export interface ClipJobRunnerDeps {
   /** The worker client; null when REMOTION_SERVICE_URL/TOKEN are missing */
   client: () => RemotionServiceClient | null;
   images?: ClipImageService;
+  /** Narration by a billed speech model; absent when not wired */
+  narration?: ClipNarrationService;
   fetch?: MediaFetch;
   env?: Record<string, string | undefined>;
   now?: () => Date;
@@ -73,9 +77,16 @@ export interface ClipJobPayload {
    * owner's file and its ref rewritten to `{ source: 'file' }`, so a retry never makes it again.
    */
   aiCredits?: number;
+  /** Narration lines already made, as the owner's audio file id by scene index (never made twice) */
+  narrationFiles?: Record<string, string>;
+  /** Credits charged for the narration so far */
+  narrationCredits?: number;
   /** Failed submits so far (worker 5xx or network), capped by `clipTools.submitRetries` */
   submitFailures?: number;
 }
+
+/** Credits charged so far for what the job generated (AI images and narration). */
+const spentCredits = (payload: ClipJobPayload): number => (payload.aiCredits ?? 0) + (payload.narrationCredits ?? 0);
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const IMAGE_EXT: Record<string, string> = {
@@ -152,16 +163,57 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   const later = (ms: number): Date => new Date(now().getTime() + ms);
   const payloadOf = (job: MediaJobRecord): ClipJobPayload => job.payload as unknown as ClipJobPayload;
 
-  /** Ends the job: no storyboard is kept, the real AI image charges are recorded. */
+  /**
+   * Gives back what a provider failure already charged (AI images and narration), once.
+   * Returns the credits still charged: 0 when refunded, else everything (the ledger stays truthful).
+   */
+  async function refundProviderFailure(job: MediaJobRecord, payload: ClipJobPayload): Promise<number> {
+    const charged = spentCredits(payload);
+    if (!(charged > 0)) {
+      return 0;
+    }
+    try {
+      const req = await deps.loadOwnerRequest(job);
+      if (!req) {
+        throw new Error('owner request not found');
+      }
+      const results = await Promise.all([
+        payload.aiCredits ? deps.images?.refund(req, payload.aiCredits, job.conversationId) : true,
+        payload.narrationCredits
+          ? deps.narration?.refund(req, payload.narrationCredits, job.conversationId)
+          : true,
+      ]);
+      if (results.every((ok) => ok === true)) {
+        return 0;
+      }
+      throw new Error('refund was not recorded');
+    } catch (error) {
+      logger.error(`[clip] refund failed job=${job.id} credits=${charged}`, getSafeErrorMetadata(error));
+      return charged;
+    }
+  }
+
+  /**
+   * Ends the job: no storyboard is kept, the real AI image and narration charges are recorded.
+   * A provider failure (`image_failed`, `narration_failed`) refunds them first; other failures
+   * keep them, since the files already made stay the user's.
+   */
   async function fail(job: MediaJobRecord, code: ClipJobErrorCode, reason?: string): Promise<void> {
-    const charged = job.payload ? payloadOf(job).aiCredits : undefined;
+    const payload = job.payload ? payloadOf(job) : undefined;
+    const refundable = code === 'narration_failed' || code === 'image_failed';
+    const charged = payload
+      ? refundable
+        ? await refundProviderFailure(job, payload)
+        : spentCredits(payload)
+      : undefined;
     await deps.updateMediaJob(job.id, {
       status: 'failed',
       errorCode: code,
       payload: null,
-      ...(charged ? { chargedCredits: charged } : {}),
+      ...(charged || (refundable && payload && spentCredits(payload) > 0) ? { chargedCredits: charged } : {}),
     });
     await deps.images?.release(job.id);
+    await deps.narration?.release(job.id);
     const event = code === 'cancelled' ? 'job.cancelled' : 'job.failed';
     recordClipEvent({ event, level: code === 'cancelled' ? 'info' : 'warn', jobId: job.id, code, reason });
     logger.warn(`[clip] ${event} job=${job.id} code=${code}${reason ? ` reason=${reason}` : ''}`);
@@ -243,13 +295,85 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
       job.payload = payload as unknown as Record<string, unknown>;
       await deps.updateMediaJob(job.id, {
         payload: job.payload,
-        chargedCredits: payload.aiCredits,
+        chargedCredits: spentCredits(payload),
         nextPollAt: later(LEASE_MS),
       });
       made[ref.id] = { kind: 'image', mime: type, base64: image.buffer.toString('base64') };
     }
     await deps.images.release(job.id);
     return made;
+  }
+
+  /**
+   * Speaks each narrated scene (voices with provider `openrouter`), saves each line as the owner's
+   * audio file and records its id on the job before the next, so no retry makes or charges it twice.
+   */
+  async function makeNarration(
+    req: ServerRequest,
+    job: MediaJobRecord,
+  ): Promise<{ assets: WorkerJobRequest['assets']; lines: Record<string, string> }> {
+    let payload = payloadOf(job);
+    const voice = payload.request.audio.narration;
+    const assets: WorkerJobRequest['assets'] = {};
+    const lines: Record<string, string> = {};
+    if (payload.request.audio.mode !== 'tts' || !voice) {
+      return { assets, lines };
+    }
+    if (!deps.narration) {
+      throw new ClipJobError('narration_failed', 'narration_off');
+    }
+    for (const [index, scene] of payload.request.storyboard.scenes.entries()) {
+      if (typeof scene.narration !== 'string' || !scene.narration.trim()) {
+        continue;
+      }
+      const id = `nar-${index}`;
+      const savedId = payload.narrationFiles?.[index];
+      if (savedId) {
+        const file = await deps.loadAudio(req, savedId);
+        if (!file) {
+          throw new ClipJobError('audio_missing', 'narration_file_missing');
+        }
+        assets[id] = { kind: 'audio', mime: file.type, base64: file.buffer.toString('base64') };
+        lines[index] = id;
+        continue;
+      }
+      const made = await deps.narration
+        .generate(req, scene.narration, voice, { conversationId: job.conversationId, jobId: job.id })
+        .catch((error: unknown) => {
+          logger.warn(`[clip] narration failed job=${job.id}`, getSafeErrorMetadata(error));
+          throw new ClipJobError('narration_failed', 'narration_provider');
+        });
+      if (!made.ok) {
+        throw new ClipJobError(
+          made.code === 'insufficient_credit' ? 'insufficient_credit' : 'narration_failed',
+          `narration_${made.code}`,
+        );
+      }
+      payload = { ...payload, narrationCredits: (payload.narrationCredits ?? 0) + made.credits };
+      job.payload = payload as unknown as Record<string, unknown>;
+      const saved = await deps
+        .saveMedia(req, {
+          buffer: made.buffer,
+          type: made.type,
+          filename: `clip-${id}.${made.type === 'audio/wav' ? 'wav' : 'mp3'}`,
+          context: MEDIA_TRANSACTION_CONTEXTS.speech,
+        })
+        .catch((error: unknown) => {
+          logger.warn(`[clip] narration save failed job=${job.id}`, getSafeErrorMetadata(error));
+          throw new ClipJobError('narration_failed', 'narration_save');
+        });
+      payload = { ...payload, narrationFiles: { ...payload.narrationFiles, [index]: saved.file_id } };
+      job.payload = payload as unknown as Record<string, unknown>;
+      await deps.updateMediaJob(job.id, {
+        payload: job.payload,
+        chargedCredits: spentCredits(payload),
+        nextPollAt: later(LEASE_MS),
+      });
+      assets[id] = { kind: 'audio', mime: made.type, base64: made.buffer.toString('base64') };
+      lines[index] = id;
+    }
+    await deps.narration.release(job.id);
+    return { assets, lines };
   }
 
   async function buildAssets(
@@ -335,7 +459,9 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     }
     await deps.updateMediaJob(job.id, { stage: 'assets', progress: 0.01, nextPollAt: later(LEASE_MS) });
     const { assets: loaded, audioAsset } = await buildAssets(req, payloadOf(job), config);
-    const assets = { ...loaded, ...(await makeAiImages(req, job, config)) };
+    const aiImages = await makeAiImages(req, job, config);
+    const spoken = await makeNarration(req, job);
+    const assets = { ...loaded, ...aiImages, ...spoken.assets };
     const payload = payloadOf(job);
     if (assetBytes(assets) > config.maxAssetMb * 1024 * 1024) {
       throw new ClipJobError('assets_too_large', 'asset_bytes');
@@ -344,11 +470,14 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     const body: WorkerJobRequest = {
       storyboard: request.storyboard,
       assets,
-      audio: {
-        mode: request.audio.mode,
-        ...(request.audio.voice ? { voice: request.audio.voice } : {}),
-        ...(audioAsset ? { asset: audioAsset } : {}),
-      },
+      audio:
+        Object.keys(spoken.lines).length > 0
+          ? { mode: 'scenes', lines: spoken.lines }
+          : {
+              mode: request.audio.mode,
+              ...(request.audio.voice ? { voice: request.audio.voice } : {}),
+              ...(audioAsset ? { asset: audioAsset } : {}),
+            },
       shortSide: payload.shortSide,
       maxDurationSec: payload.maxDurationSec,
       timeoutMs: payload.renderTimeoutMs,
@@ -428,7 +557,7 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
       filepath: saved.filepath,
       type: saved.type,
       warnings: view.warnings.slice(0, 20),
-      chargedCredits: payload.aiCredits ?? 0,
+      chargedCredits: spentCredits(payload),
       payload: null,
     });
     recordClipEvent({

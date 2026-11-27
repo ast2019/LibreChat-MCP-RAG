@@ -74,6 +74,7 @@ function setup(client: Partial<RemotionServiceClient>, aiConfig = true, clipTool
     reserve: jest.fn(),
     generate: jest.fn(async () => ({ ok: true as const, buffer: Buffer.from('ai'), type: 'image/png', credits: 40_000 })),
     release: jest.fn(async () => undefined),
+    refund: jest.fn(async () => true),
   } satisfies ClipImageService;
   const deps = {
     claimDueMediaJobs: jest.fn(async () => []),
@@ -341,5 +342,155 @@ describe('clip job runner', () => {
     expect(cancel).toHaveBeenCalledTimes(2);
     expect(getClipEvents().some((e) => e.event === 'worker.cancel_failed')).toBe(true);
     expect(last(updates)).toMatchObject({ status: 'failed', errorCode: 'cancelled' });
+  });
+
+  describe('OpenRouter narration', () => {
+    const voice = { provider: 'openrouter' as const, voice: 'Kore', model: 'google/gemini-3.8-flash-tts' };
+    const spoken: ClipJobPayload = {
+      ...payload,
+      request: {
+        ...payload.request,
+        images: [{ id: 'img0', source: 'file', fileId: 'file-123456' }],
+        storyboard: {
+          ...payload.request.storyboard,
+          scenes: [
+            { type: 'image', durationSec: 3, image: 'img0', narration: 'سلام' },
+            { type: 'image', durationSec: 3, image: 'img0' },
+            { type: 'image', durationSec: 3, image: 'img0', narration: 'خداحافظ' },
+          ],
+        },
+        audio: { mode: 'tts', narration: voice },
+      },
+    };
+    const narrationService = () => ({
+      reserve: jest.fn(),
+      generate: jest.fn(async () => ({ ok: true as const, buffer: Buffer.from('wav'), type: 'audio/wav', credits: 30_000 })),
+      release: jest.fn(async () => undefined),
+      refund: jest.fn(async () => true),
+    });
+
+    it('speaks each narrated scene, sends them as scenes audio and records the charge', async () => {
+      const submit = jest.fn(async () => view({ jobId: 'w1', state: 'queued', stage: 'queued', progress: 0 }));
+      const { deps, updates } = setup({ submit });
+      const narration = narrationService();
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: spoken as unknown as Record<string, unknown> }));
+      expect(narration.generate).toHaveBeenCalledTimes(2);
+      expect(narration.generate).toHaveBeenCalledWith(expect.anything(), 'سلام', voice, expect.objectContaining({ jobId: '65c000000000000000000001' }));
+      const body = (submit.mock.calls[0] as unknown[])[0] as {
+        assets: Record<string, { kind: string; mime: string }>;
+        audio: { mode: string; lines: Record<string, string>; voice?: string };
+      };
+      expect(body.audio).toEqual({ mode: 'scenes', lines: { 0: 'nar-0', 2: 'nar-2' } });
+      expect(body.assets['nar-0']).toMatchObject({ kind: 'audio', mime: 'audio/wav' });
+      expect(Object.keys(body.assets)).toEqual(['img0', 'nar-0', 'nar-2']);
+      expect(narration.release).toHaveBeenCalledWith('65c000000000000000000001');
+      expect(updates.some((u) => u.chargedCredits === 60_000)).toBe(true);
+    });
+
+    it('a retry reuses saved lines and never speaks (or charges) a line twice', async () => {
+      const submit = jest.fn(async () => view({ jobId: 'w1', state: 'queued', stage: 'queued', progress: 0 }));
+      const { deps } = setup({ submit });
+      const narration = narrationService();
+      const saved = { ...spoken, narrationFiles: { 0: 'saved-nar-0' }, narrationCredits: 30_000 };
+      const loadAudio = jest.fn(async () => ({ buffer: Buffer.from('wav'), type: 'audio/wav' }));
+      const runner = createClipJobRunner({ ...deps, narration, loadAudio });
+      await runner.step(job({ payload: saved as unknown as Record<string, unknown> }));
+      expect(loadAudio).toHaveBeenCalledWith(expect.anything(), 'saved-nar-0');
+      expect(narration.generate).toHaveBeenCalledTimes(1);
+      expect(narration.generate).toHaveBeenCalledWith(expect.anything(), 'خداحافظ', voice, expect.anything());
+    });
+
+    it.each([
+      ['insufficient_credit', 'insufficient_credit'],
+      ['not_allowed', 'narration_failed'],
+      ['unconfigured', 'narration_failed'],
+    ])('a %s refusal fails the job with %s and submits nothing', async (code, errorCode) => {
+      const submit = jest.fn();
+      const { deps, updates } = setup({ submit });
+      const narration = { ...narrationService(), generate: jest.fn(async () => ({ ok: false as const, code: code as never })) };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: spoken as unknown as Record<string, unknown> }));
+      expect(submit).not.toHaveBeenCalled();
+      expect(last(updates)).toMatchObject({ status: 'failed', errorCode });
+      expect(narration.release).toHaveBeenCalled();
+    });
+
+    it('a provider error fails the job with a safe code', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = { ...narrationService(), generate: jest.fn(async () => { throw new Error('secret provider text'); }) };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: spoken as unknown as Record<string, unknown> }));
+      expect(last(updates)).toMatchObject({ status: 'failed', errorCode: 'narration_failed' });
+      expect(JSON.stringify(getClipEvents())).not.toContain('secret provider text');
+    });
+
+    it('a provider failure after two charged lines refunds both once and records 0 credits', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+      };
+      const charged = { ...spoken, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration, images: undefined });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      expect(narration.refund).toHaveBeenCalledTimes(1);
+      expect(narration.refund).toHaveBeenCalledWith(expect.anything(), 60_000, undefined);
+      expect(last(updates)).toMatchObject({ status: 'failed', errorCode: 'narration_failed' });
+      expect(last(updates)).toMatchObject({ chargedCredits: 0 });
+    });
+
+    it('refunds AI image credits too, through the image service', async () => {
+      const { deps, updates, images } = setup({ submit: jest.fn() });
+      const narration = narrationService();
+      narration.generate = jest.fn(async () => {
+        throw new Error('down');
+      });
+      const charged = { ...spoken, aiCredits: 40_000, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      expect(images.refund).toHaveBeenCalledWith(expect.anything(), 40_000, undefined);
+      expect(narration.refund).toHaveBeenCalledWith(expect.anything(), 60_000, undefined);
+      expect(last(updates)).toMatchObject({ status: 'failed', chargedCredits: 0 });
+      expect(updates.filter((u) => u.status === 'failed')).toHaveLength(1);
+    });
+
+    it('insufficient_credit does not refund', async () => {
+      const { deps, updates, images } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => ({ ok: false as const, code: 'insufficient_credit' as const })),
+      };
+      const charged = { ...spoken, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      expect(narration.refund).not.toHaveBeenCalled();
+      expect(images.refund).not.toHaveBeenCalled();
+      expect(last(updates)).toMatchObject({ errorCode: 'insufficient_credit', chargedCredits: 60_000 });
+    });
+
+    it('keeps chargedCredits when the refund itself fails', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+        refund: jest.fn(async () => false),
+      };
+      const charged = { ...spoken, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      expect(last(updates)).toMatchObject({ errorCode: 'narration_failed', chargedCredits: 60_000 });
+    });
+
+    it('Edge narration still sends audio.mode tts', async () => {
+      const submit = jest.fn(async () => view({ jobId: 'w1', state: 'queued', stage: 'queued', progress: 0 }));
+      const { runner } = setup({ submit });
+      await runner.step(job());
+      expect((submit.mock.calls[0] as unknown[])[0]).toMatchObject({ audio: { mode: 'tts' } });
+    });
   });
 });

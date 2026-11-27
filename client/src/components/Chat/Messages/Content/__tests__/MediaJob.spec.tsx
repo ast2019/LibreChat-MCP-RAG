@@ -72,6 +72,16 @@ describe('MediaJob', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error_credit');
   });
 
+  it('names a failed voice or image provider', () => {
+    mockJob = { data: { id: 'c', kind: 'clip', status: 'failed', errorCode: 'narration_failed' } };
+    const { unmount } = render(<MediaJob jobId="c" />);
+    expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error_voice');
+    unmount();
+    mockJob = { data: { id: 'c', kind: 'clip', status: 'failed', errorCode: 'image_failed' } };
+    render(<MediaJob jobId="c" />);
+    expect(screen.getByRole('alert')).toHaveTextContent('com_clip_job_error_image');
+  });
+
   it('plays a finished clip in place of the card', () => {
     mockJob = { data: { id: 'c', kind: 'clip', status: 'completed', filepath: '/images/u/clip.mp4', progress: 1 } };
     render(<MediaJob jobId="c" />);

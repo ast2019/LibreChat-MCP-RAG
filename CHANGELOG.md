@@ -7,6 +7,40 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.16] - 2026-11-28
+
+### Added
+- **Clip builder: pick the narration voice.** `clipTools.voices` is a catalogue of narration
+  voices (`id`, Persian `label`, `lang`, `provider` `edge` or `openrouter`, `voice`, and `model`
+  for `openrouter`). The model passes a catalogue id as `audio.voice`; no id uses the first voice
+  of the clip's language, and an unknown id is refused with the valid ids. Without `voices` the
+  three Edge voices apply and the worker request is unchanged.
+- **`openrouter` narration (Gemini TTS and other `/audio/speech` models).** Each narrated scene
+  is spoken in the API (`packages/api/src/clip/narration.ts`), billed like clip AI images (hold at
+  tool time, provider cost else the estimate, nothing charged on failure, never twice on a retry)
+  and sent to the worker as `audio.mode: "scenes"`. The worker lengthens short scenes to fit their
+  audio and spreads caption timings over each line by character count. Insufficient credit or no
+  media access is reported to the model at once and no job is created. New card error code
+  `narration_failed`.
+- **Clip voices: ElevenLabs Eleven v3 first.** In `config/librechat.saas.yaml` the default Persian
+  voices are now ElevenLabs v3 via OpenRouter (Sarah, Alice, George, Brian), then Gemini Kore and
+  Charon; Gemini Leda and Puck and Edge Farid are removed and Edge Dilara is the last, free
+  fallback. Voice entries take optional `format` and `estimateUsdPerKChar` (hold per 1000
+  characters; ElevenLabs is $0.00008 per character). Not verified audibly, and Gemini's Persian
+  quality is unconfirmed.
+- **Clip capacity.** `maxJobsPerUser` 3 and `maxConcurrent` 2; compose `REMOTION_MAX_CONCURRENT`
+  defaults to 2 (reasoning in `docs/saas/clip-builder-fa.md`).
+- **Refund on provider failure.** `MediaBilling.refund` writes a positive credits transaction. When
+  the voice or image provider fails (`narration_failed`, `image_failed`) the clip job refunds its
+  narration and AI image charges once and records `chargedCredits` 0; a later piece failing
+  inside one narration line refunds that line's earlier pieces. A failed refund is logged and the
+  charge stays on the job. Other failures keep their charges.
+
+### Changed
+- Card messages for `narration_failed`, `image_failed` and `insufficient_credit` say the provider
+  failed with no charge, or that credit ran out and the user should top up from «خرید اعتبار».
+  Tool replies for insufficient credit tell the model to send the user to top up.
+
 ## [0.40.15] - 2026-11-27
 
 ### Fixed

@@ -92,7 +92,7 @@ export const clipToolDefinitions: Record<ClipTools, ClipToolDefinition> = {
           type: 'object',
           properties: {
             mode: { type: 'string', enum: ['none', 'tts', 'upload'] },
-            voice: { type: 'string', description: 'Edge voice, e.g. fa-IR-DilaraNeural, fa-IR-FaridNeural, en-US-JennyNeural' },
+            voice: { type: 'string', description: 'Narration voice id from the list in the tool context (the user picks by label); default: first voice for the clip language' },
             file_id: { type: 'string', description: 'upload: an attached audio file id' },
           },
           required: ['mode'],

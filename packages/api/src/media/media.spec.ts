@@ -170,6 +170,7 @@ describe('media tools', () => {
     const billing = {
       hold: jest.fn().mockResolvedValue({ release }),
       record: jest.fn().mockResolvedValue(undefined),
+      refund: jest.fn().mockResolvedValue(true),
     };
     const deps: MediaToolDeps = {
       billing,
@@ -396,7 +397,7 @@ describe('background video jobs', () => {
   const req = { user: { id: 'u1' }, config: appConfig() } as unknown as ServerRequest;
 
   it('starts the video at the provider, answers at once, and charges nothing yet', async () => {
-    const billing = { hold: jest.fn().mockResolvedValue({ release }), record: jest.fn() };
+    const billing = { hold: jest.fn().mockResolvedValue({ release }), record: jest.fn(), refund: jest.fn() };
     const createMediaJob = jest.fn(async (data) => ({ ...data, id: 'job7' }) as never);
     const deps: MediaToolDeps = {
       billing,
@@ -459,7 +460,7 @@ describe('background video jobs', () => {
         type: 'video/mp4',
         bytes: 3,
       }),
-      billing: { record: jest.fn() },
+      billing: { record: jest.fn(), refund: jest.fn() },
       fetch: fetchMock,
       now,
     };

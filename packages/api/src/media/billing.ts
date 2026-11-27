@@ -53,6 +53,12 @@ export interface MediaBilling {
   ) => Promise<BalanceReservation | 'insufficient' | undefined>;
   /** Records the spend; a failed write is logged, since the user already has the file. */
   record: (req: ServerRequest, charge: MediaCharge, credits: number) => Promise<void>;
+  /**
+   * Gives credits back for a charge recorded earlier (a positive transaction). Returns `false`
+   * when the write failed (logged), so the caller can keep its own record truthful; no-op
+   * (`true`) for zero credits.
+   */
+  refund: (req: ServerRequest, charge: MediaCharge, credits: number) => Promise<boolean>;
 }
 
 export function createMediaBilling(deps: MediaBillingDeps): MediaBilling {
@@ -120,5 +126,35 @@ export function createMediaBilling(deps: MediaBillingDeps): MediaBilling {
     }
   }
 
-  return { hold, record };
+  async function refund(req: ServerRequest, charge: MediaCharge, credits: number): Promise<boolean> {
+    const userId = req.user?.id;
+    if (!userId || !(credits > 0)) {
+      return true;
+    }
+    try {
+      await deps.createTransaction({
+        user: userId,
+        ...(charge.conversationId ? { conversationId: charge.conversationId } : {}),
+        model: charge.model,
+        endpoint: charge.endpoint,
+        context: charge.context,
+        tokenType: 'credits',
+        rawAmount: credits,
+        endpointTokenConfig: { [charge.model]: { credits: 1 } },
+        balance: getBalanceConfig(req.config) ?? undefined,
+        transactions: getTransactionsConfig(req.config),
+      });
+      return true;
+    } catch (error) {
+      logger.error('[media] Failed to refund a generation charge', {
+        userId,
+        model: charge.model,
+        context: charge.context,
+        error,
+      });
+      return false;
+    }
+  }
+
+  return { hold, record, refund };
 }

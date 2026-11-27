@@ -21,6 +21,39 @@ export const CLIP_ARTIFACT_KEY = 'clip_files';
 /** Longest clip any deployment may allow, in seconds. */
 export const CLIP_HARD_MAX_DURATION_SEC = 180;
 
+/** One narration voice the clip builder offers (a row of the `clipTools.voices` catalogue). */
+export const clipVoiceSchema = z
+  .object({
+    /** Id the model passes as `audio.voice` */
+    id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{1,59}$/),
+    /** Persian name the user picks by */
+    label: z.string().min(1).max(60),
+    lang: z.enum(['fa', 'en']),
+    /** `edge` runs on the render worker; `openrouter` goes through `media.speech` and is billed */
+    provider: z.enum(['edge', 'openrouter']),
+    /** Edge voice name (fa-IR-DilaraNeural), or the provider's voice (Kore) */
+    voice: z.string().min(1).max(60),
+    /** Speech model, required for `openrouter` */
+    model: z.string().min(1).max(100).optional(),
+    /** Audio format the model returns; `media.speech.format` when unset (`pcm` is saved as WAV) */
+    format: z.enum(['mp3', 'pcm']).optional(),
+    /** USD held and assumed per 1000 characters when the provider reports no cost; `media.speech.estimateUsd` per call when unset */
+    estimateUsdPerKChar: z.number().min(0).max(100).optional(),
+  })
+  .refine((entry) => entry.provider !== 'openrouter' || Boolean(entry.model), {
+    message: 'model is required for the openrouter provider',
+    path: ['model'],
+  });
+
+export type TClipVoice = z.infer<typeof clipVoiceSchema>;
+
+/** The narration voices offered when `clipTools.voices` is not set (Edge, as before). */
+export const DEFAULT_CLIP_VOICES: TClipVoice[] = [
+  { id: 'fa-IR-DilaraNeural', label: 'دیلارا', lang: 'fa', provider: 'edge', voice: 'fa-IR-DilaraNeural' },
+  { id: 'fa-IR-FaridNeural', label: 'فرید', lang: 'fa', provider: 'edge', voice: 'fa-IR-FaridNeural' },
+  { id: 'en-US-JennyNeural', label: 'جنی', lang: 'en', provider: 'edge', voice: 'en-US-JennyNeural' },
+];
+
 export const clipToolsSchema = z.object({
   /** Storyboard motion clips from the «کلیپ‌ساز» row */
   clip: z.boolean().default(true),
@@ -51,6 +84,8 @@ export const clipToolsSchema = z.object({
   submitRetries: z.number().int().min(0).max(10).default(3),
   /** Narration with word-synced captions */
   captions: z.boolean().default(true),
+  /** Narration voices the user may pick from; the first entry of the clip's language is the default */
+  voices: z.array(clipVoiceSchema).min(1).max(30).default(DEFAULT_CLIP_VOICES),
   /** Bundled CC0 background music with ducking under narration */
   music: z.boolean().default(true),
   /** AI images generated for a clip (opt-in per storyboard), charged like the image tool */
