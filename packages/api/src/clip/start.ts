@@ -3,7 +3,7 @@ import { CLIP_FILE_CONTEXT } from 'librechat-data-provider';
 import type { MediaJobCreateData, MediaJobKind, MediaJobRecord } from '@librechat/data-schemas';
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipNarrationHold, ClipNarrationService } from './narration';
-import type { ClipImageHold, ClipImageService } from './images';
+import type { ClipImageHold, ClipImagePick, ClipImageRefusal, ClipImageService } from './images';
 import type { ClipJobPayload } from './jobs';
 import type { ServerRequest } from '~/types';
 import type { ClipRequest } from './scene';
@@ -77,7 +77,16 @@ export type ClipStartResult =
       pending?: number;
       /** The user's credit does not cover the hold (only with the `*_refused` codes) */
       insufficient?: boolean;
+      /** Why the AI images were refused (only with `ai_images_refused`) */
+      imageRefusal?: ClipImageRefusal;
     };
+
+/** Where the AI images of a wizard clip come from, and the most they may cost. */
+export interface ClipImageOptions {
+  pick?: ClipImagePick;
+  /** Spending cap for the clip's images in credits; 0 or absent means none */
+  capCredits?: number;
+}
 
 /**
  * Users being given a clip job right now in this process. Two parallel calls for one user race
@@ -157,6 +166,7 @@ export async function startClipJob(
   deps: ClipStartDeps,
   env: Record<string, string | undefined>,
   conversationId?: string,
+  imageOptions: ClipImageOptions = {},
 ): Promise<ClipStartResult> {
   const userId = req.user!.id;
   if (creating.has(userId)) {
@@ -195,13 +205,17 @@ export async function startClipJob(
           message: 'AI images are not available here.',
         };
       }
-      const held = await deps.images.reserve(req, aiCount, conversationId);
+      const held = await deps.images.reserve(req, aiCount, conversationId, {
+        pick: imageOptions.pick,
+        capCredits: imageOptions.capCredits,
+      });
       if (!held.ok) {
         recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'ai_images_refused' });
         return {
           ok: false,
           code: 'ai_images_refused',
           insufficient: held.code === 'insufficient_credit',
+          imageRefusal: held.code,
           message: held.message,
         };
       }
@@ -242,6 +256,7 @@ export async function startClipJob(
       maxDurationSec: config.maxDurationSec,
       renderTimeoutMs: config.renderTimeoutSec * 1000,
       filename: clipFilename(request.storyboard.title, request.version),
+      ...(imageOptions.pick && aiCount > 0 ? { imagePick: imageOptions.pick } : {}),
     };
     const created = Date.now();
     const job = await deps.createMediaJob({

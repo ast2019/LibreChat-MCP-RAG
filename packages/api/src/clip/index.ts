@@ -29,12 +29,12 @@ export type { RemotionServiceClient, WorkerJobView, WorkerJobState } from './cli
 export { createClipJobRunner, CLIP_JOB_KIND, CLIP_POLL_MS } from './jobs';
 export type { ClipJobRunnerDeps, ClipJobPayload, ClipJobErrorCode } from './jobs';
 export { createClipImageService, searchPexelsPhoto, pexelsKey } from './images';
-export type { ClipImageService, ClipImageServiceDeps } from './images';
+export type { ClipImageService, ClipImageServiceDeps, ClipImagePick } from './images';
 export { createClipNarrationService, chunkNarration } from './narration';
 export type { ClipNarrationService, ClipNarrationServiceDeps } from './narration';
 export { resolveClipVoice, describeClipVoices } from './voices';
-export { createClipWizard } from './wizard';
-export type { ClipWizard, ClipWizardDeps } from './wizard';
+export { createClipWizard, createWizardLlm } from './wizard';
+export type { ClipWizard, ClipWizardDeps, WizardLlm, WizardLlmDeps } from './wizard';
 export type { ClipFile, ClipToolDeps } from './tools';
 export type { ClipAttachment } from './attachments';
 export type {

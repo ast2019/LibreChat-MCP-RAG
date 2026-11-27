@@ -568,6 +568,9 @@ export const clipWizardConfig = () => `${BASE_URL}/api/clip/wizard/config`;
 export const clipWizardValidate = () => `${BASE_URL}/api/clip/wizard/storyboard/validate`;
 export const clipWizardVoiceSample = () => `${BASE_URL}/api/clip/wizard/voice-sample`;
 export const clipWizardRender = () => `${BASE_URL}/api/clip/wizard/render`;
+export const clipWizardDraft = () => `${BASE_URL}/api/clip/wizard/draft`;
+export const clipWizardChat = () => `${BASE_URL}/api/clip/wizard/chat`;
+export const clipWizardEstimate = () => `${BASE_URL}/api/clip/wizard/estimate`;
 export const mediaJobCancel = (jobId: string) => `${mediaJob(jobId)}/cancel`;
 export const adminRoleMembers = (role: string, userId?: string) =>
   `${BASE_URL}/api/admin/roles/${encodeURIComponent(role)}/members${

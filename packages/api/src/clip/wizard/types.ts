@@ -1,6 +1,7 @@
 import type { TClipWizardErrorCode, TClipWizardIssue } from 'librechat-data-provider';
 import type { ClipNarrationService } from '../narration';
 import type { ClipStartDeps } from '../start';
+import type { WizardLlm } from './llm';
 
 /** What a handler answers: the host sends `body` as JSON with `status`. */
 export interface WizardReply<T = unknown> {
@@ -16,6 +17,8 @@ export type WizardErrorBody = {
 export interface ClipWizardDeps extends ClipStartDeps {
   /** The sample voice and charging; the wizard needs it for paid voices */
   narration?: ClipNarrationService;
+  /** The model calls behind draft and chat; absent when not wired */
+  llm?: WizardLlm;
   findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>;
   env?: Record<string, string | undefined>;
 }
@@ -30,6 +33,8 @@ export const STATUS: Record<TClipWizardErrorCode, number> = {
   invalid_storyboard: 422,
   busy: 429,
   unavailable: 503,
+  cap_exceeded: 422,
+  model_unavailable: 422,
   server_error: 500,
 };
 

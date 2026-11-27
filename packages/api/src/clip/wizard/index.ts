@@ -7,11 +7,15 @@ import type {
 import type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 import type { ServerRequest } from '~/types';
 import { validateWizardStoryboard } from './validate';
+import { draftStoryboard, chatStoryboard } from './draft';
+import { estimateStoryboard } from './estimate';
 import { createVoiceSampler } from './sample';
 import { startWizardRender } from './render';
 import { getWizardConfig } from './config';
 
 export type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
+export { createWizardLlm } from './llm';
+export type { WizardLlm, WizardLlmDeps } from './llm';
 
 export interface ClipWizard {
   config: (req: ServerRequest) => Promise<WizardReply<TClipWizardConfigResponse | WizardErrorBody>>;
@@ -30,5 +34,8 @@ export function createClipWizard(deps: ClipWizardDeps): ClipWizard {
     validate: (req: ServerRequest) => validateWizardStoryboard(req, deps),
     voiceSample: (req: ServerRequest) => sample(req, deps),
     render: (req: ServerRequest) => startWizardRender(req, deps),
+    draft: (req: ServerRequest) => draftStoryboard(req, deps),
+    chat: (req: ServerRequest) => chatStoryboard(req, deps),
+    estimate: (req: ServerRequest) => estimateStoryboard(req, deps),
   };
 }

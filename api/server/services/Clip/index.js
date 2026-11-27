@@ -5,6 +5,7 @@ const {
   createClipImageService,
   createClipNarrationService,
   createClipWizard,
+  createWizardLlm,
   getRemotionServiceTarget,
   createRemotionServiceClient,
   getAppConfigOptionsFromUser,
@@ -44,6 +45,9 @@ const images = createClipImageService({ billing, findBalanceByUser: db.findBalan
 /** Narration by a billed speech model goes through the speech tool's client and ledger. */
 const narration = createClipNarrationService({ billing, findBalanceByUser: db.findBalanceByUser });
 
+/** The wizard's model calls: held before, charged after a usable answer at chat's token rates. */
+const llm = createWizardLlm({ billing, getMultiplier: db.getMultiplier });
+
 /** The storyboard clip builder wired to storage and jobs; behavior lives in `@librechat/api`. */
 const loadClipTools = (req, toolNames) =>
   createClipTools(
@@ -67,6 +71,7 @@ const clipWizard = createClipWizard({
   loadAudio,
   images,
   narration,
+  llm,
 });
 
 /** The job owner as a request, for loading their files and saving the clip. */

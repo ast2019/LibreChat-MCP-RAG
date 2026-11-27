@@ -4,6 +4,7 @@ import type { TClipWizardRenderResponse } from 'librechat-data-provider';
 import type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 import type { ServerRequest } from '~/types';
 import { openWizard, renderAvailable } from './access';
+import { resolveImages, imageRefusalCode } from './effect';
 import { RemotionServiceError } from '../client';
 import { parseClipInput } from '../scene';
 import { startClipJob } from '../start';
@@ -28,18 +29,23 @@ export async function startWizardRender(
     return fail('invalid_request');
   }
   const { storyboard, settings } = body.data;
+  const resolved = resolveImages(req, gate.config, deps, settings.images);
+  if (!resolved.ok) {
+    return resolved.reply;
+  }
+  const { config, pick, capCredits } = resolved.value;
   const input = {
     ...storyboard,
     ...(settings.aspectRatio ? { aspect_ratio: settings.aspectRatio } : {}),
     audio: settings.voiceId ? { mode: 'tts', voice: settings.voiceId } : { mode: 'none' },
     preview: false,
   };
-  const parsed = parseClipInput(input, gate.config);
+  const parsed = parseClipInput(input, config);
   if ('errors' in parsed) {
     return fail('invalid_storyboard', parsed.errors.map(toIssue));
   }
   try {
-    const started = await startClipJob(req, gate.config, parsed, deps, env);
+    const started = await startClipJob(req, config, parsed, deps, env, undefined, { pick, capCredits });
     if (started.ok) {
       return { status: 200, body: { jobId: started.job.id } };
     }
@@ -50,6 +56,7 @@ export async function startWizardRender(
       case 'file_missing':
         return fail('invalid_request');
       case 'ai_images_refused':
+        return fail(imageRefusalCode(started.imageRefusal));
       case 'narration_refused':
         return fail(started.insufficient ? 'insufficient_credit' : 'not_allowed');
       default:
