@@ -37,6 +37,7 @@ export enum QueryKeys {
   adminBillingPacks = 'adminBillingPacks',
   adminGifts = 'adminGifts',
   mediaStatus = 'mediaStatus',
+  clipWizardConfig = 'clipWizardConfig',
   mediaJob = 'mediaJob',
   adminServiceStatus = 'adminServiceStatus',
   adminHiggsfield = 'adminHiggsfield',
@@ -154,6 +155,9 @@ export const DynamicQueryKeys = {
 
 export enum MutationKeys {
   cancelMediaJob = 'cancelMediaJob',
+  clipWizardValidate = 'clipWizardValidate',
+  clipWizardVoiceSample = 'clipWizardVoiceSample',
+  clipWizardRender = 'clipWizardRender',
   refreshAdminServiceStatus = 'refreshAdminServiceStatus',
   updateAdminHiggsfield = 'updateAdminHiggsfield',
   paymentCheckout = 'paymentCheckout',

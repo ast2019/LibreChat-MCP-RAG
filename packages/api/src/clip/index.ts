@@ -33,6 +33,8 @@ export type { ClipImageService, ClipImageServiceDeps } from './images';
 export { createClipNarrationService, chunkNarration } from './narration';
 export type { ClipNarrationService, ClipNarrationServiceDeps } from './narration';
 export { resolveClipVoice, describeClipVoices } from './voices';
+export { createClipWizard } from './wizard';
+export type { ClipWizard, ClipWizardDeps } from './wizard';
 export type { ClipFile, ClipToolDeps } from './tools';
 export type { ClipAttachment } from './attachments';
 export type {

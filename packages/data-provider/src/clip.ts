@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { clipWizardConfigSchema } from './clipWizard';
 
 /** In-chat tool that builds a storyboard motion clip on the HiveGPT Remotion worker. */
 export enum ClipTools {
@@ -98,6 +99,8 @@ export const clipToolsSchema = z.object({
   maxStockImages: z.number().int().min(1).max(12).default(6),
   /** Remotion renders the worker runs at once (informational; the worker reads REMOTION_MAX_CONCURRENT) */
   maxConcurrent: z.number().int().min(1).max(4).default(1),
+  /** The dedicated clip builder page (a step-by-step wizard) */
+  wizard: clipWizardConfigSchema.default({}),
 });
 
 export type TClipToolsConfig = z.infer<typeof clipToolsSchema>;
@@ -105,4 +108,6 @@ export type TClipToolsConfig = z.infer<typeof clipToolsSchema>;
 /** Which clip tools ordinary chats offer, for the composer's «ساختن» row. */
 export type TClipToolsStartupConfig = {
   clip: boolean;
+  /** The wizard page is on; access is checked by its endpoints */
+  wizard?: boolean;
 };

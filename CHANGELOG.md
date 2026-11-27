@@ -7,6 +7,36 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.17] - 2026-11-28
+
+### Added
+- **Clip wizard, phase 2a (`/clip`).** A dedicated clip builder page with a step indicator (topic,
+  settings, storyboard, preview, render). Settings pick aspect ratio, target length and a narration
+  voice with a play-sample button. The storyboard step edits each scene's narration and shows
+  validation issues under the scene. The render step starts the job and shows the existing
+  `MediaJob` card. Design, endpoints, credit rules and the phase list are in
+  `docs/saas/clip-wizard-fa.md`.
+- **`/api/clip/wizard` endpoints** (`packages/api/src/clip/wizard`): `GET config`,
+  `POST storyboard/validate` (same validator as the chat tool, field-level issues),
+  `POST voice-sample` (one fixed line, first sample per voice cached in memory so repeats are free,
+  charged like one narration call) and `POST render` (credit held first, then the same job path as
+  the chat tool). Errors use stable codes (`insufficient_credit`, `provider_failed`, `not_allowed`,
+  `wizard_disabled`, `busy`, `invalid_storyboard`, ...); a provider failure leaves no charge or hold.
+- **`clipTools.wizard`** (`enabled`, default false; `access: everyone | pack`, default `pack`,
+  checked through the same `checkMediaAccess` as the media tools). The sidebar shows the clip
+  builder button only when it is enabled (`clipTools.wizard` in the startup config). Enabled with
+  `access: pack` in `config/librechat.saas.yaml`.
+
+### Changed
+- The chat clip tool and the wizard share `startClipJob` (`packages/api/src/clip/start.ts`), which
+  holds credit and records the job. Tool answers are unchanged. `ClipNarrationService.reserve` and
+  `ClipImageService.reserve` now also return a stable `code` on refusal.
+
+### Not built yet (phase 2b)
+- Storyboard drafting with a model picker, the in-wizard chat, image generation in the wizard,
+  Higgsfield, and key-frame previews. The topic and preview steps carry labelled placeholders.
+- Seen only through Jest and RTL: no browser, server or provider audio was available.
+
 ## [0.40.16] - 2026-11-28
 
 ### Added

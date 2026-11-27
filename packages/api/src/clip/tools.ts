@@ -1,46 +1,23 @@
 import { logger } from '@librechat/data-schemas';
-import { TOOL_APPROVAL_EXECUTION_SCOPE_CONFIG_KEY } from '@librechat/agents';
+import { ClipTools } from 'librechat-data-provider';
 import { tool } from '@librechat/agents/langchain/tools';
-import { ClipTools, CLIP_FILE_CONTEXT } from 'librechat-data-provider';
-import type { MediaJobCreateData, MediaJobKind, MediaJobRecord } from '@librechat/data-schemas';
+import { TOOL_APPROVAL_EXECUTION_SCOPE_CONFIG_KEY } from '@librechat/agents';
 import type { StructuredToolInterface } from '@librechat/agents/langchain/tools';
 import type { TClipToolsConfig } from 'librechat-data-provider';
+import type { ClipStartDeps, ClipStartResult } from './start';
 import type { ClipRequest, WorkerJobRequest } from './scene';
-import type { ClipJobPayload } from './jobs';
-import type { ClipNarrationHold, ClipNarrationService } from './narration';
-import type { ClipImageHold, ClipImageService } from './images';
 import type { ServerRequest } from '~/types';
 import { createRemotionServiceClient, RemotionServiceError } from './client';
 import { getClipConfig, getRemotionServiceTarget } from './config';
-import { CLIP_JOB_KIND, CLIP_POLL_MS } from './jobs';
 import { clipToolDefinitions } from './definitions';
 import { recordClipEvent } from './diagnostics';
-import { mediaJobLink } from '~/media/jobs';
 import { debugTrace } from '~/debug/recorder';
+import { mediaJobLink } from '~/media/jobs';
 import { parseClipInput } from './scene';
-import { pexelsKey } from './images';
+import { startClipJob } from './start';
 
-const FILE_ID = /^[A-Za-z0-9_-]{6,100}$/;
-/** Audio the worker can decode (its AUDIO_EXT table in deploy/remotion/src/server.mjs). */
-export const CLIP_AUDIO_TYPES: ReadonlySet<string> = new Set([
-  'audio/wav',
-  'audio/x-wav',
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/mp4',
-  'audio/x-m4a',
-  'audio/ogg',
-  'audio/webm',
-]);
-/**
- * Sizes assumed for images the job makes or downloads later, for the tool-time size check:
- * a generated image at the configured resolution, and a Pexels `large2x` photo.
- */
-const AI_IMAGE_BYTES = 3 * 1024 * 1024;
-const STOCK_IMAGE_BYTES = 2 * 1024 * 1024;
-/** Spoken characters per second and WAV bytes per second (24 kHz 16-bit mono), for the same check. */
-const NARRATION_CHARS_PER_SEC = 12;
-const NARRATION_BYTES_PER_SEC = 48_000;
+export { CLIP_AUDIO_TYPES, clipFilename } from './start';
+
 /** How long a turn's clip is remembered for the one-per-turn guard. */
 const TURN_TTL_MS = 30 * 60_000;
 /** A 1×1 grey PNG standing in for AI and stock images in a preview (nothing is generated). */
@@ -59,25 +36,7 @@ export interface ClipFile {
   conversationId?: string;
 }
 
-export interface ClipToolDeps {
-  /** Records the clip as a background job; the clip job worker renders and delivers it. */
-  createMediaJob: (data: MediaJobCreateData) => Promise<MediaJobRecord>;
-  /** The user's pending jobs of a kind (one clip at a time per user by default). */
-  countPendingMediaJobs: (userId: string, kind: MediaJobKind) => Promise<number>;
-  /** One of the user's own images as bytes; null when missing or not theirs. */
-  loadImage: (
-    req: ServerRequest,
-    fileId: string,
-  ) => Promise<{ buffer: Buffer; type: string } | null>;
-  /** One of the user's own audio files as bytes; null when missing or not audio. */
-  loadAudio: (
-    req: ServerRequest,
-    fileId: string,
-  ) => Promise<{ buffer: Buffer; type: string } | null>;
-  /** AI images through the image tool's path and billing; absent when not wired */
-  images?: ClipImageService;
-  /** Narration by a billed speech model (voices with provider `openrouter`); absent when not wired */
-  narration?: ClipNarrationService;
+export interface ClipToolDeps extends ClipStartDeps {
   fetch?: typeof fetch;
   env?: Record<string, string | undefined>;
 }
@@ -95,12 +54,6 @@ const reply = (message: string): ToolResult => [[{ type: 'text', text: message }
 
 const NO_RETRY =
   'Do not call create_remotion_clip again on your own: tell the user what happened, in their language, and ask whether to try again.';
-
-/**
- * Users being given a clip job right now in this process. Two parallel calls for one user race
- * past the database count; this set closes that window.
- */
-const creating = new Set<string>();
 
 /**
  * Clip jobs started per turn. The agents handler builds the tools again for every tool batch,
@@ -152,18 +105,30 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export function clipFilename(title: string, version: number): string {
-  const safe = title
-    .replace(/[^\p{L}\p{N}\s_-]+/gu, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .slice(0, 40);
-  const base = safe || 'clip';
-  return version > 1 ? `${base}-v${version}.mp4` : `${base}.mp4`;
-}
-
 /** Rough render time for the card hint: one minute plus about two seconds per clip second. */
 const etaMinutes = (durationSec: number): number => Math.max(1, Math.round((60 + durationSec * 2) / 60));
+
+/** The model-facing text of a refused start. */
+function refusalText(refused: Extract<ClipStartResult, { ok: false }>): string {
+  switch (refused.code) {
+    case 'busy_parallel':
+      return `${refused.message} ${NO_RETRY}`;
+    case 'busy_per_user':
+      return `${refused.message} Nothing new was started. Tell the user to wait for the card in the chat to finish. ${NO_RETRY}`;
+    case 'file_missing':
+      return `Nothing was built: ${refused.message}`;
+    case 'ai_images_unavailable':
+      return 'Nothing was built: AI images are not available here. Use attached images, stock photos or icons instead.';
+    case 'ai_images_refused':
+      return `Nothing was built or charged: ${refused.message} Offer the user the clip without AI images (icons, their own images).`;
+    case 'narration_unavailable':
+      return 'Nothing was built: AI narration is not available here. Use a default voice (omit audio.voice) or audio mode "none".';
+    case 'narration_refused':
+      return `Nothing was built or charged: ${refused.message} Offer the user a default voice (omit audio.voice) or a clip without narration.`;
+    case 'stock_off':
+      return 'Nothing was built: stock photos are off on this deployment. Use attached images, icons or AI images (if offered).';
+  }
+}
 
 /**
  * The clip builder. A call validates the storyboard and records a background job, then answers
@@ -178,46 +143,6 @@ export function createClipTools(
   const env = deps.env ?? process.env;
   /** Fallback for a run config without a turn key: this instance's own job. */
   let instanceJob: string | null = null;
-
-  /** Files exist, audio is a format the worker reads, and the assets fit the worker's limit. */
-  async function checkFiles(request: ClipRequest, config: TClipToolsConfig): Promise<string | null> {
-    let bytes = 0;
-    for (const ref of request.images) {
-      if (ref.source === 'ai') {
-        bytes += AI_IMAGE_BYTES;
-        continue;
-      }
-      if (ref.source === 'stock') {
-        bytes += STOCK_IMAGE_BYTES;
-        continue;
-      }
-      const file = await deps.loadImage(req, ref.fileId);
-      if (!file) {
-        return `the image ${ref.fileId} was not found among the user's files. Use an id from the attached or generated images listed in the context.`;
-      }
-      bytes += file.buffer.length;
-    }
-    if (request.audio.mode === 'upload' && request.audio.fileId) {
-      const audio = FILE_ID.test(request.audio.fileId) ? await deps.loadAudio(req, request.audio.fileId) : null;
-      if (!audio) {
-        return 'the uploaded audio was not found. Ask the user to attach an audio file to this message and use its id.';
-      }
-      if (!CLIP_AUDIO_TYPES.has(audio.type)) {
-        return `the uploaded audio is ${audio.type.slice(0, 40)}, which the clip builder cannot read. Ask the user for MP3, WAV, M4A, OGG or WebM audio, or use audio mode "tts" or "none".`;
-      }
-      bytes += audio.buffer.length;
-    }
-    if (request.audio.narration) {
-      const chars = request.storyboard.scenes.reduce((sum, scene) => sum + String(scene.narration ?? '').length, 0);
-      bytes += Math.ceil((chars / NARRATION_CHARS_PER_SEC) * NARRATION_BYTES_PER_SEC);
-    }
-    const limit = config.maxAssetMb * 1024 * 1024;
-    if (bytes > limit) {
-      const mb = (n: number) => Math.ceil(n / 1024 / 1024);
-      return `the images and audio come to about ${mb(bytes)} MB, over the ${config.maxAssetMb} MB a clip may carry. Use fewer or smaller images (or a shorter audio file) and call again.`;
-    }
-    return null;
-  }
 
   async function preview(config: TClipToolsConfig, request: ClipRequest): Promise<ToolResult> {
     const target = getRemotionServiceTarget(env);
@@ -273,116 +198,19 @@ export function createClipTools(
         'A clip job was already started in this turn. Only one clip is built per turn. Do not call create_remotion_clip again; tell the user the clip is being built and the card already in the chat will show it.',
       );
     }
-    if (creating.has(userId)) {
-      recordClipEvent({ event: 'tool.busy', level: 'warn', reason: 'parallel_call' });
-      return reply(`Another clip for this user is being started right now. ${NO_RETRY}`);
+    const started = await startClipJob(req, config, request, deps, env, run?.configurable?.thread_id);
+    if (!started.ok) {
+      return reply(refusalText(started));
     }
-    creating.add(userId);
-    let hold: ClipImageHold | undefined;
-    let voiceHold: ClipNarrationHold | undefined;
-    try {
-      const pending = await deps.countPendingMediaJobs(userId, CLIP_JOB_KIND);
-      if (pending >= config.maxJobsPerUser) {
-        recordClipEvent({ event: 'tool.busy', level: 'warn', reason: 'per_user', pending });
-        return reply(
-          `This user already has ${pending} clip being built; a new one can start when it finishes. Nothing new was started. Tell the user to wait for the card in the chat to finish. ${NO_RETRY}`,
-        );
-      }
-      const missing = await checkFiles(request, config);
-      if (missing) {
-        recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'file_missing' });
-        return reply(`Nothing was built: ${missing}`);
-      }
-      const conversationId = run?.configurable?.thread_id;
-      const aiCount = request.images.filter((img) => img.source === 'ai').length;
-      if (aiCount > 0) {
-        if (!deps.images) {
-          return reply('Nothing was built: AI images are not available here. Use attached images, stock photos or icons instead.');
-        }
-        const held = await deps.images.reserve(req, aiCount, conversationId);
-        if (!held.ok) {
-          recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'ai_images_refused' });
-          return reply(`Nothing was built or charged: ${held.message} Offer the user the clip without AI images (icons, their own images).`);
-        }
-        hold = held.hold;
-      }
-      if (request.audio.narration) {
-        if (!deps.narration) {
-          return reply('Nothing was built: AI narration is not available here. Use a default voice (omit audio.voice) or audio mode "none".');
-        }
-        const lines = request.storyboard.scenes.flatMap((scene) => (typeof scene.narration === 'string' ? [scene.narration] : []));
-        const held = await deps.narration.reserve(req, lines, request.audio.narration, conversationId);
-        if (!held.ok) {
-          recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'narration_refused' });
-          return reply(`Nothing was built or charged: ${held.message} Offer the user a default voice (omit audio.voice) or a clip without narration.`);
-        }
-        voiceHold = held.hold;
-      }
-      if (request.images.some((img) => img.source === 'stock') && !pexelsKey(config.stockImages, env)) {
-        return reply('Nothing was built: stock photos are off on this deployment. Use attached images, icons or AI images (if offered).');
-      }
-      const renderTimeoutMs = config.renderTimeoutSec * 1000;
-      const payload: ClipJobPayload = {
-        request,
-        shortSide: config.height,
-        maxDurationSec: config.maxDurationSec,
-        renderTimeoutMs,
-        filename: clipFilename(request.storyboard.title, request.version),
-      };
-      const created = Date.now();
-      const job = await deps.createMediaJob({
-        user: userId,
-        kind: CLIP_JOB_KIND,
-        provider: 'remotion',
-        providerJobId: 'pending',
-        providerModel: 'remotion',
-        label: `${Math.round(request.durationSec)}s`,
-        endpoint: 'remotion',
-        context: CLIP_FILE_CONTEXT,
-        ...(conversationId ? { conversationId } : {}),
-        fallbackUsd: 0,
-        priceMultiplier: 1,
-        pollIntervalMs: CLIP_POLL_MS,
-        nextPollAt: new Date(created),
-        deadline: new Date(created + (config.queueTimeoutSec + config.renderTimeoutSec + 120) * 1000),
-        progress: 0,
-        stage: 'queued',
-        payload: payload as unknown as Record<string, unknown>,
-        ...(req.user?.tenantId ? { tenantId: String(req.user.tenantId) } : {}),
-      });
-      /** The job keeps the AI image hold until its images are made (or it ends). */
-      hold?.keep(job.id, new Date(job.deadline).getTime());
-      hold = undefined;
-      voiceHold?.keep(job.id, new Date(job.deadline).getTime());
-      voiceHold = undefined;
-      instanceJob = job.id;
-      if (turnKey) {
-        turnJobs.set(turnKey, { jobId: job.id, expires: Date.now() + TURN_TTL_MS });
-      }
-      logger.info(
-        `[clip] job.created job=${job.id} scenes=${request.storyboard.scenes.length} durationSec=${request.durationSec} audio=${request.audio.narration ? 'narration' : request.audio.mode} images=${request.images.length}`,
-      );
-      recordClipEvent({
-        event: 'job.created',
-        jobId: job.id,
-        theme: request.storyboard.theme,
-        aspect: request.storyboard.aspectRatio,
-        scenes: request.storyboard.scenes.length,
-        durationSec: request.durationSec,
-        audio: request.audio.mode,
-        images: request.images.length,
-        version: request.version,
-      });
-      debugTrace('clip.job', { phase: 'created', scenes: request.storyboard.scenes.length, durationSec: request.durationSec });
-      const notes = request.notes.length ? ` Notes: ${request.notes.join('; ')}.` : '';
-      return reply(
-        `The clip «${payload.filename}» (${request.durationSec}s, ${request.storyboard.aspectRatio}) is being rendered in the background; the chat shows a progress card that turns into the video when it is done (about ${etaMinutes(request.durationSec)} min). Put this link in your reply exactly once so the card shows: [🎬 clip](${mediaJobLink(job.id)}). Do not call create_remotion_clip again for this clip and do not retry; to change it later, call again with the full storyboard and version ${request.version + 1}.${notes}`,
-      );
-    } finally {
-      creating.delete(userId);
-      await hold?.release();
-      await voiceHold?.release();
+    const { job, payload } = started;
+    instanceJob = job.id;
+    if (turnKey) {
+      turnJobs.set(turnKey, { jobId: job.id, expires: Date.now() + TURN_TTL_MS });
     }
+    const notes = request.notes.length ? ` Notes: ${request.notes.join('; ')}.` : '';
+    return reply(
+      `The clip «${payload.filename}» (${request.durationSec}s, ${request.storyboard.aspectRatio}) is being rendered in the background; the chat shows a progress card that turns into the video when it is done (about ${etaMinutes(request.durationSec)} min). Put this link in your reply exactly once so the card shows: [🎬 clip](${mediaJobLink(job.id)}). Do not call create_remotion_clip again for this clip and do not retry; to change it later, call again with the full storyboard and version ${request.version + 1}.${notes}`,
+    );
   }
 
   const builders: Record<ClipTools, () => StructuredToolInterface> = {

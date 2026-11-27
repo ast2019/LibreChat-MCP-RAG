@@ -564,6 +564,10 @@ export const adminGifts = () => `${adminBilling()}/gifts`;
 export const mediaStatus = () => `${BASE_URL}/api/media/status`;
 export const mediaJob = (jobId: string) =>
   `${BASE_URL}/api/media/jobs/${encodeURIComponent(jobId)}`;
+export const clipWizardConfig = () => `${BASE_URL}/api/clip/wizard/config`;
+export const clipWizardValidate = () => `${BASE_URL}/api/clip/wizard/storyboard/validate`;
+export const clipWizardVoiceSample = () => `${BASE_URL}/api/clip/wizard/voice-sample`;
+export const clipWizardRender = () => `${BASE_URL}/api/clip/wizard/render`;
 export const mediaJobCancel = (jobId: string) => `${mediaJob(jobId)}/cancel`;
 export const adminRoleMembers = (role: string, userId?: string) =>
   `${BASE_URL}/api/admin/roles/${encodeURIComponent(role)}/members${

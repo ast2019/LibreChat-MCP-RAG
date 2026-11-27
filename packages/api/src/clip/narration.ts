@@ -1,9 +1,9 @@
 import { MEDIA_TRANSACTION_CONTEXTS } from 'librechat-data-provider';
 import type { TMediaGenerationConfig } from 'librechat-data-provider';
-import type { MediaBilling, MediaCharge } from '~/media/billing';
-import type { MediaAccessResult } from '~/media/config';
-import type { SpeechProviderClient } from '~/speech/types';
 import type { BalanceReservation } from '~/middleware/checkBalance';
+import type { MediaBilling, MediaCharge } from '~/media/billing';
+import type { SpeechProviderClient } from '~/speech/types';
+import type { MediaAccessResult } from '~/media/config';
 import type { SpeechFetch } from '~/speech/client';
 import type { MediaUser } from '~/media/types';
 import type { ServerRequest } from '~/types';
@@ -49,7 +49,7 @@ export interface ClipNarrationService {
     texts: readonly string[],
     voice: ClipNarrationVoice,
     conversationId?: string,
-  ): Promise<{ ok: true; hold: ClipNarrationHold } | { ok: false; message: string }>;
+  ): Promise<{ ok: true; hold: ClipNarrationHold } | { ok: false; message: string; code: ClipNarrationRefusal }>;
   /**
    * Speaks one scene's line and records its charge (provider cost, else the estimate). Access and
    * balance are checked again first; a refusal charges nothing. Throws when the provider fails.
@@ -177,14 +177,14 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
     async reserve(req, texts, voice, conversationId) {
       const s = setup(req);
       if (!s) {
-        return { ok: false, message: 'AI narration is not configured on this deployment.' };
+        return { ok: false, code: 'unconfigured', message: 'AI narration is not configured on this deployment.' };
       }
       if (!req.user?.id) {
-        return { ok: false, message: 'No user.' };
+        return { ok: false, code: 'not_allowed', message: 'No user.' };
       }
       const allowed = await access(req, s.config);
       if (!allowed.ok) {
-        return { ok: false, message: REFUSALS[allowed.code] };
+        return { ok: false, code: 'not_allowed', message: REFUSALS[allowed.code] };
       }
       const chunks = texts.flatMap((text) => chunkNarration(text, s.speech.maxChars));
       const total = chunks.reduce((sum, chunk) => sum + s.estimate(voice, chunk.length), 0);
@@ -199,6 +199,7 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
           await releaseAll(slots);
           return {
             ok: false,
+            code: 'insufficient_credit',
             message: `The user's credit does not cover the AI narration (about $${(total / 1e6).toFixed(2)}). Tell the user to top up from «خرید اعتبار» (/payment).`,
           };
         }

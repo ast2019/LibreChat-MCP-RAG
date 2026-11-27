@@ -591,6 +591,12 @@ clipTools:
   stockImages: true
   maxStockImages: 6
   maxConcurrent: 2
+  # The «کلیپ‌ساز» wizard page (docs/saas/clip-wizard-fa.md). `access: pack` asks the same media
+  # access rule as the image tools (mediaGeneration.paidOnly and pack grants.media); `everyone`
+  # opens the page to all signed-in users (a paid voice or AI image still checks media access).
+  wizard:
+    enabled: true
+    access: 'pack'
   # Narration voices. The user picks one by label; the first entry of the clip's language is the
   # default, so the paid ElevenLabs v3 voices come first. `openrouter` entries speak through
   # media.speech (provider and key), are made per scene in the API and charged like AI images.

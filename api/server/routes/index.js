@@ -32,6 +32,7 @@ const referral = require('./referral');
 const actions = require('./actions');
 const apiKeys = require('./apiKeys');
 const media = require('./media');
+const clip = require('./clip');
 const banner = require('./banner');
 const openapi = require('./openapi');
 const search = require('./search');
@@ -78,6 +79,7 @@ module.exports = {
   keys,
   apiKeys,
   media,
+  clip,
   user,
   tags,
   roles,

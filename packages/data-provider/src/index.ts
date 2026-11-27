@@ -11,6 +11,7 @@ export * from './media';
 export * from './persian';
 export * from './office';
 export * from './clip';
+export * from './clipWizard';
 export * from './browser';
 export * from './debug';
 export * from './footer';

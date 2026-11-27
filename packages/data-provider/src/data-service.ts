@@ -45,6 +45,15 @@ import type {
   TAdminPaymentsReconcileResponse,
 } from './payments';
 import type {
+  TClipWizardConfigResponse,
+  TClipWizardRenderRequest,
+  TClipWizardRenderResponse,
+  TClipWizardValidateRequest,
+  TClipWizardValidateResponse,
+  TClipWizardVoiceSampleRequest,
+  TClipWizardVoiceSampleResponse,
+} from './clipWizard';
+import type {
   TTracePage,
   TTracePageParams,
   TTraceAvailability,
@@ -174,6 +183,28 @@ export function getMediaJob(jobId: string): Promise<TMediaJobView> {
 /** Asks a background clip job to stop; the card shows it as cancelled. */
 export function cancelMediaJob(jobId: string): Promise<TMediaJobView> {
   return request.post(endpoints.mediaJobCancel(jobId));
+}
+
+export function getClipWizardConfig(): Promise<TClipWizardConfigResponse> {
+  return request.get(endpoints.clipWizardConfig());
+}
+
+export function validateClipWizardStoryboard(
+  payload: TClipWizardValidateRequest,
+): Promise<TClipWizardValidateResponse> {
+  return request.post(endpoints.clipWizardValidate(), payload);
+}
+
+export function getClipWizardVoiceSample(
+  payload: TClipWizardVoiceSampleRequest,
+): Promise<TClipWizardVoiceSampleResponse> {
+  return request.post(endpoints.clipWizardVoiceSample(), payload);
+}
+
+export function startClipWizardRender(
+  payload: TClipWizardRenderRequest,
+): Promise<TClipWizardRenderResponse> {
+  return request.post(endpoints.clipWizardRender(), payload);
 }
 
 export function createAdminUser(

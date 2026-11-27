@@ -73,9 +73,17 @@ describe('getClipConfig / getChatClipTools', () => {
 
 describe('getClipStartupConfig', () => {
   it('is on only when the yaml switch and the worker env are both set', () => {
-    expect(getClipStartupConfig(undefined, ENV)).toEqual({ clip: true });
-    expect(getClipStartupConfig(withConfig({ clip: false }), ENV)).toEqual({ clip: false });
-    expect(getClipStartupConfig(undefined, {})).toEqual({ clip: false });
+    expect(getClipStartupConfig(undefined, ENV)).toEqual({ clip: true, wizard: false });
+    expect(getClipStartupConfig(withConfig({ clip: false }), ENV)).toEqual({
+      clip: false,
+      wizard: false,
+    });
+    expect(getClipStartupConfig(undefined, {})).toEqual({ clip: false, wizard: false });
+  });
+
+  it('turns the wizard on only with clipTools.wizard.enabled', () => {
+    expect(getClipStartupConfig(withConfig({ wizard: { enabled: true } }), ENV).wizard).toBe(true);
+    expect(getClipStartupConfig(withConfig({ wizard: { enabled: true } }), {}).wizard).toBe(false);
   });
 });
 
