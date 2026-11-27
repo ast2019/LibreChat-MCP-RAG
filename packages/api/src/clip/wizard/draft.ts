@@ -63,9 +63,16 @@ export async function chatStoryboard(
   const { modelId, storyboard, topic, settings, images } = body.data;
   const history = body.data.messages
     .slice(-settingsLlm.chatHistoryTurns)
-    .filter((message, index, all) => message.role === 'user' || all.slice(0, index).some((m) => m.role === 'user'));
+    .filter(
+      (message, index, all) =>
+        message.role === 'user' || all.slice(0, index).some((m) => m.role === 'user'),
+    );
   const last = history[history.length - 1];
-  if (!last || last.role !== 'user' || history.some((message) => message.content.length > settingsLlm.maxChatChars)) {
+  if (
+    !last ||
+    last.role !== 'user' ||
+    history.some((message) => message.content.length > settingsLlm.maxChatChars)
+  ) {
     return fail('invalid_request');
   }
   if (!deps.llm) {
@@ -95,6 +102,10 @@ export async function chatStoryboard(
   }
   return {
     status: 200,
-    body: { reply: result.value.reply, storyboard: result.value.storyboard, credits: result.credits },
+    body: {
+      reply: result.value.reply,
+      storyboard: result.value.storyboard,
+      credits: result.credits,
+    },
   };
 }

@@ -23,7 +23,9 @@ export type { WizardLlm, WizardLlmDeps } from './llm';
 /** The clip wizard's endpoint handlers, bound to the host's storage, jobs and billing. */
 export interface ClipWizard {
   config: (req: ServerRequest) => Promise<WizardReply<TClipWizardConfigResponse | WizardErrorBody>>;
-  validate: (req: ServerRequest) => Promise<WizardReply<TClipWizardValidateResponse | WizardErrorBody>>;
+  validate: (
+    req: ServerRequest,
+  ) => Promise<WizardReply<TClipWizardValidateResponse | WizardErrorBody>>;
   voiceSample: (
     req: ServerRequest,
   ) => Promise<WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>>;

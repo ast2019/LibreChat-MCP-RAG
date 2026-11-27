@@ -19,7 +19,9 @@ export default function Preview() {
         <span className="text-text-primary font-medium">
           {localize('com_clipwizard_preview_placeholder_title')}
         </span>
-        <span className="text-text-secondary">{localize('com_clipwizard_preview_placeholder_body')}</span>
+        <span className="text-text-secondary">
+          {localize('com_clipwizard_preview_placeholder_body')}
+        </span>
       </div>
       <div className="flex gap-2">
         <Button variant="outline" onClick={() => setStep('storyboard')}>

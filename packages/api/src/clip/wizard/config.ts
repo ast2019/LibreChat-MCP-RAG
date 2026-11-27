@@ -33,7 +33,9 @@ export function wizardConfigBody(
 ): TClipWizardConfigResponse {
   const imagesOn = wizardImagesOn(config);
   const imageModels = imagesOn
-    ? capabilities.imageModels.filter((model) => model.source !== 'higgsfield' || capabilities.higgsfield)
+    ? capabilities.imageModels.filter(
+        (model) => model.source !== 'higgsfield' || capabilities.higgsfield,
+      )
     : [];
   return {
     enabled: true,
@@ -89,5 +91,8 @@ export async function getWizardConfig(
     speech: media?.speech != null,
     higgsfield: media?.higgsfield != null,
   };
-  return { status: 200, body: wizardConfigBody(gate.config, deps.env ?? process.env, capabilities) };
+  return {
+    status: 200,
+    body: wizardConfigBody(gate.config, deps.env ?? process.env, capabilities),
+  };
 }

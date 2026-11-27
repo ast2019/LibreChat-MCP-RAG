@@ -28,7 +28,10 @@ export function storyboardSystem(
   images: ImageAllowance,
 ): string {
   const tool = clipToolDefinitions[ClipTools.clip].description;
-  const fields = tool.slice(tool.indexOf('Scene types and fields:'), tool.indexOf('Icons are Tabler'));
+  const fields = tool.slice(
+    tool.indexOf('Scene types and fields:'),
+    tool.indexOf('Icons are Tabler'),
+  );
   const target = Math.min(settings.targetDurationSec ?? 30, config.maxDurationSec);
   const imageRule =
     images > 0
@@ -40,7 +43,9 @@ export function storyboardSystem(
     fields,
     `Limits: at most ${config.maxScenes} scenes, total duration at most ${config.maxDurationSec} seconds; aim for about ${target} seconds.`,
     settings.aspectRatio ? `Use aspect_ratio "${settings.aspectRatio}".` : '',
-    settings.language ? `Write all on-screen text and narration in ${settings.language === 'fa' ? 'Persian' : 'English'} and set lang to "${settings.language}".` : '',
+    settings.language
+      ? `Write all on-screen text and narration in ${settings.language === 'fa' ? 'Persian' : 'English'} and set lang to "${settings.language}".`
+      : '',
     imageRule,
     'Rules:',
     ...RULES.map((rule) => `- ${rule}`),

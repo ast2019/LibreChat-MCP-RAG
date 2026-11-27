@@ -1,4 +1,8 @@
-import type { TClipToolsConfig, TClipWizardImages, TClipWizardErrorCode } from 'librechat-data-provider';
+import type {
+  TClipToolsConfig,
+  TClipWizardImages,
+  TClipWizardErrorCode,
+} from 'librechat-data-provider';
 import type { ClipImagePick, ClipImageRefusal } from '../images';
 import type { ClipWizardDeps, WizardErrorBody, WizardReply } from './types';
 import type { ServerRequest } from '~/types';
@@ -53,20 +57,30 @@ export function resolveImages(
   };
   const capCredits = stricter(images?.maxCredits ?? 0, config.wizard.images.maxCreditsPerClip);
   if (!images) {
-    return { ok: true, value: { config, capCredits, perImage: 0, allowed: config.aiImages ? config.maxAiImages : 0 } };
+    return {
+      ok: true,
+      value: { config, capCredits, perImage: 0, allowed: config.aiImages ? config.maxAiImages : 0 },
+    };
   }
   if (images.source === 'builtin') {
-    return { ok: true, value: { config: { ...config, aiImages: false }, capCredits, perImage: 0, allowed: 0 } };
+    return {
+      ok: true,
+      value: { config: { ...config, aiImages: false }, capCredits, perImage: 0, allowed: 0 },
+    };
   }
   if (!wizardImagesOn(config) || !deps.images) {
     return { ok: false, reply: fail('unavailable') };
   }
-  const pick: ClipImagePick = { source: images.source, ...(images.modelId ? { modelId: images.modelId } : {}) };
+  const pick: ClipImagePick = {
+    source: images.source,
+    ...(images.modelId ? { modelId: images.modelId } : {}),
+  };
   const estimate = deps.images.estimate?.(req, 1, pick);
   if (!estimate?.ok) {
     return { ok: false, reply: fail(imageRefusalCode(estimate?.code)) };
   }
-  const byCap = capCredits && estimate.perImage > 0 ? Math.floor(capCredits / estimate.perImage) : Infinity;
+  const byCap =
+    capCredits && estimate.perImage > 0 ? Math.floor(capCredits / estimate.perImage) : Infinity;
   return {
     ok: true,
     value: {

@@ -38,12 +38,17 @@ export const draftParser =
   (config: TClipToolsConfig, aspectRatio?: string) =>
   (text: string): LlmParsed<TClipWizardStoryboard> => {
     const json = extractJson(text);
-    const board = cleanBoard(isObj(json) && isObj(json.storyboard) ? json.storyboard : json, aspectRatio);
+    const board = cleanBoard(
+      isObj(json) && isObj(json.storyboard) ? json.storyboard : json,
+      aspectRatio,
+    );
     if (!board) {
       return { ok: false, feedback: NOT_JSON };
     }
     const issues = boardIssues(board, config);
-    return issues.length ? { ok: false, feedback: repairFeedback(issues) } : { ok: true, value: board };
+    return issues.length
+      ? { ok: false, feedback: repairFeedback(issues) }
+      : { ok: true, value: board };
   };
 
 /** Parser for a chat answer: `{ "reply": string, "storyboard"?: {...} }`. */
@@ -56,7 +61,9 @@ export const chatParser =
     }
     const reply = typeof json.reply === 'string' ? json.reply.trim().slice(0, 2_000) : '';
     if (json.storyboard == null) {
-      return reply ? { ok: true, value: { reply, storyboard: null } } : { ok: false, feedback: NOT_JSON };
+      return reply
+        ? { ok: true, value: { reply, storyboard: null } }
+        : { ok: false, feedback: NOT_JSON };
     }
     const board = cleanBoard(json.storyboard, aspectRatio);
     if (!board) {

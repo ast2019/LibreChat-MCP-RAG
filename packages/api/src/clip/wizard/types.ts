@@ -38,7 +38,10 @@ export const STATUS: Record<TClipWizardErrorCode, number> = {
   server_error: 500,
 };
 
-export const fail = (code: TClipWizardErrorCode, issues?: TClipWizardIssue[]): WizardReply<WizardErrorBody> => ({
+export const fail = (
+  code: TClipWizardErrorCode,
+  issues?: TClipWizardIssue[],
+): WizardReply<WizardErrorBody> => ({
   status: STATUS[code],
   body: { error: { code }, ...(issues ? { issues } : {}) },
 });

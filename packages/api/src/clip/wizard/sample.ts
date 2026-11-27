@@ -86,7 +86,9 @@ export function createVoiceSampler(
       return fail('unavailable');
     }
     const narration = deps.narration;
-    const work = (async (): Promise<WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>> => {
+    const work = (async (): Promise<
+      WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>
+    > => {
       try {
         const made = await narration.generate(req, SAMPLE_TEXT[entry.lang], choice, {
           chargeUser: gate.config.wizard.sampleCharge !== 'platform',

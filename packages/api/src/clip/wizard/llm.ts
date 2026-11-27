@@ -42,7 +42,10 @@ export interface WizardLlmDeps {
     endpointTokenConfig?: TokenConfig;
   }) => number;
   /** Defaults to chat's custom-endpoint price resolution */
-  getEndpointTokenConfig?: (req: ServerRequest, endpoint: string) => Promise<TokenConfig | undefined>;
+  getEndpointTokenConfig?: (
+    req: ServerRequest,
+    endpoint: string,
+  ) => Promise<TokenConfig | undefined>;
   fetch?: MediaFetch;
 }
 
@@ -65,7 +68,10 @@ const tokensOf = (text: string): number => Math.ceil(text.length / 2);
 
 /** The JSON object in a model answer, with a code fence or surrounding prose removed. */
 export function extractJson(text: string): unknown {
-  const body = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const body = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
   try {
     return JSON.parse(body);
   } catch {
@@ -93,7 +99,10 @@ const count = (value: unknown): number | undefined =>
 export function createWizardLlm(deps: WizardLlmDeps): WizardLlm {
   const doFetch: MediaFetch = deps.fetch ?? ((url, init) => fetch(url, init));
 
-  async function tokenConfig(req: ServerRequest, endpoint: string): Promise<TokenConfig | undefined> {
+  async function tokenConfig(
+    req: ServerRequest,
+    endpoint: string,
+  ): Promise<TokenConfig | undefined> {
     if (deps.getEndpointTokenConfig) {
       return deps.getEndpointTokenConfig(req, endpoint);
     }
@@ -115,7 +124,12 @@ export function createWizardLlm(deps: WizardLlmDeps): WizardLlm {
   }
 
   return {
-    async run<T>(req: ServerRequest, config: Pick<TClipToolsConfig, 'wizard'>, model: WizardModel, job: LlmRun<T>) {
+    async run<T>(
+      req: ServerRequest,
+      config: Pick<TClipToolsConfig, 'wizard'>,
+      model: WizardModel,
+      job: LlmRun<T>,
+    ) {
       const settings = config.wizard.llm;
       const target = resolveSpeechEndpoint(req.config, settings.endpoint);
       if (!target || !req.user?.id) {
@@ -166,16 +180,19 @@ export function createWizardLlm(deps: WizardLlmDeps): WizardLlm {
               user: req.user.id,
               ...(target.provider ? { provider: target.provider } : {}),
             };
-            const response = await doFetch(`${target.baseURL.replace(/\/+$/, '')}/chat/completions`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...target.headers,
-                Authorization: `Bearer ${target.apiKey}`,
+            const response = await doFetch(
+              `${target.baseURL.replace(/\/+$/, '')}/chat/completions`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...target.headers,
+                  Authorization: `Bearer ${target.apiKey}`,
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(settings.timeoutMs),
               },
-              body: JSON.stringify(body),
-              signal: AbortSignal.timeout(settings.timeoutMs),
-            });
+            );
             if (!response.ok) {
               logger.warn(`[clip] wizard model answered ${response.status}`);
               return { ok: false, code: 'provider_failed' } as const;
@@ -195,7 +212,9 @@ export function createWizardLlm(deps: WizardLlmDeps): WizardLlm {
           }
           const parsed = job.parse(content);
           if (parsed.ok) {
-            const credits = Math.ceil(promptTokens * promptRate + completionTokens * completionRate);
+            const credits = Math.ceil(
+              promptTokens * promptRate + completionTokens * completionRate,
+            );
             await deps.billing.record(req, charge, credits);
             return { ok: true, value: parsed.value, credits } as const;
           }

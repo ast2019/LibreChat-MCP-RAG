@@ -45,7 +45,10 @@ export async function startWizardRender(
     return fail('invalid_storyboard', parsed.errors.map(toIssue));
   }
   try {
-    const started = await startClipJob(req, config, parsed, deps, env, undefined, { pick, capCredits });
+    const started = await startClipJob(req, config, parsed, deps, env, undefined, {
+      pick,
+      capCredits,
+    });
     if (started.ok) {
       return { status: 200, body: { jobId: started.job.id } };
     }
