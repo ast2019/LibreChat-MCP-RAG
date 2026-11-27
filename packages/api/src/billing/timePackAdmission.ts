@@ -4,8 +4,8 @@ import type { TimePackEntitlement } from 'librechat-data-provider';
 import type { TimePackRequestAdmission, TimePackRequestLike } from './admitTimePack';
 import type { TimeSeatPool, TimeSeatEvictedLease } from './timeSeats';
 import type { TimePackRatePool } from './timeRate';
-import { admitTimePackForRequest } from './admitTimePack';
 import { isConfiguredTimePackEndpoint, resolveTimePackRoute } from './route';
+import { admitTimePackForRequest } from './admitTimePack';
 
 /**
  * One admission decision for every path that can reach a time-pack endpoint.
@@ -86,7 +86,13 @@ export async function admitTimePackForApi({
       },
     );
   }
-  const route = resolveTimePackRoute({ user: req.user, endpoint, model, packs });
+  const route = resolveTimePackRoute({
+    user: req.user,
+    endpoint,
+    model,
+    packs,
+    config: req.config,
+  });
   if (route.kind === 'none') {
     req._timePackSeatHeld = false;
     req._timePackLease = null;
@@ -118,7 +124,15 @@ export function isTimePackTarget({
   model?: string | null;
 }): boolean {
   const packs = req.config?.balance?.packs;
-  return resolveTimePackRoute({ user: req.user, endpoint, model, packs }).kind !== 'none';
+  return (
+    resolveTimePackRoute({
+      user: req.user,
+      endpoint,
+      model,
+      packs,
+      config: req.config,
+    }).kind !== 'none'
+  );
 }
 
 /** A one-line summary of why a request was refused, for the log. */

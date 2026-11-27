@@ -7,6 +7,15 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.15] - 2026-11-27
+
+### Fixed
+- **Canonical ClaudeTime gateway prefers timePack modelSpecs over a renamed packs row.**
+  Live debug share `pkWK6SEa…` on 0.40.14 still denied holders with
+  `reason: none_fail_closed` when `user.timePackEndpoint` and/or `balance.packs.endpoint`
+  were `ClaudeTime3D` while time-* presets name `ClaudeTime`. Routing now resolves one
+  gateway from modelSpecs first, normalizes the user field to it, and seats on that path.
+
 ## [0.40.14] - 2026-11-27
 
 ### Fixed

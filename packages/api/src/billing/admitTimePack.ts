@@ -9,11 +9,17 @@ import type {
   TimeSeatRejectReason,
   TimeSeatEvictedLease,
 } from './timeSeats';
-import type { TimePackAdmitUser, TimePackRoutePack, TimePackTargetInput } from './route';
+import type {
+  TimePackAdmitUser,
+  TimePackConfigLike,
+  TimePackRoutePack,
+  TimePackTargetInput,
+} from './route';
 import type { OwnedGenerationControl } from '~/user/generations';
 import type { TimePackRatePool } from './timeRate';
 import {
   isConfiguredTimePackEndpoint,
+  resolveCanonicalTimePackGateway,
   resolveTimePackRoute,
   resolveTimePackSpecTarget,
   resolveTimePackTarget,
@@ -111,7 +117,7 @@ export type TimePackRequestState = {
 
 export type TimePackRequestLike = TimePackRequestState & {
   user?: (TimePackAdmitUser & { tenantId?: string }) | null;
-  config?: { balance?: Partial<TBalanceConfig> | null } | null;
+  config?: (TimePackConfigLike & { balance?: Partial<TBalanceConfig> | null }) | null;
 };
 
 export type TimePackDenyReason =
@@ -172,31 +178,29 @@ function denyTimePackRequired(
 }
 
 /**
- * Time packs always use the configured pack gateway (ClaudeTime), not a stale rename on the
- * user (ClaudeTime3D). Blank or divergent `timePackEndpoint` is overwritten from packs.
+ * Time packs always use the configured gateway (ClaudeTime from timePack modelSpecs), not a
+ * stale rename on the user or packs row (ClaudeTime3D).
  */
-function repairUserTimePackEndpointFromPacks(
+function repairUserTimePackEndpointToCanonical(
   user: TimePackRequestLike['user'],
-  packs: readonly TimePackRoutePack[] | null | undefined,
+  config: TimePackRequestLike['config'],
 ): boolean {
   if (user == null) {
     return false;
   }
-  const id = typeof user.timePackId === 'string' ? user.timePackId.trim() : '';
-  if (!id) {
-    return false;
-  }
-  const pack = packs?.find((entry) => entry.id === id && isTimePack(entry));
-  const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
-  if (!fromPack) {
+  const canonical = resolveCanonicalTimePackGateway({
+    config,
+    packId: typeof user.timePackId === 'string' ? user.timePackId : null,
+  });
+  if (!canonical) {
     return false;
   }
   const current =
     typeof user.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
-  if (current === fromPack) {
+  if (current === canonical) {
     return false;
   }
-  user.timePackEndpoint = fromPack;
+  user.timePackEndpoint = canonical;
   return true;
 }
 
@@ -253,7 +257,13 @@ export async function admitTimePackForRequest(
   req._timePackLease = null;
   req._timePackEntitlement = null;
   const balance = req.config?.balance;
-  const route = resolveTimePackRoute({ user: req.user, endpoint, model, packs: balance?.packs });
+  const route = resolveTimePackRoute({
+    user: req.user,
+    endpoint,
+    model,
+    packs: balance?.packs,
+    config: req.config,
+  });
   if (route.kind === 'none') {
     return { kind: 'none' };
   }
@@ -378,8 +388,8 @@ export async function admitAgentTimePack(
 ): Promise<TimePackRequestAdmission> {
   const packs = req.config?.balance?.packs ?? [];
   const hasTimePackConfig = packs.some((pack) => isTimePack(pack));
-  /** Align user.timePackEndpoint to the configured pack gateway before routing. */
-  if (repairUserTimePackEndpointFromPacks(req.user, packs)) {
+  /** Align user.timePackEndpoint to modelSpec/pack ClaudeTime before routing. */
+  if (repairUserTimePackEndpointToCanonical(req.user, req.config)) {
     logger.warn('[timePack] normalized user.timePackEndpoint to configured pack gateway', {
       userId: req.user?.id,
       timePackId: req.user?.timePackId,
@@ -401,14 +411,12 @@ export async function admitAgentTimePack(
     body,
     config: req.config,
   });
-  const packGateway =
-    (typeof req.user?.timePackId === 'string'
-      ? packs.find((entry) => entry.id === req.user?.timePackId && isTimePack(entry))?.endpoint?.trim()
-      : '') ||
-    packs.find((entry) => isTimePack(entry))?.endpoint?.trim() ||
-    null;
   const canonicalGateway =
-    (fromSpec.timePack && fromSpec.endpoint) || packGateway || null;
+    resolveCanonicalTimePackGateway({
+      config: req.config,
+      packId: typeof req.user?.timePackId === 'string' ? req.user.timePackId : null,
+    }) ||
+    (fromSpec.timePack ? fromSpec.endpoint : null);
   if (canonicalGateway && fromSpec.timePack === true) {
     if (endpoint !== canonicalGateway) {
       logger.warn('[timePack] forcing time-pack turn onto configured gateway', {

@@ -127,22 +127,90 @@ export function isConfiguredTimePackEndpoint(
   return listConfiguredTimePackEndpoints(config).includes(key);
 }
 
+/**
+ * Single ingress/egress name for time-pack turns. Prefer the unanimous `timePack` modelSpec
+ * preset (menu → ClaudeTime) over a stale `balance.packs` / user rename (ClaudeTime3D).
+ */
+export function resolveCanonicalTimePackGateway({
+  config,
+  packId,
+}: {
+  config?: TimePackConfigLike | null;
+  packId?: string | null;
+}): string | null {
+  const fromSpecs = [
+    ...new Set(
+      (config?.modelSpecs?.list ?? [])
+        .filter((spec) => spec?.timePack === true)
+        .map((spec) =>
+          typeof spec.preset?.endpoint === 'string' ? spec.preset.endpoint.trim() : '',
+        )
+        .filter((endpoint) => endpoint !== ''),
+    ),
+  ];
+  if (fromSpecs.length === 1) {
+    return fromSpecs[0];
+  }
+  const packs = config?.balance?.packs ?? [];
+  const id = typeof packId === 'string' ? packId.trim() : '';
+  if (id) {
+    const pack = packs.find((entry) => entry.id === id && isTimePack(entry));
+    const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
+    if (fromPack) {
+      return fromPack;
+    }
+  }
+  if (fromSpecs[0]) {
+    return fromSpecs[0];
+  }
+  for (const pack of packs) {
+    if (!isTimePack(pack)) {
+      continue;
+    }
+    const endpoint = typeof pack.endpoint === 'string' ? pack.endpoint.trim() : '';
+    if (endpoint) {
+      return endpoint;
+    }
+  }
+  return null;
+}
+
 /** Classifies a request (or one agent of it) by its real endpoint and model. */
 export function resolveTimePackRoute({
   user,
   endpoint,
   model,
   packs,
+  config,
   now,
 }: {
   user?: TimePackAdmitUser | null;
   endpoint?: string | null;
   model?: string | null;
   packs?: readonly TimePackRoutePack[] | null;
+  /** When set, modelSpec timePack presets win over a renamed pack/user endpoint. */
+  config?: TimePackConfigLike | null;
   now?: Date;
 }): TimePackRoute {
-  const entitlement = getTimePackEntitlement(user, packs, now);
-  if (!isTimePackRouteEndpoint({ packs, endpoint, entitlement })) {
+  const packList = packs ?? config?.balance?.packs ?? null;
+  const routeConfig: TimePackConfigLike =
+    config ?? ({ balance: { packs: packList } } satisfies TimePackConfigLike);
+  let entitlement = getTimePackEntitlement(user, packList, now);
+  const canonical = resolveCanonicalTimePackGateway({
+    config: routeConfig,
+    packId: entitlement?.timePackId ?? (typeof user?.timePackId === 'string' ? user.timePackId : null),
+  });
+  /**
+   * Stale grant/pack names (ClaudeTime3D) must not block the configured pipe (ClaudeTime).
+   * Align the in-memory entitlement before the exact endpoint match in isTimePackClaudeRequest.
+   */
+  if (entitlement != null && canonical != null && entitlement.timePackEndpoint !== canonical) {
+    entitlement = { ...entitlement, timePackEndpoint: canonical };
+  }
+  const onPath =
+    isConfiguredTimePackEndpoint(endpoint, routeConfig) ||
+    isTimePackRouteEndpoint({ packs: packList, endpoint, entitlement });
+  if (!onPath) {
     return { kind: 'none' };
   }
   if (isTimePackClaudeRequest({ entitlement, endpoint, model })) {
