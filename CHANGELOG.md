@@ -10,11 +10,12 @@ LibreChat versions are tracked separately in `package.json`.
 ## [0.40.14] - 2026-11-27
 
 ### Fixed
-- **Holders granted on a renamed ClaudeTime gateway are no longer false-denied.**
-  Live debug share `n57GWXj90…` on 0.40.13 showed `reason: none_fail_closed` with
-  `userTimePackEndpoint: ClaudeTime3D` while time-* specs still preset `ClaudeTime`.
-  Admit and initializeAgent now remap timePack turns onto the entitlement gateway so
-  seats and `getProviderConfig` use the real custom endpoint.
+- **Every time-pack turn uses the configured ClaudeTime gateway — one ingress/egress.**
+  Live debug share `n57GWXj90…` on 0.40.13 showed `reason: none_fail_closed` because
+  `userTimePackEndpoint` was a stale rename (`ClaudeTime3D`) while time-* specs and
+  `balance.packs` name `ClaudeTime`. Admit/sync/initialize now normalize the user field
+  to the pack's configured endpoint and force timePack specs onto that gateway — they
+  never divert onto a renamed entitlement name.
 
 ## [0.40.13] - 2026-11-27
 

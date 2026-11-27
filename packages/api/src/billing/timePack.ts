@@ -175,12 +175,11 @@ export function grantedTimePackFromBalance(
   let timePackEndpoint =
     typeof balance.timePackEndpoint === 'string' ? balance.timePackEndpoint.trim() : '';
   /**
-   * Legacy / partial Balance rows sometimes keep id+expiry but drop `timePackEndpoint`.
-   * Without it `getActiveTimePackEntitlement` is null and admit returns
-   * `time_pack_required` while the UI still shows an active pack from expiry alone.
-   * Fill the endpoint from the configured `kind: time` pack with the same id.
+   * The configured `kind: time` pack endpoint is the canonical gateway (ClaudeTime).
+   * Prefer it over a stale Balance/user value (e.g. ClaudeTime3D after an admin rename)
+   * so every time-pack turn enters and exits the same custom endpoint.
    */
-  if (!timePackEndpoint && timePackId) {
+  if (timePackId) {
     const pack = packs?.find((entry) => entry.id === timePackId && isTimePack(entry));
     const fromPack = typeof pack?.endpoint === 'string' ? pack.endpoint.trim() : '';
     if (fromPack) {

@@ -17,7 +17,7 @@ import {
   replaceSpecialVars,
   providerEndpointMap,
   normalizeEndpointName,
-  getActiveTimePackEntitlement,
+  isTimePack,
 } from 'librechat-data-provider';
 import type {
   AgentToolResources,
@@ -149,7 +149,7 @@ import { hasActiveFileFieldPolicy } from '~/protection';
 import { applyBackgroundToolCalls } from './background';
 import { admitCurrentFileBudget } from './files/budget';
 import { getSkillPersianTools } from '~/persian/config';
-import { isConfiguredTimePackEndpoint, resolveTimePackRoute } from '~/billing/route';
+import { resolveTimePackRoute } from '~/billing/route';
 import { getSkillOfficeTools } from '~/office/config';
 import { applyTurnDelivery } from './files/delivery';
 import { generateArtifactsPrompt } from '~/prompts';
@@ -1442,32 +1442,29 @@ export async function initializeAgent(
     agent.endpoint = agent.provider;
   }
   /**
-   * Holders may carry `timePackEndpoint` from a renamed gateway (e.g. ClaudeTime3D) while
-   * timePack modelSpecs still name ClaudeTime. Align agent.endpoint to the grant so
-   * routing and getProviderConfig hit the real custom endpoint.
+   * Time packs always enter/exit the configured gateway (ClaudeTime). If the user document
+   * still names a renamed gateway (ClaudeTime3D), rewrite it to the pack row endpoint so
+   * routing matches agent.endpoint from time-* modelSpecs — do not divert the agent off
+   * ClaudeTime onto the stale name.
    */
   {
-    const liveEntitlement = getActiveTimePackEntitlement(user);
-    const pinned = agent.endpoint || agent.provider;
-    if (
-      liveEntitlement != null &&
-      liveEntitlement.timePackEndpoint !== '' &&
-      pinned != null &&
-      pinned !== '' &&
-      pinned !== liveEntitlement.timePackEndpoint &&
-      (isConfiguredTimePackEndpoint(pinned, appConfig) ||
-        isConfiguredTimePackEndpoint(liveEntitlement.timePackEndpoint, appConfig))
-    ) {
-      logger.warn('[timePack] remapping agent endpoint to entitlement gateway', {
+    const packs = appConfig?.balance?.packs ?? [];
+    const packId = typeof user?.timePackId === 'string' ? user.timePackId.trim() : '';
+    const pack = packs.find((entry) => entry.id === packId && isTimePack(entry));
+    const canonical =
+      typeof pack?.endpoint === 'string' && pack.endpoint.trim() !== ''
+        ? pack.endpoint.trim()
+        : null;
+    const current =
+      typeof user?.timePackEndpoint === 'string' ? user.timePackEndpoint.trim() : '';
+    if (user != null && canonical != null && current !== canonical) {
+      logger.warn('[timePack] normalized user.timePackEndpoint to configured pack gateway', {
         userId: user?.id,
-        from: pinned,
-        to: liveEntitlement.timePackEndpoint,
-        timePackId: liveEntitlement.timePackId,
+        from: current || null,
+        to: canonical,
+        timePackId: packId || null,
       });
-      agent.endpoint = liveEntitlement.timePackEndpoint;
-      if (agent.provider === pinned) {
-        agent.provider = liveEntitlement.timePackEndpoint;
-      }
+      user.timePackEndpoint = canonical;
     }
   }
   /** Every agent of the run (saved, added, subagent, handoff) on a time-pack endpoint needs

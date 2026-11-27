@@ -239,6 +239,31 @@ describe('grantedTimePackFromBalance', () => {
     });
   });
 
+  it('prefers the configured pack gateway over a stale Balance endpoint name', () => {
+    expect(
+      grantedTimePackFromBalance(
+        {
+          timePackId: 'claude-time',
+          timePackEndpoint: 'ClaudeTime3D',
+          timePackExpiresAt: granted.timePackExpiresAt,
+          timePackRevision: 1,
+        },
+        now,
+        [
+          {
+            id: 'claude-time',
+            kind: 'time',
+            label: 'Claude',
+            durationDays: 30,
+            endpoint: 'ClaudeTime',
+          },
+        ],
+      ),
+    ).toMatchObject({
+      timePackEndpoint: 'ClaudeTime',
+    });
+  });
+
   it('returns null when the pack is expired', () => {
     expect(
       grantedTimePackFromBalance(
