@@ -197,6 +197,7 @@ describe('create_remotion_clip (background job)', () => {
     const narrationService = (reserve?: jest.Mock) => ({
       reserve: reserve ?? jest.fn(async () => ({ ok: true as const, hold: { keep: jest.fn(), release: jest.fn(async () => undefined) } })),
       generate: jest.fn(),
+      refund: jest.fn(async () => true),
       release: jest.fn(),
     });
     const audioOf = (create: jest.Mock) =>
@@ -235,7 +236,7 @@ describe('create_remotion_clip (background job)', () => {
       const narration = narrationService();
       const { clip, createMediaJob } = build({ narration }, '64b000000000000000000036', { voices });
       await run(clip, { ...spoken, audio: { mode: 'tts', voice: 'gemini-kore' } });
-      expect(narration.reserve).toHaveBeenCalledWith(expect.anything(), ['سلام دنیا', 'سی درصد'], undefined);
+      expect(narration.reserve).toHaveBeenCalledWith(expect.anything(), ['سلام دنیا', 'سی درصد'], expect.objectContaining({ voice: 'Kore' }), undefined);
       expect(audioOf(createMediaJob)).toEqual({
         mode: 'tts',
         narration: { provider: 'openrouter', voice: 'Kore', model: 'google/gemini-3.8-flash-tts' },

@@ -4696,11 +4696,11 @@
   "com_clip_job_error_timeout": "The clip took too long and was stopped. Try a shorter clip.",
   "com_clip_job_error_storyboard": "The clip's storyboard was not valid. Ask for the clip again.",
   "com_clip_job_error_narration": "The narration is longer than the clip limit. Ask for shorter narration.",
-  "com_clip_job_error_image": "An image for the clip could not be loaded or made.",
-  "com_clip_job_error_voice": "The narration for the clip could not be made.",
+  "com_clip_job_error_image": "The image provider failed, so an image for the clip could not be made. No credit was charged. Ask again to retry.",
+  "com_clip_job_error_voice": "The voice provider failed, so the narration could not be made. No credit was charged. Ask again to retry.",
   "com_clip_job_error_audio": "The audio file for the clip was not found.",
   "com_clip_job_error_lost": "The clip renderer restarted and the clip was lost. Ask again to retry.",
   "com_clip_job_error_unavailable": "The clip builder is not available right now.",
-  "com_clip_job_error_credit": "Your credit did not cover the clip's AI images. Add credit or ask for the clip without AI images.",
+  "com_clip_job_error_credit": "Your credit ran out while the clip was being made. Top up from «خرید اعتبار» and ask again, or ask for the clip without AI images or AI narration.",
   "com_clip_job_error_assets": "The clip's images and audio are too large. Ask again with fewer or smaller files."
 }

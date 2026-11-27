@@ -24,6 +24,10 @@ export type ClipNarrationResult =
 export interface ClipNarrationVoice {
   voice: string;
   model: string;
+  /** Audio format the model returns; `media.speech.format` when unset */
+  format?: 'mp3' | 'pcm';
+  /** USD per 1000 characters held and assumed; `media.speech.estimateUsd` per call when unset */
+  estimateUsdPerKChar?: number;
 }
 
 /** The credit held at tool time for a clip's narration, one reservation per speech call. */
@@ -43,6 +47,7 @@ export interface ClipNarrationService {
   reserve(
     req: ServerRequest,
     texts: readonly string[],
+    voice: ClipNarrationVoice,
     conversationId?: string,
   ): Promise<{ ok: true; hold: ClipNarrationHold } | { ok: false; message: string }>;
   /**
@@ -57,6 +62,11 @@ export interface ClipNarrationService {
   ): Promise<ClipNarrationResult>;
   /** Releases whatever is still held for the job. */
   release(jobId: string): Promise<void>;
+  /**
+   * Gives back narration credits already recorded (the clip failed on the provider's side).
+   * Resolves `false` when the ledger write failed, so the caller keeps its own record.
+   */
+  refund(req: ServerRequest, credits: number, conversationId?: string): Promise<boolean>;
 }
 
 export interface ClipNarrationServiceDeps {
@@ -119,8 +129,15 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
     if (!config || !speech || !endpoint) {
       return null;
     }
-    const estimate = mediaCredits(speech.estimateUsd, endpoint.priceMultiplier ?? 1);
-    return { config, speech, endpoint, estimate };
+    const multiplier = endpoint.priceMultiplier ?? 1;
+    /** USD assumed for one speech call of `length` characters in this voice */
+    const estimateUsd = (voice: ClipNarrationVoice, length: number): number =>
+      voice.estimateUsdPerKChar != null
+        ? (voice.estimateUsdPerKChar * length) / 1000
+        : speech.estimateUsd;
+    const estimate = (voice: ClipNarrationVoice, length: number): number =>
+      mediaCredits(estimateUsd(voice, length), multiplier);
+    return { config, speech, endpoint, estimate, estimateUsd };
   }
 
   const charge = (model: string, endpoint: string, conversationId?: string): MediaCharge => ({
@@ -157,7 +174,7 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
   }
 
   return {
-    async reserve(req, texts, conversationId) {
+    async reserve(req, texts, voice, conversationId) {
       const s = setup(req);
       if (!s) {
         return { ok: false, message: 'AI narration is not configured on this deployment.' };
@@ -169,22 +186,20 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       if (!allowed.ok) {
         return { ok: false, message: REFUSALS[allowed.code] };
       }
-      const count = texts.reduce(
-        (sum, text) => sum + chunkNarration(text, s.speech.maxChars).length,
-        0,
-      );
+      const chunks = texts.flatMap((text) => chunkNarration(text, s.speech.maxChars));
+      const total = chunks.reduce((sum, chunk) => sum + s.estimate(voice, chunk.length), 0);
       const slots: Slot[] = [];
-      for (let i = 0; i < count; i++) {
+      for (const chunk of chunks) {
         const held = await deps.billing.hold(
           req,
-          charge(s.speech.model, s.config.endpoint, conversationId),
-          s.estimate,
+          charge(voice.model || s.speech.model, s.config.endpoint, conversationId),
+          s.estimate(voice, chunk.length),
         );
         if (held === 'insufficient') {
           await releaseAll(slots);
           return {
             ok: false,
-            message: `The user's credit does not cover the AI narration (about $${((s.estimate * count) / 1e6).toFixed(2)}).`,
+            message: `The user's credit does not cover the AI narration (about $${(total / 1e6).toFixed(2)}). Tell the user to top up from «خرید اعتبار» (/payment).`,
           };
         }
         slots.push(held);
@@ -218,12 +233,25 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       };
       const pieces: Buffer[] = [];
       let credits = 0;
+      const format = voice.format ?? s.speech.format;
+      /** Gives back what this line's earlier pieces cost, so a half-made line is not charged. */
+      const undo = async (): Promise<void> => {
+        if (credits > 0) {
+          await deps.billing.refund(
+            req,
+            charge(voice.model, s.config.endpoint, options.conversationId),
+            credits,
+          );
+          credits = 0;
+        }
+      };
       for (const piece of chunkNarration(text, s.speech.maxChars)) {
         const entry = options.jobId ? kept.get(options.jobId) : undefined;
         await entry?.slots.pop()?.release();
         const billed = charge(voice.model, s.config.endpoint, options.conversationId);
-        const held = await deps.billing.hold(req, billed, s.estimate);
+        const held = await deps.billing.hold(req, billed, s.estimate(voice, piece.length));
         if (held === 'insufficient') {
+          await undo();
           return { ok: false, code: 'insufficient_credit' };
         }
         try {
@@ -232,7 +260,7 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
             input: piece,
             voice: voice.voice,
             ...(s.speech.instructions ? { instructions: s.speech.instructions } : {}),
-            responseFormat: s.speech.format,
+            responseFormat: format,
             timeoutMs: s.speech.timeoutMs,
           });
           if (synthesized.audio.length === 0) {
@@ -242,12 +270,15 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
             ? await client.getGenerationCost({ target, generationId: synthesized.generationId })
             : undefined;
           const spent = mediaCredits(
-            costUsd ?? s.speech.estimateUsd,
+            costUsd ?? s.estimateUsd(voice, piece.length),
             s.endpoint.priceMultiplier ?? 1,
           );
           await deps.billing.record(req, billed, spent);
           credits += spent;
           pieces.push(synthesized.audio);
+        } catch (error) {
+          await undo();
+          throw error;
         } finally {
           await held?.release();
         }
@@ -256,13 +287,25 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
         throw new Error('no narration text');
       }
       const audio = Buffer.concat(pieces);
-      const wav = s.speech.format === 'pcm';
+      const wav = format === 'pcm';
       return {
         ok: true,
         buffer: wav ? pcmToWav(audio, s.speech.pcmSampleRate) : audio,
         type: wav ? 'audio/wav' : 'audio/mpeg',
         credits,
       };
+    },
+
+    async refund(req, credits, conversationId) {
+      const s = setup(req);
+      if (!s) {
+        return false;
+      }
+      return deps.billing.refund(
+        req,
+        charge(s.speech.model, s.config.endpoint, conversationId),
+        credits,
+      );
     },
 
     release,

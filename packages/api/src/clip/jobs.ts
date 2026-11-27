@@ -163,14 +163,54 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   const later = (ms: number): Date => new Date(now().getTime() + ms);
   const payloadOf = (job: MediaJobRecord): ClipJobPayload => job.payload as unknown as ClipJobPayload;
 
-  /** Ends the job: no storyboard is kept, the real AI image charges are recorded. */
+  /**
+   * Gives back what a provider failure already charged (AI images and narration), once.
+   * Returns the credits still charged: 0 when refunded, else everything (the ledger stays truthful).
+   */
+  async function refundProviderFailure(job: MediaJobRecord, payload: ClipJobPayload): Promise<number> {
+    const charged = spentCredits(payload);
+    if (!(charged > 0)) {
+      return 0;
+    }
+    try {
+      const req = await deps.loadOwnerRequest(job);
+      if (!req) {
+        throw new Error('owner request not found');
+      }
+      const results = await Promise.all([
+        payload.aiCredits ? deps.images?.refund(req, payload.aiCredits, job.conversationId) : true,
+        payload.narrationCredits
+          ? deps.narration?.refund(req, payload.narrationCredits, job.conversationId)
+          : true,
+      ]);
+      if (results.every((ok) => ok === true)) {
+        return 0;
+      }
+      throw new Error('refund was not recorded');
+    } catch (error) {
+      logger.error(`[clip] refund failed job=${job.id} credits=${charged}`, getSafeErrorMetadata(error));
+      return charged;
+    }
+  }
+
+  /**
+   * Ends the job: no storyboard is kept, the real AI image and narration charges are recorded.
+   * A provider failure (`image_failed`, `narration_failed`) refunds them first; other failures
+   * keep them, since the files already made stay the user's.
+   */
   async function fail(job: MediaJobRecord, code: ClipJobErrorCode, reason?: string): Promise<void> {
-    const charged = job.payload ? spentCredits(payloadOf(job)) : undefined;
+    const payload = job.payload ? payloadOf(job) : undefined;
+    const refundable = code === 'narration_failed' || code === 'image_failed';
+    const charged = payload
+      ? refundable
+        ? await refundProviderFailure(job, payload)
+        : spentCredits(payload)
+      : undefined;
     await deps.updateMediaJob(job.id, {
       status: 'failed',
       errorCode: code,
       payload: null,
-      ...(charged ? { chargedCredits: charged } : {}),
+      ...(charged || (refundable && payload && spentCredits(payload) > 0) ? { chargedCredits: charged } : {}),
     });
     await deps.images?.release(job.id);
     await deps.narration?.release(job.id);

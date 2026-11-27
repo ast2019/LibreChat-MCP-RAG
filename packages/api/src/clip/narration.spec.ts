@@ -54,6 +54,7 @@ function setup({
       };
     }),
     record: jest.fn(async () => undefined),
+    refund: jest.fn(async () => true),
   };
   const speechClient: SpeechProviderClient = {
     transcribe: jest.fn(),
@@ -100,7 +101,7 @@ describe('chunkNarration', () => {
 describe('clip narration service', () => {
   it('holds per speech call at tool time, speaks with the chosen voice and charges once per scene', async () => {
     const { service, billing, speechClient, held } = setup();
-    const reserved = await service.reserve(req, ['one line', 'two line']);
+    const reserved = await service.reserve(req, ['one line', 'two line'], voice);
     if (!reserved.ok) {
       throw new Error('expected a hold');
     }
@@ -147,14 +148,14 @@ describe('clip narration service', () => {
 
   it('refuses at tool time when credit does not cover the lines, and holds nothing', async () => {
     const { service, held } = setup({ balance: 200_000 });
-    const reserved = await service.reserve(req, ['a', 'b']);
+    const reserved = await service.reserve(req, ['a', 'b'], voice);
     expect(reserved.ok).toBe(false);
     expect(held()).toBe(0);
   });
 
   it('refuses at tool time when the pack does not allow media', async () => {
     const { service } = setup({ packId: null });
-    const reserved = await service.reserve(req, ['a']);
+    const reserved = await service.reserve(req, ['a'], voice);
     expect(reserved).toMatchObject({ ok: false });
     expect((reserved as { message: string }).message).toContain('paid packs');
   });
@@ -162,7 +163,7 @@ describe('clip narration service', () => {
   it('reports an unconfigured deployment', async () => {
     const { service } = setup();
     const bare = { user: { id: 'u1' }, config: { config: {} } } as unknown as ServerRequest;
-    expect(await service.reserve(bare, ['a'])).toMatchObject({ ok: false });
+    expect(await service.reserve(bare, ['a'], voice)).toMatchObject({ ok: false });
     expect(await service.generate(bare, 'a', voice)).toEqual({ ok: false, code: 'unconfigured' });
   });
 
@@ -186,5 +187,58 @@ describe('clip narration service', () => {
     await expect(service.generate(req, 'hello', voice)).rejects.toThrow();
     expect(billing.record).not.toHaveBeenCalled();
     expect(held()).toBe(0);
+  });
+
+  it('uses the voice format and a per-character estimate', async () => {
+    const { service, speechClient, held } = setup({ costUsd: null });
+    const eleven = {
+      voice: 'sarah',
+      model: 'elevenlabs/eleven-v3',
+      format: 'mp3' as const,
+      estimateUsdPerKChar: 0.08,
+    };
+    const text = 'x'.repeat(40);
+    /** 40 chars at $0.08 per 1000 is $0.0032, 3200 credits at the 1.5 markup is 4800. */
+    const reserved = await service.reserve(req, [text], eleven);
+    if (!reserved.ok) {
+      throw new Error('expected a hold');
+    }
+    expect(held()).toBe(4_800);
+    await reserved.hold.release();
+    const made = await service.generate(req, text, eleven);
+    expect(made).toMatchObject({ ok: true, type: 'audio/mpeg', credits: 4_800 });
+    expect(speechClient.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ responseFormat: 'mp3' }),
+    );
+    expect(((made as { buffer: Buffer }).buffer).subarray(0, 4).toString()).not.toBe('RIFF');
+  });
+
+  it('refunds earlier pieces of a line when a later piece fails', async () => {
+    const { service, billing, speechClient } = setup();
+    (speechClient.synthesize as jest.Mock)
+      .mockResolvedValueOnce({ audio: Buffer.alloc(480), generationId: 'gen-1' })
+      .mockRejectedValueOnce(new Error('down'));
+    const text = 'Word '.repeat(25).trim();
+    await expect(service.generate(req, text, voice)).rejects.toThrow('down');
+    expect(billing.record).toHaveBeenCalledTimes(1);
+    expect(billing.refund).toHaveBeenCalledTimes(1);
+    expect(billing.refund).toHaveBeenCalledWith(req, expect.anything(), 60_000);
+  });
+
+  it('does not refund when the first piece fails', async () => {
+    const { service, billing, speechClient } = setup();
+    (speechClient.synthesize as jest.Mock).mockRejectedValueOnce(new Error('down'));
+    await expect(service.generate(req, 'hello', voice)).rejects.toThrow();
+    expect(billing.refund).not.toHaveBeenCalled();
+  });
+
+  it('refund gives credits back through billing', async () => {
+    const { service, billing } = setup();
+    expect(await service.refund(req, 90_000, 'c1')).toBe(true);
+    expect(billing.refund).toHaveBeenCalledWith(
+      req,
+      expect.objectContaining({ model: 'default/tts', conversationId: 'c1' }),
+      90_000,
+    );
   });
 });

@@ -574,7 +574,7 @@ clipTools:
   maxDurationSec: 90
   height: 720
   maxScenes: 20
-  maxJobsPerUser: 1
+  maxJobsPerUser: 3
   renderTimeoutSec: 600
   queueTimeoutSec: 900
   preview: true
@@ -590,50 +590,73 @@ clipTools:
   maxAiImages: 3
   stockImages: true
   maxStockImages: 6
-  maxConcurrent: 1
+  maxConcurrent: 2
   # Narration voices. The user picks one by label; the first entry of the clip's language is the
-  # default (Edge, free). `openrouter` entries speak through media.speech (model below), are made
-  # per scene in the API and charged like AI images. Edge names: fa-IR-DilaraNeural, fa-IR-FaridNeural.
+  # default, so the paid ElevenLabs v3 voices come first. `openrouter` entries speak through
+  # media.speech (provider and key), are made per scene in the API and charged like AI images.
+  # ElevenLabs on OpenRouter costs $0.00008 per character (estimateUsdPerKChar 0.08 is the hold
+  # per 1000 characters; the provider's real cost is charged). Eleven v3 lists Persian in
+  # ElevenLabs' models page (elevenlabs.io/docs/overview/models); v2 and Flash v2.5 do not.
+  # NOT VERIFIED AUDIBLY (no provider access from the build sandbox): how any Persian voice
+  # sounds, and that Gemini TTS reads Persian well. Listen to each before the owner relies on it.
+  # The Edge voice is a free fallback and stays the last Persian entry.
   voices:
-    - id: 'fa-IR-DilaraNeural'
-      label: 'دیلارا (رایگان)'
+    - id: 'eleven-sarah'
+      label: 'سارا، زن، گرم و دوستانه (هوش مصنوعی، پولی)'
       lang: 'fa'
-      provider: 'edge'
-      voice: 'fa-IR-DilaraNeural'
-    - id: 'fa-IR-FaridNeural'
-      label: 'فرید (رایگان)'
+      provider: 'openrouter'
+      voice: 'sarah'
+      model: 'elevenlabs/eleven-v3'
+      format: 'mp3'
+      estimateUsdPerKChar: 0.08
+    - id: 'eleven-alice'
+      label: 'آلیس، زن، رسمی و شفاف (هوش مصنوعی، پولی)'
       lang: 'fa'
-      provider: 'edge'
-      voice: 'fa-IR-FaridNeural'
-    - id: 'en-US-JennyNeural'
-      label: 'جنی، انگلیسی (رایگان)'
-      lang: 'en'
-      provider: 'edge'
-      voice: 'en-US-JennyNeural'
+      provider: 'openrouter'
+      voice: 'alice'
+      model: 'elevenlabs/eleven-v3'
+      format: 'mp3'
+      estimateUsdPerKChar: 0.08
+    - id: 'eleven-george'
+      label: 'جورج، مرد، گرم و روایتگر (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'george'
+      model: 'elevenlabs/eleven-v3'
+      format: 'mp3'
+      estimateUsdPerKChar: 0.08
+    - id: 'eleven-brian'
+      label: 'برایان، مرد، عمیق و آرام (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'brian'
+      model: 'elevenlabs/eleven-v3'
+      format: 'mp3'
+      estimateUsdPerKChar: 0.08
     - id: 'gemini-kore'
       label: 'Kore، رسمی و شفاف (هوش مصنوعی، پولی)'
       lang: 'fa'
       provider: 'openrouter'
       voice: 'Kore'
       model: 'google/gemini-3.8-flash-tts'
+      format: 'pcm'
     - id: 'gemini-charon'
       label: 'Charon، آرام و خبری (هوش مصنوعی، پولی)'
       lang: 'fa'
       provider: 'openrouter'
       voice: 'Charon'
       model: 'google/gemini-3.8-flash-tts'
-    - id: 'gemini-leda'
-      label: 'Leda، جوان و صمیمی (هوش مصنوعی، پولی)'
+      format: 'pcm'
+    - id: 'fa-IR-DilaraNeural'
+      label: 'دیلارا، زن (رایگان، جایگزین)'
       lang: 'fa'
-      provider: 'openrouter'
-      voice: 'Leda'
-      model: 'google/gemini-3.8-flash-tts'
-    - id: 'gemini-puck'
-      label: 'Puck، پرانرژی (هوش مصنوعی، پولی)'
-      lang: 'fa'
-      provider: 'openrouter'
-      voice: 'Puck'
-      model: 'google/gemini-3.8-flash-tts'
+      provider: 'edge'
+      voice: 'fa-IR-DilaraNeural'
+    - id: 'en-US-JennyNeural'
+      label: 'جنی، انگلیسی (رایگان)'
+      lang: 'en'
+      provider: 'edge'
+      voice: 'en-US-JennyNeural'
 
 # Agent browser (experimental): the `browser` service in docker-compose.yml. Who may open one is
 # set per pack and per user in the admin panel (admins always may); these are the server limits.

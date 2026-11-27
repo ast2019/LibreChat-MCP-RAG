@@ -43,6 +43,7 @@ function setup({ packId = 'starter' as string | null, balance = 1_000_000 } = {}
       return { release };
     }),
     record: jest.fn(async () => undefined),
+    refund: jest.fn(async () => true),
   };
   const fetch = jest.fn(
     async () =>

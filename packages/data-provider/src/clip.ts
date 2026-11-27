@@ -35,6 +35,10 @@ export const clipVoiceSchema = z
     voice: z.string().min(1).max(60),
     /** Speech model, required for `openrouter` */
     model: z.string().min(1).max(100).optional(),
+    /** Audio format the model returns; `media.speech.format` when unset (`pcm` is saved as WAV) */
+    format: z.enum(['mp3', 'pcm']).optional(),
+    /** USD held and assumed per 1000 characters when the provider reports no cost; `media.speech.estimateUsd` per call when unset */
+    estimateUsdPerKChar: z.number().min(0).max(100).optional(),
   })
   .refine((entry) => entry.provider !== 'openrouter' || Boolean(entry.model), {
     message: 'model is required for the openrouter provider',

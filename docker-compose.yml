@@ -287,7 +287,7 @@ services:
       SEARXNG_BASE_URL: http://searxng:8080/
 
   # Remotion motion studio worker: storyboard clips (up to 90 s by default, 180 s at most)
-  # rendered as background jobs. Only the api calls it; leave its domain empty. One job at a
+  # rendered as background jobs. Only the api calls it; leave its domain empty. Two jobs at a
   # time by default; each job's frame concurrency follows the CPUs given here. Optional: set
   # PEXELS_API_KEY on the api for stock photos.
   remotion:
@@ -296,7 +296,7 @@ services:
     restart: unless-stopped
     environment:
       REMOTION_SERVICE_TOKEN: ${SERVICE_HEX_64_REMOTION}
-      REMOTION_MAX_CONCURRENT: ${REMOTION_MAX_CONCURRENT:-1}
+      REMOTION_MAX_CONCURRENT: ${REMOTION_MAX_CONCURRENT:-2}
       # Empty = derived from the CPU limit below (CPUs - 1 per job)
       REMOTION_RENDER_CONCURRENCY: ${REMOTION_RENDER_CONCURRENCY:-}
       REMOTION_JOB_TIMEOUT_MAX_MS: ${REMOTION_JOB_TIMEOUT_MAX_MS:-1800000}

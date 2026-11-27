@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import { load } from 'js-yaml';
 import { ClipTools, clipToolsSchema } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import {
@@ -7,6 +10,7 @@ import {
   buildClipToolContext,
   getRemotionServiceTarget,
 } from './config';
+import { resolveClipVoice } from './voices';
 
 const ENV = {
   REMOTION_SERVICE_URL: 'http://remotion:3200',
@@ -108,5 +112,33 @@ describe('buildClipToolContext', () => {
     const context = buildClipToolContext([ClipTools.clip], [], []);
     expect(context[ClipTools.clip]).toContain('create_remotion_clip');
     expect(context[ClipTools.clip]).toContain('storyboard motion graphics');
+  });
+});
+
+describe('config/librechat.saas.yaml clipTools', () => {
+  const file = path.resolve(__dirname, '../../../../config/librechat.saas.yaml');
+  const raw = (load(fs.readFileSync(file, 'utf8')) as { clipTools: unknown }).clipTools;
+
+  it('parses, with ElevenLabs first and Edge Dilara last for Persian', () => {
+    const parsed = clipToolsSchema.safeParse(raw);
+    expect(parsed.success).toBe(true);
+    const config = clipToolsSchema.parse(raw);
+    expect(config.maxJobsPerUser).toBe(3);
+    expect(config.maxConcurrent).toBe(2);
+    const fa = config.voices.filter((v) => v.lang === 'fa');
+    expect(fa[0]).toMatchObject({ provider: 'openrouter', model: 'elevenlabs/eleven-v3' });
+    expect(fa.slice(0, 4).map((v) => v.voice)).toEqual(['sarah', 'alice', 'george', 'brian']);
+    expect(fa[fa.length - 1]).toMatchObject({ provider: 'edge', voice: 'fa-IR-DilaraNeural' });
+    expect(config.voices.map((v) => v.id)).not.toEqual(
+      expect.arrayContaining(['gemini-leda', 'gemini-puck', 'fa-IR-FaridNeural']),
+    );
+    expect(resolveClipVoice(config, undefined, 'fa')).toMatchObject({
+      ok: true,
+      choice: { provider: 'openrouter', voice: 'sarah', format: 'mp3', estimateUsdPerKChar: 0.08 },
+    });
+    expect(resolveClipVoice(config, undefined, 'en')).toMatchObject({
+      ok: true,
+      choice: { provider: 'edge' },
+    });
   });
 });

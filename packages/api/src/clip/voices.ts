@@ -14,6 +14,10 @@ export interface ClipOpenRouterVoice {
   provider: 'openrouter';
   voice: string;
   model: string;
+  /** `media.speech.format` when unset */
+  format?: 'mp3' | 'pcm';
+  /** USD per 1000 characters, `media.speech.estimateUsd` per call when unset */
+  estimateUsdPerKChar?: number;
 }
 
 export type ClipVoiceChoice = { provider: 'edge'; voice?: string } | ClipOpenRouterVoice;
@@ -23,7 +27,15 @@ export const clipVoiceIds = (config: Pick<TClipToolsConfig, 'voices'>): string[]
 
 function choiceOf(entry: TClipVoice, explicit: boolean): ClipVoiceChoice {
   if (entry.provider === 'openrouter') {
-    return { provider: 'openrouter', voice: entry.voice, model: entry.model ?? '' };
+    return {
+      provider: 'openrouter',
+      voice: entry.voice,
+      model: entry.model ?? '',
+      ...(entry.format ? { format: entry.format } : {}),
+      ...(entry.estimateUsdPerKChar != null
+        ? { estimateUsdPerKChar: entry.estimateUsdPerKChar }
+        : {}),
+    };
   }
   /** The worker's own default is not sent, so a deployment without `voices` sends what it always did. */
   return !explicit && entry.voice === WORKER_DEFAULTS[entry.lang]

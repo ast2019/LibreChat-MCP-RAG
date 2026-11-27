@@ -22,8 +22,24 @@ LibreChat versions are tracked separately in `package.json`.
   audio and spreads caption timings over each line by character count. Insufficient credit or no
   media access is reported to the model at once and no job is created. New card error code
   `narration_failed`.
-- `config/librechat.saas.yaml`: Edge Dilara, Farid and Jenny plus Gemini Kore, Charon, Leda and
-  Puck voices; Edge Dilara stays the Persian default.
+- **Clip voices: ElevenLabs Eleven v3 first.** In `config/librechat.saas.yaml` the default Persian
+  voices are now ElevenLabs v3 via OpenRouter (Sarah, Alice, George, Brian), then Gemini Kore and
+  Charon; Gemini Leda and Puck and Edge Farid are removed and Edge Dilara is the last, free
+  fallback. Voice entries take optional `format` and `estimateUsdPerKChar` (hold per 1000
+  characters; ElevenLabs is $0.00008 per character). Not verified audibly, and Gemini's Persian
+  quality is unconfirmed.
+- **Clip capacity.** `maxJobsPerUser` 3 and `maxConcurrent` 2; compose `REMOTION_MAX_CONCURRENT`
+  defaults to 2 (reasoning in `docs/saas/clip-builder-fa.md`).
+- **Refund on provider failure.** `MediaBilling.refund` writes a positive credits transaction. When
+  the voice or image provider fails (`narration_failed`, `image_failed`) the clip job refunds its
+  narration and AI image charges once and records `chargedCredits` 0; a later piece failing
+  inside one narration line refunds that line's earlier pieces. A failed refund is logged and the
+  charge stays on the job. Other failures keep their charges.
+
+### Changed
+- Card messages for `narration_failed`, `image_failed` and `insufficient_credit` say the provider
+  failed with no charge, or that credit ran out and the user should top up from «خرید اعتبار».
+  Tool replies for insufficient credit tell the model to send the user to top up.
 
 ## [0.40.15] - 2026-11-27
 

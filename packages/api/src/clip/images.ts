@@ -55,6 +55,11 @@ export interface ClipImageService {
   ): Promise<ClipImageResult>;
   /** Releases whatever is still held for the job (all images made, or the job ended). */
   release(jobId: string): Promise<void>;
+  /**
+   * Gives back AI image credits already recorded (the clip failed on the provider's side).
+   * Resolves `false` when the ledger write failed, so the caller keeps its own record.
+   */
+  refund(req: ServerRequest, credits: number, conversationId?: string): Promise<boolean>;
 }
 
 export interface ClipImageServiceDeps {
@@ -137,7 +142,7 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
           await releaseAll(slots);
           return {
             ok: false,
-            message: `The user's credit does not cover ${count} AI image(s) (about $${((s.estimate * count) / 1e6).toFixed(2)}).`,
+            message: `The user's credit does not cover ${count} AI image(s) (about $${((s.estimate * count) / 1e6).toFixed(2)}). Tell the user to top up from «خرید اعتبار» (/payment).`,
           };
         }
         slots.push(held);
@@ -186,6 +191,14 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
       } finally {
         await held?.release();
       }
+    },
+
+    async refund(req, credits, conversationId) {
+      const s = setup(req);
+      if (!s) {
+        return false;
+      }
+      return deps.billing.refund(req, charge(s.model.id, s.config.endpoint, conversationId), credits);
     },
 
     release,

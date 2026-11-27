@@ -311,7 +311,7 @@ export function createClipTools(
           return reply('Nothing was built: AI narration is not available here. Use a default voice (omit audio.voice) or audio mode "none".');
         }
         const lines = request.storyboard.scenes.flatMap((scene) => (typeof scene.narration === 'string' ? [scene.narration] : []));
-        const held = await deps.narration.reserve(req, lines, conversationId);
+        const held = await deps.narration.reserve(req, lines, request.audio.narration, conversationId);
         if (!held.ok) {
           recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'narration_refused' });
           return reply(`Nothing was built or charged: ${held.message} Offer the user a default voice (omit audio.voice) or a clip without narration.`);
