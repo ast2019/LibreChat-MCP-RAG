@@ -19,6 +19,10 @@ LibreChat versions are tracked separately in `package.json`.
   loudly when custom-endpoint `${ENV}` placeholders are unset; missing-key throws
   name the env var; UI 401 copy tells admins to verify endpoint credentials.
   `includeReasoningHistory` lookup also prefers `agent.endpoint` after the SDK swap.
+  Runtime ERROR / debug-share lines for sendCompletion, resumeCompletion and
+  titleConvo 401s now name `ClaudeTime`, safe key present/length/fingerprint,
+  baseURL host, and `NOT time_pack_required` so they cannot be misread as pack
+  admit failures.
 
 ## [0.40.11] - 2026-11-26
 

@@ -57,7 +57,7 @@ describe('ClaudeTime credential routing after provider swap', () => {
         getUserKey: jest.fn(),
         getUserKeyValues: jest.fn(),
       },
-    } as Parameters<typeof getOptions>[0]);
+    } as unknown as Parameters<typeof getOptions>[0]);
 
     expect(options.provider).toBe(Providers.ANTHROPIC);
     expect(options.llmConfig).toMatchObject({
@@ -86,7 +86,7 @@ describe('ClaudeTime credential routing after provider swap', () => {
         model_parameters: { model: 'claude-sonnet-5-5' },
         runtime: { appConfig, user: { id: 'user-1' }, requestBody: {} },
         db: { getUserKey: jest.fn(), getUserKeyValues: jest.fn() },
-      } as Parameters<typeof getOptions>[0]),
+      } as unknown as Parameters<typeof getOptions>[0]),
     ).rejects.toThrow(/Missing API Key for ClaudeTime: environment variable CLAUDE_TIME_KEY/);
   });
 });
