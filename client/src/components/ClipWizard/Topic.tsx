@@ -1,9 +1,21 @@
 import { useState } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
-import { Button, Textarea } from '@librechat/client';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { Button, Spinner, Textarea } from '@librechat/client';
+import type { TClipWizardConfigResponse, TClipWizardErrorCode } from 'librechat-data-provider';
 import type { ClipWizardStoryboardState } from '~/store/clipWizard';
-import { clipWizardStepAtom, clipWizardStoryboardAtom, clipWizardTopicAtom } from '~/store/clipWizard';
+import {
+  clipWizardImagesAtom,
+  clipWizardSettingsAtom,
+  clipWizardStepAtom,
+  clipWizardStoryboardAtom,
+  clipWizardTopicAtom,
+} from '~/store/clipWizard';
+import { useDraftClipWizardMutation } from '~/data-provider';
+import { clipWizardErrorCode } from './errors';
+import { useClipWizardModel } from './Model';
 import { useLocalize } from '~/hooks';
+import Notice from './Notice';
+import Model from './Model';
 
 /** A storyboard object with a scenes list, or null when the text is not one. */
 export function parseStoryboard(text: string): ClipWizardStoryboardState | null {
@@ -26,13 +38,45 @@ export function parseStoryboard(text: string): ClipWizardStoryboardState | null 
   return null;
 }
 
-export default function Topic() {
+export default function Topic({ config }: { config: TClipWizardConfigResponse }) {
   const localize = useLocalize();
   const [topic, setTopic] = useAtom(clipWizardTopicAtom);
   const [storyboard, setStoryboard] = useAtom(clipWizardStoryboardAtom);
   const setStep = useSetAtom(clipWizardStepAtom);
   const [text, setText] = useState(() => (storyboard ? JSON.stringify(storyboard, null, 2) : ''));
   const [invalid, setInvalid] = useState(false);
+  const settings = useAtomValue(clipWizardSettingsAtom);
+  const images = useAtomValue(clipWizardImagesAtom);
+  const [modelId] = useClipWizardModel(config);
+  const draft = useDraftClipWizardMutation();
+  const [error, setError] = useState<TClipWizardErrorCode | null>(null);
+  const tooShort = topic.trim().length < 3;
+
+  const write = () => {
+    if (tooShort || !modelId || draft.isLoading) {
+      return;
+    }
+    setError(null);
+    draft.mutate(
+      {
+        topic: topic.trim(),
+        settings: {
+          aspectRatio: settings.aspectRatio,
+          targetDurationSec: settings.targetDurationSec,
+        },
+        modelId,
+        images,
+      },
+      {
+        onSuccess: (result) => {
+          setStoryboard(result.storyboard as ClipWizardStoryboardState);
+          setText(JSON.stringify(result.storyboard, null, 2));
+          setStep('storyboard');
+        },
+        onError: (err) => setError(clipWizardErrorCode(err)),
+      },
+    );
+  };
 
   const useText = () => {
     const parsed = parseStoryboard(text);
@@ -56,39 +100,59 @@ export default function Topic() {
           rows={3}
         />
       </label>
-      <div
-        data-testid="clipwizard-draft-placeholder"
-        className="border-border-light bg-surface-secondary flex flex-col gap-1 rounded-lg border px-3 py-3 text-sm"
-      >
-        <span className="text-text-primary font-medium">
-          {localize('com_clipwizard_draft_placeholder_title')}
-        </span>
-        <span className="text-text-secondary">{localize('com_clipwizard_draft_placeholder_body')}</span>
+      <Model config={config} />
+      <div className="flex flex-col gap-2">
+        <div>
+          <Button onClick={write} disabled={tooShort || !modelId || draft.isLoading}>
+            {draft.isLoading ? <Spinner className="size-4" /> : null}
+            {localize('com_clipwizard_draft_write')}
+          </Button>
+        </div>
+        {draft.isLoading ? (
+          <p
+            role="status"
+            className="text-text-secondary text-sm"
+            data-testid="clipwizard-draft-loading"
+          >
+            {localize('com_clipwizard_draft_working')}
+          </p>
+        ) : (
+          <p className="text-text-secondary text-xs">{localize('com_clipwizard_draft_hint')}</p>
+        )}
+        {error ? <Notice code={error} /> : null}
       </div>
-      <label className="flex flex-col gap-1 text-sm">
-        {localize('com_clipwizard_paste_label')}
-        <Textarea
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setInvalid(false);
-          }}
-          rows={8}
-          dir="ltr"
-          spellCheck={false}
-          aria-invalid={invalid}
-          className="font-mono text-xs"
-        />
-      </label>
-      {invalid ? (
-        <p role="alert" className="text-text-destructive text-sm">
-          {localize('com_clipwizard_paste_invalid')}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={useText} disabled={!text.trim()}>
-          {localize('com_clipwizard_paste_use')}
-        </Button>
+      <details className="flex flex-col gap-2 text-sm">
+        <summary className="text-text-secondary cursor-pointer">
+          {localize('com_clipwizard_advanced')}
+        </summary>
+        <div className="mt-2 flex flex-col gap-2">
+          <label className="flex flex-col gap-1 text-sm">
+            {localize('com_clipwizard_paste_label')}
+            <Textarea
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value);
+                setInvalid(false);
+              }}
+              rows={8}
+              dir="ltr"
+              spellCheck={false}
+              aria-invalid={invalid}
+            />
+          </label>
+          {invalid ? (
+            <p role="alert" className="text-text-destructive text-sm">
+              {localize('com_clipwizard_paste_invalid')}
+            </p>
+          ) : null}
+          <div>
+            <Button variant="outline" onClick={useText} disabled={!text.trim()}>
+              {localize('com_clipwizard_paste_use')}
+            </Button>
+          </div>
+        </div>
+      </details>
+      <div>
         <Button onClick={() => setStep('settings')}>{localize('com_clipwizard_next')}</Button>
       </div>
     </section>

@@ -12,7 +12,9 @@ const bodyOf = (error: unknown): ErrorBody | undefined =>
 /** The stable code a wizard endpoint answered with; `server_error` for anything else. */
 export function clipWizardErrorCode(error: unknown): TClipWizardErrorCode {
   const code = bodyOf(error)?.error?.code;
-  return typeof code === 'string' && CODES.has(code) ? (code as TClipWizardErrorCode) : 'server_error';
+  return typeof code === 'string' && CODES.has(code)
+    ? (code as TClipWizardErrorCode)
+    : 'server_error';
 }
 
 /** Field issues of an `invalid_storyboard` answer. */
@@ -36,5 +38,7 @@ export const ERROR_TEXT: Record<TClipWizardErrorCode, TranslationKeys> = {
   invalid_storyboard: 'com_clipwizard_error_storyboard',
   busy: 'com_clipwizard_error_busy',
   unavailable: 'com_clipwizard_error_unavailable',
+  cap_exceeded: 'com_clipwizard_error_cap',
+  model_unavailable: 'com_clipwizard_error_model',
   server_error: 'com_clipwizard_error_server',
 };

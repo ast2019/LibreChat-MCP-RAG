@@ -3,6 +3,7 @@ import { Button, Spinner } from '@librechat/client';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import type { TClipWizardErrorCode, TClipWizardIssue } from 'librechat-data-provider';
 import {
+  clipWizardImagesAtom,
   clipWizardJobIdAtom,
   clipWizardSettingsAtom,
   clipWizardStepAtom,
@@ -22,6 +23,7 @@ export default function Render() {
   const storyboard = useAtomValue(clipWizardStoryboardAtom);
   const settings = useAtomValue(clipWizardSettingsAtom);
   const voiceId = useAtomValue(clipWizardVoiceIdAtom);
+  const images = useAtomValue(clipWizardImagesAtom);
   const [jobId, setJobId] = useAtom(clipWizardJobIdAtom);
   const setStep = useSetAtom(clipWizardStepAtom);
   const reset = useSetAtom(resetClipWizardAtom);
@@ -38,7 +40,11 @@ export default function Render() {
     render.mutate(
       {
         storyboard,
-        settings: { aspectRatio: settings.aspectRatio, ...(voiceId ? { voiceId } : {}) },
+        settings: {
+          aspectRatio: settings.aspectRatio,
+          ...(voiceId ? { voiceId } : {}),
+          ...(images.source !== 'builtin' ? { images } : {}),
+        },
       },
       {
         onSuccess: (result) => setJobId(result.jobId),
