@@ -27,7 +27,12 @@ export const SAMPLE_TTL_MS = 24 * 60 * 60 * 1000;
  * expire after {@link SAMPLE_TTL_MS}. The key holds model, voice and language, so a changed
  * config makes a new sample. Charging samples to the platform is not done here.
  */
-export function createVoiceSampler(now: () => number = () => Date.now()) {
+export function createVoiceSampler(
+  now: () => number = () => Date.now(),
+): (
+  req: ServerRequest,
+  deps: Pick<ClipWizardDeps, 'findBalanceByUser' | 'narration'>,
+) => Promise<WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>> {
   const cache = new Map<string, Sample & { at: number }>();
   const inflight = new Map<string, Promise<unknown>>();
 

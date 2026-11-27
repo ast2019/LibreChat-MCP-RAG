@@ -7,6 +7,13 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.18] - 2026-11-28
+
+### Fixed
+- Production build of `packages/api` failed in `tsdown` (TS9007, isolatedDeclarations) because
+  `createClipWizard` and `createVoiceSampler` had inferred return types. Both now have explicit
+  return types.
+
 ## [0.40.17] - 2026-11-28
 
 ### Added
