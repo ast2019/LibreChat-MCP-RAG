@@ -3,6 +3,7 @@ const {
   createClipTools,
   createClipJobRunner,
   createClipImageService,
+  createClipNarrationService,
   getRemotionServiceTarget,
   createRemotionServiceClient,
   getAppConfigOptionsFromUser,
@@ -39,6 +40,9 @@ const loadAudio = (req, fileId) => loadOwnFile(req, fileId, 'audio/');
 /** AI images for clips go through the image tool's path and ledger. */
 const images = createClipImageService({ billing, findBalanceByUser: db.findBalanceByUser });
 
+/** Narration by a billed speech model goes through the speech tool's client and ledger. */
+const narration = createClipNarrationService({ billing, findBalanceByUser: db.findBalanceByUser });
+
 /** The storyboard clip builder wired to storage and jobs; behavior lives in `@librechat/api`. */
 const loadClipTools = (req, toolNames) =>
   createClipTools(
@@ -49,6 +53,7 @@ const loadClipTools = (req, toolNames) =>
       loadImage,
       loadAudio,
       images,
+      narration,
     },
   );
 
@@ -79,6 +84,7 @@ const startClipJobWorker = () => {
     loadImage,
     loadAudio,
     images,
+    narration,
     client: () => {
       const target = getRemotionServiceTarget();
       return target ? createRemotionServiceClient(target) : null;

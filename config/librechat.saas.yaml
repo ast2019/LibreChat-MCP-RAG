@@ -591,6 +591,49 @@ clipTools:
   stockImages: true
   maxStockImages: 6
   maxConcurrent: 1
+  # Narration voices. The user picks one by label; the first entry of the clip's language is the
+  # default (Edge, free). `openrouter` entries speak through media.speech (model below), are made
+  # per scene in the API and charged like AI images. Edge names: fa-IR-DilaraNeural, fa-IR-FaridNeural.
+  voices:
+    - id: 'fa-IR-DilaraNeural'
+      label: 'دیلارا (رایگان)'
+      lang: 'fa'
+      provider: 'edge'
+      voice: 'fa-IR-DilaraNeural'
+    - id: 'fa-IR-FaridNeural'
+      label: 'فرید (رایگان)'
+      lang: 'fa'
+      provider: 'edge'
+      voice: 'fa-IR-FaridNeural'
+    - id: 'en-US-JennyNeural'
+      label: 'جنی، انگلیسی (رایگان)'
+      lang: 'en'
+      provider: 'edge'
+      voice: 'en-US-JennyNeural'
+    - id: 'gemini-kore'
+      label: 'Kore، رسمی و شفاف (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'Kore'
+      model: 'google/gemini-3.8-flash-tts'
+    - id: 'gemini-charon'
+      label: 'Charon، آرام و خبری (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'Charon'
+      model: 'google/gemini-3.8-flash-tts'
+    - id: 'gemini-leda'
+      label: 'Leda، جوان و صمیمی (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'Leda'
+      model: 'google/gemini-3.8-flash-tts'
+    - id: 'gemini-puck'
+      label: 'Puck، پرانرژی (هوش مصنوعی، پولی)'
+      lang: 'fa'
+      provider: 'openrouter'
+      voice: 'Puck'
+      model: 'google/gemini-3.8-flash-tts'
 
 # Agent browser (experimental): the `browser` service in docker-compose.yml. Who may open one is
 # set per pack and per user in the admin panel (admins always may); these are the server limits.

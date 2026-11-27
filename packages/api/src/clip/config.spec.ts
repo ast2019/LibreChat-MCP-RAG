@@ -1,4 +1,4 @@
-import { ClipTools } from 'librechat-data-provider';
+import { ClipTools, clipToolsSchema } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import {
   getChatClipTools,
@@ -37,6 +37,28 @@ describe('getClipConfig / getChatClipTools', () => {
       aiImages: false,
       renderTimeoutSec: 600,
     });
+  });
+
+  it('offers the Edge voices when voices is not set', () => {
+    const { voices } = getClipConfig(undefined);
+    expect(voices.map((v) => v.id)).toEqual(['fa-IR-DilaraNeural', 'fa-IR-FaridNeural', 'en-US-JennyNeural']);
+    expect(voices.every((v) => v.provider === 'edge')).toBe(true);
+  });
+
+  it('parses a voice catalogue and requires a model for openrouter voices', () => {
+    const edge = { id: 'dilara', label: 'دیلارا', lang: 'fa', provider: 'edge', voice: 'fa-IR-DilaraNeural' };
+    const kore = { id: 'kore', label: 'Kore', lang: 'fa', provider: 'openrouter', voice: 'Kore', model: 'google/gemini-3.8-flash-tts' };
+    expect(getClipConfig(withConfig({ voices: [edge, kore] })).voices.map((v) => v.id)).toEqual(['dilara', 'kore']);
+    const { model: _model, ...noModel } = kore;
+    /** An invalid catalogue falls back to the defaults, like any invalid clipTools section. */
+    expect(getClipConfig(withConfig({ voices: [edge, noModel] })).voices[0].id).toBe('fa-IR-DilaraNeural');
+    expect(clipToolsSchema.safeParse({ voices: [noModel] }).success).toBe(false);
+    expect(clipToolsSchema.safeParse({ voices: [] }).success).toBe(false);
+  });
+
+  it('lists the voice ids in the tool context', () => {
+    const context = buildClipToolContext(['create_remotion_clip'], [], [], undefined, ENV);
+    expect(context.create_remotion_clip).toContain('fa-IR-DilaraNeural (دیلارا, fa)');
   });
 
   it('caps the clip length at 180 seconds', () => {

@@ -7,6 +7,24 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.15] - 2026-11-28
+
+### Added
+- **Clip builder: pick the narration voice.** `clipTools.voices` is a catalogue of narration
+  voices (`id`, Persian `label`, `lang`, `provider` `edge` or `openrouter`, `voice`, and `model`
+  for `openrouter`). The model passes a catalogue id as `audio.voice`; no id uses the first voice
+  of the clip's language, and an unknown id is refused with the valid ids. Without `voices` the
+  three Edge voices apply and the worker request is unchanged.
+- **`openrouter` narration (Gemini TTS and other `/audio/speech` models).** Each narrated scene
+  is spoken in the API (`packages/api/src/clip/narration.ts`), billed like clip AI images (hold at
+  tool time, provider cost else the estimate, nothing charged on failure, never twice on a retry)
+  and sent to the worker as `audio.mode: "scenes"`. The worker lengthens short scenes to fit their
+  audio and spreads caption timings over each line by character count. Insufficient credit or no
+  media access is reported to the model at once and no job is created. New card error code
+  `narration_failed`.
+- `config/librechat.saas.yaml`: Edge Dilara, Farid and Jenny plus Gemini Kore, Charon, Leda and
+  Puck voices; Edge Dilara stays the Persian default.
+
 ## [0.40.14] - 2026-11-27
 
 ### Fixed

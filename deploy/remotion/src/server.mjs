@@ -23,6 +23,7 @@ import {
   validateStoryboard,
 } from './storyboard.mjs';
 import { iconNodes } from './icons.mjs';
+import { parseSceneLines, proportionalWords } from './narration.mjs';
 import { pickVoice, probeAudioSec, synthesizeScenes } from './tts.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -364,9 +365,16 @@ function prepareInput(body) {
     throw Object.assign(makeError('invalid_storyboard', result.errors.join('; '), 400), { errors: result.errors });
   }
   const audioRaw = body.audio && typeof body.audio === 'object' ? body.audio : { mode: 'none' };
-  const mode = ['none', 'tts', 'upload'].includes(audioRaw.mode) ? audioRaw.mode : 'none';
+  const mode = ['none', 'tts', 'upload', 'scenes'].includes(audioRaw.mode) ? audioRaw.mode : 'none';
   if (mode === 'upload' && inspected.kinds[audioRaw.asset]?.kind !== 'audio') {
     throw makeError('invalid_input', 'audio.asset: must name an audio asset', 400);
+  }
+  let sceneLines;
+  if (mode === 'scenes') {
+    sceneLines = parseSceneLines(audioRaw.lines, result.storyboard.scenes.length, inspected.kinds);
+    if (!sceneLines) {
+      throw makeError('invalid_input', 'audio.lines: must map scene indexes to audio assets', 400);
+    }
   }
   const shortSide = Math.min(1080, Math.max(360, Number(body.shortSide) || 720));
   const size = dimensionsFor(result.storyboard.aspectRatio, shortSide);
@@ -374,7 +382,7 @@ function prepareInput(body) {
     storyboard: result.storyboard,
     iconNames: result.icons,
     warnings: [...result.warnings],
-    audio: { mode, voice: audioRaw.voice, asset: audioRaw.asset },
+    audio: { mode, voice: audioRaw.voice, asset: audioRaw.asset, lines: sceneLines },
     size,
     maxDurationSec,
   };
@@ -443,6 +451,35 @@ async function buildAudio(ctx, job, prepared, assetRefs) {
       }
     }
     ctx.diag.info('tts.ok', { ms: job.timings.ttsMs, lines: lines.length, words: words.length, voice }, job.id);
+  } else if (prepared.audio.mode === 'scenes') {
+    job.setStage('tts', 0.03);
+    const lines = [];
+    for (const { index, asset } of prepared.audio.lines) {
+      const ref = assetRefs[asset];
+      const sec = (await ctx.probeImpl(ref.file)) ?? 0;
+      if (!(sec > 0)) {
+        throw makeError('invalid_input', `audio.lines: the audio for scene ${index} could not be read`, 400);
+      }
+      const need = sec + NARRATION_LEAD_FRAMES / FPS + NARRATION_TAIL_SEC;
+      const scene = scenes[index];
+      if (need > scene.durationSec) {
+        scene.durationSec = Math.min(SCENE_MAX_SEC * 1.5, Math.round(need * 10) / 10);
+      }
+      lines.push({ index, file: ref.file, sec, words: proportionalWords(scene.narration, sec) });
+    }
+    const timeline = computeTimeline(scenes);
+    for (const line of lines) {
+      const from = timeline.scenes[line.index].from + NARRATION_LEAD_FRAMES;
+      narration.push({ src: registerFile(ctx, job, line.file), from, frames: Math.ceil(line.sec * FPS) + 2 });
+      for (const word of line.words) {
+        words.push({
+          text: word.text,
+          start: from + Math.round((word.startMs / 1000) * FPS),
+          end: from + Math.round((word.endMs / 1000) * FPS),
+        });
+      }
+    }
+    ctx.diag.info('narration.ok', { lines: lines.length, words: words.length }, job.id);
   } else if (prepared.audio.mode === 'upload') {
     const ref = assetRefs[prepared.audio.asset];
     uploadAudio = ref.src;

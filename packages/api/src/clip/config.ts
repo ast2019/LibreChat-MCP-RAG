@@ -8,6 +8,7 @@ import type { AppConfig } from '@librechat/data-schemas';
 import type { SkillScopeParams } from '~/skills/scoped';
 import { getSkillScopedTools } from '~/skills/scoped';
 import { readConfigSection } from '~/app/config';
+import { describeClipVoices } from './voices';
 import { pexelsKey } from './images';
 
 export function getClipConfig(appConfig: AppConfig | null | undefined): TClipToolsConfig {
@@ -96,7 +97,7 @@ export function buildClipToolContext(
     ...(pexelsKey(config.stockImages, env) ? [`stock (Pexels, at most ${config.maxStockImages})`] : []),
   ];
   const parts = [
-    `create_remotion_clip renders storyboard motion graphics in the background (up to ${config.maxDurationSec}s, at most ${config.maxScenes} scenes, one clip job per user at a time). Image sources here: ${sources.join(', ')}. Music: ${config.music ? 'ambient, pulse, cinematic' : 'off'}. Brief the user and get the outline approved before rendering.`,
+    `create_remotion_clip renders storyboard motion graphics in the background (up to ${config.maxDurationSec}s, at most ${config.maxScenes} scenes, one clip job per user at a time). Image sources here: ${sources.join(', ')}. Music: ${config.music ? 'ambient, pulse, cinematic' : 'off'}. Brief the user and get the outline approved before rendering. Narration voices for audio.voice (the user may pick one by label; "charged" voices are billed like AI images; omit audio.voice for the default): ${describeClipVoices(config)}.`,
   ];
   if (images.length > 0) {
     parts.push(

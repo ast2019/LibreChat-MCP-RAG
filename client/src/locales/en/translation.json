@@ -4696,6 +4696,7 @@
   "com_clip_job_error_storyboard": "The clip's storyboard was not valid. Ask for the clip again.",
   "com_clip_job_error_narration": "The narration is longer than the clip limit. Ask for shorter narration.",
   "com_clip_job_error_image": "An image for the clip could not be loaded or made.",
+  "com_clip_job_error_voice": "The narration for the clip could not be made.",
   "com_clip_job_error_audio": "The audio file for the clip was not found.",
   "com_clip_job_error_lost": "The clip renderer restarted and the clip was lost. Ask again to retry.",
   "com_clip_job_error_unavailable": "The clip builder is not available right now.",

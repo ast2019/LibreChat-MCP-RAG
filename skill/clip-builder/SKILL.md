@@ -27,6 +27,8 @@ history becomes `timeline`, a choice becomes `compare`, things and ideas get Tab
    - length: 15 / 30 / 60 seconds (recommended 30; the deployment limit is in the context);
    - aspect ratio: 9:16 Reels/Shorts (recommended), 4:5 feed, 1:1, 16:9 YouTube;
    - voice: narration with captions (recommended), music only, or the user's own audio file.
+     With narration, list the narrator voices from the context by their label (not the id) and
+     let the user pick; say which ones are "charged".
    Ask about images only when the topic needs photos: the user's attached or generated images,
    AI images or stock photos (offer only the sources the context lists), or icons only.
 2. **Outline (wait).** Show a numbered table: scene, type, on-screen content (numbers and
@@ -50,6 +52,13 @@ history becomes `timeline`, a choice becomes `compare`, things and ideas get Tab
   Persian or 15 English characters per second. Scenes stretch to fit their narration, so the
   total must stay under the limit. Persian narration: write numbers as words when they read
   better («سی درصد»), and on screen use digits («۳۰٪»).
+- Voice choice: pass the chosen voice's id from the context as `audio.voice`; with no
+  `audio.voice` the first voice for the clip language is used (Edge, free). Voices marked
+  "charged" are made by an AI speech model, one call per narrated scene, and are charged
+  like AI images: the call is refused at once, with nothing built or charged, when the credit
+  does not cover it. An unknown id is rejected with the list of valid ids. To compare voices,
+  render two short clips (a few seconds each) with different `audio.voice` values, or play
+  `generate_speech` samples if that tool is offered; do not guess what a voice sounds like.
 - Persian copy: no Arabic vowel marks; real half-spaces (ZWNJ) in «می‌شود», «تجدیدپذیر‌ها»;
   `lang: "fa"` gives right-to-left layout, Persian digits and the Vazirmatn face.
 - Vary transitions (`fade`, `slide`, `wipe`, `flip`, `clock-wipe`); keep `fade` for calm topics.

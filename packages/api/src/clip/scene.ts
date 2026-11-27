@@ -1,6 +1,8 @@
 import type { TClipToolsConfig } from 'librechat-data-provider';
-import { resolveClipTheme } from './themes';
+import type { ClipOpenRouterVoice } from './voices';
 import type { ClipTheme } from './themes';
+import { resolveClipTheme } from './themes';
+import { resolveClipVoice } from './voices';
 
 /**
  * Storyboard v2: the model writes typed scenes; this module validates the tool input strictly
@@ -63,7 +65,10 @@ export interface ClipStoryboard {
 export interface ClipAudioSpec {
   mode: ClipAudioMode;
   fileId?: string;
+  /** Edge voice name sent to the worker; absent for the worker's own default */
   voice?: string;
+  /** Narration made in the API by a billed provider (one WAV per scene) instead of Edge */
+  narration?: ClipOpenRouterVoice;
 }
 
 /** The validated tool call: what the job stores (no bytes) and later sends to the worker. */
@@ -82,7 +87,13 @@ export interface ClipRequest {
 export interface WorkerJobRequest {
   storyboard: ClipStoryboard;
   assets: Record<string, { kind: 'image' | 'audio'; mime: string; base64: string; credit?: string }>;
-  audio: { mode: ClipAudioMode; voice?: string; asset?: string };
+  audio: {
+    mode: ClipAudioMode | 'scenes';
+    voice?: string;
+    asset?: string;
+    /** `scenes`: asset id of each scene's narration, by scene index */
+    lines?: Record<string, string>;
+  };
   shortSide: number;
   maxDurationSec: number;
   timeoutMs: number;
@@ -91,7 +102,6 @@ export interface WorkerJobRequest {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const FILE_ID = /^[A-Za-z0-9_-]{6,100}$/;
-const VOICE = /^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$/;
 const PERSIAN = /[\u0600-\u06FF]/;
 /** Speech rate used to reject narration that cannot fit before anything is rendered. */
 const CHARS_PER_SEC = { fa: 13, en: 15 } as const;
@@ -543,9 +553,18 @@ export function parseClipInput(
   if (mode === 'upload' && (!fileId || !FILE_ID.test(fileId))) {
     p.error('audio.file_id', 'audio.mode=upload needs the id of an audio file the user attached');
   }
-  const voice = str(ctx, 'audio.voice', audioRaw.voice, 60);
-  if (voice && !VOICE.test(voice)) {
-    p.error('audio.voice', 'must be an Edge voice id like fa-IR-DilaraNeural or en-US-JennyNeural');
+  const voiceInput = str(ctx, 'audio.voice', audioRaw.voice, 60);
+  let voice: string | undefined;
+  let narration: ClipOpenRouterVoice | undefined;
+  if (mode === 'tts' || voiceInput) {
+    const resolved = resolveClipVoice(config, voiceInput, lang);
+    if (!resolved.ok) {
+      p.error('audio.voice', resolved.error);
+    } else if (resolved.choice.provider === 'openrouter') {
+      narration = resolved.choice;
+    } else {
+      voice = resolved.choice.voice;
+    }
   }
   if (mode === 'tts') {
     if (!scenes.some((s) => typeof s.narration === 'string')) {
@@ -594,7 +613,12 @@ export function parseClipInput(
       scenes,
     },
     images: ctx.images,
-    audio: { mode, ...(mode === 'upload' && fileId ? { fileId } : {}), ...(voice ? { voice } : {}) },
+    audio: {
+      mode,
+      ...(mode === 'upload' && fileId ? { fileId } : {}),
+      ...(voice ? { voice } : {}),
+      ...(mode === 'tts' && narration ? { narration } : {}),
+    },
     durationSec,
     preview: input.preview === true,
     version,

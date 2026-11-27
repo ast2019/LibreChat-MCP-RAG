@@ -7,6 +7,7 @@ import type { StructuredToolInterface } from '@librechat/agents/langchain/tools'
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipRequest, WorkerJobRequest } from './scene';
 import type { ClipJobPayload } from './jobs';
+import type { ClipNarrationHold, ClipNarrationService } from './narration';
 import type { ClipImageHold, ClipImageService } from './images';
 import type { ServerRequest } from '~/types';
 import { createRemotionServiceClient, RemotionServiceError } from './client';
@@ -37,6 +38,9 @@ export const CLIP_AUDIO_TYPES: ReadonlySet<string> = new Set([
  */
 const AI_IMAGE_BYTES = 3 * 1024 * 1024;
 const STOCK_IMAGE_BYTES = 2 * 1024 * 1024;
+/** Spoken characters per second and WAV bytes per second (24 kHz 16-bit mono), for the same check. */
+const NARRATION_CHARS_PER_SEC = 12;
+const NARRATION_BYTES_PER_SEC = 48_000;
 /** How long a turn's clip is remembered for the one-per-turn guard. */
 const TURN_TTL_MS = 30 * 60_000;
 /** A 1×1 grey PNG standing in for AI and stock images in a preview (nothing is generated). */
@@ -72,6 +76,8 @@ export interface ClipToolDeps {
   ) => Promise<{ buffer: Buffer; type: string } | null>;
   /** AI images through the image tool's path and billing; absent when not wired */
   images?: ClipImageService;
+  /** Narration by a billed speech model (voices with provider `openrouter`); absent when not wired */
+  narration?: ClipNarrationService;
   fetch?: typeof fetch;
   env?: Record<string, string | undefined>;
 }
@@ -201,6 +207,10 @@ export function createClipTools(
       }
       bytes += audio.buffer.length;
     }
+    if (request.audio.narration) {
+      const chars = request.storyboard.scenes.reduce((sum, scene) => sum + String(scene.narration ?? '').length, 0);
+      bytes += Math.ceil((chars / NARRATION_CHARS_PER_SEC) * NARRATION_BYTES_PER_SEC);
+    }
     const limit = config.maxAssetMb * 1024 * 1024;
     if (bytes > limit) {
       const mb = (n: number) => Math.ceil(n / 1024 / 1024);
@@ -269,6 +279,7 @@ export function createClipTools(
     }
     creating.add(userId);
     let hold: ClipImageHold | undefined;
+    let voiceHold: ClipNarrationHold | undefined;
     try {
       const pending = await deps.countPendingMediaJobs(userId, CLIP_JOB_KIND);
       if (pending >= config.maxJobsPerUser) {
@@ -294,6 +305,18 @@ export function createClipTools(
           return reply(`Nothing was built or charged: ${held.message} Offer the user the clip without AI images (icons, their own images).`);
         }
         hold = held.hold;
+      }
+      if (request.audio.narration) {
+        if (!deps.narration) {
+          return reply('Nothing was built: AI narration is not available here. Use a default voice (omit audio.voice) or audio mode "none".');
+        }
+        const lines = request.storyboard.scenes.flatMap((scene) => (typeof scene.narration === 'string' ? [scene.narration] : []));
+        const held = await deps.narration.reserve(req, lines, conversationId);
+        if (!held.ok) {
+          recordClipEvent({ event: 'tool.rejected', level: 'warn', reason: 'narration_refused' });
+          return reply(`Nothing was built or charged: ${held.message} Offer the user a default voice (omit audio.voice) or a clip without narration.`);
+        }
+        voiceHold = held.hold;
       }
       if (request.images.some((img) => img.source === 'stock') && !pexelsKey(config.stockImages, env)) {
         return reply('Nothing was built: stock photos are off on this deployment. Use attached images, icons or AI images (if offered).');
@@ -330,12 +353,14 @@ export function createClipTools(
       /** The job keeps the AI image hold until its images are made (or it ends). */
       hold?.keep(job.id, new Date(job.deadline).getTime());
       hold = undefined;
+      voiceHold?.keep(job.id, new Date(job.deadline).getTime());
+      voiceHold = undefined;
       instanceJob = job.id;
       if (turnKey) {
         turnJobs.set(turnKey, { jobId: job.id, expires: Date.now() + TURN_TTL_MS });
       }
       logger.info(
-        `[clip] job.created job=${job.id} scenes=${request.storyboard.scenes.length} durationSec=${request.durationSec} audio=${request.audio.mode} images=${request.images.length}`,
+        `[clip] job.created job=${job.id} scenes=${request.storyboard.scenes.length} durationSec=${request.durationSec} audio=${request.audio.narration ? 'narration' : request.audio.mode} images=${request.images.length}`,
       );
       recordClipEvent({
         event: 'job.created',
@@ -356,6 +381,7 @@ export function createClipTools(
     } finally {
       creating.delete(userId);
       await hold?.release();
+      await voiceHold?.release();
     }
   }
 

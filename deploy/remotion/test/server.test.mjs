@@ -137,6 +137,59 @@ test('TTS lengthens a scene to fit its narration and places word timings', async
   });
 });
 
+const wavAsset = { kind: 'audio', mime: 'audio/wav', base64: Buffer.alloc(64).toString('base64') };
+
+test('scenes audio lengthens a scene to its own audio and times captions by characters', async () => {
+  const calls = {};
+  await withServer(fakeImpls(calls), async ({ base }) => {
+    const body = { storyboard: storyboard(), assets: { 'nar-0': wavAsset }, audio: { mode: 'scenes', lines: { 0: 'nar-0' } } };
+    const created = await (await post(base, body)).json();
+    const job = await waitFor(base, created.jobId);
+    assert.equal(job.state, 'done');
+    assert.equal(calls.tts, undefined, 'Edge is not called');
+    const props = calls.render.inputProps;
+    // 3.5 s of audio + 8 frames lead + 0.6 s tail -> 4.4 s; the 2 s scene grows, the other stays
+    assert.equal(props.storyboard.scenes[0].durationSec, 4.4);
+    assert.equal(props.storyboard.scenes[1].durationSec, 2);
+    assert.equal(props.narration.length, 1);
+    assert.equal(props.narration[0].from, 8);
+    // "Hello there": 5 + 5 characters over 3.5 s -> the second word starts at 1.75 s
+    assert.deepEqual(props.words, [
+      { text: 'Hello', start: 8, end: 8 + 53 },
+      { text: 'there', start: 8 + 53, end: 8 + 105 },
+    ]);
+    assert.ok(props.words.every((word) => word.end <= props.timeline.scenes[0].frames + 8));
+  });
+});
+
+test('scenes audio never shortens a long scene', async () => {
+  const calls = {};
+  await withServer(fakeImpls(calls), async ({ base }) => {
+    const sb = storyboard();
+    sb.scenes[0].durationSec = 10;
+    const created = await (await post(base, { storyboard: sb, assets: { 'nar-0': wavAsset }, audio: { mode: 'scenes', lines: { 0: 'nar-0' } } })).json();
+    assert.equal((await waitFor(base, created.jobId)).state, 'done');
+    assert.equal(calls.render.inputProps.storyboard.scenes[0].durationSec, 10);
+  });
+});
+
+test('scenes audio rejects a non-audio asset, a missing scene and bad lines', async () => {
+  await withServer(fakeImpls(), async ({ base }) => {
+    const image = { kind: 'image', mime: 'image/png', base64: Buffer.alloc(64).toString('base64') };
+    const bad = [
+      { assets: { pic: image }, audio: { mode: 'scenes', lines: { 0: 'pic' } } },
+      { assets: { 'nar-9': wavAsset }, audio: { mode: 'scenes', lines: { 9: 'nar-9' } } },
+      { assets: { 'nar-0': wavAsset }, audio: { mode: 'scenes', lines: { 0: 'ghost' } } },
+      { assets: { 'nar-0': wavAsset }, audio: { mode: 'scenes' } },
+    ];
+    for (const extra of bad) {
+      const res = await post(base, { storyboard: storyboard(), ...extra });
+      assert.equal(res.status, 400, JSON.stringify(extra.audio));
+      assert.equal((await res.json()).error, 'invalid_input');
+    }
+  });
+});
+
 test('narration longer than the limit fails with narration_too_long', async () => {
   const impls = { ...fakeImpls(), probeImpl: async () => 40 };
   await withServer(impls, async ({ base }) => {
