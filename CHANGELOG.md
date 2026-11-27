@@ -7,6 +7,19 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.12] - 2026-11-27
+
+### Fixed
+- **ClaudeTime upstream 401 is an ops/credential failure, not a post-#135 key swap.**
+  After admit succeeds, `initializeAgent` still calls `getProviderConfig` /
+  `initializeCustom` with `agent.endpoint` (`ClaudeTime`), so the Anthropic client
+  receives `CLAUDE_TIME_KEY` + `CLAUDE_TIME_BASE_URL` — not empty
+  `ANTHROPIC_API_KEY`. titleConvo uses the same `agent.endpoint` path. A gateway
+  401 means those Coolify env values are wrong or rejected. Startup now errors
+  loudly when custom-endpoint `${ENV}` placeholders are unset; missing-key throws
+  name the env var; UI 401 copy tells admins to verify endpoint credentials.
+  `includeReasoningHistory` lookup also prefers `agent.endpoint` after the SDK swap.
+
 ## [0.40.11] - 2026-11-26
 
 ### Fixed

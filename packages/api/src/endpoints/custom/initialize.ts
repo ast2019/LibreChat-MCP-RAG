@@ -289,15 +289,27 @@ export async function initializeCustom(
     throw new Error(`Config not found for the ${endpoint} custom endpoint.`);
   }
 
-  const CUSTOM_API_KEY = extractEnvVariable(configuredEndpoint.apiKey ?? '');
-  const CUSTOM_BASE_URL = extractEnvVariable(configuredEndpoint.baseURL ?? '');
+  const rawApiKey = configuredEndpoint.apiKey ?? '';
+  const rawBaseURL = configuredEndpoint.baseURL ?? '';
+  const CUSTOM_API_KEY = extractEnvVariable(rawApiKey);
+  const CUSTOM_BASE_URL = extractEnvVariable(rawBaseURL);
 
   if (CUSTOM_API_KEY.match(envVarRegex)) {
-    throw new Error(`Missing API Key for ${endpoint}.`);
+    const varName = rawApiKey.trim().match(envVarRegex)?.[1];
+    throw new Error(
+      varName
+        ? `Missing API Key for ${endpoint}: environment variable ${varName} is unset or empty.`
+        : `Missing API Key for ${endpoint}.`,
+    );
   }
 
   if (CUSTOM_BASE_URL.match(envVarRegex)) {
-    throw new Error(`Missing Base URL for ${endpoint}.`);
+    const varName = rawBaseURL.trim().match(envVarRegex)?.[1];
+    throw new Error(
+      varName
+        ? `Missing Base URL for ${endpoint}: environment variable ${varName} is unset or empty.`
+        : `Missing Base URL for ${endpoint}.`,
+    );
   }
 
   const endpointConfig = {

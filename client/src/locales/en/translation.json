@@ -860,6 +860,7 @@
   "com_error_tts_limit": "You have reached the text-to-speech limit of {{0}} requests per {{1}}.",
   "com_error_unknown": "This response failed and the provider did not report a reason.",
   "com_error_upstream_model": "The model provider could not complete this request.",
+  "com_error_upstream_model_auth": "The model endpoint rejected authentication. An administrator should verify the endpoint API key and base URL in the deployment environment.",
   "com_error_upstream_model_status": "The model provider could not complete this request (status {{0}}).",
   "com_error_user_key_add": "Add your key",
   "com_error_user_key_update": "Update your key",
