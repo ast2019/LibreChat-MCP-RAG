@@ -7,6 +7,38 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.19] - 2026-11-29
+
+### Added
+- **Clip wizard, phase 2b (`/clip`).** The topic step writes a storyboard with a model the user
+  picks (labels only, one model for all steps). Storyboard step: manual edits (narration, move,
+  delete, voice, theme), a validator check, and a credit estimate before render. An in-wizard chat
+  edits the storyboard without leaving the page. Settings gained image sources (built-in styles by
+  default, AI images, Higgsfield) with a per-clip credit cap.
+- **Endpoints** `POST /api/clip/wizard/draft`, `/chat` and `/estimate`; `GET config` now lists
+  `models`, `defaultModelId`, `imageModels`, `imageCapCredits` and limits. New error codes
+  `cap_exceeded` and `model_unavailable`.
+- **LLM billing.** Model calls hold credit through `MediaBilling.hold`, charge once after a usable
+  result at the chat token rates (`MediaBilling.record`, not `spendTokens`) and charge nothing on
+  failure. The Claude time pack is never used. `draft` and `chat` share a limiter
+  (`CLIP_WIZARD_LLM_WINDOW`, `CLIP_WIZARD_LLM_MAX`, default 20 per 10 minutes).
+- **Config** `clipTools.wizard.llm`, `wizard.images` (`enabled` false by default,
+  `maxCreditsPerClip`) and `wizard.sampleCharge` (`requester` default, or `platform`).
+  Higgsfield images are charged at the model `priceUsd` with multiplier 1, and Higgsfield stays
+  hidden until its keys are set. There are no Higgsfield voices (`media.higgsfield` has no voice
+  config).
+
+### Fixed
+- Provider-failure refunds in `clip/jobs.ts` now list only the kinds whose refund failed.
+- A write-ahead `pendingCharge` stops a retry from charging twice, for narration and AI images.
+  Caveat: a crash before the ledger write can refund once too much, in the user's favour.
+- `wizard.sampleCharge: 'platform'` lets the platform pay for voice samples.
+
+### Not built or not tested
+- The preview step is still a placeholder (`renderStill` was not built).
+- Not tested: a browser, real providers (OpenRouter, Higgsfield, ElevenLabs), real Mongo balances,
+  Docker, the Higgsfield success path, and real Ariakit dropdown interaction.
+
 ## [0.40.18] - 2026-11-28
 
 ### Fixed

@@ -3,6 +3,7 @@ import type { TClipWizardIssue, TClipWizardValidateResponse } from 'librechat-da
 import type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 import type { ServerRequest } from '~/types';
 import { parseClipInput } from '../scene';
+import { resolveImages } from './effect';
 import { openWizard } from './access';
 import { fail } from './types';
 
@@ -17,7 +18,7 @@ export function toIssue(text: string): TClipWizardIssue {
 /** POST storyboard/validate: the same validator the chat tool uses, answered as field issues. */
 export async function validateWizardStoryboard(
   req: ServerRequest,
-  deps: Pick<ClipWizardDeps, 'findBalanceByUser'>,
+  deps: Pick<ClipWizardDeps, 'findBalanceByUser' | 'images'>,
 ): Promise<WizardReply<TClipWizardValidateResponse | WizardErrorBody>> {
   const gate = await openWizard(req, deps);
   if (!gate.ok) {
@@ -27,7 +28,11 @@ export async function validateWizardStoryboard(
   if (!body.success) {
     return fail('invalid_request');
   }
-  const parsed = parseClipInput({ ...body.data.storyboard, preview: false }, gate.config);
+  const resolved = resolveImages(req, gate.config, deps, body.data.images);
+  if (!resolved.ok) {
+    return resolved.reply;
+  }
+  const parsed = parseClipInput({ ...body.data.storyboard, preview: false }, resolved.value.config);
   if ('errors' in parsed) {
     return { status: 200, body: { ok: false, issues: parsed.errors.map(toIssue) } };
   }

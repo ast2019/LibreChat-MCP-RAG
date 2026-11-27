@@ -33,6 +33,21 @@ import type {
   TAdminGiftUpdate,
 } from './types/billing';
 import type {
+  TClipWizardChatRequest,
+  TClipWizardChatResponse,
+  TClipWizardConfigResponse,
+  TClipWizardDraftRequest,
+  TClipWizardDraftResponse,
+  TClipWizardEstimateRequest,
+  TClipWizardEstimateResponse,
+  TClipWizardRenderRequest,
+  TClipWizardRenderResponse,
+  TClipWizardValidateRequest,
+  TClipWizardValidateResponse,
+  TClipWizardVoiceSampleRequest,
+  TClipWizardVoiceSampleResponse,
+} from './clipWizard';
+import type {
   TPaymentOrder,
   TPaymentOptions,
   TPublicPacksResponse,
@@ -44,15 +59,6 @@ import type {
   TAdminPaymentVerifyResponse,
   TAdminPaymentsReconcileResponse,
 } from './payments';
-import type {
-  TClipWizardConfigResponse,
-  TClipWizardRenderRequest,
-  TClipWizardRenderResponse,
-  TClipWizardValidateRequest,
-  TClipWizardValidateResponse,
-  TClipWizardVoiceSampleRequest,
-  TClipWizardVoiceSampleResponse,
-} from './clipWizard';
 import type {
   TTracePage,
   TTracePageParams,
@@ -199,6 +205,22 @@ export function getClipWizardVoiceSample(
   payload: TClipWizardVoiceSampleRequest,
 ): Promise<TClipWizardVoiceSampleResponse> {
   return request.post(endpoints.clipWizardVoiceSample(), payload);
+}
+
+export function draftClipWizardStoryboard(
+  payload: TClipWizardDraftRequest,
+): Promise<TClipWizardDraftResponse> {
+  return request.post(endpoints.clipWizardDraft(), payload);
+}
+
+export function chatClipWizard(payload: TClipWizardChatRequest): Promise<TClipWizardChatResponse> {
+  return request.post(endpoints.clipWizardChat(), payload);
+}
+
+export function estimateClipWizard(
+  payload: TClipWizardEstimateRequest,
+): Promise<TClipWizardEstimateResponse> {
+  return request.post(endpoints.clipWizardEstimate(), payload);
 }
 
 export function startClipWizardRender(

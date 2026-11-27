@@ -7,19 +7,53 @@ import { RemotionServiceError } from '../client';
 import { createClipWizard } from './index';
 import { SAMPLE_TEXT, SAMPLE_TTL_MS } from './sample';
 
-const ENV = { REMOTION_SERVICE_URL: 'http://remotion:3200', REMOTION_SERVICE_TOKEN: 't'.repeat(40) };
+const ENV = {
+  REMOTION_SERVICE_URL: 'http://remotion:3200',
+  REMOTION_SERVICE_TOKEN: 't'.repeat(40),
+};
 
 const VOICES = [
-  { id: 'eleven-sarah', label: 'سارا', lang: 'fa', provider: 'openrouter', voice: 'sarah', model: 'eleven/v3', format: 'mp3', estimateUsdPerKChar: 0.08 },
-  { id: 'eleven-sarah-en', label: 'Sarah', lang: 'en', provider: 'openrouter', voice: 'sarah', model: 'eleven/v3', format: 'mp3', estimateUsdPerKChar: 0.08 },
-  { id: 'fa-IR-DilaraNeural', label: 'دیلارا', lang: 'fa', provider: 'edge', voice: 'fa-IR-DilaraNeural' },
+  {
+    id: 'eleven-sarah',
+    label: 'سارا',
+    lang: 'fa',
+    provider: 'openrouter',
+    voice: 'sarah',
+    model: 'eleven/v3',
+    format: 'mp3',
+    estimateUsdPerKChar: 0.08,
+  },
+  {
+    id: 'eleven-sarah-en',
+    label: 'Sarah',
+    lang: 'en',
+    provider: 'openrouter',
+    voice: 'sarah',
+    model: 'eleven/v3',
+    format: 'mp3',
+    estimateUsdPerKChar: 0.08,
+  },
+  {
+    id: 'fa-IR-DilaraNeural',
+    label: 'دیلارا',
+    lang: 'fa',
+    provider: 'edge',
+    voice: 'fa-IR-DilaraNeural',
+  },
 ];
 
 const storyboard = {
   title: 'Energy',
   scenes: [
     { type: 'hook', duration_sec: 3, headline: 'H', narration: 'سلام دنیا' },
-    { type: 'stat', duration_sec: 3, value: 30, suffix: '%', label: 'renewable', narration: 'سی درصد' },
+    {
+      type: 'stat',
+      duration_sec: 3,
+      value: 30,
+      suffix: '%',
+      label: 'renewable',
+      narration: 'سی درصد',
+    },
   ],
 };
 
@@ -31,13 +65,25 @@ function appConfig(wizard: Record<string, unknown> = { enabled: true, access: 'e
         enabled: true,
         paidOnly: true,
         endpoint: 'OpenRouter',
-        speech: { model: 'default/tts', voice: 'Kore', format: 'mp3', estimateUsd: 0.1, maxChars: 500 },
+        speech: {
+          model: 'default/tts',
+          voice: 'Kore',
+          format: 'mp3',
+          estimateUsd: 0.1,
+          maxChars: 500,
+        },
       },
     },
     balance: { enabled: true },
     endpoints: {
       custom: [
-        { name: 'OpenRouter', apiKey: 'sk-test', baseURL: 'https://openrouter.ai/api/v1', models: { default: ['x'] }, priceMultiplier: 1 },
+        {
+          name: 'OpenRouter',
+          apiKey: 'sk-test',
+          baseURL: 'https://openrouter.ai/api/v1',
+          models: { default: ['x'] },
+          priceMultiplier: 1,
+        },
       ],
     },
   };
@@ -46,7 +92,13 @@ function appConfig(wizard: Record<string, unknown> = { enabled: true, access: 'e
 const request = (body: unknown, config = appConfig(), id = 'u1') =>
   ({ user: { id }, config, body }) as unknown as ServerRequest;
 
-function setup({ balance = 10_000_000, packId = 'starter' as string | null, synthFails = false, jobFails = false, pending = 0 } = {}) {
+function setup({
+  balance = 10_000_000,
+  packId = 'starter' as string | null,
+  synthFails = false,
+  jobFails = false,
+  pending = 0,
+} = {}) {
   let available = balance;
   const holds = { open: 0 };
   const billing: MediaBilling = {
@@ -85,7 +137,12 @@ function setup({ balance = 10_000_000, packId = 'starter' as string | null, synt
     if (jobFails) {
       throw new RemotionServiceError('unreachable', 'worker down');
     }
-    return { ...data, id: 'job-1', status: 'pending', nextPollAt: new Date() } as unknown as MediaJobRecord;
+    return {
+      ...data,
+      id: 'job-1',
+      status: 'pending',
+      nextPollAt: new Date(),
+    } as unknown as MediaJobRecord;
   });
   const wizard = createClipWizard({
     createMediaJob,
@@ -110,17 +167,25 @@ describe('wizard config', () => {
   });
 
   it('refuses a user without a pack under access pack, lets a pack user in', async () => {
-    const denied = await setup({ packId: null }).wizard.config(request({}, appConfig({ enabled: true, access: 'pack' })));
+    const denied = await setup({ packId: null }).wizard.config(
+      request({}, appConfig({ enabled: true, access: 'pack' })),
+    );
     expect(denied.status).toBe(403);
     expect(code(denied)).toBe('not_allowed');
-    const open = await setup().wizard.config(request({}, appConfig({ enabled: true, access: 'pack' })));
+    const open = await setup().wizard.config(
+      request({}, appConfig({ enabled: true, access: 'pack' })),
+    );
     expect(open.status).toBe(200);
   });
 
   it('lets everyone in under access everyone and lists voices with price hints and limits', async () => {
     const reply = await setup({ packId: null }).wizard.config(request({}));
     expect(reply.status).toBe(200);
-    const body = reply.body as { voices: { id: string; priceHint: string; hasSample: boolean }[]; limits: { maxScenes: number }; imageSources: { higgsfield: boolean } };
+    const body = reply.body as {
+      voices: { id: string; priceHint: string; hasSample: boolean }[];
+      limits: { maxScenes: number };
+      imageSources: { higgsfield: boolean };
+    };
     expect(body.voices.map((v) => [v.id, v.priceHint, v.hasSample])).toEqual([
       ['eleven-sarah', 'paid', true],
       ['eleven-sarah-en', 'paid', true],
@@ -134,13 +199,18 @@ describe('wizard config', () => {
 describe('wizard storyboard validate', () => {
   it('returns field-level issues in a stable shape', async () => {
     const reply = await setup().wizard.validate(
-      request({ storyboard: { title: 'x', scenes: [{ type: 'stat', duration_sec: 3, value: 'many' }] } }),
+      request({
+        storyboard: { title: 'x', scenes: [{ type: 'stat', duration_sec: 3, value: 'many' }] },
+      }),
     );
     expect(reply.status).toBe(200);
     const body = reply.body as { ok: boolean; issues: { field: string; message: string }[] };
     expect(body.ok).toBe(false);
     expect(body.issues.length).toBeGreaterThan(0);
-    expect(body.issues[0]).toEqual({ field: expect.stringContaining('scenes[0]'), message: expect.any(String) });
+    expect(body.issues[0]).toEqual({
+      field: expect.stringContaining('scenes[0]'),
+      message: expect.any(String),
+    });
   });
 
   it('accepts a storyboard the chat tool accepts', async () => {
@@ -150,7 +220,9 @@ describe('wizard storyboard validate', () => {
 
   it('rejects a body without a storyboard and a disabled wizard', async () => {
     expect(code(await setup().wizard.validate(request({})))).toBe('invalid_request');
-    expect(code(await setup().wizard.validate(request({ storyboard }, appConfig({ enabled: false }))))).toBe('wizard_disabled');
+    expect(
+      code(await setup().wizard.validate(request({ storyboard }, appConfig({ enabled: false })))),
+    ).toBe('wizard_disabled');
   });
 });
 
@@ -159,11 +231,17 @@ describe('wizard voice sample', () => {
     const { wizard, speechClient, billing, spent } = setup();
     const first = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
     expect(first.status).toBe(200);
-    expect(first.body).toMatchObject({ voiceId: 'eleven-sarah', cached: false, mime: 'audio/mpeg' });
+    expect(first.body).toMatchObject({
+      voiceId: 'eleven-sarah',
+      cached: false,
+      mime: 'audio/mpeg',
+    });
     expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
     expect(billing.record).toHaveBeenCalledTimes(1);
     const charged = spent();
-    const second = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), 'u2'));
+    const second = await wizard.voiceSample(
+      request({ voiceId: 'eleven-sarah' }, appConfig(), 'u2'),
+    );
     expect(second.body).toMatchObject({ cached: true });
     expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
     expect(billing.record).toHaveBeenCalledTimes(1);
@@ -175,8 +253,13 @@ describe('wizard voice sample', () => {
     const { wizard, speechClient } = setup();
     const fa = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
     const en = await wizard.voiceSample(request({ voiceId: 'eleven-sarah-en' }));
-    expect([fa.body, en.body]).toEqual([expect.objectContaining({ cached: false }), expect.objectContaining({ cached: false })]);
-    const inputs = (speechClient.synthesize as jest.Mock).mock.calls.map((c) => (c[0] as { input: string }).input);
+    expect([fa.body, en.body]).toEqual([
+      expect.objectContaining({ cached: false }),
+      expect.objectContaining({ cached: false }),
+    ]);
+    const inputs = (speechClient.synthesize as jest.Mock).mock.calls.map(
+      (c) => (c[0] as { input: string }).input,
+    );
     expect(inputs).toEqual([SAMPLE_TEXT.fa, SAMPLE_TEXT.en]);
   });
 
@@ -192,13 +275,17 @@ describe('wizard voice sample', () => {
       throw new Error('provider down');
     });
     const first = wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), 'u1'));
-    const waiters = [2, 3, 4].map((n) => wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), `u${n}`)));
+    const waiters = [2, 3, 4].map((n) =>
+      wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), `u${n}`)),
+    );
     await new Promise((resolve) => setImmediate(resolve));
     release();
     const replies = await Promise.all([first, ...waiters]);
     expect(code(replies[0])).toBe('provider_failed');
     expect(replies.slice(1).map((r) => r.status)).toEqual([200, 200, 200]);
-    expect(replies.slice(1).filter((r) => (r.body as { cached: boolean }).cached === false)).toHaveLength(1);
+    expect(
+      replies.slice(1).filter((r) => (r.body as { cached: boolean }).cached === false),
+    ).toHaveLength(1);
     expect(synth).toHaveBeenCalledTimes(2);
     expect(billing.record).toHaveBeenCalledTimes(1);
   });
@@ -211,9 +298,13 @@ describe('wizard voice sample', () => {
     try {
       await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
       at += SAMPLE_TTL_MS - 1000;
-      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({ cached: true });
+      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({
+        cached: true,
+      });
       at += 2000;
-      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({ cached: false });
+      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({
+        cached: false,
+      });
       expect(speechClient.synthesize).toHaveBeenCalledTimes(2);
     } finally {
       Date.now = realNow;
@@ -259,7 +350,10 @@ describe('wizard voice sample', () => {
 });
 
 describe('wizard render', () => {
-  const body = (voiceId?: string) => ({ storyboard, settings: { aspectRatio: '16:9', ...(voiceId ? { voiceId } : {}) } });
+  const body = (voiceId?: string) => ({
+    storyboard,
+    settings: { aspectRatio: '16:9', ...(voiceId ? { voiceId } : {}) },
+  });
 
   it('holds credit for a paid voice, records a clip job and returns its id', async () => {
     const { wizard, createMediaJob, holds } = setup();
@@ -267,7 +361,10 @@ describe('wizard render', () => {
     expect(reply).toEqual({ status: 200, body: { jobId: 'job-1' } });
     const data = createMediaJob.mock.calls[0][0];
     expect(data).toMatchObject({ kind: 'clip', provider: 'remotion', stage: 'queued' });
-    expect((data.payload as { request: { storyboard: { aspectRatio: string } } }).request.storyboard.aspectRatio).toBe('16:9');
+    expect(
+      (data.payload as { request: { storyboard: { aspectRatio: string } } }).request.storyboard
+        .aspectRatio,
+    ).toBe('16:9');
     /** the job keeps one hold per narration call until its lines are made */
     expect(holds.open).toBe(2);
   });
@@ -300,7 +397,10 @@ describe('wizard render', () => {
   it('lists field issues for an invalid storyboard and holds nothing', async () => {
     const { wizard, createMediaJob, holds } = setup();
     const reply = await wizard.render(
-      request({ storyboard: { title: 'x', scenes: [{ type: 'stat', duration_sec: 3, value: 'many' }] }, settings: {} }),
+      request({
+        storyboard: { title: 'x', scenes: [{ type: 'stat', duration_sec: 3, value: 'many' }] },
+        settings: {},
+      }),
     );
     expect(reply.status).toBe(422);
     expect(code(reply)).toBe('invalid_storyboard');
@@ -311,11 +411,15 @@ describe('wizard render', () => {
 
   it('answers busy when the user already has the most clips building, and disabled when off', async () => {
     expect(code(await setup({ pending: 99 }).wizard.render(request(body())))).toBe('busy');
-    expect(code(await setup().wizard.render(request(body(), appConfig({ enabled: false }))))).toBe('wizard_disabled');
+    expect(code(await setup().wizard.render(request(body(), appConfig({ enabled: false }))))).toBe(
+      'wizard_disabled',
+    );
   });
 
   it('answers not_allowed outside the pack rule', async () => {
-    const reply = await setup({ packId: null }).wizard.render(request(body(), appConfig({ enabled: true, access: 'pack' })));
+    const reply = await setup({ packId: null }).wizard.render(
+      request(body(), appConfig({ enabled: true, access: 'pack' })),
+    );
     expect(code(reply)).toBe('not_allowed');
   });
 });

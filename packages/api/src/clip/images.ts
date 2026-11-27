@@ -1,19 +1,42 @@
+import { randomUUID } from 'crypto';
 import { MEDIA_TRANSACTION_CONTEXTS } from 'librechat-data-provider';
-import type { TMediaGenerationConfig } from 'librechat-data-provider';
+import type { TMediaGenerationConfig, TClipWizardImageModel } from 'librechat-data-provider';
 import type { BalanceReservation } from '~/middleware/checkBalance';
 import type { MediaBilling, MediaCharge } from '~/media/billing';
 import type { MediaFetch, MediaUser } from '~/media/types';
 import type { MediaAccessResult } from '~/media/config';
+import type { ImageCatalogueModel } from '~/media/catalogue';
 import type { ClipAspectRatio } from './scene';
 import type { ServerRequest } from '~/types';
 import { checkMediaAccess, getMediaConfig, resolveMediaEndpoint } from '~/media/config';
-import { generateOpenRouterImage } from '~/media/providers';
+import { generateOpenRouterImage, generateHiggsfield } from '~/media/providers';
+import { getSharedImageModelCatalogue } from '~/media/catalogue';
 import { listImageModels } from '~/media/models';
 import { getBalanceConfig } from '~/app/config';
 import { mediaCredits } from '~/media/billing';
 
 /** Why an AI image was not generated (the job fails with a matching code). */
-export type ClipImageRefusal = 'unconfigured' | 'not_allowed' | 'insufficient_credit';
+export type ClipImageRefusal =
+  | 'unconfigured'
+  | 'not_allowed'
+  | 'insufficient_credit'
+  | 'unknown_model'
+  | 'cap_exceeded';
+
+/** Where a clip's AI images come from; absent means the OpenRouter default model. */
+export interface ClipImagePick {
+  source: 'openrouter' | 'higgsfield';
+  /** An id from {@link ClipImageService.models}; unknown ids are refused, never defaulted */
+  modelId?: string;
+}
+
+/** Hooks that keep a retried job from charging one image or line twice. */
+export interface ClipChargeHooks {
+  /** Awaited after the provider answered and before the ledger write, with the credits about to be charged */
+  beforeRecord?: (credits: number) => Promise<void>;
+  /** A previous attempt may already have recorded this charge: record nothing, return these credits */
+  alreadyCharged?: number;
+}
 
 export type ClipImageResult =
   | { ok: true; buffer: Buffer; type: string; credits: number }
@@ -41,6 +64,7 @@ export interface ClipImageService {
     req: ServerRequest,
     count: number,
     conversationId?: string,
+    options?: { pick?: ClipImagePick; capCredits?: number },
   ): Promise<{ ok: true; hold: ClipImageHold } | { ok: false; message: string; code: ClipImageRefusal }>;
   /**
    * Generates one image and records its charge (provider cost, else the estimate). Access and
@@ -51,21 +75,36 @@ export interface ClipImageService {
     req: ServerRequest,
     prompt: string,
     aspectRatio: ClipAspectRatio,
-    options?: { conversationId?: string; jobId?: string },
+    options?: { conversationId?: string; jobId?: string; pick?: ClipImagePick } & ClipChargeHooks,
   ): Promise<ClipImageResult>;
+  /** The image models this deployment offers (Higgsfield ones only while its keys resolve). */
+  models?(req: ServerRequest): TClipWizardImageModel[];
+  /** What `count` images of the pick are estimated at, without holding anything. */
+  estimate?(
+    req: ServerRequest,
+    count: number,
+    pick?: ClipImagePick,
+  ): { ok: true; perImage: number; total: number } | { ok: false; code: ClipImageRefusal };
   /** Releases whatever is still held for the job (all images made, or the job ended). */
   release(jobId: string): Promise<void>;
   /**
    * Gives back AI image credits already recorded (the clip failed on the provider's side).
    * Resolves `false` when the ledger write failed, so the caller keeps its own record.
    */
-  refund(req: ServerRequest, credits: number, conversationId?: string): Promise<boolean>;
+  refund(
+    req: ServerRequest,
+    credits: number,
+    conversationId?: string,
+    pick?: ClipImagePick,
+  ): Promise<boolean>;
 }
 
 export interface ClipImageServiceDeps {
   billing: MediaBilling;
   findBalanceByUser: (userId: string) => Promise<{ packId?: string | null } | null>;
   fetch?: MediaFetch;
+  /** The OpenRouter image catalogue; the shared one by default */
+  catalogue?: () => readonly ImageCatalogueModel[] | undefined;
 }
 
 const REFUSALS: Record<'media_disabled' | 'paid_only' | 'not_in_pack', string> = {
@@ -85,22 +124,59 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
   /** Tool-time holds by job id, released image by image as the job generates them. */
   const kept = new Map<string, { slots: Slot[]; timer: ReturnType<typeof setTimeout> }>();
 
-  function setup(req: ServerRequest) {
+  const catalogue = deps.catalogue ?? (() => getSharedImageModelCatalogue().getModels());
+
+  /** The provider, model and price an image of this pick uses; a refusal code when none. */
+  function setup(req: ServerRequest, pick?: ClipImagePick) {
     const config = getMediaConfig(req.config);
-    const image = config?.image;
-    const endpoint = config ? resolveMediaEndpoint(req.config, config) : undefined;
-    if (!config || !image || !endpoint) {
-      return null;
+    if (!config) {
+      return { kind: 'none' as const, code: 'unconfigured' as const };
     }
-    const model = listImageModels(image, undefined)[0];
+    const endpoint = resolveMediaEndpoint(req.config, config);
+    if (pick?.source === 'higgsfield') {
+      const higgsfield = config.higgsfield;
+      if (!higgsfield) {
+        return { kind: 'none' as const, code: 'unconfigured' as const };
+      }
+      const models = higgsfield.models.filter((item) => item.kind === 'image');
+      const model = pick.modelId ? models.find((item) => item.id === pick.modelId) : models[0];
+      if (!model) {
+        return { kind: 'none' as const, code: 'unknown_model' as const };
+      }
+      /** Like the Higgsfield tool: `priceUsd` is the price charged, with no markup on top. */
+      const estimate = mediaCredits(model.priceUsd, 1);
+      return {
+        kind: 'higgsfield' as const,
+        config,
+        higgsfield,
+        model,
+        estimate,
+        billed: { model: model.id, endpoint: 'Higgsfield', context: MEDIA_TRANSACTION_CONTEXTS.higgsfield },
+      };
+    }
+    const image = config.image;
+    if (!image || !endpoint) {
+      return { kind: 'none' as const, code: 'unconfigured' as const };
+    }
+    const models = listImageModels(image, catalogue());
+    const model = pick?.modelId ? models.find((item) => item.id === pick.modelId) : models[0];
+    if (!model) {
+      return { kind: 'none' as const, code: 'unknown_model' as const };
+    }
     const estimate = mediaCredits(model.estimateUsd, endpoint.priceMultiplier ?? 1);
-    return { config, image, endpoint, model, estimate };
+    return {
+      kind: 'openrouter' as const,
+      config,
+      image,
+      endpoint,
+      model,
+      estimate,
+      billed: { model: model.id, endpoint: config.endpoint, context: MEDIA_TRANSACTION_CONTEXTS.image },
+    };
   }
 
-  const charge = (model: string, endpoint: string, conversationId?: string): MediaCharge => ({
-    model,
-    endpoint,
-    context: MEDIA_TRANSACTION_CONTEXTS.image,
+  const charge = (billed: Omit<MediaCharge, 'conversationId'>, conversationId?: string): MediaCharge => ({
+    ...billed,
     conversationId,
   });
 
@@ -123,10 +199,17 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
   }
 
   return {
-    async reserve(req, count, conversationId) {
-      const s = setup(req);
-      if (!s) {
-        return { ok: false, code: 'unconfigured', message: 'Image generation is not configured on this deployment.' };
+    async reserve(req, count, conversationId, options = {}) {
+      const s = setup(req, options.pick);
+      if (s.kind === 'none') {
+        return {
+          ok: false,
+          code: s.code,
+          message:
+            s.code === 'unknown_model'
+              ? 'That image model is not offered here.'
+              : 'Image generation is not configured on this deployment.',
+        };
       }
       if (!req.user?.id) {
         return { ok: false, code: 'not_allowed', message: 'No user.' };
@@ -135,9 +218,16 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
       if (!allowed.ok) {
         return { ok: false, code: 'not_allowed', message: REFUSALS[allowed.code] };
       }
+      if (options.capCredits != null && options.capCredits > 0 && s.estimate * count > options.capCredits) {
+        return {
+          ok: false,
+          code: 'cap_exceeded',
+          message: `${count} AI image(s) are estimated at ${s.estimate * count} credits, over the spending cap of ${options.capCredits}.`,
+        };
+      }
       const slots: Slot[] = [];
       for (let i = 0; i < count; i++) {
-        const held = await deps.billing.hold(req, charge(s.model.id, s.config.endpoint, conversationId), s.estimate);
+        const held = await deps.billing.hold(req, charge(s.billed, conversationId), s.estimate);
         if (held === 'insufficient') {
           await releaseAll(slots);
           return {
@@ -162,44 +252,96 @@ export function createClipImageService(deps: ClipImageServiceDeps): ClipImageSer
     },
 
     async generate(req, prompt, aspectRatio, options = {}) {
-      const s = setup(req);
-      if (!s) {
-        return { ok: false, code: 'unconfigured' };
+      const s = setup(req, options.pick);
+      if (s.kind === 'none') {
+        return { ok: false, code: s.code };
       }
       if (!(await access(req, s.config)).ok) {
         return { ok: false, code: 'not_allowed' };
       }
       const entry = options.jobId ? kept.get(options.jobId) : undefined;
       await entry?.slots.pop()?.release();
-      const target = charge(s.model.id, s.config.endpoint, options.conversationId);
+      const target = charge(s.billed, options.conversationId);
       const held = await deps.billing.hold(req, target, s.estimate);
       if (held === 'insufficient') {
         return { ok: false, code: 'insufficient_credit' };
       }
       try {
-        const generated = await generateOpenRouterImage(doFetch, s.endpoint, {
-          model: s.model.id,
-          prompt,
-          aspectRatio,
-          resolution: s.image.resolution,
-          user: req.user?.id,
-          timeoutMs: s.image.timeoutMs,
-        });
-        const multiplier = s.endpoint.priceMultiplier ?? 1;
-        const credits = mediaCredits(generated.costUsd ?? s.model.estimateUsd, multiplier);
-        await deps.billing.record(req, target, credits);
-        return { ok: true, buffer: generated.buffer, type: generated.type, credits };
+        let made: { buffer: Buffer; type: string; costUsd?: number };
+        let multiplier = 1;
+        if (s.kind === 'higgsfield') {
+          made = await generateHiggsfield(doFetch, s.higgsfield, {
+            model: s.model,
+            input: { prompt, aspect_ratio: aspectRatio },
+            idempotencyKey: randomUUID(),
+            pollIntervalMs: s.higgsfield.pollIntervalMs,
+            timeoutMs: s.higgsfield.timeoutMs,
+          });
+          made = { ...made, costUsd: s.model.priceUsd };
+        } else {
+          multiplier = s.endpoint.priceMultiplier ?? 1;
+          made = await generateOpenRouterImage(doFetch, s.endpoint, {
+            model: s.model.id,
+            prompt,
+            aspectRatio,
+            resolution: s.image.resolution,
+            user: req.user?.id,
+            timeoutMs: s.image.timeoutMs,
+          });
+        }
+        const credits =
+          options.alreadyCharged ??
+          mediaCredits(made.costUsd ?? (s.kind === 'higgsfield' ? s.model.priceUsd : s.model.estimateUsd), multiplier);
+        if (options.alreadyCharged == null) {
+          await options.beforeRecord?.(credits);
+          await deps.billing.record(req, target, credits);
+        }
+        return { ok: true, buffer: made.buffer, type: made.type, credits };
       } finally {
         await held?.release();
       }
     },
 
-    async refund(req, credits, conversationId) {
-      const s = setup(req);
-      if (!s) {
+    models(req) {
+      const config = getMediaConfig(req.config);
+      if (!config) {
+        return [];
+      }
+      const out: TClipWizardImageModel[] = [];
+      const base = setup(req);
+      if (base.kind === 'openrouter') {
+        const multiplier = base.endpoint.priceMultiplier ?? 1;
+        for (const model of listImageModels(base.image, catalogue())) {
+          out.push({
+            id: model.id,
+            label: model.name ?? model.id,
+            source: 'openrouter',
+            credits: mediaCredits(model.estimateUsd, multiplier),
+          });
+        }
+      }
+      for (const model of config.higgsfield?.models ?? []) {
+        if (model.kind === 'image') {
+          out.push({ id: model.id, label: model.label, source: 'higgsfield', credits: mediaCredits(model.priceUsd, 1) });
+        }
+      }
+      return out;
+    },
+
+    estimate(req, count, pick) {
+      const s = setup(req, pick);
+      if (s.kind === 'none') {
+        return { ok: false as const, code: s.code };
+      }
+      return { ok: true as const, perImage: s.estimate, total: s.estimate * count };
+    },
+
+    async refund(req, credits, conversationId, pick) {
+      const s = setup(req, pick);
+      if (s.kind === 'none') {
         return false;
       }
-      return deps.billing.refund(req, charge(s.model.id, s.config.endpoint, conversationId), credits);
+      return deps.billing.refund(req, charge(s.billed, conversationId), credits);
     },
 
     release,

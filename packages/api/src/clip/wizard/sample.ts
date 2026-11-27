@@ -16,7 +16,7 @@ export const SAMPLE_TEXT: Record<'fa' | 'en', string> = {
 type Sample = { mime: string; base64: string };
 
 /** How long a made sample is served; a changed voice or model config shows up within a day. */
-export const SAMPLE_TTL_MS = 24 * 60 * 60 * 1000;
+export const SAMPLE_TTL_MS: number = 24 * 60 * 60 * 1000;
 
 /**
  * Voice samples. The first sample of a voice is paid for by the user who asked and kept in
@@ -25,7 +25,8 @@ export const SAMPLE_TTL_MS = 24 * 60 * 60 * 1000;
  *
  * The cache is per process (each instance charges one more user for its own copy) and entries
  * expire after {@link SAMPLE_TTL_MS}. The key holds model, voice and language, so a changed
- * config makes a new sample. Charging samples to the platform is not done here.
+ * config makes a new sample. With `wizard.sampleCharge: 'platform'` nobody is charged: the call
+ * is made without a hold or a ledger row, and the provider cost is the platform's.
  */
 export function createVoiceSampler(
   now: () => number = () => Date.now(),
@@ -85,9 +86,13 @@ export function createVoiceSampler(
       return fail('unavailable');
     }
     const narration = deps.narration;
-    const work = (async (): Promise<WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>> => {
+    const work = (async (): Promise<
+      WizardReply<TClipWizardVoiceSampleResponse | WizardErrorBody>
+    > => {
       try {
-        const made = await narration.generate(req, SAMPLE_TEXT[entry.lang], choice);
+        const made = await narration.generate(req, SAMPLE_TEXT[entry.lang], choice, {
+          chargeUser: gate.config.wizard.sampleCharge !== 'platform',
+        });
         if (!made.ok) {
           return fail(
             made.code === 'insufficient_credit'

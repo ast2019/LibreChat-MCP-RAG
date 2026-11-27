@@ -18,7 +18,10 @@ export default function Steps() {
   const current = useAtomValue(clipWizardStepAtom);
   const at = CLIP_WIZARD_STEPS.indexOf(current);
   return (
-    <ol aria-label={localize('com_clipwizard_steps_label')} className="flex flex-wrap gap-2 text-sm">
+    <ol
+      aria-label={localize('com_clipwizard_steps_label')}
+      className="flex flex-wrap gap-2 text-sm"
+    >
       {CLIP_WIZARD_STEPS.map((step, index) => (
         <li
           key={step}

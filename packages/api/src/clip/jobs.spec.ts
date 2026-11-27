@@ -121,6 +121,7 @@ describe('clip job runner', () => {
     expect(images.generate).toHaveBeenCalledWith(expect.anything(), 'a wind farm at dusk', '9:16', {
       conversationId: undefined,
       jobId: '65c000000000000000000001',
+      beforeRecord: expect.any(Function),
     });
     expect(last(updates)).toMatchObject({ workerJobId: 'w1', stage: 'queued' });
   });
@@ -501,7 +502,7 @@ describe('clip job runner', () => {
       const charged = { ...spoken, aiCredits: 40_000, narrationCredits: 60_000 };
       const runner = createClipJobRunner({ ...deps, narration });
       await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
-      expect(images.refund).toHaveBeenCalledWith(expect.anything(), 40_000, undefined);
+      expect(images.refund).toHaveBeenCalledWith(expect.anything(), 40_000, undefined, undefined);
       expect(narration.refund).toHaveBeenCalledWith(expect.anything(), 60_000, undefined, voice.model);
       expect(last(updates)).toMatchObject({ status: 'failed', chargedCredits: 0 });
       expect(updates.filter((u) => u.status === 'failed')).toHaveLength(1);
@@ -534,6 +535,98 @@ describe('clip job runner', () => {
       const runner = createClipJobRunner({ ...deps, narration });
       await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
       expect(last(updates)).toMatchObject({ errorCode: 'narration_failed', chargedCredits: 60_000 });
+    });
+
+    it('lists only the kind whose refund failed as owed, not the one that was refunded', async () => {
+      const { deps, updates, images } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+        refund: jest.fn(async () => false),
+      };
+      const charged = { ...spoken, aiCredits: 40_000, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      expect(images.refund).toHaveBeenCalledTimes(1);
+      expect(last(updates)).toMatchObject({
+        status: 'failed',
+        chargedCredits: 60_000,
+        payload: { refundOwed: { narrationCredits: 60_000 } },
+      });
+      expect((last(updates).payload as { refundOwed: Record<string, number> }).refundOwed.aiCredits).toBeUndefined();
+    });
+
+    it('writes the charge ahead of the ledger record, so a crash cannot lose it', async () => {
+      const submit = jest.fn(async () => view({ jobId: 'w1', state: 'queued', stage: 'queued', progress: 0 }));
+      const { deps, updates } = setup({ submit });
+      const order: string[] = [];
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async (_req: unknown, _text: string, _voice: unknown, options: { beforeRecord?: (c: number) => Promise<void> }) => {
+          await options.beforeRecord?.(30_000);
+          order.push('record');
+          return { ok: true as const, buffer: Buffer.from('wav'), type: 'audio/wav', credits: 30_000 };
+        }),
+      };
+      const updateMediaJob = jest.fn(async (_id: string, update: MediaJobUpdate) => {
+        updates.push(update);
+        const pending = (update.payload as { pendingCharge?: unknown } | null)?.pendingCharge;
+        if (pending) {
+          order.push('ahead');
+        }
+        return null;
+      });
+      const runner = createClipJobRunner({ ...deps, narration: narration as never, updateMediaJob });
+      await runner.step(job({ payload: spoken as unknown as Record<string, unknown> }));
+      expect(order.slice(0, 2)).toEqual(['ahead', 'record']);
+      expect(updates.some((u) => u.chargedCredits === 60_000)).toBe(true);
+      const saves = updates.filter((u) => (u.payload as { narrationFiles?: unknown } | null)?.narrationFiles);
+      expect((last(saves).payload as { pendingCharge?: unknown }).pendingCharge).toBeUndefined();
+    });
+
+    it('a retry that finds a written-ahead charge records the line again for nothing and counts it once', async () => {
+      const submit = jest.fn(async () => view({ jobId: 'w1', state: 'queued', stage: 'queued', progress: 0 }));
+      const { deps, updates } = setup({ submit });
+      const narration = narrationService();
+      const crashed = { ...spoken, pendingCharge: { kind: 'narration', key: 'nar-0', credits: 30_000 } };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: crashed as unknown as Record<string, unknown> }));
+      expect(narration.generate).toHaveBeenNthCalledWith(1, expect.anything(), 'سلام', voice, expect.objectContaining({ alreadyCharged: 30_000 }));
+      expect((narration.generate.mock.calls[1] as unknown[])[3]).not.toHaveProperty('alreadyCharged');
+      const credits = updates.map((u) => u.chargedCredits).filter((c) => c != null);
+      expect(Math.max(...(credits as number[]))).toBe(60_000);
+    });
+
+    it('refunds a written-ahead charge when the job fails before the line is saved', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+      };
+      const crashed = { ...spoken, pendingCharge: { kind: 'narration', key: 'nar-0', credits: 30_000 } };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: crashed as unknown as Record<string, unknown> }));
+      expect(narration.refund).toHaveBeenCalledWith(expect.anything(), 30_000, undefined, voice.model);
+      expect(last(updates)).toMatchObject({ status: 'failed', chargedCredits: 0 });
+    });
+
+    it('drops a written-ahead charge the service already undid, so it is not refunded twice', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async (_req: unknown, _text: string, _voice: unknown, options: { beforeRecord?: (c: number) => Promise<void> }) => {
+          await options.beforeRecord?.(15_000);
+          throw new Error('second piece failed, first undone');
+        }),
+      };
+      const runner = createClipJobRunner({ ...deps, narration: narration as never });
+      await runner.step(job({ payload: spoken as unknown as Record<string, unknown> }));
+      expect(narration.refund).not.toHaveBeenCalled();
+      expect(last(updates)).toMatchObject({ status: 'failed', errorCode: 'narration_failed' });
     });
 
     it('Edge narration still sends audio.mode tts', async () => {

@@ -597,6 +597,22 @@ clipTools:
   wizard:
     enabled: true
     access: 'pack'
+    # Storyboard drafting and chat edits (billed from credit at the chat token rates of this
+    # endpoint; the Claude time pack is never used). The model list is the user's modelSpecs.
+    llm:
+      endpoint: 'OpenRouter'
+      maxOutputTokens: 6000
+      timeoutMs: 90000
+      repairAttempts: 1
+      chatHistoryTurns: 10
+      maxChatChars: 2000
+    # AI images in the wizard stay OFF until the owner sets enabled: true (this or aiImages above).
+    # maxCreditsPerClip caps one clip's AI images in credits (0 = only maxAiImages applies).
+    images:
+      enabled: false
+      maxCreditsPerClip: 0
+    # Who pays the first sample of a voice: 'requester' (default) or 'platform' (free for the user).
+    sampleCharge: 'requester'
   # Narration voices. The user picks one by label; the first entry of the clip's language is the
   # default, so the paid ElevenLabs v3 voices come first. `openrouter` entries speak through
   # media.speech (provider and key), are made per scene in the API and charged like AI images.

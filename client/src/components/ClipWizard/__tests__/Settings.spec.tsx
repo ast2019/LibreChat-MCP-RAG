@@ -1,11 +1,14 @@
 import { Provider, createStore } from 'jotai';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { TClipWizardConfigResponse } from 'librechat-data-provider';
 import { clipWizardStepAtom, clipWizardVoiceIdAtom } from '~/store/clipWizard';
+import { wizardConfig as config } from 'test/clipwizard';
 import Settings from '../Settings';
 
 const mockMutate = jest.fn();
+jest.mock('@librechat/client', () =>
+  jest.requireActual<typeof import('test/clipwizard')>('test/clipwizard').withNativeDropdown(),
+);
 jest.mock('~/data-provider', () => ({
   useClipVoiceSampleMutation: () => ({ mutate: mockMutate }),
 }));
@@ -13,18 +16,6 @@ jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string, values?: Record<string, unknown>) =>
     values ? `${key} ${JSON.stringify(values)}` : key,
 }));
-
-const config: TClipWizardConfigResponse = {
-  enabled: true,
-  voices: [
-    { id: 'eleven-sarah', label: 'Sarah', lang: 'fa', provider: 'openrouter', priceHint: 'paid', hasSample: true },
-    { id: 'fa-IR-DilaraNeural', label: 'Dilara', lang: 'fa', provider: 'edge', priceHint: 'free', hasSample: false },
-  ],
-  limits: { maxDurationSec: 90, maxScenes: 20, maxAssetMb: 55 },
-  aspectRatios: ['9:16', '16:9'],
-  themes: [],
-  imageSources: { builtin: true, stock: false, ai: false, higgsfield: false },
-};
 
 const play = jest.fn(() => Promise.resolve());
 const AudioMock = jest.fn(() => ({ play }));
@@ -72,7 +63,12 @@ describe('ClipWizard Settings', () => {
 
   it('asks for a sample once, plays it, and replays without asking again', () => {
     mockMutate.mockImplementation((_vars, options) =>
-      options.onSuccess({ voiceId: 'eleven-sarah', mime: 'audio/mpeg', base64: 'AAAA', cached: false }),
+      options.onSuccess({
+        voiceId: 'eleven-sarah',
+        mime: 'audio/mpeg',
+        base64: 'AAAA',
+        cached: false,
+      }),
     );
     setup();
     const button = screen.getByRole('button', { name: /com_clipwizard_voice_play/ });
@@ -97,7 +93,10 @@ describe('ClipWizard Settings', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: /com_clipwizard_voice_play/ }));
     expect(screen.getByTestId('clipwizard-error')).toHaveTextContent('com_clipwizard_error_credit');
-    expect(screen.getByRole('link', { name: 'com_clipwizard_topup' })).toHaveAttribute('href', '/payment');
+    expect(screen.getByRole('link', { name: 'com_clipwizard_topup' })).toHaveAttribute(
+      'href',
+      '/payment',
+    );
     expect(play).not.toHaveBeenCalled();
   });
 

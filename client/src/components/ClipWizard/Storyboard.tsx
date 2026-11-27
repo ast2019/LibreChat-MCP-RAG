@@ -1,12 +1,26 @@
 import { useState } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
-import { Button, Spinner, Textarea } from '@librechat/client';
-import type { TClipWizardErrorCode, TClipWizardIssue } from 'librechat-data-provider';
-import { clipWizardStepAtom, clipWizardStoryboardAtom } from '~/store/clipWizard';
-import { useValidateClipStoryboardMutation } from '~/data-provider';
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { Button, Dropdown, Spinner, Textarea } from '@librechat/client';
+import type {
+  TClipWizardConfigResponse,
+  TClipWizardErrorCode,
+  TClipWizardIssue,
+} from 'librechat-data-provider';
+import type { ClipWizardStoryboardState } from '~/store/clipWizard';
+import {
+  clipWizardCheckedAtom,
+  clipWizardEstimateAtom,
+  clipWizardImagesAtom,
+  clipWizardStepAtom,
+  clipWizardStoryboardAtom,
+  clipWizardVoiceIdAtom,
+} from '~/store/clipWizard';
+import { useEstimateClipWizardMutation, useValidateClipStoryboardMutation } from '~/data-provider';
 import { clipWizardErrorCode } from './errors';
 import { useLocalize } from '~/hooks';
 import Notice from './Notice';
+import Model from './Model';
 
 const SCENE_FIELD = /^scenes\[(\d+)\]/;
 
@@ -16,14 +30,25 @@ const sceneOf = (issue: TClipWizardIssue): number => {
   return match ? Number(match[1]) : -1;
 };
 
-/** The storyboard as a list of scenes; each scene's narration can be edited, then it is checked. */
-export default function Storyboard() {
+const NO_VOICE = '__none__';
+const NO_THEME = '__default__';
+
+/**
+ * The storyboard as a list of scenes. Every edit here (text, order, delete, voice, theme) is saved
+ * on this device only and never calls the model; it makes the storyboard unchecked until the
+ * user checks it again.
+ */
+export default function Storyboard({ config }: { config: TClipWizardConfigResponse }) {
   const localize = useLocalize();
   const [storyboard, setStoryboard] = useAtom(clipWizardStoryboardAtom);
   const setStep = useSetAtom(clipWizardStepAtom);
   const validate = useValidateClipStoryboardMutation();
+  const estimate = useEstimateClipWizardMutation();
+  const [voiceId, setVoiceId] = useAtom(clipWizardVoiceIdAtom);
+  const images = useAtomValue(clipWizardImagesAtom);
+  const [checked, setChecked] = useAtom(clipWizardCheckedAtom);
+  const [estimated, setEstimated] = useAtom(clipWizardEstimateAtom);
   const [issues, setIssues] = useState<TClipWizardIssue[]>([]);
-  const [valid, setValid] = useState<{ scenes: number; durationSec: number } | null>(null);
   const [error, setError] = useState<TClipWizardErrorCode | null>(null);
 
   if (!storyboard) {
@@ -44,12 +69,53 @@ export default function Storyboard() {
     );
   }
 
-  const setNarration = (index: number, narration: string) => {
-    setValid(null);
-    setStoryboard({
+  /** Checked only while this is still the object the server approved: any edit makes a new one. */
+  const valid = checked?.storyboard === storyboard ? checked : null;
+  const estimateKey = `${voiceId}|${JSON.stringify(images)}`;
+  const shownEstimate =
+    estimated?.storyboard === storyboard && estimated.key === estimateKey ? estimated.result : null;
+
+  const edit = (next: ClipWizardStoryboardState) => {
+    setChecked(null);
+    setStoryboard(next);
+  };
+  const setNarration = (index: number, narration: string) =>
+    edit({
       ...storyboard,
       scenes: storyboard.scenes.map((scene, i) => (i === index ? { ...scene, narration } : scene)),
     });
+  const move = (index: number, by: -1 | 1) => {
+    const scenes = [...storyboard.scenes];
+    [scenes[index], scenes[index + by]] = [scenes[index + by], scenes[index]];
+    setIssues([]);
+    edit({ ...storyboard, scenes });
+  };
+  const remove = (index: number) => {
+    setIssues([]);
+    edit({ ...storyboard, scenes: storyboard.scenes.filter((_, i) => i !== index) });
+  };
+  const setTheme = (theme: string) => {
+    const { theme: _old, ...rest } = storyboard;
+    edit(theme === NO_THEME ? (rest as ClipWizardStoryboardState) : { ...storyboard, theme });
+  };
+
+  const estimateCost = (target: ClipWizardStoryboardState) => {
+    estimate.mutate(
+      {
+        storyboard: target,
+        settings: { ...(voiceId ? { voiceId } : {}), images },
+      },
+      {
+        onSuccess: (result) => {
+          if (result.ok) {
+            setEstimated({ storyboard: target, key: estimateKey, result });
+          } else {
+            setError('invalid_storyboard');
+          }
+        },
+        onError: (err) => setError(clipWizardErrorCode(err)),
+      },
+    );
   };
 
   const check = () => {
@@ -60,10 +126,11 @@ export default function Storyboard() {
         onSuccess: (result) => {
           if (result.ok) {
             setIssues([]);
-            setValid({ scenes: result.scenes, durationSec: result.durationSec });
+            setChecked({ storyboard, scenes: result.scenes, durationSec: result.durationSec });
+            estimateCost(storyboard);
           } else {
             setIssues(result.issues);
-            setValid(null);
+            setChecked(null);
           }
         },
         onError: (err) => setError(clipWizardErrorCode(err)),
@@ -86,6 +153,43 @@ export default function Storyboard() {
           ))}
         </ul>
       ) : null}
+      <p className="text-text-secondary text-xs">{localize('com_clipwizard_edit_hint')}</p>
+      <Model config={config} />
+      <div className="flex flex-wrap gap-4">
+        <div className="flex min-w-48 flex-col gap-1 text-sm">
+          <span id="clipwizard-sb-voice">{localize('com_clipwizard_settings_voice')}</span>
+          <Dropdown
+            value={voiceId || NO_VOICE}
+            onChange={(value) => {
+              setChecked(null);
+              setVoiceId(value === NO_VOICE ? '' : value);
+            }}
+            options={[
+              { value: NO_VOICE, label: localize('com_clipwizard_voice_none') },
+              ...config.voices.map((voice) => ({ value: voice.id, label: voice.label })),
+            ]}
+            aria-labelledby="clipwizard-sb-voice"
+            testId="clipwizard-voice-select"
+            variant="field"
+          />
+        </div>
+        {config.themes.length > 0 ? (
+          <div className="flex min-w-48 flex-col gap-1 text-sm">
+            <span id="clipwizard-sb-theme">{localize('com_clipwizard_theme')}</span>
+            <Dropdown
+              value={typeof storyboard.theme === 'string' ? storyboard.theme : NO_THEME}
+              onChange={setTheme}
+              options={[
+                { value: NO_THEME, label: localize('com_clipwizard_theme_default') },
+                ...config.themes.map((theme) => ({ value: theme.id, label: theme.label })),
+              ]}
+              aria-labelledby="clipwizard-sb-theme"
+              testId="clipwizard-theme-select"
+              variant="field"
+            />
+          </div>
+        ) : null}
+      </div>
       <ol className="flex flex-col gap-3">
         {storyboard.scenes.map((scene, index) => {
           const own = issues.filter((issue) => sceneOf(issue) === index);
@@ -101,6 +205,35 @@ export default function Storyboard() {
                   1: String(scene.type ?? ''),
                 })}
               </span>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                  aria-label={localize('com_clipwizard_scene_up', { 0: index + 1 })}
+                >
+                  <ArrowUp className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={index === storyboard.scenes.length - 1}
+                  onClick={() => move(index, 1)}
+                  aria-label={localize('com_clipwizard_scene_down', { 0: index + 1 })}
+                >
+                  <ArrowDown className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={storyboard.scenes.length <= 1}
+                  onClick={() => remove(index)}
+                  aria-label={localize('com_clipwizard_scene_delete', { 0: index + 1 })}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
               <label className="flex flex-col gap-1 text-sm">
                 {localize('com_clipwizard_scene_narration')}
                 <Textarea
@@ -127,6 +260,45 @@ export default function Storyboard() {
         <p role="status" className="text-text-secondary text-sm" data-testid="clipwizard-valid">
           {localize('com_clipwizard_valid', { 0: valid.scenes, 1: valid.durationSec })}
         </p>
+      ) : null}
+      {estimate.isLoading ? (
+        <p role="status" className="text-text-secondary text-sm">
+          {localize('com_clipwizard_estimate_working')}
+        </p>
+      ) : null}
+      {shownEstimate ? (
+        <dl
+          className="border-border-light flex flex-col gap-1 rounded-lg border px-3 py-2 text-sm"
+          data-testid="clipwizard-estimate"
+        >
+          <dt className="font-medium">{localize('com_clipwizard_estimate_title')}</dt>
+          <dd>
+            {localize('com_clipwizard_estimate_narration', {
+              0: shownEstimate.items.narrationCredits,
+            })}
+          </dd>
+          <dd>
+            {localize('com_clipwizard_estimate_images', {
+              0: shownEstimate.items.imageCredits,
+              1: shownEstimate.imageCount,
+            })}
+          </dd>
+          <dd className="font-medium">
+            {localize('com_clipwizard_estimate_total', { 0: shownEstimate.totalCredits })}
+          </dd>
+          {shownEstimate.capCredits ? (
+            <dd className="text-text-secondary text-xs">
+              {localize('com_clipwizard_estimate_cap', { 0: shownEstimate.capCredits })}
+            </dd>
+          ) : null}
+        </dl>
+      ) : null}
+      {valid && !shownEstimate && !estimate.isLoading ? (
+        <div>
+          <Button variant="outline" size="sm" onClick={() => estimateCost(storyboard)}>
+            {localize('com_clipwizard_estimate_update')}
+          </Button>
+        </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => setStep('settings')}>

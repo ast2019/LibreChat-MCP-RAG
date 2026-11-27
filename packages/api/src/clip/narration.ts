@@ -58,8 +58,23 @@ export interface ClipNarrationService {
     req: ServerRequest,
     text: string,
     voice: ClipNarrationVoice,
-    options?: { conversationId?: string; jobId?: string },
+    options?: {
+      conversationId?: string;
+      jobId?: string;
+      /** `false` makes the line at the platform's cost: nothing is held or charged to the user */
+      chargeUser?: boolean;
+      /** Awaited before each ledger write with the credits recorded for the line so far, including this piece */
+      beforeRecord?: (credits: number) => Promise<void>;
+      /** A previous attempt may already have recorded this line: record nothing, report these credits */
+      alreadyCharged?: number;
+    },
   ): Promise<ClipNarrationResult>;
+  /** What speaking `texts` is estimated at, without holding anything. */
+  estimate?(
+    req: ServerRequest,
+    texts: readonly string[],
+    voice: ClipNarrationVoice,
+  ): { ok: true; credits: number } | { ok: false; code: ClipNarrationRefusal };
   /** Releases whatever is still held for the job. */
   release(jobId: string): Promise<void>;
   /**
@@ -122,6 +137,13 @@ export function chunkNarration(text: string, max: number): string[] {
   }
   return chunks;
 }
+
+/** Credits of speaking the chunks: each one is a speech call estimated on its own length. */
+const estimateChunks = (
+  s: { estimate: (voice: ClipNarrationVoice, length: number) => number },
+  chunks: readonly string[],
+  voice: ClipNarrationVoice,
+): number => chunks.reduce((sum, chunk) => sum + s.estimate(voice, chunk.length), 0);
 
 export function createClipNarrationService(deps: ClipNarrationServiceDeps): ClipNarrationService {
   const client = deps.speechClient ?? createSpeechProviderClient({ fetch: deps.fetch });
@@ -192,7 +214,7 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
         return { ok: false, code: 'not_allowed', message: REFUSALS[allowed.code] };
       }
       const chunks = texts.flatMap((text) => chunkNarration(text, s.speech.maxChars));
-      const total = chunks.reduce((sum, chunk) => sum + s.estimate(voice, chunk.length), 0);
+      const total = estimateChunks(s, chunks, voice);
       const slots: Slot[] = [];
       for (const chunk of chunks) {
         const held = await deps.billing.hold(
@@ -239,10 +261,12 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       };
       const pieces: Buffer[] = [];
       let credits = 0;
+      const billed = options.chargeUser !== false;
+      const prepaid = options.alreadyCharged;
       const format = voice.format ?? s.speech.format;
       /** Gives back what this line's earlier pieces cost, so a half-made line is not charged. */
       const undo = async (): Promise<void> => {
-        if (credits > 0) {
+        if (credits > 0 && billed) {
           await deps.billing.refund(
             req,
             charge(voice.model, s.config.endpoint, options.conversationId),
@@ -254,8 +278,11 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       for (const piece of chunkNarration(text, s.speech.maxChars)) {
         const entry = options.jobId ? kept.get(options.jobId) : undefined;
         await entry?.slots.pop()?.release();
-        const billed = charge(voice.model, s.config.endpoint, options.conversationId);
-        const held = await deps.billing.hold(req, billed, s.estimate(voice, piece.length));
+        const ledger = charge(voice.model, s.config.endpoint, options.conversationId);
+        const held =
+          billed && prepaid == null
+            ? await deps.billing.hold(req, ledger, s.estimate(voice, piece.length))
+            : undefined;
         if (held === 'insufficient') {
           await undo();
           return { ok: false, code: 'insufficient_credit' };
@@ -279,8 +306,11 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
             costUsd ?? s.estimateUsd(voice, piece.length),
             s.endpoint.priceMultiplier ?? 1,
           );
-          await deps.billing.record(req, billed, spent);
-          credits += spent;
+          if (billed && prepaid == null) {
+            await options.beforeRecord?.(credits + spent);
+            await deps.billing.record(req, ledger, spent);
+            credits += spent;
+          }
           pieces.push(synthesized.audio);
         } catch (error) {
           await undo();
@@ -298,8 +328,17 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
         ok: true,
         buffer: wav ? pcmToWav(audio, s.speech.pcmSampleRate) : audio,
         type: wav ? 'audio/wav' : 'audio/mpeg',
-        credits,
+        credits: prepaid ?? credits,
       };
+    },
+
+    estimate(req, texts, voice) {
+      const s = setup(req);
+      if (!s) {
+        return { ok: false, code: 'unconfigured' };
+      }
+      const chunks = texts.flatMap((text) => chunkNarration(text, s.speech.maxChars));
+      return { ok: true, credits: estimateChunks(s, chunks, voice) };
     },
 
     async refund(req, credits, conversationId, model) {

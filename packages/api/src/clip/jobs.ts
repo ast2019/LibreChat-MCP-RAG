@@ -5,7 +5,7 @@ import type { ClipImageRef, ClipRequest, WorkerJobRequest } from './scene';
 import type { RemotionServiceClient, WorkerJobView } from './client';
 import type { TClipToolsConfig } from 'librechat-data-provider';
 import type { ClipNarrationService } from './narration';
-import type { ClipImageService } from './images';
+import type { ClipImagePick, ClipImageService } from './images';
 import type { MediaFetch } from '~/media/types';
 import type { ClipFile } from './tools';
 import type { ServerRequest } from '~/types';
@@ -91,10 +91,25 @@ export interface ClipJobPayload {
   refundOwed?: { aiCredits?: number; narrationCredits?: number };
   /** Failed submits so far (worker 5xx or network), capped by `clipTools.submitRetries` */
   submitFailures?: number;
+  /** The image source the user picked in the wizard; retries and refunds use the same one */
+  imagePick?: ClipImagePick;
+  /**
+   * A charge written ahead of its ledger record, cleared once the line or image is saved with the
+   * job. A retry that finds it for the same item records nothing again, and a failure refunds it.
+   */
+  pendingCharge?: { kind: 'ai' | 'narration'; key: string; credits: number };
 }
 
+type RefundOwed = NonNullable<ClipJobPayload['refundOwed']>;
+
+const pendingOf = (payload: ClipJobPayload, kind: 'ai' | 'narration'): number =>
+  payload.pendingCharge?.kind === kind ? payload.pendingCharge.credits : 0;
+const aiSpent = (payload: ClipJobPayload): number => (payload.aiCredits ?? 0) + pendingOf(payload, 'ai');
+const narrationSpent = (payload: ClipJobPayload): number =>
+  (payload.narrationCredits ?? 0) + pendingOf(payload, 'narration');
+
 /** Credits charged so far for what the job generated (AI images and narration). */
-const spentCredits = (payload: ClipJobPayload): number => (payload.aiCredits ?? 0) + (payload.narrationCredits ?? 0);
+const spentCredits = (payload: ClipJobPayload): number => aiSpent(payload) + narrationSpent(payload);
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const IMAGE_EXT: Record<string, string> = {
@@ -172,38 +187,48 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   const payloadOf = (job: MediaJobRecord): ClipJobPayload => job.payload as unknown as ClipJobPayload;
 
   /**
-   * Gives back what a provider failure already charged (AI images and narration), once.
-   * Returns the credits still charged: 0 when refunded, else everything (the ledger stays truthful).
+   * Gives back what a provider failure already charged (AI images and narration), once. Returns
+   * what is still charged per kind: a kind whose refund was recorded is not listed, one that
+   * failed is, so the ledger stays truthful.
    */
-  async function refundProviderFailure(job: MediaJobRecord, payload: ClipJobPayload): Promise<number> {
-    const charged = spentCredits(payload);
-    if (!(charged > 0)) {
-      return 0;
-    }
+  async function refundProviderFailure(job: MediaJobRecord, payload: ClipJobPayload): Promise<RefundOwed> {
+    const ai = aiSpent(payload);
+    const narration = narrationSpent(payload);
+    let req: ServerRequest | null = null;
     try {
-      const req = await deps.loadOwnerRequest(job);
-      if (!req) {
-        throw new Error('owner request not found');
-      }
-      const results = await Promise.all([
-        payload.aiCredits ? deps.images?.refund(req, payload.aiCredits, job.conversationId) : true,
-        payload.narrationCredits
-          ? deps.narration?.refund(
-              req,
-              payload.narrationCredits,
-              job.conversationId,
-              payload.request.audio.narration?.model,
-            )
-          : true,
-      ]);
-      if (results.every((ok) => ok === true)) {
-        return 0;
-      }
-      throw new Error('refund was not recorded');
+      req = await deps.loadOwnerRequest(job);
     } catch (error) {
-      logger.error(`[clip] refund failed job=${job.id} credits=${charged}`, getSafeErrorMetadata(error));
-      return charged;
+      logger.error(`[clip] refund could not load the owner job=${job.id}`, getSafeErrorMetadata(error));
     }
+    const settle = async (
+      credits: number,
+      kind: string,
+      refund: (owner: ServerRequest) => Promise<boolean> | undefined,
+    ): Promise<boolean> => {
+      if (!(credits > 0)) {
+        return true;
+      }
+      try {
+        if (req && (await refund(req)) === true) {
+          return true;
+        }
+      } catch (error) {
+        logger.error(`[clip] ${kind} refund failed job=${job.id} credits=${credits}`, getSafeErrorMetadata(error));
+        return false;
+      }
+      logger.error(`[clip] ${kind} refund was not recorded job=${job.id} credits=${credits}`);
+      return false;
+    };
+    const [aiDone, narrationDone] = await Promise.all([
+      settle(ai, 'image', (owner) => deps.images?.refund(owner, ai, job.conversationId, payload.imagePick)),
+      settle(narration, 'narration', (owner) =>
+        deps.narration?.refund(owner, narration, job.conversationId, payload.request.audio.narration?.model),
+      ),
+    ]);
+    return {
+      ...(aiDone ? {} : { aiCredits: ai }),
+      ...(narrationDone ? {} : { narrationCredits: narration }),
+    };
   }
 
   /**
@@ -214,33 +239,29 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   async function fail(job: MediaJobRecord, code: ClipJobErrorCode, reason?: string): Promise<void> {
     const payload = job.payload ? payloadOf(job) : undefined;
     const refundable = code === 'narration_failed' || code === 'image_failed';
-    let charged: number | undefined;
-    if (payload) {
-      charged = spentCredits(payload);
-      if (refundable && charged > 0) {
-        if (payload.refundStarted) {
-          logger.error(`[clip] refund not repeated job=${job.id} credits=${charged}`);
-        } else {
-          /** Saved first: if the final write below fails, the retry sees this and does not refund twice. */
-          job.payload = { ...payload, refundStarted: true } as unknown as Record<string, unknown>;
-          await deps.updateMediaJob(job.id, { payload: job.payload });
-          charged = await refundProviderFailure(job, payload);
-        }
+    const spent = payload ? spentCredits(payload) : 0;
+    /** What is still charged after the refund; everything for a failure that keeps its files. */
+    let owed: RefundOwed | undefined;
+    if (payload && refundable && spent > 0) {
+      if (payload.refundStarted) {
+        logger.error(`[clip] refund not repeated job=${job.id} credits=${spent}`);
+        owed = {
+          ...(aiSpent(payload) ? { aiCredits: aiSpent(payload) } : {}),
+          ...(narrationSpent(payload) ? { narrationCredits: narrationSpent(payload) } : {}),
+        };
+      } else {
+        /** Saved first: if the final write below fails, the retry sees this and does not refund twice. */
+        job.payload = { ...payload, refundStarted: true } as unknown as Record<string, unknown>;
+        await deps.updateMediaJob(job.id, { payload: job.payload });
+        owed = await refundProviderFailure(job, payload);
       }
     }
-    const owed = charged && payload && refundable ? charged : 0;
+    const stillCharged = owed ? (owed.aiCredits ?? 0) + (owed.narrationCredits ?? 0) : spent;
     await deps.updateMediaJob(job.id, {
       status: 'failed',
       errorCode: code,
-      payload: owed
-        ? {
-            refundOwed: {
-              ...(payload?.aiCredits ? { aiCredits: payload.aiCredits } : {}),
-              ...(payload?.narrationCredits ? { narrationCredits: payload.narrationCredits } : {}),
-            },
-          }
-        : null,
-      ...(charged || (refundable && payload && spentCredits(payload) > 0) ? { chargedCredits: charged } : {}),
+      payload: owed && stillCharged > 0 ? { refundOwed: owed } : null,
+      ...(spent > 0 ? { chargedCredits: stillCharged } : {}),
     });
     await deps.images?.release(job.id);
     await deps.narration?.release(job.id);
@@ -272,6 +293,19 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   }
 
   /**
+   * A failed generation undid its own charge, so the written-ahead one is dropped from the job
+   * (refunding it as well would pay the user twice). A retry that never made the charge
+   * (`resumed`) keeps it: the earlier attempt may have recorded it.
+   */
+  function dropUnrecorded(job: MediaJobRecord, resumed: ClipJobPayload['pendingCharge']): void {
+    if (resumed || !job.payload) {
+      return;
+    }
+    const { pendingCharge: _dropped, ...rest } = payloadOf(job);
+    job.payload = rest as unknown as Record<string, unknown>;
+  }
+
+  /**
    * Generates the AI images still missing, saves each as the owner's file and records its file
    * id on the job before the next one, so no retry or restart generates or charges it again.
    */
@@ -285,27 +319,41 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     if (!payload.request.images.some((ref) => ref.source === 'ai')) {
       return made;
     }
-    if (!deps.images || !config.aiImages) {
+    if (!deps.images || !(config.aiImages || (payload.imagePick && config.wizard.images.enabled))) {
       throw new ClipJobError('image_failed', 'ai_images_off');
     }
     for (const ref of payload.request.images) {
       if (ref.source !== 'ai') {
         continue;
       }
+      const pending = payload.pendingCharge?.kind === 'ai' && payload.pendingCharge.key === ref.id ? payload.pendingCharge : undefined;
       const image = await deps.images
         .generate(req, ref.prompt, payload.request.storyboard.aspectRatio, {
           conversationId: job.conversationId,
           jobId: job.id,
+          ...(payload.imagePick ? { pick: payload.imagePick } : {}),
+          ...(pending
+            ? { alreadyCharged: pending.credits }
+            : {
+                beforeRecord: async (credits: number) => {
+                  payload = { ...payload, pendingCharge: { kind: 'ai', key: ref.id, credits } };
+                  job.payload = payload as unknown as Record<string, unknown>;
+                  await deps.updateMediaJob(job.id, { payload: job.payload, nextPollAt: later(LEASE_MS) });
+                },
+              }),
         })
         .catch((error: unknown) => {
           logger.warn(`[clip] AI image failed job=${job.id}`, getSafeErrorMetadata(error));
+          dropUnrecorded(job, pending);
           throw new ClipJobError('image_failed', 'ai_provider');
         });
       if (!image.ok) {
+        dropUnrecorded(job, pending);
         throw new ClipJobError(image.code === 'insufficient_credit' ? 'insufficient_credit' : 'image_failed', `ai_${image.code}`);
       }
       const type = IMAGE_TYPES.has(image.type) ? image.type : 'image/png';
-      payload = { ...payload, aiCredits: (payload.aiCredits ?? 0) + image.credits };
+      const { pendingCharge: _ai, ...settledAi } = payload;
+      payload = { ...settledAi, aiCredits: (payload.aiCredits ?? 0) + image.credits };
       job.payload = payload as unknown as Record<string, unknown>;
       const saved = await deps
         .saveMedia(req, {
@@ -367,19 +415,36 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
         lines[index] = id;
         continue;
       }
+      const pending =
+        payload.pendingCharge?.kind === 'narration' && payload.pendingCharge.key === id ? payload.pendingCharge : undefined;
       const made = await deps.narration
-        .generate(req, scene.narration, voice, { conversationId: job.conversationId, jobId: job.id })
+        .generate(req, scene.narration, voice, {
+          conversationId: job.conversationId,
+          jobId: job.id,
+          ...(pending
+            ? { alreadyCharged: pending.credits }
+            : {
+                beforeRecord: async (credits: number) => {
+                  payload = { ...payload, pendingCharge: { kind: 'narration', key: id, credits } };
+                  job.payload = payload as unknown as Record<string, unknown>;
+                  await deps.updateMediaJob(job.id, { payload: job.payload, nextPollAt: later(LEASE_MS) });
+                },
+              }),
+        })
         .catch((error: unknown) => {
           logger.warn(`[clip] narration failed job=${job.id}`, getSafeErrorMetadata(error));
+          dropUnrecorded(job, pending);
           throw new ClipJobError('narration_failed', 'narration_provider');
         });
       if (!made.ok) {
+        dropUnrecorded(job, pending);
         throw new ClipJobError(
           made.code === 'insufficient_credit' ? 'insufficient_credit' : 'narration_failed',
           `narration_${made.code}`,
         );
       }
-      payload = { ...payload, narrationCredits: (payload.narrationCredits ?? 0) + made.credits };
+      const { pendingCharge: _line, ...settledLine } = payload;
+      payload = { ...settledLine, narrationCredits: (payload.narrationCredits ?? 0) + made.credits };
       job.payload = payload as unknown as Record<string, unknown>;
       const saved = await deps
         .saveMedia(req, {
