@@ -3492,7 +3492,7 @@
   "com_ui_browser_handoff_captcha": "نوبت شماست: کپچا را حل کنید.",
   "com_ui_browser_handoff_payment": "نوبت شماست: جزئیات را بررسی کنید و خودتان پرداخت کنید.",
   "com_ui_browser_handoff_confirm": "نوبت شماست: بررسی کنید و خودتان تأیید کنید.",
-  "com_ui_browser_handoff_other": "نوبت شماست.",
+  "com_ui_browser_handoff_generic": "نوبت شماست.",
   "com_ui_browser_you_have_it": "مرورگر دست شماست.",
   "com_ui_browser_private_hint": "مدل چیزی را که اینجا تایپ می‌کنید نمی‌بیند. با بسته شدن مرورگر، ورود شما و همه‌ی داده‌های آن پاک می‌شود.",
   "com_ui_browser_page": "صفحه‌ی مرورگر",

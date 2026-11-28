@@ -85,7 +85,7 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
         return [];
       }
       const price = formatPackPrice(pack.credits, currency);
-      return price == null ? [] : [{ pack, price }];
+      return price == null ? [] : [{ pack, price, credits: pack.credits }];
     });
     const purchaseUrl = startupConfig?.balance?.purchaseUrl;
     body =
@@ -94,7 +94,7 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
       ) : (
         <div className="space-y-4">
           <ul className="space-y-2" data-testid="payment-pack-list">
-            {configured.map(({ pack, price }) => (
+            {configured.map(({ pack, price, credits }) => (
               <li
                 key={pack.id}
                 data-testid="payment-pack"
@@ -107,7 +107,7 @@ export default function Checkout({ onRedirect = redirect }: CheckoutProps) {
                 <span className="text-end whitespace-nowrap">
                   <span className="text-text-primary block text-sm font-semibold">{price}</span>
                   <span className="text-text-secondary block text-xs" data-testid="pack-usd">
-                    {localize('com_ui_payment_pack_usd', { 0: formatPackUsd(pack.credits) })}
+                    {localize('com_ui_payment_pack_usd', { 0: formatPackUsd(credits) })}
                   </span>
                 </span>
               </li>

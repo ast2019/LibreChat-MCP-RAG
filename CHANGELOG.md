@@ -7,6 +7,16 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.23] - 2026-11-29
+
+### Fixed
+- Client `tsc --noEmit` is clean again: `Payments/Checkout.tsx` no longer passes a possibly
+  undefined `credits` to `formatPackUsd`, and the `CodeWorkspaceMenu` spec mocks
+  `moveConversationCodeEnvironment` with its real response type.
+- `ClipWizard/Steps.tsx` no longer uses a nested ternary (`no-nested-ternary`).
+- The browser hand-off "other" label key is renamed `com_ui_browser_handoff_generic`, so the
+  `_other` suffix no longer collides with the plural key check in `Translation.spec.ts`.
+
 ## [0.40.22] - 2026-11-29
 
 ### Added

@@ -12,6 +12,13 @@ const LABELS: Record<ClipWizardStep, TranslationKeys> = {
   render: 'com_clipwizard_step_render',
 };
 
+function stepClassName(isCurrent: boolean, isDone: boolean): string {
+  if (isCurrent) {
+    return 'bg-surface-tertiary text-text-primary rounded-full px-3 py-1 font-medium';
+  }
+  return isDone ? 'text-text-primary px-3 py-1' : 'text-text-secondary px-3 py-1';
+}
+
 /** The step indicator: the current step is marked for screen readers too. */
 export default function Steps() {
   const localize = useLocalize();
@@ -27,13 +34,7 @@ export default function Steps() {
           key={step}
           aria-current={step === current ? 'step' : undefined}
           data-testid={`clipwizard-step-${step}`}
-          className={
-            step === current
-              ? 'bg-surface-tertiary text-text-primary rounded-full px-3 py-1 font-medium'
-              : index < at
-                ? 'text-text-primary px-3 py-1'
-                : 'text-text-secondary px-3 py-1'
-          }
+          className={stepClassName(step === current, index < at)}
         >
           {index + 1}. {localize(LABELS[step])}
         </li>
