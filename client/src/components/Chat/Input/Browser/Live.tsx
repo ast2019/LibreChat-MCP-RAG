@@ -19,7 +19,7 @@ const HANDOFF_KEYS: Record<NonNullable<TBrowserSessionView['handoff']>['reason']
     captcha: 'com_ui_browser_handoff_captcha',
     payment: 'com_ui_browser_handoff_payment',
     confirm: 'com_ui_browser_handoff_confirm',
-    other: 'com_ui_browser_handoff_other',
+    other: 'com_ui_browser_handoff_generic',
   };
 
 const KEYS: ReadonlyArray<{ key: 'Enter' | 'Tab' | 'Backspace'; label: TranslationKeys }> = [

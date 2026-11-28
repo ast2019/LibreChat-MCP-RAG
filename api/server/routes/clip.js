@@ -5,6 +5,7 @@ const {
   clipWizardLimiter,
   clipWizardSampleLimiter,
   clipWizardPreviewLimiter,
+  clipWizardStyleLimiter,
   clipWizardLlmLimiter,
 } = require('~/server/middleware/limiters/clipWizardLimiters');
 const { clipWizard } = require('~/server/services/Clip');
@@ -29,7 +30,7 @@ const handle = (name, run) => async (req, res) => {
 router.get('/wizard/config', handle('config', (req) => clipWizard.config(req)));
 router.post('/wizard/storyboard/validate', handle('validate', (req) => clipWizard.validate(req)));
 router.post('/wizard/voice-sample', clipWizardSampleLimiter, handle('voice-sample', (req) => clipWizard.voiceSample(req)));
-router.post('/wizard/style-sample', handle('style-sample', (req) => clipWizard.styleSample(req)));
+router.post('/wizard/style-sample', clipWizardStyleLimiter, handle('style-sample', (req) => clipWizard.styleSample(req)));
 router.post('/wizard/preview', clipWizardPreviewLimiter, handle('preview', (req) => clipWizard.preview(req)));
 router.post('/wizard/draft', clipWizardLlmLimiter, handle('draft', (req) => clipWizard.draft(req)));
 router.post('/wizard/chat', clipWizardLlmLimiter, handle('chat', (req) => clipWizard.chat(req)));

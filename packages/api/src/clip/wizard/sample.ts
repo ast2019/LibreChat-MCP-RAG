@@ -207,7 +207,7 @@ export function createVoiceSampler(now: () => number = () => Date.now()): VoiceS
           continue;
         }
         const key = keyOf(resolved.choice, entry.lang);
-        if (!(await stored(deps, key))) {
+        if (!(await stored(deps, key)) && (retryAt.get(key) ?? 0) <= now()) {
           await make(req, deps, key, resolved.choice, entry.lang);
         }
       }

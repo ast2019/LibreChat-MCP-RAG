@@ -1424,7 +1424,7 @@ describe('CodeWorkspaceMenu', () => {
       conversationId: 'chat-1',
       codeEnvironmentMode: 'without_attached',
       codeWorkspaces: undefined,
-    } as TConversation);
+    });
     renderMenu(<CodeWorkspaceMenu setConversation={setter} workspace={graph} disabled={false} />);
 
     expect(screen.getByTestId('code-workspace-detach-inline')).toHaveTextContent(

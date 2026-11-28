@@ -3500,7 +3500,7 @@
   "com_ui_browser_handoff_captcha": "Your turn: solve the CAPTCHA.",
   "com_ui_browser_handoff_payment": "Your turn: check the details and pay yourself.",
   "com_ui_browser_handoff_confirm": "Your turn: check it and confirm it yourself.",
-  "com_ui_browser_handoff_other": "Your turn.",
+  "com_ui_browser_handoff_generic": "Your turn.",
   "com_ui_browser_you_have_it": "You have the browser.",
   "com_ui_browser_private_hint": "The model does not see what you type here. When the browser closes, your sign-in and everything in it are erased.",
   "com_ui_browser_page": "Browser page",
