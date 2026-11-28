@@ -1,6 +1,8 @@
 import type { TClipWizardErrorCode, TClipWizardIssue } from 'librechat-data-provider';
 import type { ClipNarrationService } from '../narration';
+import type { WorkerJobRequest } from '../scene';
 import type { ClipStartDeps } from '../start';
+import type { WorkerStill } from '../client';
 import type { WizardLlm } from './llm';
 
 /** What a handler answers: the host sends `body` as JSON with `status`. */
@@ -29,6 +31,8 @@ export interface ClipWizardDeps extends ClipStartDeps {
   env?: Record<string, string | undefined>;
   /** The persisted voice sample store; samples live in process memory only when absent */
   voiceSamples?: ClipVoiceSampleStore;
+  /** Renders key frames on the render worker (`POST /stills`); the worker client when absent */
+  stills?: (input: WorkerJobRequest) => Promise<{ stills: WorkerStill[]; warnings: string[] }>;
   /** Speaks a free (Edge) sample line; the render worker's `/tts-sample` when absent */
   speakEdge?: (input: {
     text: string;

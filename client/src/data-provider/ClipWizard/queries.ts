@@ -8,10 +8,14 @@ import type {
   TClipWizardDraftResponse,
   TClipWizardEstimateRequest,
   TClipWizardEstimateResponse,
+  TClipWizardPreviewRequest,
+  TClipWizardPreviewResponse,
   TClipWizardRenderRequest,
   TClipWizardRenderResponse,
   TClipWizardValidateRequest,
   TClipWizardValidateResponse,
+  TClipWizardStyleSampleRequest,
+  TClipWizardStyleSampleResponse,
   TClipWizardVoiceSampleRequest,
   TClipWizardVoiceSampleResponse,
 } from 'librechat-data-provider';
@@ -82,4 +86,34 @@ export const useEstimateClipWizardMutation = (): UseMutationResult<
 > =>
   useMutation([MutationKeys.clipWizardEstimate], (payload: TClipWizardEstimateRequest) =>
     dataService.estimateClipWizard(payload),
+  );
+
+/**
+ * A picture of a built-in style or an AI image model. The server keeps it, so it is asked for once
+ * per visit; an image model without a stored sample answers `no_sample` and is never made.
+ */
+export const useClipStyleSampleQuery = (
+  payload: TClipWizardStyleSampleRequest,
+  enabled = true,
+): QueryObserverResult<TClipWizardStyleSampleResponse> =>
+  useQuery<TClipWizardStyleSampleResponse>(
+    [QueryKeys.clipWizardStyleSample, payload.kind, payload.id],
+    () => dataService.getClipWizardStyleSample(payload),
+    {
+      enabled,
+      staleTime: Infinity,
+      cacheTime: Infinity,
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  );
+
+/** Key frames of the storyboard before the full render; nothing is charged. */
+export const usePreviewClipWizardMutation = (): UseMutationResult<
+  TClipWizardPreviewResponse,
+  unknown,
+  TClipWizardPreviewRequest
+> =>
+  useMutation([MutationKeys.clipWizardPreview], (payload: TClipWizardPreviewRequest) =>
+    dataService.previewClipWizard(payload),
   );

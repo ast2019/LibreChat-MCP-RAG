@@ -40,7 +40,7 @@ export default function ClipWizard() {
         {step === 'topic' ? <Topic config={data} /> : null}
         {step === 'settings' ? <Settings config={data} /> : null}
         {step === 'storyboard' ? <Storyboard config={data} /> : null}
-        {step === 'preview' ? <Preview /> : null}
+        {step === 'preview' ? <Preview config={data} /> : null}
         {step === 'render' ? <Render /> : null}
         <Chat config={data} />
       </>

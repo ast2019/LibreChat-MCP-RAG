@@ -94,6 +94,8 @@ export const clipWizardImageModelSchema = z.object({
   source: z.enum(['openrouter', 'higgsfield']),
   /** Credits one image of this model is estimated at */
   credits: z.number(),
+  /** A cached sample image already exists; one is never made on a user's request */
+  hasSample: z.boolean().optional(),
 });
 
 export type TClipWizardImageModel = z.infer<typeof clipWizardImageModelSchema>;
@@ -117,6 +119,8 @@ export const clipWizardConfigResponseSchema = z.object({
     maxChatChars: z.number(),
   }),
   aspectRatios: z.array(z.enum(clipWizardAspectRatios)),
+  /** Key-frame previews are on (`clipTools.preview`) */
+  preview: z.boolean(),
   themes: z.array(z.object({ id: z.string(), label: z.string() })),
   imageSources: z.object({
     builtin: z.boolean(),
@@ -176,6 +180,23 @@ export type TClipWizardVoiceSampleResponse = {
   cached: boolean;
 };
 
+/** A sample picture of a built-in style (rendered once from sample text) or of an AI image model. */
+export const clipWizardStyleSampleRequestSchema = z.object({
+  kind: z.enum(['theme', 'image']),
+  id: z.string().min(1).max(120),
+});
+
+export type TClipWizardStyleSampleRequest = z.infer<typeof clipWizardStyleSampleRequestSchema>;
+
+export type TClipWizardStyleSampleResponse = {
+  kind: 'theme' | 'image';
+  id: string;
+  mime: string;
+  base64: string;
+  /** Served from the cache; nothing was charged */
+  cached: boolean;
+};
+
 export const clipWizardRenderRequestSchema = z.object({
   storyboard: clipWizardStoryboardSchema,
   settings: z
@@ -199,6 +220,26 @@ const clipWizardDraftSettingsSchema = z.object({
   targetDurationSec: z.number().min(5).max(180).optional(),
   language: z.enum(['fa', 'en']).optional(),
 });
+
+/** Key frames of the storyboard before the full render; nothing is charged. */
+export const clipWizardPreviewRequestSchema = z.object({
+  storyboard: clipWizardStoryboardSchema,
+  settings: z
+    .object({
+      aspectRatio: z.enum(clipWizardAspectRatios).optional(),
+      images: clipWizardImagesSchema.optional(),
+    })
+    .default({}),
+});
+
+export type TClipWizardPreviewRequest = z.infer<typeof clipWizardPreviewRequestSchema>;
+
+export type TClipWizardPreviewResponse = {
+  /** One small image per scene from the start, up to `clipTools.previewStills` */
+  stills: Array<{ frame: number; mime: string; base64: string }>;
+  /** Notes from the render service, for example an image shown as a grey placeholder */
+  notes: string[];
+};
 
 export const clipWizardDraftRequestSchema = z.object({
   topic: z.string().trim().min(3).max(20_000),

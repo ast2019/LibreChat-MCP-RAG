@@ -44,6 +44,10 @@ import type {
   TClipWizardRenderResponse,
   TClipWizardValidateRequest,
   TClipWizardValidateResponse,
+  TClipWizardPreviewRequest,
+  TClipWizardPreviewResponse,
+  TClipWizardStyleSampleRequest,
+  TClipWizardStyleSampleResponse,
   TClipWizardVoiceSampleRequest,
   TClipWizardVoiceSampleResponse,
 } from './clipWizard';
@@ -205,6 +209,18 @@ export function getClipWizardVoiceSample(
   payload: TClipWizardVoiceSampleRequest,
 ): Promise<TClipWizardVoiceSampleResponse> {
   return request.post(endpoints.clipWizardVoiceSample(), payload);
+}
+
+export function getClipWizardStyleSample(
+  payload: TClipWizardStyleSampleRequest,
+): Promise<TClipWizardStyleSampleResponse> {
+  return request.post(endpoints.clipWizardStyleSample(), payload);
+}
+
+export function previewClipWizard(
+  payload: TClipWizardPreviewRequest,
+): Promise<TClipWizardPreviewResponse> {
+  return request.post(endpoints.clipWizardPreview(), payload);
 }
 
 export function draftClipWizardStoryboard(

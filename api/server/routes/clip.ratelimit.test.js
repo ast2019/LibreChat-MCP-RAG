@@ -5,6 +5,8 @@ const mockWizard = {
   config: jest.fn(async () => ({ status: 200, body: { ok: true } })),
   validate: jest.fn(async () => ({ status: 200, body: { ok: true } })),
   voiceSample: jest.fn(async () => ({ status: 200, body: { ok: true } })),
+  styleSample: jest.fn(async () => ({ status: 200, body: { ok: true } })),
+  preview: jest.fn(async () => ({ status: 200, body: { ok: true } })),
   render: jest.fn(async () => ({ status: 200, body: { ok: true } })),
   draft: jest.fn(async () => ({ status: 200, body: { ok: true } })),
   chat: jest.fn(async () => ({ status: 200, body: { ok: true } })),
@@ -30,6 +32,7 @@ describe('clip wizard rate limits', () => {
     process.env.CLIP_WIZARD_MAX = '5';
     process.env.CLIP_WIZARD_SAMPLE_MAX = '2';
     process.env.CLIP_WIZARD_LLM_MAX = '2';
+    process.env.CLIP_WIZARD_PREVIEW_MAX = '2';
     Object.values(mockWizard).forEach((fn) => fn.mockClear());
     app = express();
     app.use(express.json());
@@ -40,6 +43,7 @@ describe('clip wizard rate limits', () => {
     delete process.env.CLIP_WIZARD_MAX;
     delete process.env.CLIP_WIZARD_SAMPLE_MAX;
     delete process.env.CLIP_WIZARD_LLM_MAX;
+    delete process.env.CLIP_WIZARD_PREVIEW_MAX;
   });
 
   it('answers 429 rate_limited on voice-sample past its cap, without calling the provider path', async () => {
@@ -73,5 +77,19 @@ describe('clip wizard rate limits', () => {
     expect(blocked.body).toEqual({ error: { code: 'rate_limited' } });
     expect(mockWizard.draft).toHaveBeenCalledTimes(1);
     expect(mockWizard.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps previews per user before the worker is called, and serves style samples under the general cap only', async () => {
+    const preview = () => request(app).post('/api/clip/wizard/preview').send({});
+    expect((await preview()).status).toBe(200);
+    expect((await preview()).status).toBe(200);
+    const blocked = await preview();
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toEqual({ error: { code: 'rate_limited' } });
+    expect(mockWizard.preview).toHaveBeenCalledTimes(2);
+    const style = () => request(app).post('/api/clip/wizard/style-sample').send({});
+    expect((await style()).status).toBe(200);
+    expect((await style()).status).toBe(200);
+    expect(mockWizard.styleSample).toHaveBeenCalledTimes(2);
   });
 });

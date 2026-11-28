@@ -18,6 +18,7 @@ import {
 } from '~/store/clipWizard';
 import { useEstimateClipWizardMutation, useValidateClipStoryboardMutation } from '~/data-provider';
 import { clipWizardErrorCode } from './errors';
+import StyleSamples from './StyleSamples';
 import { useLocalize } from '~/hooks';
 import Notice from './Notice';
 import Model from './Model';
@@ -190,6 +191,13 @@ export default function Storyboard({ config }: { config: TClipWizardConfigRespon
           </div>
         ) : null}
       </div>
+      {config.themes.length > 0 ? (
+        <StyleSamples
+          themes={config.themes}
+          selected={typeof storyboard.theme === 'string' ? storyboard.theme : undefined}
+          onSelect={setTheme}
+        />
+      ) : null}
       <ol className="flex flex-col gap-3">
         {storyboard.scenes.map((scene, index) => {
           const own = issues.filter((issue) => sceneOf(issue) === index);

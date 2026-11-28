@@ -15,6 +15,7 @@ import {
   clipWizardVoiceIdAtom,
 } from '~/store/clipWizard';
 import { useClipVoiceSampleMutation } from '~/data-provider';
+import StyleSamples, { StyleSample } from './StyleSamples';
 import { clipWizardErrorCode } from './errors';
 import { useLocalize } from '~/hooks';
 import Notice from './Notice';
@@ -124,8 +125,16 @@ function ImageSettings({ config }: { config: TClipWizardConfigResponse }) {
           </Button>
         ))}
       </div>
+      {images.source === 'builtin' && config.themes.length > 0 ? (
+        <StyleSamples themes={config.themes} />
+      ) : null}
       {images.source !== 'builtin' && model ? (
         <>
+          {model.hasSample ? (
+            <ul className="w-48">
+              <StyleSample kind="image" id={model.id} label={model.label} />
+            </ul>
+          ) : null}
           <span id="clipwizard-image-model-label" className="text-sm">
             {localize('com_clipwizard_images_model')}
           </span>
