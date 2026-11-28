@@ -7,6 +7,30 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.21] - 2026-11-29
+
+### Changed
+- **Clip wizard voice samples.** Every voice, free Edge voices included, now has a sample. Samples
+  are made once at the platform's cost, stored in the new `ClipVoiceSample` collection (so they
+  survive a restart) and served to everyone; no user is charged for a sample and
+  `clipTools.wizard.sampleCharge` is deprecated and ignored (its default is now `platform`). Edge
+  samples are spoken by the Remotion worker through the new `POST /tts-sample`. A background pass
+  started by `GET /wizard/config` (at most every 10 minutes) makes the missing ones one at a time.
+  A bad provider token only logs a warning and skips the voice; the voice is retried after 60 s
+  and by the next pass. `hasSample` is true for all voices.
+- **`clipTools.wizard.access` is `everyone`** in `config/librechat.saas.yaml`. Paid voices and AI
+  images still check media access and credit where they charge.
+
+### Fixed
+- **Refund bookkeeping.** Each recorded refund (images, narration) is saved as `refundedCredits`
+  right away. A retry after the final job write failed lists only the unrefunded remainder in
+  `refundOwed`, so a manual settlement cannot pay the user twice.
+
+### Notes
+- Higgsfield has no speech or TTS endpoint in its public API documentation (only image and video
+  models, with an audio reference as an input), so no Higgsfield voice was added. See
+  `docs/saas/clip-wizard-fa.md`.
+
 ## [0.40.20] - 2026-11-29
 
 ### Fixed

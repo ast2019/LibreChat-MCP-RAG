@@ -422,3 +422,19 @@ test('stale clip temp dirs are removed at startup, other dirs are kept', async (
   assert.deepEqual(await fs.readdir(root), ['other-dir']);
   await fs.rm(root, { recursive: true, force: true });
 });
+
+test('POST /tts-sample returns one Edge line as base64 mp3 and keeps nothing', async () => {
+  const calls = {};
+  await withServer(fakeImpls(calls), async ({ base }) => {
+    const res = await post(base, { text: 'Hello there', voice: 'en-US-JennyNeural', lang: 'en' }, '/tts-sample');
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.mime, 'audio/mpeg');
+    assert.equal(Buffer.from(body.base64, 'base64').length, 1000);
+    assert.deepEqual(calls.tts, { voice: 'en-US-JennyNeural', scenes: 1 });
+    const bad = await post(base, { text: '' }, '/tts-sample');
+    assert.equal(bad.status, 400);
+    const anon = await fetch(`${base}/tts-sample`, { method: 'POST', body: '{}' });
+    assert.equal(anon.status, 401);
+  });
+});

@@ -17,6 +17,7 @@ export * from './payment';
 export * from './browserSession';
 export * from './debugTrace';
 export * from './mediaJob';
+export * from './clipVoiceSample';
 export * from './balance';
 export * from './banner';
 export * from './transaction';

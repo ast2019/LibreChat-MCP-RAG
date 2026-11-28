@@ -87,6 +87,11 @@ export interface ClipJobPayload {
    * where a double refund would be silent.
    */
   refundStarted?: boolean;
+  /**
+   * Credits per kind whose refund was recorded, saved right after each refund succeeds. A retry
+   * after the final write failed subtracts them, so a manual settlement is never owed twice.
+   */
+  refundedCredits?: { aiCredits?: number; narrationCredits?: number };
   /** What a failed refund still owes the user; kept on the failed job for reconciliation */
   refundOwed?: { aiCredits?: number; narrationCredits?: number };
   /** Failed submits so far (worker 5xx or network), capped by `clipTools.submitRetries` */
@@ -194,6 +199,7 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
   async function refundProviderFailure(job: MediaJobRecord, payload: ClipJobPayload): Promise<RefundOwed> {
     const ai = aiSpent(payload);
     const narration = narrationSpent(payload);
+    const refunded: NonNullable<ClipJobPayload['refundedCredits']> = {};
     let req: ServerRequest | null = null;
     try {
       req = await deps.loadOwnerRequest(job);
@@ -202,7 +208,7 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     }
     const settle = async (
       credits: number,
-      kind: string,
+      kind: 'image' | 'narration',
       refund: (owner: ServerRequest) => Promise<boolean> | undefined,
     ): Promise<boolean> => {
       if (!(credits > 0)) {
@@ -210,6 +216,12 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
       }
       try {
         if (req && (await refund(req)) === true) {
+          refunded[kind === 'image' ? 'aiCredits' : 'narrationCredits'] = credits;
+          /** Saved at once: a crash before the final write must not owe this amount again. */
+          job.payload = { ...payload, refundStarted: true, refundedCredits: { ...refunded } } as unknown as Record<string, unknown>;
+          await deps.updateMediaJob(job.id, { payload: job.payload }).catch((error: unknown) => {
+            logger.error(`[clip] refund marker not saved job=${job.id}`, getSafeErrorMetadata(error));
+          });
           return true;
         }
       } catch (error) {
@@ -245,9 +257,14 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     if (payload && refundable && spent > 0) {
       if (payload.refundStarted) {
         logger.error(`[clip] refund not repeated job=${job.id} credits=${spent}`);
+        const ai = Math.max(0, aiSpent(payload) - (payload.refundedCredits?.aiCredits ?? 0));
+        const narration = Math.max(
+          0,
+          narrationSpent(payload) - (payload.refundedCredits?.narrationCredits ?? 0),
+        );
         owed = {
-          ...(aiSpent(payload) ? { aiCredits: aiSpent(payload) } : {}),
-          ...(narrationSpent(payload) ? { narrationCredits: narrationSpent(payload) } : {}),
+          ...(ai ? { aiCredits: ai } : {}),
+          ...(narration ? { narrationCredits: narration } : {}),
         };
       } else {
         /** Saved first: if the final write below fails, the retry sees this and does not refund twice. */

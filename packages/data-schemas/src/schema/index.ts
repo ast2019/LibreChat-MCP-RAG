@@ -27,6 +27,7 @@ export { default as paymentOrderSchema } from './payment';
 export { default as browserSessionSchema } from './browserSession';
 export { default as debugTraceSchema } from './debugTrace';
 export { default as mediaJobSchema } from './mediaJob';
+export { default as clipVoiceSampleSchema } from './clipVoiceSample';
 export { default as sessionSchema } from './session';
 export { default as shareSchema } from './share';
 export { default as skillSyncCredentialSchema } from './skillSyncCredential';

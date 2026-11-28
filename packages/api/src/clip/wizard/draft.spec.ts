@@ -266,7 +266,7 @@ describe('wizard defaults', () => {
     const parsed = clipToolsSchema.parse({});
     expect(parsed.aiImages).toBe(false);
     expect(parsed.wizard.images).toEqual({ enabled: false, maxCreditsPerClip: 0 });
-    expect(parsed.wizard.sampleCharge).toBe('requester');
+    expect(parsed.wizard.sampleCharge).toBe('platform');
     expect(parsed.wizard.llm.endpoint).toBe('OpenRouter');
     expect(parsed.wizard.llm.repairAttempts).toBe(1);
   });
@@ -764,19 +764,15 @@ describe('wizard images', () => {
 });
 
 describe('wizard voice sample charge', () => {
-  it('charges nobody when sampleCharge is platform', async () => {
-    const { wizard, billing, speechClient } = setup();
-    const config = appConfig({ wizard: { sampleCharge: 'platform' } });
-    const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, config));
-    expect(reply.status).toBe(200);
-    expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
-    expect(billing.hold).not.toHaveBeenCalled();
-    expect(billing.record).not.toHaveBeenCalled();
-  });
-
-  it('still charges the first requester by default', async () => {
-    const { wizard, billing } = setup();
-    await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
-    expect(billing.record).toHaveBeenCalledTimes(1);
+  it('charges nobody whatever sampleCharge says: the platform pays', async () => {
+    for (const sampleCharge of ['platform', 'requester']) {
+      const { wizard, billing, speechClient } = setup();
+      const config = appConfig({ wizard: { sampleCharge } });
+      const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, config));
+      expect(reply.status).toBe(200);
+      expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
+      expect(billing.hold).not.toHaveBeenCalled();
+      expect(billing.record).not.toHaveBeenCalled();
+    }
   });
 });

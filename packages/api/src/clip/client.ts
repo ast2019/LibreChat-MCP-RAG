@@ -10,6 +10,7 @@ export const WORKER_CALL_TIMEOUT_MS = 20_000;
 export const WORKER_SUBMIT_TIMEOUT_MS = 90_000;
 export const WORKER_DOWNLOAD_TIMEOUT_MS = 180_000;
 export const WORKER_STILLS_TIMEOUT_MS = 150_000;
+export const WORKER_SPEAK_TIMEOUT_MS = 40_000;
 
 export class RemotionServiceError extends Error {
   constructor(
@@ -88,6 +89,8 @@ export interface RemotionServiceClient {
   cancel(jobId: string): Promise<WorkerJobView>;
   video(jobId: string): Promise<Buffer>;
   stills(input: WorkerJobRequest): Promise<{ stills: WorkerStill[]; warnings: string[] }>;
+  /** One short free (Edge) line as base64 audio, for voice samples; the worker keeps nothing. */
+  speak(input: { text: string; voice?: string; lang: 'fa' | 'en' }): Promise<{ mime: string; base64: string }>;
 }
 
 interface WorkerErrorBody {
@@ -230,6 +233,18 @@ export function createRemotionServiceClient(
         stills: Array.isArray(body.stills) ? body.stills : [],
         warnings: Array.isArray(body.warnings) ? body.warnings : [],
       };
+    },
+    async speak(input) {
+      const body = await call<{ mime?: string; base64?: string }>(
+        'POST',
+        '/tts-sample',
+        input,
+        WORKER_SPEAK_TIMEOUT_MS,
+      );
+      if (typeof body.mime !== 'string' || typeof body.base64 !== 'string' || !body.base64) {
+        throw new RemotionServiceError('failed', 'The Remotion service sent no audio', 502);
+      }
+      return { mime: body.mime, base64: body.base64 };
     },
   };
 }

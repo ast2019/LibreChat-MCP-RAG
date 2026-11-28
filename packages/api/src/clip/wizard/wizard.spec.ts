@@ -5,7 +5,7 @@ import type { ServerRequest } from '~/types';
 import { createClipNarrationService } from '../narration';
 import { RemotionServiceError } from '../client';
 import { createClipWizard } from './index';
-import { SAMPLE_TEXT, SAMPLE_TTL_MS } from './sample';
+import { SAMPLE_RETRY_MS, SAMPLE_TEXT } from './sample';
 
 const ENV = {
   REMOTION_SERVICE_URL: 'http://remotion:3200',
@@ -96,6 +96,7 @@ function setup({
   balance = 10_000_000,
   packId = 'starter' as string | null,
   synthFails = false,
+  edgeFails = false,
   jobFails = false,
   pending = 0,
 } = {}) {
@@ -144,7 +145,22 @@ function setup({
       nextPollAt: new Date(),
     } as unknown as MediaJobRecord;
   });
+  const stored = new Map<string, { key: string; mime: string; base64: string }>();
+  const voiceSamples = {
+    find: jest.fn(async (key: string) => stored.get(key) ?? null),
+    save: jest.fn(async (sample: { key: string; mime: string; base64: string }) => {
+      stored.set(sample.key, sample);
+    }),
+  };
+  const speakEdge = jest.fn(async () => {
+    if (edgeFails) {
+      throw new Error('worker down');
+    }
+    return { mime: 'audio/mpeg', base64: Buffer.alloc(300).toString('base64') };
+  });
   const wizard = createClipWizard({
+    voiceSamples,
+    speakEdge,
     createMediaJob,
     countPendingMediaJobs: jest.fn(async () => pending),
     findBalanceByUser: async () => ({ packId }),
@@ -153,7 +169,17 @@ function setup({
     narration,
     env: ENV,
   });
-  return { wizard, billing, speechClient, createMediaJob, holds, spent: () => balance - available };
+  return {
+    wizard,
+    billing,
+    speechClient,
+    createMediaJob,
+    holds,
+    voiceSamples,
+    speakEdge,
+    stored,
+    spent: () => balance - available,
+  };
 }
 
 const code = (reply: { body: unknown }) => (reply.body as { error?: { code: string } }).error?.code;
@@ -189,7 +215,7 @@ describe('wizard config', () => {
     expect(body.voices.map((v) => [v.id, v.priceHint, v.hasSample])).toEqual([
       ['eleven-sarah', 'paid', true],
       ['eleven-sarah-en', 'paid', true],
-      ['fa-IR-DilaraNeural', 'free', false],
+      ['fa-IR-DilaraNeural', 'free', true],
     ]);
     expect(body.limits.maxScenes).toBe(20);
     expect(body.imageSources.higgsfield).toBe(false);
@@ -227,8 +253,10 @@ describe('wizard storyboard validate', () => {
 });
 
 describe('wizard voice sample', () => {
-  it('speaks once, charges the first user, then serves everyone from the cache without a call or a charge', async () => {
-    const { wizard, speechClient, billing, spent } = setup();
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  it('speaks once at the platform cost, stores the sample and serves everyone from it', async () => {
+    const { wizard, speechClient, billing, voiceSamples, spent } = setup();
     const first = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
     expect(first.status).toBe(200);
     expect(first.body).toMatchObject({
@@ -237,16 +265,27 @@ describe('wizard voice sample', () => {
       mime: 'audio/mpeg',
     });
     expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
-    expect(billing.record).toHaveBeenCalledTimes(1);
-    const charged = spent();
+    expect(voiceSamples.save).toHaveBeenCalledTimes(1);
     const second = await wizard.voiceSample(
       request({ voiceId: 'eleven-sarah' }, appConfig(), 'u2'),
     );
     expect(second.body).toMatchObject({ cached: true });
     expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
-    expect(billing.record).toHaveBeenCalledTimes(1);
-    expect(billing.hold).toHaveBeenCalledTimes(1);
-    expect(spent()).toBe(charged);
+    expect(billing.hold).not.toHaveBeenCalled();
+    expect(billing.record).not.toHaveBeenCalled();
+    expect(spent()).toBe(0);
+  });
+
+  it('serves a sample stored before a restart without calling the provider', async () => {
+    const { wizard, speechClient, stored } = setup();
+    stored.set('openrouter|eleven/v3|sarah|fa', {
+      key: 'openrouter|eleven/v3|sarah|fa',
+      mime: 'audio/mpeg',
+      base64: 'AAAA',
+    });
+    const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
+    expect(reply.body).toMatchObject({ cached: true, base64: 'AAAA' });
+    expect(speechClient.synthesize).not.toHaveBeenCalled();
   });
 
   it('keeps one sample per language for the same model and voice', async () => {
@@ -263,82 +302,88 @@ describe('wizard voice sample', () => {
     expect(inputs).toEqual([SAMPLE_TEXT.fa, SAMPLE_TEXT.en]);
   });
 
-  it('after a failed pending call, waiters run one call at a time and share its sample', async () => {
-    const { wizard, speechClient, billing } = setup();
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const synth = speechClient.synthesize as jest.Mock;
-    synth.mockImplementationOnce(async () => {
-      await gate;
-      throw new Error('provider down');
-    });
-    const first = wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), 'u1'));
-    const waiters = [2, 3, 4].map((n) =>
-      wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), `u${n}`)),
+  it('shares one provider call between simultaneous requests for the same voice', async () => {
+    const { wizard, speechClient } = setup();
+    const replies = await Promise.all(
+      [1, 2, 3].map((n) =>
+        wizard.voiceSample(request({ voiceId: 'eleven-sarah' }, appConfig(), `u${n}`)),
+      ),
     );
-    await new Promise((resolve) => setImmediate(resolve));
-    release();
-    const replies = await Promise.all([first, ...waiters]);
-    expect(code(replies[0])).toBe('provider_failed');
-    expect(replies.slice(1).map((r) => r.status)).toEqual([200, 200, 200]);
-    expect(
-      replies.slice(1).filter((r) => (r.body as { cached: boolean }).cached === false),
-    ).toHaveLength(1);
-    expect(synth).toHaveBeenCalledTimes(2);
-    expect(billing.record).toHaveBeenCalledTimes(1);
+    expect(replies.map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
   });
 
-  it('makes the sample again once the cached one is older than the TTL', async () => {
+  it('makes a free Edge voice sample through the worker and stores it', async () => {
+    const { wizard, speakEdge, speechClient, billing, stored } = setup();
+    const reply = await wizard.voiceSample(request({ voiceId: 'fa-IR-DilaraNeural' }));
+    expect(reply.status).toBe(200);
+    expect(reply.body).toMatchObject({
+      voiceId: 'fa-IR-DilaraNeural',
+      cached: false,
+      mime: 'audio/mpeg',
+    });
+    expect(speakEdge).toHaveBeenCalledWith({
+      text: SAMPLE_TEXT.fa,
+      lang: 'fa',
+      voice: 'fa-IR-DilaraNeural',
+    });
+    expect(stored.size).toBe(1);
+    expect(speechClient.synthesize).not.toHaveBeenCalled();
+    expect(billing.hold).not.toHaveBeenCalled();
+    expect(
+      (await wizard.voiceSample(request({ voiceId: 'fa-IR-DilaraNeural' }))).body,
+    ).toMatchObject({
+      cached: true,
+    });
+    expect(speakEdge).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers invalid_request for an unknown voice', async () => {
     const { wizard, speechClient } = setup();
+    expect(code(await wizard.voiceSample(request({ voiceId: 'nope' })))).toBe('invalid_request');
+    expect(speechClient.synthesize).not.toHaveBeenCalled();
+  });
+
+  it('serves a paid-voice sample to a user without a pack and charges nobody', async () => {
+    const { wizard, speechClient, billing } = setup({ packId: null });
+    const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
+    expect(reply.status).toBe(200);
+    expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
+    expect(billing.hold).not.toHaveBeenCalled();
+  });
+
+  it('answers provider_failed with no charge, then waits before retrying and recovers once the provider is fixed', async () => {
+    const { wizard, speechClient, billing, holds, spent } = setup({ synthFails: true });
     const realNow = Date.now;
     let at = realNow();
     Date.now = () => at;
     try {
-      await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
-      at += SAMPLE_TTL_MS - 1000;
-      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({
-        cached: true,
-      });
-      at += 2000;
-      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).body).toMatchObject({
-        cached: false,
-      });
+      const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
+      expect(reply.status).toBe(502);
+      expect(code(reply)).toBe('provider_failed');
+      expect(billing.record).not.toHaveBeenCalled();
+      expect(holds.open).toBe(0);
+      expect(spent()).toBe(0);
+      /** inside the retry window: no new provider call */
+      expect(code(await wizard.voiceSample(request({ voiceId: 'eleven-sarah' })))).toBe(
+        'provider_failed',
+      );
+      expect(speechClient.synthesize).toHaveBeenCalledTimes(1);
+      /** the owner fixed the token; after the window the next request makes the sample */
+      (speechClient.synthesize as jest.Mock).mockResolvedValue({ audio: Buffer.alloc(480) });
+      at += SAMPLE_RETRY_MS + 1;
+      expect((await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }))).status).toBe(200);
       expect(speechClient.synthesize).toHaveBeenCalledTimes(2);
     } finally {
       Date.now = realNow;
     }
   });
 
-  it('answers no_sample for an Edge voice and invalid_request for an unknown voice', async () => {
-    const { wizard, speechClient } = setup();
-    const edge = await wizard.voiceSample(request({ voiceId: 'fa-IR-DilaraNeural' }));
-    expect(edge.status).toBe(422);
-    expect(code(edge)).toBe('no_sample');
-    expect(code(await wizard.voiceSample(request({ voiceId: 'nope' })))).toBe('invalid_request');
-    expect(speechClient.synthesize).not.toHaveBeenCalled();
-  });
-
-  it('answers insufficient_credit with no speech call and nothing held', async () => {
-    const { wizard, speechClient, holds } = setup({ balance: 10 });
-    const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
-    expect(reply.status).toBe(402);
-    expect(code(reply)).toBe('insufficient_credit');
-    expect(speechClient.synthesize).not.toHaveBeenCalled();
-    expect(holds.open).toBe(0);
-  });
-
-  it('answers provider_failed with no charge, no hold left and nothing cached', async () => {
-    const { wizard, billing, holds, spent } = setup({ synthFails: true });
-    const reply = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
-    expect(reply.status).toBe(502);
-    expect(code(reply)).toBe('provider_failed');
-    expect(billing.record).not.toHaveBeenCalled();
-    expect(holds.open).toBe(0);
-    expect(spent()).toBe(0);
-    const again = await wizard.voiceSample(request({ voiceId: 'eleven-sarah' }));
-    expect(code(again)).toBe('provider_failed');
+  it('answers provider_failed for an Edge voice when the worker is down', async () => {
+    const { wizard } = setup({ edgeFails: true });
+    expect(code(await wizard.voiceSample(request({ voiceId: 'fa-IR-DilaraNeural' })))).toBe(
+      'provider_failed',
+    );
   });
 
   it('refuses a user outside the pack rule', async () => {
@@ -346,6 +391,18 @@ describe('wizard voice sample', () => {
       request({ voiceId: 'eleven-sarah' }, appConfig({ enabled: true, access: 'pack' })),
     );
     expect(code(reply)).toBe('not_allowed');
+  });
+
+  it('makes every missing sample in the background after a config request, tolerating failures', async () => {
+    const { wizard, speechClient, speakEdge, stored } = setup({ synthFails: true });
+    const reply = await wizard.config(request({}));
+    expect(reply.status).toBe(200);
+    await flush();
+    await flush();
+    /** both paid voices failed (bad token) and were skipped; the Edge voice was still made */
+    expect(speechClient.synthesize).toHaveBeenCalledTimes(2);
+    expect(speakEdge).toHaveBeenCalledTimes(1);
+    expect([...stored.keys()]).toEqual(['edge|fa-IR-DilaraNeural|fa']);
   });
 });
 

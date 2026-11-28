@@ -44,6 +44,7 @@ import { createPaymentMethods, type PaymentMethods } from './payment';
 import { createBrowserSessionMethods, type BrowserSessionMethods } from './browserSession';
 import { createDebugTraceMethods, type DebugTraceMethods } from './debugTrace';
 import { createMediaJobMethods, type MediaJobMethods } from './mediaJob';
+import { createClipVoiceSampleMethods, type ClipVoiceSampleMethods } from './clipVoiceSample';
 import { createUserMethods, DEFAULT_SESSION_EXPIRY, type UserMethods } from './user';
 import { createTokenMethods, type TokenMethods } from './token';
 import { createTokenListMethods, type TokenListMethods } from './tokenList';
@@ -295,6 +296,7 @@ export type AllMethods = SubagentContentMethods &
   BrowserSessionMethods &
   DebugTraceMethods &
   MediaJobMethods &
+  ClipVoiceSampleMethods &
   RoleMethods &
   KeyMethods &
   FileMethods &
@@ -543,6 +545,7 @@ export function createMethods(
     ...createBrowserSessionMethods(mongoose),
     ...createDebugTraceMethods(mongoose),
     ...createMediaJobMethods(mongoose),
+    ...createClipVoiceSampleMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
     ...createFileMethods(mongoose),
@@ -615,6 +618,7 @@ export type {
   BrowserSessionMethods,
   DebugTraceMethods,
   MediaJobMethods,
+  ClipVoiceSampleMethods,
   SessionMethods,
   TokenMethods,
   RefreshTokenBridgeMethods,

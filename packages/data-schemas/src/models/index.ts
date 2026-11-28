@@ -33,6 +33,7 @@ import { createAssistantModel } from './assistant';
 import { createSkillFileModel } from './skillFile';
 import { createConversationModel } from './convo';
 import { createMediaJobModel } from './mediaJob';
+import { createClipVoiceSampleModel } from './clipVoiceSample';
 import { createToolCallModel } from './toolCall';
 import { createAclEntryModel } from './aclEntry';
 import { createAuditLogModel } from './auditLog';
@@ -69,6 +70,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   BrowserSession: ReturnType<typeof createBrowserSessionModel>;
   DebugTrace: ReturnType<typeof createDebugTraceModel>;
   MediaJob: ReturnType<typeof createMediaJobModel>;
+  ClipVoiceSample: ReturnType<typeof createClipVoiceSampleModel>;
   Balance: ReturnType<typeof createBalanceModel>;
   Conversation: ReturnType<typeof createConversationModel>;
   ChatProject: ReturnType<typeof createChatProjectModel>;
@@ -128,6 +130,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
     BrowserSession: createBrowserSessionModel(mongoose),
     DebugTrace: createDebugTraceModel(mongoose),
     MediaJob: createMediaJobModel(mongoose),
+    ClipVoiceSample: createClipVoiceSampleModel(mongoose),
     Balance: createBalanceModel(mongoose),
     Conversation: createConversationModel(mongoose),
     ChatProject: createChatProjectModel(mongoose),
