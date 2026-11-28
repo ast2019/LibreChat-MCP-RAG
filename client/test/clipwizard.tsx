@@ -30,6 +30,7 @@ export const wizardConfig: TClipWizardConfigResponse = {
   imageCapCredits: 50,
   limits: { maxDurationSec: 90, maxScenes: 20, maxAssetMb: 55, maxAiImages: 4, maxChatChars: 2000 },
   aspectRatios: ['9:16', '16:9'],
+  preview: true,
   themes: [{ id: 'dark', label: 'Dark' }],
   imageSources: { builtin: true, stock: false, ai: true, higgsfield: false },
 };

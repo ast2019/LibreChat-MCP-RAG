@@ -7,6 +7,28 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.22] - 2026-11-29
+
+### Added
+- **Clip wizard preview step.** The `preview` step now shows one real key frame per scene,
+  rendered by the Remotion worker's `renderStill` through the new `POST /api/clip/wizard/preview`.
+  It follows `clipTools.preview`, `previewStills` and `previewTimeoutSec`, is free (AI and stock
+  images appear as grey placeholders, nothing is narrated) and can be skipped. A busy worker
+  slot answers `busy`, other worker failures `provider_failed`. The route has its own limiter
+  (`CLIP_WIZARD_PREVIEW_MAX` per `CLIP_WIZARD_PREVIEW_WINDOW` minutes, default 20 per 10). The
+  config response gains `preview`. The placeholder text is removed.
+- **Sample pictures for the built-in styles ("سبکهای آماده").** The built-in styles section of the
+  image settings and the style picker in the storyboard step show a real sample of every style.
+  Each is rendered once with `renderStill` from a fixed sample scene through the new
+  `POST /api/clip/wizard/style-sample`, stored in the `ClipVoiceSample` collection under
+  `theme|<id>|v1` and served to everyone at no charge. Renders run one at a time, a failure is
+  retried after 60 s, and a pass started by `GET /wizard/config` (at most every 10 minutes) makes
+  the missing ones in the background.
+- **AI image model samples only when one exists.** A model with a stored `image|<id>` sample is
+  marked `hasSample` in the config and shows it; a sample is never generated on a request (the
+  endpoint answers `no_sample`). Nothing writes these samples yet, so no model shows one until
+  one is stored.
+
 ## [0.40.21] - 2026-11-29
 
 ### Changed

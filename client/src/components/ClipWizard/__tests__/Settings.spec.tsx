@@ -11,6 +11,7 @@ jest.mock('@librechat/client', () =>
 );
 jest.mock('~/data-provider', () => ({
   useClipVoiceSampleMutation: () => ({ mutate: mockMutate }),
+  useClipStyleSampleQuery: () => ({ data: undefined, isLoading: false }),
 }));
 jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string, values?: Record<string, unknown>) =>

@@ -8,9 +8,9 @@ import type { ClipWizardDeps, WizardReply, WizardErrorBody } from './types';
 import type { ServerRequest } from '~/types';
 import { CLIP_THEMES, CLIP_THEME_LABELS } from '../themes';
 import { listWizardModels, publicModels } from './models';
+import { getMediaConfig } from '~/media/config';
 import { CLIP_ASPECT_RATIOS } from '../scene';
 import { wizardImagesOn } from './effect';
-import { getMediaConfig } from '~/media/config';
 import { pexelsKey } from '../images';
 import { openWizard } from './access';
 
@@ -65,6 +65,7 @@ export function wizardConfigBody(
       maxChatChars: config.wizard.llm.maxChatChars,
     },
     aspectRatios: [...CLIP_ASPECT_RATIOS],
+    preview: config.preview,
     themes: CLIP_THEMES.map((id) => ({ id, label: CLIP_THEME_LABELS[id] })),
     imageSources: {
       builtin: true,

@@ -1,5 +1,9 @@
 import { atom } from 'jotai';
-import type { TClipWizardEstimateResponse, TClipWizardImages } from 'librechat-data-provider';
+import type {
+  TClipWizardEstimateResponse,
+  TClipWizardImages,
+  TClipWizardPreviewResponse,
+} from 'librechat-data-provider';
 
 export const CLIP_WIZARD_STEPS = ['topic', 'settings', 'storyboard', 'preview', 'render'] as const;
 export type ClipWizardStep = (typeof CLIP_WIZARD_STEPS)[number];
@@ -61,6 +65,12 @@ export const clipWizardEstimateAtom = atom<{
   key: string;
   result: Extract<TClipWizardEstimateResponse, { ok: true }>;
 } | null>(null);
+/** The last preview with what it was made for, so an edit or a changed setting makes it stale */
+export const clipWizardPreviewAtom = atom<{
+  storyboard: ClipWizardStoryboardState;
+  key: string;
+  result: TClipWizardPreviewResponse;
+} | null>(null);
 export const clipWizardJobIdAtom = atom<string | null>(null);
 
 /** Back to a blank wizard. */
@@ -75,5 +85,6 @@ export const resetClipWizardAtom = atom(null, (_get, set) => {
   set(clipWizardChatAtom, []);
   set(clipWizardCheckedAtom, null);
   set(clipWizardEstimateAtom, null);
+  set(clipWizardPreviewAtom, null);
   set(clipWizardJobIdAtom, null);
 });

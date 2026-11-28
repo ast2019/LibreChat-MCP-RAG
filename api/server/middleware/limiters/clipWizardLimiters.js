@@ -6,6 +6,8 @@ const {
   CLIP_WIZARD_MAX = 60,
   CLIP_WIZARD_SAMPLE_WINDOW = 10,
   CLIP_WIZARD_SAMPLE_MAX = 10,
+  CLIP_WIZARD_PREVIEW_WINDOW = 10,
+  CLIP_WIZARD_PREVIEW_MAX = 20,
   CLIP_WIZARD_LLM_WINDOW = 10,
   CLIP_WIZARD_LLM_MAX = 20,
 } = process.env;
@@ -34,6 +36,18 @@ const clipWizardSampleLimiter = rateLimit({
   store: limiterCache('clip_wizard_sample_limiter'),
 });
 
+/**
+ * A tighter cap for key-frame previews: each one occupies the render worker's single preview
+ * slot for up to `previewTimeoutSec`.
+ */
+const clipWizardPreviewLimiter = rateLimit({
+  windowMs: CLIP_WIZARD_PREVIEW_WINDOW * 60 * 1000,
+  max: CLIP_WIZARD_PREVIEW_MAX,
+  handler: limited,
+  keyGenerator: byUser,
+  store: limiterCache('clip_wizard_preview_limiter'),
+});
+
 /** A tighter cap for the model calls (draft and chat): each one is a paid provider call. */
 const clipWizardLlmLimiter = rateLimit({
   windowMs: CLIP_WIZARD_LLM_WINDOW * 60 * 1000,
@@ -43,4 +57,9 @@ const clipWizardLlmLimiter = rateLimit({
   store: limiterCache('clip_wizard_llm_limiter'),
 });
 
-module.exports = { clipWizardLimiter, clipWizardSampleLimiter, clipWizardLlmLimiter };
+module.exports = {
+  clipWizardLimiter,
+  clipWizardSampleLimiter,
+  clipWizardPreviewLimiter,
+  clipWizardLlmLimiter,
+};

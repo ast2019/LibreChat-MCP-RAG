@@ -17,6 +17,7 @@ const mockEstimate = jest.fn();
 const mockModel = jest.fn();
 jest.mock('~/data-provider', () => ({
   useValidateClipStoryboardMutation: () => ({ mutate: mockValidate, isLoading: false }),
+  useClipStyleSampleQuery: () => ({ data: undefined, isLoading: false }),
   useEstimateClipWizardMutation: () => ({ mutate: mockEstimate, isLoading: false }),
   useDraftClipWizardMutation: () => ({ mutate: mockModel }),
   useChatClipWizardMutation: () => ({ mutate: mockModel }),

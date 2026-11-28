@@ -19,6 +19,7 @@ jest.mock('@librechat/client', () =>
 const mockEstimate = jest.fn();
 jest.mock('~/data-provider', () => ({
   useDraftClipWizardMutation: () => ({ mutate: jest.fn(), isLoading: false }),
+  useClipStyleSampleQuery: () => ({ data: undefined, isLoading: false }),
   useEstimateClipWizardMutation: () => ({ mutate: mockEstimate, isLoading: false }),
   useValidateClipStoryboardMutation: () => ({ mutate: mockValidate, isLoading: false }),
   useStartClipRenderMutation: () => ({ mutate: mockStart, isLoading: false }),

@@ -3,9 +3,9 @@ import type { SpeechProviderClient } from '~/speech/types';
 import type { MediaBilling } from '~/media/billing';
 import type { ServerRequest } from '~/types';
 import { createClipNarrationService } from '../narration';
+import { SAMPLE_RETRY_MS, SAMPLE_TEXT } from './sample';
 import { RemotionServiceError } from '../client';
 import { createClipWizard } from './index';
-import { SAMPLE_RETRY_MS, SAMPLE_TEXT } from './sample';
 
 const ENV = {
   REMOTION_SERVICE_URL: 'http://remotion:3200',
@@ -161,6 +161,10 @@ function setup({
   const wizard = createClipWizard({
     voiceSamples,
     speakEdge,
+    stills: jest.fn(async () => ({
+      stills: [{ frame: 1, mime: 'image/jpeg', base64: 'AAAA' }],
+      warnings: [],
+    })),
     createMediaJob,
     countPendingMediaJobs: jest.fn(async () => pending),
     findBalanceByUser: async () => ({ packId }),
@@ -402,7 +406,9 @@ describe('wizard voice sample', () => {
     /** both paid voices failed (bad token) and were skipped; the Edge voice was still made */
     expect(speechClient.synthesize).toHaveBeenCalledTimes(2);
     expect(speakEdge).toHaveBeenCalledTimes(1);
-    expect([...stored.keys()]).toEqual(['edge|fa-IR-DilaraNeural|fa']);
+    expect([...stored.keys()].filter((key) => !key.startsWith('theme|'))).toEqual([
+      'edge|fa-IR-DilaraNeural|fa',
+    ]);
   });
 });
 
