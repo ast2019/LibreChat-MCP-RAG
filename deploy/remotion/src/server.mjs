@@ -1010,6 +1010,26 @@ export function createServer({
     uptimeSec: Math.round((Date.now() - startedAt) / 1000),
   });
 
+  /** One short free (Edge) line as an mp3, for the api's voice samples; nothing is kept. */
+  const speakSample = async (body) => {
+    const text = typeof body?.text === 'string' ? body.text.trim() : '';
+    const lang = body?.lang === 'fa' ? 'fa' : 'en';
+    if (!text || text.length > 300) {
+      throw Object.assign(new Error('text must be 1 to 300 characters'), { code: 'invalid_request', status: 400 });
+    }
+    const workDir = await fs.mkdtemp(path.join(os.tmpdir(), WORK_DIR_PREFIX));
+    try {
+      const lines = await ttsImpl([{ narration: text }], pickVoice(body?.voice, lang), workDir, {});
+      if (!lines[0]?.file) {
+        throw new Error('tts returned no audio');
+      }
+      const audio = await fs.readFile(lines[0].file);
+      return { mime: 'audio/mpeg', base64: audio.toString('base64') };
+    } finally {
+      await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  };
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://remotion');
     try {
@@ -1077,6 +1097,10 @@ export function createServer({
         }
         diag.info('job.queued', { position: queue.position(job.id) + 1, timeoutMs: job.timeoutMs }, job.id);
         return send(res, 202, jobView(job, queue));
+      }
+      if (req.method === 'POST' && url.pathname === '/tts-sample') {
+        const body = await readBody(req, bodyLimit);
+        return send(res, 200, await speakSample(body));
       }
       if (req.method === 'POST' && url.pathname === '/stills') {
         const body = await readBody(req, bodyLimit);

@@ -38,11 +38,18 @@ export interface ClipWizard {
 }
 
 export function createClipWizard(deps: ClipWizardDeps): ClipWizard {
-  const sample = createVoiceSampler();
+  const sampler = createVoiceSampler();
   return {
-    config: (req: ServerRequest) => getWizardConfig(req, deps),
+    config: async (req: ServerRequest) => {
+      const reply = await getWizardConfig(req, deps);
+      if (reply.status === 200) {
+        /** Not awaited: the samples are made in the background and never fail the request. */
+        void sampler.warm(req, deps);
+      }
+      return reply;
+    },
     validate: (req: ServerRequest) => validateWizardStoryboard(req, deps),
-    voiceSample: (req: ServerRequest) => sample(req, deps),
+    voiceSample: (req: ServerRequest) => sampler.sample(req, deps),
     render: (req: ServerRequest) => startWizardRender(req, deps),
     draft: (req: ServerRequest) => draftStoryboard(req, deps),
     chat: (req: ServerRequest) => chatStoryboard(req, deps),

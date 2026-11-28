@@ -51,7 +51,7 @@ export function wizardConfigBody(
         ...(entry.provider === 'openrouter' && entry.estimateUsdPerKChar != null
           ? { estimateUsdPerKChar: entry.estimateUsdPerKChar }
           : {}),
-        hasSample: entry.provider === 'openrouter',
+        hasSample: true,
       })),
     models: capabilities.models,
     defaultModelId: capabilities.models[0]?.id ?? null,

@@ -90,3 +90,19 @@ describe('createRemotionServiceClient', () => {
     expect((fetchImpl as unknown as jest.Mock).mock.calls[0][0]).toBe('http://remotion:3200/jobs/abc123def456/video');
   });
 });
+
+describe('speak', () => {
+  it('posts the line to /tts-sample and returns the audio', async () => {
+    const fetchImpl = respond(200, { ok: true, mime: 'audio/mpeg', base64: 'AAAA' });
+    const client = createRemotionServiceClient(target, fetchImpl);
+    await expect(client.speak({ text: 'hi', lang: 'en' })).resolves.toEqual({ mime: 'audio/mpeg', base64: 'AAAA' });
+    const [url, init] = (fetchImpl as unknown as jest.Mock).mock.calls[0];
+    expect(url).toBe('http://remotion:3200/tts-sample');
+    expect(init.method).toBe('POST');
+  });
+
+  it('fails when the worker answers without audio', async () => {
+    const client = createRemotionServiceClient(target, respond(200, { ok: true }));
+    await expect(client.speak({ text: 'hi', lang: 'en' })).rejects.toMatchObject({ code: 'failed' });
+  });
+});

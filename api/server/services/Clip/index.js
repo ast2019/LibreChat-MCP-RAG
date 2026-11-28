@@ -72,6 +72,8 @@ const clipWizard = createClipWizard({
   images,
   narration,
   llm,
+  /** Voice samples are made once for everyone and kept across restarts. */
+  voiceSamples: { find: db.findClipVoiceSample, save: db.saveClipVoiceSample },
 });
 
 /** The job owner as a request, for loading their files and saving the clip. */

@@ -605,7 +605,7 @@ clipTools:
   # opens the page to all signed-in users (a paid voice or AI image still checks media access).
   wizard:
     enabled: true
-    access: 'pack'
+    access: 'everyone'
     # Storyboard drafting and chat edits (billed from credit at the chat token rates of this
     # endpoint; the Claude time pack is never used). The model list is the user's modelSpecs.
     llm:
@@ -620,8 +620,8 @@ clipTools:
     images:
       enabled: false
       maxCreditsPerClip: 0
-    # Who pays the first sample of a voice: 'requester' (default) or 'platform' (free for the user).
-    sampleCharge: 'requester'
+    # Voice samples (every voice, Edge included) are made once at the platform's cost, stored in
+    # the database and never charged to a user. `sampleCharge` is deprecated and ignored.
   # Narration voices. The user picks one by label; the first entry of the clip's language is the
   # default, so the paid ElevenLabs v3 voices come first. `openrouter` entries speak through
   # media.speech (provider and key), are made per scene in the API and charged like AI images.

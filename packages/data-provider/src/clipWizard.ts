@@ -53,8 +53,11 @@ export const clipWizardConfigSchema = z.object({
       maxCreditsPerClip: z.number().int().min(0).max(100_000_000).default(0),
     })
     .default({}),
-  /** Who pays for a voice sample: the user who asked first, or nobody (the platform) */
-  sampleCharge: z.enum(['platform', 'requester']).default('requester'),
+  /**
+   * Deprecated and ignored: voice samples are always pre-generated at the platform's cost and
+   * never charged to a user. Kept so existing configs still parse.
+   */
+  sampleCharge: z.enum(['platform', 'requester']).default('platform'),
 });
 
 export type TClipWizardSettings = z.infer<typeof clipWizardConfigSchema>;
@@ -69,7 +72,7 @@ export const clipWizardVoiceSchema = z.object({
   priceHint: z.enum(['free', 'paid']),
   /** Only paid voices: USD per 1000 characters when the catalogue sets one */
   estimateUsdPerKChar: z.number().optional(),
-  /** Whether the voice has a sample to play (paid voices only) */
+  /** Whether the voice has a sample to play (every voice, free Edge voices included) */
   hasSample: z.boolean(),
 });
 

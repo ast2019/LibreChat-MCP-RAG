@@ -490,7 +490,8 @@ describe('clip job runner', () => {
       expect(narration.refund).toHaveBeenCalledTimes(1);
       await runner.step(stored);
       expect(narration.refund).toHaveBeenCalledTimes(1);
-      expect(last(updates)).toMatchObject({ status: 'failed', chargedCredits: 60_000 });
+      /** The refund was recorded before the crash, so nothing is owed after the retry. */
+      expect(last(updates)).toMatchObject({ status: 'failed', chargedCredits: 0, payload: null });
     });
 
     it('refunds AI image credits too, through the image service', async () => {
@@ -535,6 +536,54 @@ describe('clip job runner', () => {
       const runner = createClipJobRunner({ ...deps, narration });
       await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
       expect(last(updates)).toMatchObject({ errorCode: 'narration_failed', chargedCredits: 60_000 });
+    });
+
+    it('saves each refunded amount at once, so a crash before the final write cannot owe it twice', async () => {
+      const { deps, updates } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+        refund: jest.fn(async () => false),
+      };
+      const charged = { ...spoken, aiCredits: 40_000, narrationCredits: 60_000 };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: charged as unknown as Record<string, unknown> }));
+      const saved = updates.find(
+        (u) => (u.payload as { refundedCredits?: unknown } | null)?.refundedCredits !== undefined,
+      );
+      expect(saved?.payload).toMatchObject({ refundedCredits: { aiCredits: 40_000 } });
+      expect(
+        (saved?.payload as { refundedCredits: Record<string, number> }).refundedCredits.narrationCredits,
+      ).toBeUndefined();
+    });
+
+    it('owes only what was not refunded when the retry finds a refund marker', async () => {
+      const { deps, updates, images } = setup({ submit: jest.fn() });
+      const narration = {
+        ...narrationService(),
+        generate: jest.fn(async () => {
+          throw new Error('down');
+        }),
+      };
+      const crashed = {
+        ...spoken,
+        aiCredits: 40_000,
+        narrationCredits: 60_000,
+        refundStarted: true,
+        refundedCredits: { aiCredits: 40_000 },
+      };
+      const runner = createClipJobRunner({ ...deps, narration });
+      await runner.step(job({ payload: crashed as unknown as Record<string, unknown> }));
+      expect(images.refund).not.toHaveBeenCalled();
+      expect(narration.refund).not.toHaveBeenCalled();
+      expect(last(updates)).toMatchObject({
+        status: 'failed',
+        chargedCredits: 60_000,
+        payload: { refundOwed: { narrationCredits: 60_000 } },
+      });
+      expect((last(updates).payload as { refundOwed: Record<string, number> }).refundOwed.aiCredits).toBeUndefined();
     });
 
     it('lists only the kind whose refund failed as owed, not the one that was refunded', async () => {

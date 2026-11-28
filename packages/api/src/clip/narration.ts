@@ -61,7 +61,7 @@ export interface ClipNarrationService {
     options?: {
       conversationId?: string;
       jobId?: string;
-      /** `false` makes the line at the platform's cost: nothing is held or charged to the user */
+      /** `false` makes the line at the platform's cost: no access check, nothing held or charged to the user */
       chargeUser?: boolean;
       /** Awaited before each ledger write with the credits recorded for the line so far, including this piece */
       beforeRecord?: (credits: number) => Promise<void>;
@@ -250,7 +250,8 @@ export function createClipNarrationService(deps: ClipNarrationServiceDeps): Clip
       if (!s) {
         return { ok: false, code: 'unconfigured' };
       }
-      if (!(await access(req, s.config)).ok) {
+      /** A platform-paid line (a voice sample) is not the user's spend, so their pack does not gate it. */
+      if (options.chargeUser !== false && !(await access(req, s.config)).ok) {
         return { ok: false, code: 'not_allowed' };
       }
       const target = {
