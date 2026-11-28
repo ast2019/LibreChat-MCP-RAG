@@ -206,6 +206,8 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
     } catch (error) {
       logger.error(`[clip] refund could not load the owner job=${job.id}`, getSafeErrorMetadata(error));
     }
+    /** Marker writes run one after another, each with every marker so far, so none can be lost. */
+    let markerWrites: Promise<unknown> = Promise.resolve();
     const settle = async (
       credits: number,
       kind: 'image' | 'narration',
@@ -218,10 +220,14 @@ export function createClipJobRunner(deps: ClipJobRunnerDeps): {
         if (req && (await refund(req)) === true) {
           refunded[kind === 'image' ? 'aiCredits' : 'narrationCredits'] = credits;
           /** Saved at once: a crash before the final write must not owe this amount again. */
-          job.payload = { ...payload, refundStarted: true, refundedCredits: { ...refunded } } as unknown as Record<string, unknown>;
-          await deps.updateMediaJob(job.id, { payload: job.payload }).catch((error: unknown) => {
-            logger.error(`[clip] refund marker not saved job=${job.id}`, getSafeErrorMetadata(error));
+          const write = markerWrites.then(async () => {
+            job.payload = { ...payload, refundStarted: true, refundedCredits: { ...refunded } } as unknown as Record<string, unknown>;
+            await deps.updateMediaJob(job.id, { payload: job.payload }).catch((error: unknown) => {
+              logger.error(`[clip] refund marker not saved job=${job.id}`, getSafeErrorMetadata(error));
+            });
           });
+          markerWrites = write;
+          await write;
           return true;
         }
       } catch (error) {

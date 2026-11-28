@@ -33,6 +33,7 @@ describe('clip wizard rate limits', () => {
     process.env.CLIP_WIZARD_SAMPLE_MAX = '2';
     process.env.CLIP_WIZARD_LLM_MAX = '2';
     process.env.CLIP_WIZARD_PREVIEW_MAX = '2';
+    process.env.CLIP_WIZARD_STYLE_MAX = '3';
     Object.values(mockWizard).forEach((fn) => fn.mockClear());
     app = express();
     app.use(express.json());
@@ -44,6 +45,7 @@ describe('clip wizard rate limits', () => {
     delete process.env.CLIP_WIZARD_SAMPLE_MAX;
     delete process.env.CLIP_WIZARD_LLM_MAX;
     delete process.env.CLIP_WIZARD_PREVIEW_MAX;
+    delete process.env.CLIP_WIZARD_STYLE_MAX;
   });
 
   it('answers 429 rate_limited on voice-sample past its cap, without calling the provider path', async () => {
@@ -79,7 +81,7 @@ describe('clip wizard rate limits', () => {
     expect(mockWizard.chat).toHaveBeenCalledTimes(1);
   });
 
-  it('caps previews per user before the worker is called, and serves style samples under the general cap only', async () => {
+  it('caps previews per user before the worker is called, and caps style samples with their own limiter', async () => {
     const preview = () => request(app).post('/api/clip/wizard/preview').send({});
     expect((await preview()).status).toBe(200);
     expect((await preview()).status).toBe(200);
@@ -87,9 +89,14 @@ describe('clip wizard rate limits', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.body).toEqual({ error: { code: 'rate_limited' } });
     expect(mockWizard.preview).toHaveBeenCalledTimes(2);
-    const style = () => request(app).post('/api/clip/wizard/style-sample').send({});
+    const style = () =>
+      request(app).post('/api/clip/wizard/style-sample').set('x-user', 'style-user').send({});
     expect((await style()).status).toBe(200);
     expect((await style()).status).toBe(200);
-    expect(mockWizard.styleSample).toHaveBeenCalledTimes(2);
+    expect((await style()).status).toBe(200);
+    const styleBlocked = await style();
+    expect(styleBlocked.status).toBe(429);
+    expect(styleBlocked.body).toEqual({ error: { code: 'rate_limited' } });
+    expect(mockWizard.styleSample).toHaveBeenCalledTimes(3);
   });
 });

@@ -8,6 +8,8 @@ const {
   CLIP_WIZARD_SAMPLE_MAX = 10,
   CLIP_WIZARD_PREVIEW_WINDOW = 10,
   CLIP_WIZARD_PREVIEW_MAX = 20,
+  CLIP_WIZARD_STYLE_WINDOW = 10,
+  CLIP_WIZARD_STYLE_MAX = 60,
   CLIP_WIZARD_LLM_WINDOW = 10,
   CLIP_WIZARD_LLM_MAX = 20,
 } = process.env;
@@ -48,6 +50,18 @@ const clipWizardPreviewLimiter = rateLimit({
   store: limiterCache('clip_wizard_preview_limiter'),
 });
 
+/**
+ * A cap for style sample pictures: a cold theme render holds the worker's single preview slot
+ * (shared with key-frame previews). Cached hits are cheap, so the cap fits a full theme grid.
+ */
+const clipWizardStyleLimiter = rateLimit({
+  windowMs: CLIP_WIZARD_STYLE_WINDOW * 60 * 1000,
+  max: CLIP_WIZARD_STYLE_MAX,
+  handler: limited,
+  keyGenerator: byUser,
+  store: limiterCache('clip_wizard_style_limiter'),
+});
+
 /** A tighter cap for the model calls (draft and chat): each one is a paid provider call. */
 const clipWizardLlmLimiter = rateLimit({
   windowMs: CLIP_WIZARD_LLM_WINDOW * 60 * 1000,
@@ -61,5 +75,6 @@ module.exports = {
   clipWizardLimiter,
   clipWizardSampleLimiter,
   clipWizardPreviewLimiter,
+  clipWizardStyleLimiter,
   clipWizardLlmLimiter,
 };
