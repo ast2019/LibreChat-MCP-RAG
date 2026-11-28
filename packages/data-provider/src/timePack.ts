@@ -6,6 +6,7 @@ import {
   DEFAULT_TIME_PACK_REQUESTS_PER_MINUTE,
   DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE,
   DEFAULT_TIME_PACK_RATE_WAIT_MS,
+  DEFAULT_TIME_PACK_EMPTY_RETRY_MIN_CHARS,
   DEFAULT_TIME_PACK_REDIS_FAILURE,
   DEFAULT_TIME_PACK_LEASE_SECONDS,
   DEFAULT_TIME_PACK_REST_MINUTES,
@@ -48,6 +49,9 @@ export function resolveTimePackRuntime(
     userSharePerMinute: config?.userSharePerMinute ?? DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE,
     rateWaitMs: config?.rateWaitMs ?? DEFAULT_TIME_PACK_RATE_WAIT_MS,
     redisFailure: config?.redisFailure ?? DEFAULT_TIME_PACK_REDIS_FAILURE,
+    emptyRetry: config?.emptyRetry ?? false,
+    emptyRetryMinChars: config?.emptyRetryMinChars ?? DEFAULT_TIME_PACK_EMPTY_RETRY_MIN_CHARS,
+    sideModel: config?.sideModel?.trim() ?? '',
   };
 }
 

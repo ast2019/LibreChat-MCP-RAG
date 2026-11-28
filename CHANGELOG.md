@@ -7,6 +7,23 @@ LibreChat versions are tracked separately in `package.json`.
 
 ## [Unreleased]
 
+## [0.40.20] - 2026-11-29
+
+### Fixed
+- **Empty ClaudeTime replies.** With `balance.timePack.emptyRetry: true` a time-pack turn whose
+  reply has no tool call and fewer than `emptyRetryMinChars` visible characters is run once more.
+  The seat is released and taken again first (the shared request rate is charged again) and only
+  the second attempt is metered. If no seat is free the first reply is kept. Default is off in the
+  schema and on in `config/librechat.saas.yaml`.
+- **Side calls on a time pack.** With `balance.timePack.sideModel` (`claude-haiku-5-5` in the SaaS
+  config) the memory agent, summarization and title of a time-pack turn run on the pack's own
+  endpoint, so the pack meters them and they no longer spend credit or fail with `token_balance`.
+  A saved memory agent (`memory.agent.id`) keeps its configured model.
+- **Wrong "activate the plan" error.** The late entitlement recovery in `BaseClient` refused a
+  holder whose plan did not cover the endpoint with a bare `time_pack_required`, which showed the
+  "activate the plan" copy. It now carries `reason` (`plan_mismatch` or `no_entitlement`) like the
+  admission denial.
+
 ## [0.40.19] - 2026-11-29
 
 ### Added

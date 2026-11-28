@@ -177,6 +177,15 @@ balance:
     # How long a request waits for a slot of the shared allowance before it is refused.
     # The gateway queues its own traffic, so waiting is better than refusing.
     rateWaitMs: 15000
+    # A ClaudeTime reply that comes back empty (no tool call, no visible text; seen: ~30 s and
+    # 5 completion tokens) is run once more. The seat is released and taken again first, the shared
+    # request rate is charged again, and only the second attempt is metered.
+    emptyRetry: true
+    emptyRetryMinChars: 1
+    # Time-pack turns run their memory agent, summarization and title on this ClaudeTime model,
+    # so the pack meters them and they never spend credit (the memory agent below and the
+    # `summarization` model stay as configured for everyone else).
+    sideModel: 'claude-haiku-5-5'
   # Where the "Buy a pack" button of the 90%-used warning links (no payment gateway yet,
   # e.g. a contact/Telegram page). Leave unset to show the warning without a button.
   # purchaseUrl: 'https://example.com/buy'
