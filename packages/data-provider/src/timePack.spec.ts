@@ -147,4 +147,17 @@ describe('timePack helpers', () => {
     expect(timePackRuntimeSchema.safeParse({ redisFailure: 'open' }).success).toBe(false);
     expect(timePackRuntimeSchema.safeParse({ leaseSeconds: 5 }).success).toBe(false);
   });
+
+  it('keeps the empty-reply retry and the side model off by default', () => {
+    expect(resolveTimePackRuntime(undefined)).toMatchObject({
+      emptyRetry: false,
+      emptyRetryMinChars: 1,
+      sideModel: '',
+    });
+    expect(timePackRuntimeSchema.parse({})).toMatchObject({ emptyRetry: false, sideModel: '' });
+    expect(
+      resolveTimePackRuntime({ emptyRetry: true, sideModel: ' claude-haiku-5-5 ' }),
+    ).toMatchObject({ emptyRetry: true, sideModel: 'claude-haiku-5-5' });
+    expect(timePackRuntimeSchema.safeParse({ emptyRetryMinChars: 0 }).success).toBe(false);
+  });
 });

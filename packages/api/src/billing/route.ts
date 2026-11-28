@@ -383,3 +383,44 @@ export async function resolveTimePackTarget({
       null,
   };
 }
+
+/**
+ * The entitlement a time-pack endpoint turn runs under when admission missed it, or the
+ * `time_pack_required` payload to refuse with. A holder whose plan does not cover the turn's
+ * endpoint gets `plan_mismatch` (the plan is active, activating it is wrong advice), and a user
+ * without a plan gets `no_entitlement`, the same reasons the admission denial reports.
+ */
+export function resolveTimePackRecovery({
+  user,
+  endpoint,
+  config,
+}: {
+  user?: TimePackAdmitUser | null;
+  endpoint: string;
+  config?: TimePackConfigLike | null;
+}):
+  | { ok: true; entitlement: TimePackEntitlement }
+  | {
+      ok: false;
+      error: {
+        type: ErrorTypes.TIME_PACK_REQUIRED;
+        code: ErrorTypes.TIME_PACK_REQUIRED;
+        reason: 'no_entitlement' | 'plan_mismatch';
+      };
+    } {
+  const entitlement = canonicalizeTimePackEntitlement(
+    getActiveTimePackEntitlement(user ?? undefined),
+    config,
+  );
+  if (entitlement != null && endpoint === entitlement.timePackEndpoint) {
+    return { ok: true, entitlement };
+  }
+  return {
+    ok: false,
+    error: {
+      type: ErrorTypes.TIME_PACK_REQUIRED,
+      code: ErrorTypes.TIME_PACK_REQUIRED,
+      reason: entitlement == null ? 'no_entitlement' : 'plan_mismatch',
+    },
+  };
+}

@@ -25,7 +25,7 @@ const {
   withBalanceReservations,
   createOffPackBalanceGate,
   isConfiguredTimePackEndpoint,
-  canonicalizeTimePackEntitlement,
+  resolveTimePackRecovery,
   findCheckpointSummaryPart,
   getSummaryPartText,
   resolveCheckpointMessage,
@@ -1030,6 +1030,7 @@ class BaseClient {
         user: this.user,
         entitlement,
         balanceConfig,
+        timePack: appConfig?.balance?.timePack,
         reservations: balanceReservations,
         deps: balanceDeps,
         countTokens,
@@ -1058,18 +1059,16 @@ class BaseClient {
          * so generation does not false-deny with `time_pack_required`; credit Claude is
          * unchanged because this branch only runs for configured time-pack endpoints.
          */
-        const { getActiveTimePackEntitlement } = require('librechat-data-provider');
-        const liveEntitlement = canonicalizeTimePackEntitlement(
-          getActiveTimePackEntitlement(this.options.req?.user),
-          appConfig,
-        );
         /** Endpoint match is enough for recovery: model allowlists were (or will be) enforced
          *  on the admit path; requiring the model id here false-denied holders when
          *  `modelOptions` was still empty at reservation time. */
-        if (
-          liveEntitlement != null &&
-          timePackBillingEndpoint === liveEntitlement.timePackEndpoint
-        ) {
+        const recovery = resolveTimePackRecovery({
+          user: this.options.req?.user,
+          endpoint: timePackBillingEndpoint,
+          config: appConfig,
+        });
+        if (recovery.ok) {
+          const liveEntitlement = recovery.entitlement;
           this.options.req._timePackEntitlement = liveEntitlement;
           this.offPackBalance = buildOffPackBalanceGate(liveEntitlement);
           this.options.req._offPackBalance = this.offPackBalance;
@@ -1082,12 +1081,7 @@ class BaseClient {
             },
           );
         } else {
-          throw new Error(
-            JSON.stringify({
-              type: ErrorTypes.TIME_PACK_REQUIRED,
-              code: ErrorTypes.TIME_PACK_REQUIRED,
-            }),
-          );
+          throw new Error(JSON.stringify(recovery.error));
         }
       }
       if (

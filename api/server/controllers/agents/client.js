@@ -34,6 +34,11 @@ const {
   withOffPackBalance,
   getOffPackRefusalText,
   createOffPackMemoryAdmission,
+  resolveTimePackSideModel,
+  applyTimePackSideModelToMemoryAgent,
+  runWithEmptyRetry,
+  admitTimePackForRequest,
+  abortTimePackLease,
   collectAgentEndpoints,
   toUsageEndpoint,
   addTimePackMeteredCredits,
@@ -3396,6 +3401,11 @@ class AgentClient extends BaseClient {
       }
     }
 
+    /** A time-pack turn runs its memory model on the pack's endpoint, so the pack meters it. */
+    const sideModel = resolveTimePackSideModel({
+      entitlement: this.options.req?._timePackEntitlement,
+      timePack: appConfig?.balance?.timePack,
+    });
     /** @type {Agent} */
     let prelimAgent;
     const allowedProviders = new Set(
@@ -3415,7 +3425,10 @@ class AgentClient extends BaseClient {
         memoryConfig.agent?.model != null &&
         memoryConfig.agent?.provider != null
       ) {
-        prelimAgent = { id: Constants.EPHEMERAL_AGENT_ID, ...memoryConfig.agent };
+        prelimAgent = applyTimePackSideModelToMemoryAgent(
+          { id: Constants.EPHEMERAL_AGENT_ID, ...memoryConfig.agent },
+          sideModel,
+        );
       }
     } catch (error) {
       logger.error(
@@ -3427,6 +3440,8 @@ class AgentClient extends BaseClient {
     if (!prelimAgent) {
       return;
     }
+    /** Set when the memory model runs on the pack's endpoint (the inline config was moved). */
+    const memorySide = prelimAgent.provider === sideModel?.endpoint ? sideModel : null;
 
     /** Forward the same `execute_code` capability gate the chat flow uses —
      *  memory agents are unlikely to list `execute_code`, but if one does,
@@ -3544,10 +3559,12 @@ class AgentClient extends BaseClient {
           transactions: getTransactionsConfig(appConfig),
           endpointTokenConfig: agent.endpointTokenConfig,
           crossEndpoint: true,
+          ...(memorySide != null && { usageEndpoint: memorySide.endpoint }),
           updateStreamUsage: false,
         }),
-      /** A time-pack turn pays for the memory model; without the credits memory is skipped. */
-      admit: createOffPackMemoryAdmission(() => this.offPackBalance, agent),
+      /** An off-pack memory model of a time-pack turn is paid for; without the credits memory is
+       *  skipped. On the pack's own endpoint (`sideModel`) it is metered instead. */
+      admit: createOffPackMemoryAdmission(() => this.offPackBalance, agent, memorySide),
     });
 
     this.processMemory = processMemory;
@@ -5065,7 +5082,7 @@ class AgentClient extends BaseClient {
       /**
        * @param {BaseMessage[]} messages
        */
-      const runAgents = async (messages) => {
+      const runAgents = async (messages, isRetry = false) => {
         const agents = [this.options.agent];
         // Include additional agents when:
         // - agentConfigs has agents (from addedConvo parallel execution or agent handoffs)
@@ -5084,7 +5101,7 @@ class AgentClient extends BaseClient {
         );
         config = withPrivateTextAdmissionConfig(config, initialModelBoundAdmission);
 
-        if (this.processMemory && !isCompactionTurn) {
+        if (this.processMemory && !isCompactionTurn && !isRetry) {
           memoryPromise = this.runMemory(memoryMessages);
         }
 
@@ -5318,7 +5335,36 @@ class AgentClient extends BaseClient {
       };
 
       this.options.startupTelemetry?.mark('run_input_prepared');
-      await runAgents(initialMessages);
+      const retryReq = this.options.req;
+      await runWithEmptyRetry({
+        req: retryReq,
+        timePack: appConfig?.balance?.timePack,
+        attempt: (isRetry) => runAgents(initialMessages, isRetry),
+        getContentParts: () => this.contentParts,
+        canRetry: () =>
+          retryReq?._resumableStreamId != null &&
+          !abortController.signal.aborted &&
+          this.pendingApproval == null &&
+          this.stagedApproval == null,
+        resetAttempt: () => {
+          this.contentParts.length = 0;
+          this.collectedUsage.length = 0;
+          this.stepMap?.clear();
+        },
+        releaseSeat: () =>
+          releaseAdmittedRequestSlot({
+            req: retryReq,
+            userId: retryReq?.user?.id,
+            decrementPendingRequest,
+          }),
+        reacquireSeat: () =>
+          admitTimePackForRequest(retryReq, {
+            endpoint: this.options.agent?.endpoint ?? this.options.endpoint,
+            model: this.options.agent?.model_parameters?.model ?? this.options.agent?.model,
+            leaseId: retryReq?._resumableStreamId,
+            abortLease: abortTimePackLease(GenerationJobManager),
+          }),
+      });
 
       /**
        * Surface a completed `skill` tool_call content part per *manually*-
@@ -6318,6 +6364,11 @@ class AgentClient extends BaseClient {
 
     if (titleConfig.titleModel && titleConfig.titleModel !== Constants.CURRENT_MODEL) {
       clientOptions.model = titleConfig.titleModel;
+    }
+    /** A time-pack turn titles with the pack's side model, so the title is metered, not charged. */
+    const titleSide = this.offPackBalance?.sideModel;
+    if (titleSide != null && endpoint === titleSide.endpoint) {
+      clientOptions.model = titleSide.model;
     }
 
     const options = await titleProviderConfig.getOptions({

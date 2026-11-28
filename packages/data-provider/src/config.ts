@@ -4138,6 +4138,8 @@ export const DEFAULT_TIME_PACK_USER_SHARE_PER_MINUTE = 20;
  * The gateway queues, so a short wait here turns a refusal into a slightly slower answer.
  */
 export const DEFAULT_TIME_PACK_RATE_WAIT_MS = 15_000;
+/** A time-pack reply with fewer visible characters than this counts as empty (see `emptyRetry`). */
+export const DEFAULT_TIME_PACK_EMPTY_RETRY_MIN_CHARS = 1;
 /**
  * What seat admission does when Redis errors: `memory` admits against this process's own pool
  * (exact for a single api instance, at most `maxSeats` per instance otherwise); `reject` refuses
@@ -4211,6 +4213,27 @@ export const timePackRuntimeSchema = z.object({
     .enum(TIME_PACK_REDIS_FAILURE_MODES)
     .optional()
     .default(DEFAULT_TIME_PACK_REDIS_FAILURE),
+  /**
+   * With `true`, a time-pack turn whose gateway reply comes back empty (no tool call and fewer
+   * than `emptyRetryMinChars` visible characters) is run once more: the seat is released and
+   * taken again first, the shared request rate is charged again, and only the second attempt's
+   * usage is metered. Off by default, which keeps the single attempt.
+   */
+  emptyRetry: z.boolean().optional().default(false),
+  /** Visible characters (trimmed) below which a reply counts as empty for `emptyRetry`. */
+  emptyRetryMinChars: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(DEFAULT_TIME_PACK_EMPTY_RETRY_MIN_CHARS),
+  /**
+   * Model on the pack's own endpoint that runs the side calls of a time-pack turn (the memory
+   * agent, summarization and the title), so they are metered by the pack and never spend
+   * credit. Empty keeps each side call on its configured model and endpoint.
+   */
+  sideModel: z.string().optional().default(''),
 });
 
 export type TTimePackRuntime = z.infer<typeof timePackRuntimeSchema>;

@@ -2,7 +2,7 @@ import { logger } from '@librechat/data-schemas';
 import { StreamLimitExceededError } from '@librechat/agents';
 import { ViolationTypes, isTimePackClaudeRequest } from 'librechat-data-provider';
 import type { BaseMessage } from '@librechat/agents/langchain/messages';
-import type { TimePackEntitlement } from 'librechat-data-provider';
+import type { TimePackEntitlement, TTimePackRuntime } from 'librechat-data-provider';
 import type { BalanceConfig } from '@librechat/data-schemas';
 import type { HookCallback } from '@librechat/agents';
 import type { Response } from 'express';
@@ -12,8 +12,10 @@ import type {
   BalanceReservations,
 } from '~/middleware/checkBalance';
 import type { ServerRequest } from '~/types/http';
+import type { TimePackSideModel } from './timePackSideCalls';
 import type { UsageEndpoint } from './usage';
 import { checkBalance } from '~/middleware/checkBalance';
+import { resolveTimePackSideModel } from './timePackSideCalls';
 import { toUsageEndpoint } from './usage';
 
 /**
@@ -58,6 +60,8 @@ export type OffPackBalanceGate = {
   checks: boolean;
   /** The turn's prompt tokens, the estimate for the run's top-level agents. */
   promptTokens: number;
+  /** The pack-covered model for the turn's side calls (`timePack.sideModel`), or null. */
+  sideModel?: TimePackSideModel | null;
   /** Whether the time pack covers the call; such calls are metered, not charged. */
   covers: (target: Pick<OffPackTarget, 'endpoint' | 'model' | 'usageEndpoint'>) => boolean;
   /**
@@ -97,6 +101,7 @@ export function createOffPackBalanceGate({
   user,
   entitlement,
   balanceConfig,
+  timePack,
   reservations,
   deps,
   countTokens,
@@ -107,6 +112,8 @@ export function createOffPackBalanceGate({
   user: string;
   entitlement?: TimePackEntitlement | null;
   balanceConfig?: BalanceConfig | null;
+  /** `balance.timePack`, read for `sideModel`. */
+  timePack?: Partial<TTimePackRuntime> | null;
   reservations?: BalanceReservations;
   deps: Omit<CheckBalanceDeps, 'balanceConfig'>;
   countTokens: OffPackCountTokens;
@@ -157,7 +164,8 @@ export function createOffPackBalanceGate({
     return { ok: true, covered: false, release: () => reservation.release() };
   };
 
-  return { checks, promptTokens, covers, admit };
+  const sideModel = resolveTimePackSideModel({ entitlement, timePack });
+  return { checks, promptTokens, sideModel, covers, admit };
 }
 
 type BalanceAgent = {
@@ -450,12 +458,15 @@ function messagesText(messages: readonly BaseMessage[]): string {
 
 /**
  * The memory agent's admission: its input priced at the memory model's rate. Memory usage is
- * recorded cross-endpoint and so always charged, never covered by the time pack. The gate is
+ * recorded cross-endpoint and so charged, unless it runs on the pack's own endpoint as the
+ * side model, where the pack meters it. The gate is
  * read when memory runs, since memory is prepared before the turn creates it.
  */
 export function createOffPackMemoryAdmission(
   getGate: () => OffPackBalanceGate | null | undefined,
   agent: BalanceAgent,
+  /** Set when the memory model runs on the pack's endpoint (`timePack.sideModel`): metered. */
+  side?: TimePackSideModel | null,
 ): (messages: readonly BaseMessage[]) => Promise<OffPackAdmission> {
   return async (messages) => {
     const gate = getGate();
@@ -464,7 +475,7 @@ export function createOffPackMemoryAdmission(
     }
     return gate.admit({
       ...agentTarget(agent),
-      usageEndpoint: null,
+      usageEndpoint: side != null ? side.endpoint : null,
       promptText: messagesText(messages),
     });
   };

@@ -8,11 +8,7 @@ import {
   admitTimePackForRequest,
   admitTimePackRequest,
 } from './admitTimePack';
-import {
-  isConfiguredTimePackEndpoint,
-  resolveTimePackRoute,
-  resolveTimePackTarget,
-} from './route';
+import { isConfiguredTimePackEndpoint, resolveTimePackRoute, resolveTimePackTarget } from './route';
 import { createTimePackRatePool } from './timeRate';
 import { createTimeSeatPool } from './timeSeats';
 
@@ -38,6 +34,9 @@ const balance: Partial<TBalanceConfig> = {
     userSharePerMinute: 20,
     rateWaitMs: 15_000,
     redisFailure: 'memory',
+    emptyRetry: false,
+    emptyRetryMinChars: 1,
+    sideModel: '',
   },
 };
 

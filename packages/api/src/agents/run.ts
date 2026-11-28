@@ -115,6 +115,7 @@ import {
 import { resolveToolApprovalPolicy, exemptAskUserQuestionFromApproval } from '~/agents/hitl/policy';
 import { applyCustomHandoffPromptKeyCompatibility } from '~/agents/handoffPromptKeyCompatibility';
 import { createSubagentBalanceHook, createOffPackSummarizationGuard } from '~/billing/offPack';
+import { applyTimePackSideModelToSummarization } from '~/billing/timePackSideCalls';
 import { stripIntentFromToolRegistry, stripIntentFromToolDefinitions } from '~/agents/intent';
 import { createAgentToolApprovalSession, bindRunToolApprovalSession } from './hitl/modes';
 import { resolveConfigHeaders, resolveModelHeaders, mergeHeaders } from '~/utils/headers';
@@ -2468,7 +2469,11 @@ export async function createRun({
 
     const modelParameters = normalizeAgentModelParameters(agent.model_parameters);
     const shapedSummarization = shapeSummarizationConfig(
-      agent.summarization ?? summarizationConfig,
+      applyTimePackSideModelToSummarization(
+        agent.summarization ?? summarizationConfig,
+        agent.endpoint,
+        offPackBalanceGate?.sideModel,
+      ),
       provider as string,
       selfModel,
       appConfig,
